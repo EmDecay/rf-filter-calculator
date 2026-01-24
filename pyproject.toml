@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rf-filter-calculator"
+version = "1.0.0"
+description = "Command-line tool for calculating LC filter component values"
+readme = "README.md"
+license = {text = "GPL-3.0"}
+authors = [
+    {name = "Matt N3AR"}
+]
+keywords = ["rf", "filter", "calculator", "lowpass", "highpass", "bandpass", "electronics", "ham-radio"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Other Audience",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (Eda)",
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+filter-calc = "filter_lib.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/rf-filter-calculator"
+Repository = "https://github.com/yourusername/rf-filter-calculator"
+Issues = "https://github.com/yourusername/rf-filter-calculator/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["filter_lib*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

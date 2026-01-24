@@ -180,4 +180,4 @@ GPL-3.0. See [LICENSE](LICENSE) for details.
 
 ## Author
 
-Matt N3AR
+Matt N3AR (with AI assistance)

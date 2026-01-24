@@ -1,0 +1,6 @@
+# RF Filter Calculator
+# No external runtime dependencies - uses Python standard library only
+
+# Development dependencies (optional)
+# pytest>=7.0
+# pytest-cov>=4.0
