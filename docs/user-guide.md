@@ -9,7 +9,7 @@ Complete reference for all commands, options, and features.
 | `lowpass` | `lp` | Pi topology low-pass filter |
 | `highpass` | `hp` | T topology high-pass filter |
 | `bandpass` | `bp` | Coupled resonator bandpass filter |
-| `wizard` | `w` | Interactive filter design |
+| *(no args)* | - | Interactive wizard (default) |
 
 ---
 
@@ -177,15 +177,14 @@ Two methods available (use one, not both):
 
 ---
 
-## Wizard Command
+## Interactive Wizard
 
-Interactive guided filter design with full access to all CLI options.
+Running with no arguments starts the interactive wizard for guided filter design.
 
 ### Syntax
 
 ```bash
-./filter-calc.py wizard
-./filter-calc.py w
+./filter-calc.py
 ```
 
 ### Design Parameters

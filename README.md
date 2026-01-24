@@ -24,6 +24,9 @@ chmod +x filter-calc.py
 ## Quick Start
 
 ```bash
+# Start interactive wizard (default when no arguments given)
+./filter-calc.py
+
 # 5th-order Butterworth lowpass at 10 MHz
 ./filter-calc.py lowpass butterworth 10MHz -n 5
 
@@ -32,9 +35,6 @@ chmod +x filter-calc.py
 
 # Bandpass for 20m amateur band (14.0-14.35 MHz)
 ./filter-calc.py bandpass butterworth top -f 14.175MHz -b 350kHz
-
-# Interactive wizard
-./filter-calc.py wizard
 ```
 
 ## Usage
@@ -105,11 +105,10 @@ chmod +x filter-calc.py
 ### Interactive Wizard
 
 ```bash
-./filter-calc.py wizard
-./filter-calc.py w
+./filter-calc.py
 ```
 
-Step-by-step guided design for all filter types. The wizard prompts for:
+Running with no arguments starts the interactive wizard. Step-by-step guided design for all filter types. The wizard prompts for:
 - Filter category (lowpass, highpass, bandpass)
 - Response type (Butterworth, Chebyshev, Bessel)
 - Frequency and bandwidth parameters

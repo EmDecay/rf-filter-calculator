@@ -2,9 +2,9 @@
 import argparse
 import sys
 
-from . import lowpass_cmd, highpass_cmd, bandpass_cmd, wizard_cmd
+from . import lowpass_cmd, highpass_cmd, bandpass_cmd
 
-__all__ = ['lowpass_cmd', 'highpass_cmd', 'bandpass_cmd', 'wizard_cmd', 'main']
+__all__ = ['lowpass_cmd', 'highpass_cmd', 'bandpass_cmd', 'main']
 
 
 def main():
@@ -15,20 +15,21 @@ def main():
   lowpass (lp)   Pi LC low-pass filter
   highpass (hp)  T LC high-pass filter
   bandpass (bp)  Coupled resonator bandpass filter
-  wizard (w)     Interactive filter design
+
+Run with no arguments to start the interactive wizard.
 
 Examples:
+  %(prog)s                              # Start interactive wizard
   %(prog)s lowpass butterworth 10MHz -n 5
   %(prog)s lp bw 10MHz --format json
   %(prog)s highpass bw 10MHz -n 5
   %(prog)s hp ch 10MHz -r 0.5
   %(prog)s bandpass bw top -f 14.2MHz -b 500kHz
-  %(prog)s bp ch shunt --fl 14MHz --fh 14.35MHz -n 7
-  %(prog)s wizard''',
+  %(prog)s bp ch shunt --fl 14MHz --fh 14.35MHz -n 7''',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
-    subparsers = parser.add_subparsers(dest='command', required=True)
+    subparsers = parser.add_subparsers(dest='command')
 
     lp_parser = subparsers.add_parser('lowpass', aliases=['lp'],
                                        help='Pi LC low-pass filter')
@@ -45,15 +46,15 @@ Examples:
     bandpass_cmd.setup_parser(bp_parser)
     bp_parser.set_defaults(func=bandpass_cmd.run)
 
-    wiz_parser = subparsers.add_parser('wizard', aliases=['w'],
-                                        help='Interactive filter design')
-    wizard_cmd.setup_parser(wiz_parser)
-    wiz_parser.set_defaults(func=wizard_cmd.run)
-
     args = parser.parse_args()
 
     try:
-        args.func(args)
+        # Default to wizard when no command given
+        if args.command is None:
+            from ..wizard import run_wizard
+            run_wizard()
+        else:
+            args.func(args)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

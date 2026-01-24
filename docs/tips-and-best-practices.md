@@ -168,7 +168,7 @@ Best for:
 ### Design Iteration
 
 1. Start with `--explain` to understand filter types
-2. Use wizard for unfamiliar designs
+2. Run with no arguments for the wizard if unfamiliar with designs
 3. Try different orders: `./filter-calc.py lp bw 10MHz -n 3` vs `-n 5`
 4. Compare Butterworth vs Chebyshev at same order
 5. Use `--plot` to visualize response

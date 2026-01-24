@@ -35,8 +35,10 @@
 ### Interactive Wizard
 
 ```bash
-./filter-calc.py wizard
+./filter-calc.py
 ```
+
+Running with no arguments starts the interactive wizard.
 
 ## Common Options
 
