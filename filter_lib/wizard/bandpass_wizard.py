@@ -3,9 +3,12 @@
 Interactive prompts for bandpass filter design with coupled resonators.
 """
 from ..shared.parsing import parse_frequency, parse_impedance
-from ..bandpass import calculate_bandpass_filter, display_results
+from ..bandpass import (calculate_bandpass_filter, display_results,
+                        generate_frequency_points, frequency_response,
+                        export_response_json, export_response_csv)
 from .prompts import (prompt_input, prompt_choice, prompt_filter_type,
-                      show_summary, validate_order, validate_ripple, prompt_show_plot)
+                      show_summary, validate_order, validate_ripple, prompt_show_plot,
+                      prompt_output_options)
 
 # Default values
 DEFAULT_IMPEDANCE = "50"
@@ -105,8 +108,31 @@ def run_bandpass_wizard() -> None:
                 filter_type=filter_type, coupling=coupling,
                 ripple_db=ripple if filter_type == 'chebyshev' else 0.5,
             )
-            show_plot = prompt_show_plot()
-            display_results(result, show_plot=show_plot)
+
+            # Output options
+            opts = prompt_output_options()
+            show_plot = prompt_show_plot() if not opts['plot_data'] else False
+
+            # Bandpass uses eseries=None to disable matching (no show_match param)
+            display_results(
+                result,
+                show_plot=show_plot,
+                raw=opts['raw'],
+                output_format=opts['format'],
+                quiet=opts['quiet'],
+                eseries=None if opts['no_match'] else opts['eseries'],
+            )
+
+            # Handle plot data export if requested
+            if opts['plot_data']:
+                freqs = generate_frequency_points(result['f0'], result['bw'])
+                response = frequency_response(result, freqs)
+                print("\n--- Frequency Response Data ---\n")
+                if opts['plot_data'] == 'json':
+                    print(export_response_json(freqs, response, result))
+                else:
+                    print(export_response_csv(freqs, response))
+
             break  # Exit loop after successful calculation
         except ValueError as e:
             print(f"\n  Error: {e}")

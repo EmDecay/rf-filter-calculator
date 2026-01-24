@@ -5,8 +5,37 @@ Reduces duplication between lowpass/highpass wizards which share identical flow.
 from typing import Callable, Any
 
 from ..shared.parsing import parse_frequency, parse_impedance
+from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from .prompts import (prompt_input, prompt_filter_type, show_summary,
-                      validate_order, validate_ripple, prompt_show_plot)
+                      validate_order, validate_ripple, prompt_show_plot,
+                      prompt_output_options)
+
+
+def _export_plot_data(filter_category: str, result: dict, export_format: str) -> None:
+    """Export frequency response plot data.
+
+    Args:
+        filter_category: 'lowpass' or 'highpass'
+        result: Filter calculation result dict
+        export_format: 'json' or 'csv'
+    """
+    if filter_category == 'lowpass':
+        from ..lowpass import (generate_frequency_points, frequency_response,
+                               export_response_json, export_response_csv)
+    else:
+        from ..highpass import (generate_frequency_points, frequency_response,
+                                export_response_json, export_response_csv)
+
+    freqs = generate_frequency_points(result['freq_hz'])
+    ripple = result.get('ripple') or DEFAULT_RIPPLE_DB
+    response = frequency_response(result['filter_type'], freqs,
+                                  result['freq_hz'], result['order'], ripple)
+
+    print("\n--- Frequency Response Data ---\n")
+    if export_format == 'json':
+        print(export_response_json(freqs, response, result))
+    else:
+        print(export_response_csv(freqs, response))
 
 # Default values
 DEFAULT_IMPEDANCE = "50"
@@ -91,6 +120,22 @@ def run_filter_wizard(
             ripple if filter_type == 'chebyshev' else None
         )
 
-        show_plot = prompt_show_plot()
-        display_results(result, show_plot=show_plot)
+        # Output options
+        opts = prompt_output_options()
+        show_plot = prompt_show_plot() if not opts['plot_data'] else False
+
+        display_results(
+            result,
+            show_plot=show_plot,
+            raw=opts['raw'],
+            output_format=opts['format'],
+            quiet=opts['quiet'],
+            eseries=opts['eseries'],
+            show_match=not opts['no_match'],
+        )
+
+        # Handle plot data export if requested
+        if opts['plot_data']:
+            _export_plot_data(filter_category, result, opts['plot_data'])
+
         break  # Exit loop after successful calculation

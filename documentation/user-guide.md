@@ -179,7 +179,7 @@ Two methods available (use one, not both):
 
 ## Wizard Command
 
-Interactive guided filter design.
+Interactive guided filter design with full access to all CLI options.
 
 ### Syntax
 
@@ -188,6 +188,8 @@ Interactive guided filter design.
 ./filter-calc.py w
 ```
 
+### Design Parameters
+
 The wizard prompts for:
 1. Filter category (lowpass, highpass, bandpass)
 2. Response type (Butterworth, Chebyshev, Bessel)
@@ -195,6 +197,29 @@ The wizard prompts for:
 4. Number of components/resonators
 5. Impedance
 6. Chebyshev ripple (if applicable)
+
+### Output Options
+
+After calculation, an output options screen lets you customize the display:
+
+```
+Select options (enter numbers separated by spaces, or press Enter for defaults):
+
+  [1] E12 series       - Use E12 component values (fewer choices, looser tolerance)
+  [2] E96 series       - Use E96 component values (more choices, tighter tolerance)
+  [3] No matching      - Show calculated values only (no E-series matching)
+  [4] Raw units        - Display in Farads/Henries instead of pF/nH/µH
+  [5] Quiet mode       - Minimal output (component values only)
+  [6] JSON output      - Output in JSON format
+  [7] CSV output       - Output in CSV format
+  [8] Export plot JSON - Export frequency response data as JSON
+  [9] Export plot CSV  - Export frequency response data as CSV
+
+Select options (e.g., '1 4' or Enter for defaults):
+```
+
+Enter space-separated numbers to combine options (e.g., `2 4` for E96 + raw units).
+Conflicting options (E12+E96, JSON+CSV) are validated and rejected.
 
 ---
 

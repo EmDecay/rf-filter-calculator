@@ -150,3 +150,77 @@ def prompt_show_plot() -> bool:
         default='y'
     )
     return choice == 'y'
+
+
+def prompt_output_options() -> dict:
+    """Prompt for output formatting options with checkboxes.
+
+    Returns:
+        Dict with keys: eseries, no_match, raw, quiet, format, plot_data
+    """
+    print("\n" + "-" * 50)
+    print("  Output Options")
+    print("-" * 50)
+    print("Select options (enter numbers separated by spaces, or press Enter for defaults):\n")
+
+    options = [
+        ('1', 'E12 series', 'Use E12 component values (fewer choices, looser tolerance)'),
+        ('2', 'E96 series', 'Use E96 component values (more choices, tighter tolerance)'),
+        ('3', 'No matching', 'Show calculated values only (no E-series matching)'),
+        ('4', 'Raw units', 'Display in Farads/Henries instead of pF/nH/µH'),
+        ('5', 'Quiet mode', 'Minimal output (component values only)'),
+        ('6', 'JSON output', 'Output in JSON format'),
+        ('7', 'CSV output', 'Output in CSV format'),
+        ('8', 'Export plot JSON', 'Export frequency response data as JSON'),
+        ('9', 'Export plot CSV', 'Export frequency response data as CSV'),
+    ]
+
+    for num, name, desc in options:
+        print(f"  [{num}] {name:15} - {desc}")
+
+    print(f"\n  Default: E24 series with matching, table format")
+
+    while True:
+        try:
+            raw_input = input("\nSelect options (e.g., '1 4' or Enter for defaults): ").strip()
+            if not raw_input:
+                # Return defaults
+                return {
+                    'eseries': 'E24',
+                    'no_match': False,
+                    'raw': False,
+                    'quiet': False,
+                    'format': 'table',
+                    'plot_data': None,
+                }
+
+            selected = set(raw_input.split())
+            invalid = selected - {'1', '2', '3', '4', '5', '6', '7', '8', '9'}
+            if invalid:
+                print(f"  Invalid option(s): {', '.join(invalid)}. Try again.")
+                continue
+
+            # Check for conflicts
+            if '1' in selected and '2' in selected:
+                print("  Cannot select both E12 and E96. Choose one.")
+                continue
+            if '6' in selected and '7' in selected:
+                print("  Cannot select both JSON and CSV format. Choose one.")
+                continue
+            if '8' in selected and '9' in selected:
+                print("  Cannot select both plot JSON and CSV. Choose one.")
+                continue
+
+            # Build result
+            result = {
+                'eseries': 'E12' if '1' in selected else ('E96' if '2' in selected else 'E24'),
+                'no_match': '3' in selected,
+                'raw': '4' in selected,
+                'quiet': '5' in selected,
+                'format': 'json' if '6' in selected else ('csv' if '7' in selected else 'table'),
+                'plot_data': 'json' if '8' in selected else ('csv' if '9' in selected else None),
+            }
+            return result
+
+        except EOFError:
+            raise KeyboardInterrupt()

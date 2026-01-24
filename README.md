@@ -109,7 +109,31 @@ chmod +x filter-calc.py
 ./filter-calc.py w
 ```
 
-Step-by-step guided design for all filter types.
+Step-by-step guided design for all filter types. The wizard prompts for:
+- Filter category (lowpass, highpass, bandpass)
+- Response type (Butterworth, Chebyshev, Bessel)
+- Frequency and bandwidth parameters
+- Impedance and filter order
+
+After calculation, an **Output Options** screen lets you customize the display:
+
+```
+Select options (enter numbers separated by spaces, or press Enter for defaults):
+
+  [1] E12 series      - Use E12 component values
+  [2] E96 series      - Use E96 component values
+  [3] No matching     - Show calculated values only
+  [4] Raw units       - Display in Farads/Henries
+  [5] Quiet mode      - Minimal output
+  [6] JSON output     - Output in JSON format
+  [7] CSV output      - Output in CSV format
+  [8] Export plot JSON - Export frequency response as JSON
+  [9] Export plot CSV - Export frequency response as CSV
+
+Select options (e.g., '1 4' or Enter for defaults):
+```
+
+All CLI options are available in wizard mode.
 
 ## Options
 
