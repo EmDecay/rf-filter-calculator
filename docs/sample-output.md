@@ -234,10 +234,10 @@ Cs23 Calculated: 3.92 pF
 ```
 
 ```
-type,name,value
-capacitor,C1,3.183098861837907e-10
-capacitor,C2,3.183098861837907e-10
-inductor,L1,1.5915494309189533e-06
+Component,Value,Unit
+C1,318.31,pF
+C2,318.31,pF
+L1,1.59,µH
 ```
 
 ---
@@ -253,13 +253,12 @@ inductor,L1,1.5915494309189533e-06
 ```json
 {
   "filter_type": "butterworth",
-  "f0_hz": 10000000.0,
-  "bandwidth_hz": null,
+  "cutoff_hz": 10000000.0,
   "order": 3,
   "data": [
     {"frequency_hz": 1000000.0, "magnitude_db": -0.0},
-    {"frequency_hz": 1122018.45, "magnitude_db": -0.0},
-    {"frequency_hz": 1258925.41, "magnitude_db": -0.01},
+    {"frequency_hz": 1096478.19, "magnitude_db": -0.0},
+    {"frequency_hz": 1202264.43, "magnitude_db": -0.0},
     ...
     {"frequency_hz": 100000000.0, "magnitude_db": -60.0}
   ]
@@ -307,7 +306,9 @@ Chebyshev Filter (Equiripple)
 ```
 
 ```
-C1=318.31pF C2=318.31pF L1=1.59µH
+C1: 318.31 pF
+C2: 318.31 pF
+L1: 1.59 µH
 ```
 
 ---

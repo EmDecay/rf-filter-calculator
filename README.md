@@ -16,7 +16,7 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 Requires Python 3.10+.
 
 ```bash
-git clone https://github.com/yourusername/rf-filter-calculator.git
+git clone https://github.com/EmDecay/rf-filter-calculator.git
 cd rf-filter-calculator
 chmod +x filter-calc.py
 ```
@@ -119,15 +119,15 @@ After calculation, an **Output Options** screen lets you customize the display:
 ```
 Select options (enter numbers separated by spaces, or press Enter for defaults):
 
-  [1] E12 series      - Use E12 component values
-  [2] E96 series      - Use E96 component values
-  [3] No matching     - Show calculated values only
-  [4] Raw units       - Display in Farads/Henries
-  [5] Quiet mode      - Minimal output
-  [6] JSON output     - Output in JSON format
-  [7] CSV output      - Output in CSV format
-  [8] Export plot JSON - Export frequency response as JSON
-  [9] Export plot CSV - Export frequency response as CSV
+  [1] E12 series       - Use E12 component values (fewer choices, looser tolerance)
+  [2] E96 series       - Use E96 component values (more choices, tighter tolerance)
+  [3] No matching      - Show calculated values only (no E-series matching)
+  [4] Raw units        - Display in Farads/Henries instead of pF/nH/µH
+  [5] Quiet mode       - Minimal output (component values only)
+  [6] JSON output      - Output in JSON format
+  [7] CSV output       - Output in CSV format
+  [8] Export plot JSON - Export frequency response data as JSON
+  [9] Export plot CSV  - Export frequency response data as CSV
 
 Select options (e.g., '1 4' or Enter for defaults):
 ```

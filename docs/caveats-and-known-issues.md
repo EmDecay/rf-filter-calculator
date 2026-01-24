@@ -34,6 +34,8 @@ Edge cases, limitations, and important considerations.
 - **Must be positive** (> 0 dB)
 - Typical range: 0.1 to 3.0 dB
 - Higher ripple = steeper rolloff but more passband variation
+- **Wizard mode**: Only accepts 0.1, 0.5, or 1.0 dB (validated choices)
+- **CLI mode**: Accepts any positive ripple value (formula-based calculation)
 
 ### Bandpass Resonator Count
 
@@ -122,9 +124,10 @@ Sometimes a single E-series value is closer than any parallel combination. The c
 
 ### G-Value Calculation
 
-- Butterworth and Bessel use closed-form formulas
-- Chebyshev uses standard g-value tables/formulas
-- Higher-order Chebyshev (n > 9) not supported
+- Butterworth uses closed-form formulas
+- Bessel uses predefined g-value lookup tables (orders 2-9)
+- Chebyshev uses direct formula calculation for arbitrary ripple values
+- Higher-order filters (n > 9) not supported
 
 ---
 

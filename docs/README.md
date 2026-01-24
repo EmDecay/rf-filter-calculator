@@ -28,7 +28,7 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/rf-filter-calculator.git
+git clone https://github.com/EmDecay/rf-filter-calculator.git
 cd rf-filter-calculator
 chmod +x filter-calc.py
 ```

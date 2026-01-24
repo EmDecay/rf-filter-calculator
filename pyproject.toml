@@ -39,9 +39,9 @@ dev = [
 filter-calc = "filter_lib.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/rf-filter-calculator"
-Repository = "https://github.com/yourusername/rf-filter-calculator"
-Issues = "https://github.com/yourusername/rf-filter-calculator/issues"
+Homepage = "https://github.com/EmDecay/rf-filter-calculator"
+Repository = "https://github.com/EmDecay/rf-filter-calculator"
+Issues = "https://github.com/EmDecay/rf-filter-calculator/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

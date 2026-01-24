@@ -280,10 +280,10 @@ Structured output for programmatic use:
 
 Spreadsheet-compatible format:
 ```
-type,name,value
-capacitor,C1,3.183e-10
-capacitor,C2,3.183e-10
-inductor,L1,1.592e-06
+Component,Value,Unit
+C1,318.31,pF
+C2,318.31,pF
+L1,1.59,µH
 ```
 
 ---
