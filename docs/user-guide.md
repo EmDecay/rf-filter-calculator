@@ -199,26 +199,43 @@ The wizard prompts for:
 
 ### Output Options
 
-After calculation, an output options screen lets you customize the display:
+After calculation, an output options screen provides an interactive interface with arrow-key navigation:
 
 ```
-Select options (enter numbers separated by spaces, or press Enter for defaults):
+--------------------------------------------------
+  Output Options
+--------------------------------------------------
+Use arrow keys to navigate, Enter to select
 
-  [1] E12 series       - Use E12 component values (fewer choices, looser tolerance)
-  [2] E96 series       - Use E96 component values (more choices, tighter tolerance)
-  [3] No matching      - Show calculated values only (no E-series matching)
-  [4] Raw units        - Display in Farads/Henries instead of pF/nH/µH
-  [5] Quiet mode       - Minimal output (component values only)
-  [6] JSON output      - Output in JSON format
-  [7] CSV output       - Output in CSV format
-  [8] Export plot JSON - Export frequency response data as JSON
-  [9] Export plot CSV  - Export frequency response data as CSV
+? E-Series component matching:
+❯ E24 - Standard tolerance (default)
+  E12 - Fewer values, looser tolerance
+  E96 - More values, tighter tolerance
+  None - Show calculated values only
 
-Select options (e.g., '1 4' or Enter for defaults):
+? Output format:
+❯ Table - Pretty printed display (default)
+  JSON - Machine readable
+  CSV - Spreadsheet compatible
+
+? Export frequency response data:
+❯ No export (default)
+  JSON file
+  CSV file
+
+? Additional options (Space to toggle, Enter to confirm):
+  ○ Raw units - Display in Farads/Henries
+  ○ Quiet mode - Minimal output
 ```
 
-Enter space-separated numbers to combine options (e.g., `2 4` for E96 + raw units).
-Conflicting options (E12+E96, JSON+CSV) are validated and rejected.
+Use ↑↓ arrows to navigate between choices, Enter to select. For checkboxes, use Space to toggle options on/off.
+
+After selecting output options, you'll be prompted:
+```
+? Show frequency response plot? (Y/n)
+```
+
+This displays an ASCII frequency response graph in the terminal.
 
 ---
 
@@ -228,12 +245,14 @@ Conflicting options (E12+E96, JSON+CSV) are validated and rejected.
 
 | Format | Example | Value |
 |--------|---------|-------|
-| With unit | `10MHz` | 10,000,000 Hz |
-| SI prefix | `10M` | 10,000,000 Hz |
+| Full suffix | `10MHz`, `500kHz`, `1GHz` | With Hz |
+| Shorthand | `10M`, `500k`, `1G` | Without Hz |
 | Scientific | `10e6` | 10,000,000 Hz |
 | Plain Hz | `10000000` | 10,000,000 Hz |
-| kHz | `10000kHz` | 10,000,000 Hz |
-| GHz | `1.5GHz` | 1,500,000,000 Hz |
+
+Suffixes are case-insensitive: `10M`, `10m`, `10MHz`, `10mhz` all equal 10 MHz.
+
+**Validation**: Frequency must be positive. Zero or negative values raise an error.
 
 ### Impedance
 
@@ -243,6 +262,8 @@ Conflicting options (E12+E96, JSON+CSV) are validated and rejected.
 | With unit | `50ohm` | 50 Ω |
 | Unicode | `50Ω` | 50 Ω |
 | kΩ | `1kohm` | 1000 Ω |
+
+**Validation**: Impedance must be positive. Zero or negative values raise an error.
 
 ---
 

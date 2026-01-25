@@ -17,19 +17,23 @@ def parse_frequency(freq_str: str) -> float:
     freq_str = freq_str.strip()
     freq_str_lower = freq_str.lower()
 
-    suffixes = [('ghz', 1e9), ('mhz', 1e6), ('khz', 1e3), ('hz', 1)]
+    # Full suffixes (ghz, mhz, khz, hz) and shorthand (g, m, k)
+    suffixes = [
+        ('ghz', 1e9), ('mhz', 1e6), ('khz', 1e3), ('hz', 1),
+        ('g', 1e9), ('m', 1e6), ('k', 1e3),
+    ]
 
     for suffix, mult in suffixes:
         if freq_str_lower.endswith(suffix):
             num_part = freq_str[:-len(suffix)].strip()
             result = float(num_part) * mult
-            if not math.isfinite(result):
-                raise ValueError(f"Invalid frequency: {freq_str}")
+            if not math.isfinite(result) or result <= 0:
+                raise ValueError(f"Frequency must be positive: {freq_str}")
             return result
 
     result = float(freq_str)
-    if not math.isfinite(result):
-        raise ValueError(f"Invalid frequency: {freq_str}")
+    if not math.isfinite(result) or result <= 0:
+        raise ValueError(f"Frequency must be positive: {freq_str}")
     return result
 
 
@@ -56,11 +60,11 @@ def parse_impedance(z_str: str) -> float:
     for suffix, mult in multipliers.items():
         if z_str.endswith(suffix):
             result = float(z_str[:-len(suffix)].strip()) * mult
-            if not math.isfinite(result):
-                raise ValueError(f"Invalid impedance: {z_str}")
+            if not math.isfinite(result) or result <= 0:
+                raise ValueError(f"Impedance must be positive: {z_str}")
             return result
 
     result = float(z_str)
-    if not math.isfinite(result):
-        raise ValueError(f"Invalid impedance: {z_str}")
+    if not math.isfinite(result) or result <= 0:
+        raise ValueError(f"Impedance must be positive: {z_str}")
     return result

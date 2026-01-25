@@ -96,11 +96,15 @@ def calculate_bessel(cutoff_hz: float, impedance: float,
     capacitors = []
     inductors = []
 
+    # Loop over g-values array (0-indexed)
+    # Physical position = i + 1 (1-indexed in schematic)
+    # Even array indices (0, 2, 4) = physical positions 1, 3, 5 = shunt capacitors
+    # Odd array indices (1, 3, 5) = physical positions 2, 4, 6 = series inductors
     for i in range(n):
         g = g_values[i]
-        if i % 2 == 0:
+        if i % 2 == 0:  # Even index -> shunt capacitor (positions 1, 3, 5...)
             capacitors.append(g / (impedance * omega))
-        else:
+        else:  # Odd index -> series inductor (positions 2, 4, 6...)
             inductors.append(g * impedance / omega)
 
     return capacitors, inductors, n

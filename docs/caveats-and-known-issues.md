@@ -18,12 +18,14 @@ Edge cases, limitations, and important considerations.
 - **Maximum**: No hard limit, but practical RF considerations apply
 - Very low frequencies (< 100 Hz) may produce very large component values
 - Very high frequencies (> 1 GHz) may produce impractically small values
+- **Error**: Zero or negative values raise `ValueError: Frequency must be positive`
 
 ### Impedance
 
-- Must be positive
+- Must be positive (> 0)
 - Standard is 50Ω; 75Ω also common
 - Extreme impedances (< 10Ω or > 1000Ω) may yield impractical values
+- **Error**: Zero or negative values raise `ValueError: Impedance must be positive`
 
 ---
 

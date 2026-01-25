@@ -4,6 +4,8 @@ Main entry point that delegates to specialized filter wizards.
 """
 import sys
 
+import questionary
+
 from ..lowpass import (calculate_butterworth as lp_butterworth,
                        calculate_chebyshev as lp_chebyshev,
                        calculate_bessel as lp_bessel,
@@ -12,7 +14,7 @@ from ..highpass import (calculate_butterworth as hp_butterworth,
                         calculate_chebyshev as hp_chebyshev,
                         calculate_bessel as hp_bessel,
                         display_results as display_highpass)
-from .prompts import prompt_choice
+from .prompts import WIZARD_STYLE
 from .filter_wizard import run_filter_wizard
 from .bandpass_wizard import run_bandpass_wizard
 
@@ -48,17 +50,21 @@ def _build_highpass_result(filter_type: str, freq_hz: float, impedance: float,
 
 
 def _prompt_filter_category() -> str:
-    """Prompt for filter category."""
-    choice = prompt_choice(
+    """Prompt for filter category using arrow keys."""
+    result = questionary.select(
         "What type of filter do you need?",
-        [
-            ('1', 'Low-pass filter (blocks high frequencies)'),
-            ('2', 'High-pass filter (blocks low frequencies)'),
-            ('3', 'Band-pass filter (passes a frequency range)'),
+        choices=[
+            questionary.Choice("Low-pass filter (blocks high frequencies)", value="lowpass"),
+            questionary.Choice("High-pass filter (blocks low frequencies)", value="highpass"),
+            questionary.Choice("Band-pass filter (passes a frequency range)", value="bandpass"),
         ],
-        default='1'
-    )
-    return {'1': 'lowpass', '2': 'highpass', '3': 'bandpass'}[choice]
+        default="lowpass",
+        style=WIZARD_STYLE,
+    ).ask()
+
+    if result is None:
+        raise KeyboardInterrupt()
+    return result
 
 
 def run_wizard() -> None:

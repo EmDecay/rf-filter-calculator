@@ -7,6 +7,14 @@ These normalized element values are derived from:
 """
 import math
 
+# Conversion factor from dB to nepers for Chebyshev ripple calculation.
+# Derivation: dB = 20 * log10(x), nepers = ln(x)
+# Therefore: nepers = dB / (20 * log10(e)) = dB / 8.686
+# The factor 17.37 = 2 * 8.686 accounts for the power ratio (squared amplitude)
+# used in the epsilon calculation: epsilon = sqrt(10^(ripple_dB/10) - 1)
+# Reference: Matthaei, Young, Jones "Microwave Filters" Ch. 4
+CHEBYSHEV_DB_TO_NEPER_FACTOR = 17.37
+
 
 def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
     """Calculate Chebyshev prototype g-values from ripple specification.
@@ -25,7 +33,7 @@ def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
         Returns array where g[0] is unused (0.0), and g[1]..g[n] are the values.
         This matches the mathematical notation used in filter synthesis.
     """
-    rr = ripple_db / 17.37
+    rr = ripple_db / CHEBYSHEV_DB_TO_NEPER_FACTOR
     e2x = math.exp(2 * rr)
     coth = (e2x + 1) / (e2x - 1)
     bt = math.log(coth)

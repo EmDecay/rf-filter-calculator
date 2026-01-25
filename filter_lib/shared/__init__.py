@@ -6,7 +6,8 @@ from .formatting import (
 )
 from .eseries import ESeriesMatch, match_component, find_closest_single
 from .constants import BESSEL_G_VALUES
-from .chebyshev_g_calculator import calculate_chebyshev_g_values
+from .chebyshev_g_calculator import calculate_chebyshev_g_values, CHEBYSHEV_DB_TO_NEPER_FACTOR
+from .filter_result import FilterResult
 from .cli_aliases import (
     FILTER_TYPE_ALIASES, COUPLING_ALIASES,
     DEFAULT_IMPEDANCE, DEFAULT_RIPPLE_DB, DEFAULT_COMPONENTS,
@@ -22,6 +23,10 @@ from .cli_helpers import (
 from .display_helpers import (
     format_eseries_match, format_component_value, split_value_unit
 )
+from .display_common import (
+    format_json_result, format_csv_result, format_quiet_result,
+    print_header, print_component_table,
+)
 from .transfer_functions import (
     BESSEL_COEFFS, BESSEL_SCALE,
     generate_frequency_points, chebyshev_polynomial,
@@ -36,9 +41,11 @@ __all__ = [
     # E-series
     'ESeriesMatch', 'match_component', 'find_closest_single',
     # Constants
-    'BESSEL_G_VALUES',
+    'BESSEL_G_VALUES', 'CHEBYSHEV_DB_TO_NEPER_FACTOR',
     # Chebyshev calculator
     'calculate_chebyshev_g_values',
+    # Filter result dataclass
+    'FilterResult',
     # CLI aliases
     'FILTER_TYPE_ALIASES', 'COUPLING_ALIASES',
     'DEFAULT_IMPEDANCE', 'DEFAULT_RIPPLE_DB', 'DEFAULT_COMPONENTS',
@@ -51,6 +58,9 @@ __all__ = [
     'add_eseries_args', 'add_plot_args', 'validate_filter_args', 'export_plot_data',
     # Display helpers
     'format_eseries_match', 'format_component_value', 'split_value_unit',
+    # Display common
+    'format_json_result', 'format_csv_result', 'format_quiet_result',
+    'print_header', 'print_component_table',
     # Transfer functions
     'BESSEL_COEFFS', 'BESSEL_SCALE',
     'generate_frequency_points', 'chebyshev_polynomial',

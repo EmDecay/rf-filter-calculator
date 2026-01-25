@@ -1,5 +1,5 @@
 # RF Filter Calculator
-# No external runtime dependencies - uses Python standard library only
+questionary>=2.0.0
 
 # Development dependencies (optional)
 # pytest>=7.0

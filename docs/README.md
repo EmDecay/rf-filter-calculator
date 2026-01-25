@@ -10,6 +10,7 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 - [Tips & Best Practices](tips-and-best-practices.md) - Get the most out of the tool
 - [Caveats & Known Issues](caveats-and-known-issues.md) - Edge cases and limitations
 - [Sample Output](sample-output.md) - Example outputs for all filter types
+- [Testing Guide](testing.md) - Test suite documentation and coverage
 
 ## Features
 
@@ -23,13 +24,15 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 ## Requirements
 
 - Python 3.10 or higher
-- No external dependencies (uses Python standard library only)
+- `questionary` library (for interactive wizard interface)
+- `pytest` (for running tests)
 
 ## Installation
 
 ```bash
 git clone https://github.com/EmDecay/rf-filter-calculator.git
 cd rf-filter-calculator
+pip install -r requirements.txt
 chmod +x filter-calc.py
 ```
 

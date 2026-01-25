@@ -18,6 +18,7 @@ Requires Python 3.10+.
 ```bash
 git clone https://github.com/EmDecay/rf-filter-calculator.git
 cd rf-filter-calculator
+pip install -r requirements.txt
 chmod +x filter-calc.py
 ```
 
@@ -114,22 +115,35 @@ Running with no arguments starts the interactive wizard. Step-by-step guided des
 - Frequency and bandwidth parameters
 - Impedance and filter order
 
-After calculation, an **Output Options** screen lets you customize the display:
+After calculation, an **Output Options** screen lets you customize the display with interactive arrow-key navigation:
 
 ```
-Select options (enter numbers separated by spaces, or press Enter for defaults):
+--------------------------------------------------
+  Output Options
+--------------------------------------------------
+Use ↑↓ arrows to navigate, Enter to select
 
-  [1] E12 series       - Use E12 component values (fewer choices, looser tolerance)
-  [2] E96 series       - Use E96 component values (more choices, tighter tolerance)
-  [3] No matching      - Show calculated values only (no E-series matching)
-  [4] Raw units        - Display in Farads/Henries instead of pF/nH/µH
-  [5] Quiet mode       - Minimal output (component values only)
-  [6] JSON output      - Output in JSON format
-  [7] CSV output       - Output in CSV format
-  [8] Export plot JSON - Export frequency response data as JSON
-  [9] Export plot CSV  - Export frequency response data as CSV
+? E-Series component matching:
+❯ E24 - Standard tolerance (default)
+  E12 - Fewer values, looser tolerance
+  E96 - More values, tighter tolerance
+  None - Show calculated values only
 
-Select options (e.g., '1 4' or Enter for defaults):
+? Output format:
+❯ Table - Pretty printed display (default)
+  JSON - Machine readable
+  CSV - Spreadsheet compatible
+
+? Export frequency response data:
+❯ No export (default)
+  JSON file
+  CSV file
+
+? Additional options (Space to toggle, Enter to confirm):
+  ○ Raw units - Display in Farads/Henries
+  ○ Quiet mode - Minimal output
+
+? Show frequency response plot? (Y/n)
 ```
 
 All CLI options are available in wizard mode.
@@ -160,10 +174,14 @@ All CLI options are available in wizard mode.
 
 ## Frequency Input Formats
 
-All of these are equivalent:
+All of these are equivalent (case-insensitive):
 ```
-10MHz  10M  10000000  10e6  10000k  10000kHz
+10MHz  10M  10mhz  10m  10000000  10e6  10000k  10000kHz
 ```
+
+Supported suffixes: `GHz`, `MHz`, `kHz`, `Hz`, `G`, `M`, `k`
+
+**Note:** Frequency and impedance must be positive values. Zero or negative values raise a validation error.
 
 ## Output Formats
 
@@ -183,11 +201,26 @@ All of these are equivalent:
 ./filter-calc.py lp bw 10MHz --plot-data csv > response.csv
 ```
 
+## Testing
+
+Run the test suite with pytest:
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=filter_lib
+```
+
+**Test coverage:** 167+ tests covering filter calculations, input validation, and output formatting. See [docs/testing.md](docs/testing.md) for details.
+
 ## Project Structure
 
 ```
 rf-filter-calculator/
 ├── filter-calc.py          # Main CLI entry point
+├── tests/                  # Test suite (pytest)
 └── filter_lib/
     ├── cli/                # Subcommand handlers
     ├── lowpass/            # Pi topology calculations
@@ -196,6 +229,13 @@ rf-filter-calculator/
     ├── wizard/             # Interactive design mode
     └── shared/             # Common utilities (parsing, E-series, plotting)
 ```
+
+## Documentation
+
+See [docs/](docs/) for comprehensive documentation:
+- [User Guide](docs/user-guide.md) - Complete usage reference
+- [Filter Theory](docs/filter-theory.md) - Background on filter types
+- [Testing Guide](docs/testing.md) - Test suite documentation
 
 ## License
 

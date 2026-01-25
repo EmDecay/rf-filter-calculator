@@ -1,13 +1,27 @@
 """Prompt utilities for interactive wizard.
 
 Reusable input prompts with validation, defaults, and choices.
+Uses questionary for elegant arrow-key navigation interface.
 """
 from typing import Callable
+
+import questionary
+from questionary import Style
+
+# Custom style for consistent look throughout wizard
+WIZARD_STYLE = Style([
+    ('qmark', 'fg:cyan bold'),
+    ('question', 'bold'),
+    ('answer', 'fg:cyan bold'),
+    ('pointer', 'fg:cyan bold'),
+    ('highlighted', 'fg:cyan bold'),
+    ('selected', 'fg:green'),
+])
 
 
 def prompt_input(message: str, default: str | None = None,
                  validator: Callable[[str], str] | None = None) -> str:
-    """Prompt user with optional default and validation.
+    """Prompt user for text input with optional default and validation.
 
     Args:
         message: Prompt message to display
@@ -18,16 +32,20 @@ def prompt_input(message: str, default: str | None = None,
         Validated user input or default
 
     Raises:
-        KeyboardInterrupt: If user presses Ctrl+C or EOF
+        KeyboardInterrupt: If user presses Ctrl+C or cancels
     """
-    prompt_text = f"{message}"
-    if default:
-        prompt_text += f" [{default}]"
-    prompt_text += ": "
-
     while True:
         try:
-            value = input(prompt_text).strip()
+            result = questionary.text(
+                message,
+                default=default or "",
+                style=WIZARD_STYLE,
+            ).ask()
+
+            if result is None:
+                raise KeyboardInterrupt()
+
+            value = result.strip()
             if not value and default:
                 value = default
 
@@ -44,7 +62,7 @@ def prompt_input(message: str, default: str | None = None,
 
 def prompt_choice(message: str, choices: list[tuple[str, str]],
                   default: str | None = None) -> str:
-    """Prompt user to select from numbered choices.
+    """Prompt user to select from choices using arrow keys.
 
     Args:
         message: Question to ask
@@ -54,26 +72,28 @@ def prompt_choice(message: str, choices: list[tuple[str, str]],
     Returns:
         Selected key
     """
-    print(f"\n{message}")
+    # Build questionary choices
+    q_choices = []
+    default_choice = None
     for key, desc in choices:
-        marker = " *" if key == default else ""
-        print(f"  {key}) {desc}{marker}")
+        choice = questionary.Choice(desc, value=key)
+        q_choices.append(choice)
+        if key == default:
+            default_choice = desc
 
-    valid_keys = [k for k, _ in choices]
-    prompt = "Enter choice"
-    if default:
-        prompt += f" [{default}]"
+    try:
+        result = questionary.select(
+            message,
+            choices=q_choices,
+            default=default_choice,
+            style=WIZARD_STYLE,
+        ).ask()
 
-    while True:
-        try:
-            value = input(f"{prompt}: ").strip().lower()
-            if not value and default:
-                return default
-            if value in valid_keys:
-                return value
-            print(f"  Invalid choice. Enter one of: {', '.join(valid_keys)}")
-        except EOFError:
+        if result is None:
             raise KeyboardInterrupt()
+        return result
+    except EOFError:
+        raise KeyboardInterrupt()
 
 
 def validate_order(value: str) -> int:
@@ -93,17 +113,24 @@ def validate_ripple(value: str) -> float:
 
 
 def prompt_filter_type() -> str:
-    """Prompt for filter response type."""
-    choice = prompt_choice(
-        "Select filter response type:",
-        [
-            ('1', 'Butterworth - Maximally flat passband'),
-            ('2', 'Chebyshev - Sharper cutoff, passband ripple'),
-            ('3', 'Bessel - Best transient response'),
-        ],
-        default='1'
-    )
-    return {'1': 'butterworth', '2': 'chebyshev', '3': 'bessel'}[choice]
+    """Prompt for filter response type using arrow keys."""
+    try:
+        result = questionary.select(
+            "Select filter response type:",
+            choices=[
+                questionary.Choice("Butterworth - Maximally flat passband", value="butterworth"),
+                questionary.Choice("Chebyshev - Sharper cutoff, passband ripple", value="chebyshev"),
+                questionary.Choice("Bessel - Best transient response", value="bessel"),
+            ],
+            default="butterworth",
+            style=WIZARD_STYLE,
+        ).ask()
+
+        if result is None:
+            raise KeyboardInterrupt()
+        return result
+    except EOFError:
+        raise KeyboardInterrupt()
 
 
 def show_summary(category: str, params: dict) -> bool:
@@ -124,15 +151,18 @@ def show_summary(category: str, params: dict) -> bool:
         print(f"  {name}: {value}")
     print("=" * 50)
 
-    choice = prompt_choice(
-        "Proceed with calculation?",
-        [
-            ('y', 'Yes, calculate'),
-            ('n', 'No, start over'),
-        ],
-        default='y'
-    )
-    return choice == 'y'
+    try:
+        result = questionary.confirm(
+            "Proceed with calculation?",
+            default=True,
+            style=WIZARD_STYLE,
+        ).ask()
+
+        if result is None:
+            raise KeyboardInterrupt()
+        return result
+    except EOFError:
+        raise KeyboardInterrupt()
 
 
 def prompt_show_plot() -> bool:
@@ -141,19 +171,25 @@ def prompt_show_plot() -> bool:
     Returns:
         True if user wants to see the plot
     """
-    choice = prompt_choice(
-        "Show frequency response plot?",
-        [
-            ('y', 'Yes, show ASCII frequency response'),
-            ('n', 'No, skip plot'),
-        ],
-        default='y'
-    )
-    return choice == 'y'
+    try:
+        result = questionary.confirm(
+            "Show frequency response plot?",
+            default=True,
+            style=WIZARD_STYLE,
+        ).ask()
+
+        if result is None:
+            raise KeyboardInterrupt()
+        return result
+    except EOFError:
+        raise KeyboardInterrupt()
 
 
 def prompt_output_options() -> dict:
-    """Prompt for output formatting options with checkboxes.
+    """Prompt for output formatting options with interactive arrow-key navigation.
+
+    Uses questionary for an elegant checkbox/radio interface with arrow keys
+    and space bar selection.
 
     Returns:
         Dict with keys: eseries, no_match, raw, quiet, format, plot_data
@@ -161,66 +197,78 @@ def prompt_output_options() -> dict:
     print("\n" + "-" * 50)
     print("  Output Options")
     print("-" * 50)
-    print("Select options (enter numbers separated by spaces, or press Enter for defaults):\n")
+    print("Use arrow keys to navigate, Enter to select\n")
 
-    options = [
-        ('1', 'E12 series', 'Use E12 component values (fewer choices, looser tolerance)'),
-        ('2', 'E96 series', 'Use E96 component values (more choices, tighter tolerance)'),
-        ('3', 'No matching', 'Show calculated values only (no E-series matching)'),
-        ('4', 'Raw units', 'Display in Farads/Henries instead of pF/nH/µH'),
-        ('5', 'Quiet mode', 'Minimal output (component values only)'),
-        ('6', 'JSON output', 'Output in JSON format'),
-        ('7', 'CSV output', 'Output in CSV format'),
-        ('8', 'Export plot JSON', 'Export frequency response data as JSON'),
-        ('9', 'Export plot CSV', 'Export frequency response data as CSV'),
-    ]
+    try:
+        # E-Series selection (radio buttons - mutually exclusive)
+        eseries_choice = questionary.select(
+            "E-Series component matching:",
+            choices=[
+                questionary.Choice("E24 - Standard tolerance (default)", value="E24"),
+                questionary.Choice("E12 - Fewer values, looser tolerance", value="E12"),
+                questionary.Choice("E96 - More values, tighter tolerance", value="E96"),
+                questionary.Choice("None - Show calculated values only", value="none"),
+            ],
+            default="E24",
+            style=WIZARD_STYLE,
+        ).ask()
 
-    for num, name, desc in options:
-        print(f"  [{num}] {name:15} - {desc}")
-
-    print(f"\n  Default: E24 series with matching, table format")
-
-    while True:
-        try:
-            raw_input = input("\nSelect options (e.g., '1 4' or Enter for defaults): ").strip()
-            if not raw_input:
-                # Return defaults
-                return {
-                    'eseries': 'E24',
-                    'no_match': False,
-                    'raw': False,
-                    'quiet': False,
-                    'format': 'table',
-                    'plot_data': None,
-                }
-
-            selected = set(raw_input.split())
-            invalid = selected - {'1', '2', '3', '4', '5', '6', '7', '8', '9'}
-            if invalid:
-                print(f"  Invalid option(s): {', '.join(invalid)}. Try again.")
-                continue
-
-            # Check for conflicts
-            if '1' in selected and '2' in selected:
-                print("  Cannot select both E12 and E96. Choose one.")
-                continue
-            if '6' in selected and '7' in selected:
-                print("  Cannot select both JSON and CSV format. Choose one.")
-                continue
-            if '8' in selected and '9' in selected:
-                print("  Cannot select both plot JSON and CSV. Choose one.")
-                continue
-
-            # Build result
-            result = {
-                'eseries': 'E12' if '1' in selected else ('E96' if '2' in selected else 'E24'),
-                'no_match': '3' in selected,
-                'raw': '4' in selected,
-                'quiet': '5' in selected,
-                'format': 'json' if '6' in selected else ('csv' if '7' in selected else 'table'),
-                'plot_data': 'json' if '8' in selected else ('csv' if '9' in selected else None),
-            }
-            return result
-
-        except EOFError:
+        if eseries_choice is None:
             raise KeyboardInterrupt()
+
+        # Output format (radio buttons - mutually exclusive)
+        format_choice = questionary.select(
+            "Output format:",
+            choices=[
+                questionary.Choice("Table - Pretty printed display (default)", value="table"),
+                questionary.Choice("JSON - Machine readable", value="json"),
+                questionary.Choice("CSV - Spreadsheet compatible", value="csv"),
+            ],
+            default="table",
+            style=WIZARD_STYLE,
+        ).ask()
+
+        if format_choice is None:
+            raise KeyboardInterrupt()
+
+        # Plot data export (radio buttons - mutually exclusive)
+        plot_choice = questionary.select(
+            "Export frequency response data:",
+            choices=[
+                questionary.Choice("No export (default)", value="none"),
+                questionary.Choice("JSON file", value="json"),
+                questionary.Choice("CSV file", value="csv"),
+            ],
+            default="none",
+            style=WIZARD_STYLE,
+        ).ask()
+
+        if plot_choice is None:
+            raise KeyboardInterrupt()
+
+        # Additional options (checkboxes - can select multiple)
+        print()  # Spacing before checkbox prompt
+        additional = questionary.checkbox(
+            "Additional options (Space to toggle, Enter to confirm):",
+            choices=[
+                questionary.Choice("Raw units - Display in Farads/Henries", value="raw"),
+                questionary.Choice("Quiet mode - Minimal output", value="quiet"),
+            ],
+            style=WIZARD_STYLE,
+        ).ask()
+
+        if additional is None:
+            raise KeyboardInterrupt()
+
+        # Build result dict
+        return {
+            'eseries': eseries_choice if eseries_choice != "none" else 'E24',
+            'no_match': eseries_choice == "none",
+            'raw': 'raw' in additional,
+            'quiet': 'quiet' in additional,
+            'format': format_choice,
+            'plot_data': None if plot_choice == "none" else plot_choice,
+        }
+
+    except EOFError:
+        raise KeyboardInterrupt()

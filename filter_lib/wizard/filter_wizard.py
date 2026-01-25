@@ -122,7 +122,7 @@ def run_filter_wizard(
 
         # Output options
         opts = prompt_output_options()
-        show_plot = prompt_show_plot() if not opts['plot_data'] else False
+        show_plot = prompt_show_plot()
 
         display_results(
             result,

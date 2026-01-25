@@ -2,11 +2,14 @@
 
 Interactive prompts for bandpass filter design with coupled resonators.
 """
+import questionary
+
 from ..shared.parsing import parse_frequency, parse_impedance
+from ..shared.formatting import format_frequency
 from ..bandpass import (calculate_bandpass_filter, display_results,
                         generate_frequency_points, frequency_response,
                         export_response_json, export_response_csv)
-from .prompts import (prompt_input, prompt_choice, prompt_filter_type,
+from .prompts import (prompt_input, prompt_filter_type, WIZARD_STYLE,
                       show_summary, validate_order, validate_ripple, prompt_show_plot,
                       prompt_output_options)
 
@@ -17,16 +20,20 @@ DEFAULT_RIPPLE = "0.5"
 
 
 def prompt_coupling() -> str:
-    """Prompt for bandpass coupling topology."""
-    choice = prompt_choice(
+    """Prompt for bandpass coupling topology using arrow keys."""
+    result = questionary.select(
         "Select coupling topology:",
-        [
-            ('1', 'Top-C (Series) - Better for wider bandwidth'),
-            ('2', 'Shunt-C (Parallel) - Better for narrow bandwidth < 10%'),
+        choices=[
+            questionary.Choice("Top-C (Series) - Better for wider bandwidth", value="top"),
+            questionary.Choice("Shunt-C (Parallel) - Better for narrow bandwidth < 10%", value="shunt"),
         ],
-        default='1'
-    )
-    return 'top' if choice == '1' else 'shunt'
+        default="top",
+        style=WIZARD_STYLE,
+    ).ask()
+
+    if result is None:
+        raise KeyboardInterrupt()
+    return result
 
 
 def run_bandpass_wizard() -> None:
@@ -87,8 +94,8 @@ def run_bandpass_wizard() -> None:
         params = {
             'Response': filter_type.title(),
             'Topology': 'Top-C (Series)' if coupling == 'top' else 'Shunt-C (Parallel)',
-            'Center freq': f"{f0/1e6:.4g} MHz",
-            'Bandwidth': f"{bw/1e3:.4g} kHz",
+            'Center freq': format_frequency(f0),
+            'Bandwidth': format_frequency(bw),
             'FBW': f"{fbw*100:.2f}%",
             'Impedance': f"{impedance} Ohm",
             'Resonators': n,
@@ -111,7 +118,7 @@ def run_bandpass_wizard() -> None:
 
             # Output options
             opts = prompt_output_options()
-            show_plot = prompt_show_plot() if not opts['plot_data'] else False
+            show_plot = prompt_show_plot()
 
             # Bandpass uses eseries=None to disable matching (no show_match param)
             display_results(
