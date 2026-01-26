@@ -112,6 +112,39 @@ def validate_ripple(value: str) -> float:
     return r
 
 
+def prompt_topology(filter_category: str) -> str:
+    """Prompt for filter topology using arrow keys.
+
+    Args:
+        filter_category: 'lowpass' or 'highpass' for context-aware ordering
+    """
+    if filter_category == 'lowpass':
+        choices = [
+            questionary.Choice("Pi - Shunt C first (C-L-C-L-C)", value="pi"),
+            questionary.Choice("T  - Series L first (L-C-L-C-L)", value="t"),
+        ]
+        default = "pi"
+    else:
+        choices = [
+            questionary.Choice("T  - Series L first (L-C-L-C-L)", value="t"),
+            questionary.Choice("Pi - Shunt C first (C-L-C-L-C)", value="pi"),
+        ]
+        default = "t"
+
+    try:
+        result = questionary.select(
+            "Select filter topology:",
+            choices=choices,
+            default=default,
+            style=WIZARD_STYLE,
+        ).ask()
+        if result is None:
+            raise KeyboardInterrupt()
+        return result
+    except EOFError:
+        raise KeyboardInterrupt()
+
+
 def prompt_filter_type() -> str:
     """Prompt for filter response type using arrow keys."""
     try:

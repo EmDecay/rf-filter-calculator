@@ -2,7 +2,7 @@
 
 ## Basic Commands
 
-### Lowpass Filter (Pi Topology)
+### Lowpass Filter (Pi/T Topology)
 
 ```bash
 # 5th-order Butterworth at 10 MHz
@@ -12,14 +12,17 @@
 ./filter-calc.py lp bw 10MHz -n 5
 ```
 
-### Highpass Filter (T Topology)
+### Highpass Filter (Pi/T Topology)
 
 ```bash
-# 5th-order Chebyshev at 14 MHz with 0.5 dB ripple
-./filter-calc.py highpass chebyshev 14MHz -n 5 -r 0.5
+# 5th-order Chebyshev T at 14 MHz with 0.5 dB ripple
+./filter-calc.py highpass chebyshev t 14MHz -n 5 -r 0.5
 
 # Short form
-./filter-calc.py hp ch 14MHz -r 0.5
+./filter-calc.py hp ch t 14MHz -r 0.5
+
+# Pi topology
+./filter-calc.py hp ch pi 14MHz -r 0.5
 ```
 
 ### Bandpass Filter (Coupled Resonator)

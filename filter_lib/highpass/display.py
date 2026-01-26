@@ -1,89 +1,37 @@
-"""Display functions for high-pass filters with T-topology."""
-from ..shared.formatting import format_inductance
+"""Display functions for high-pass filters."""
+from ..shared.formatting import format_inductance, format_capacitance
 from ..shared.display_helpers import format_eseries_match
 from ..shared.display_common import (
     format_json_result, format_csv_result, format_quiet_result,
     print_header, print_component_table,
 )
+from ..shared.topology_diagrams import print_pi_topology_diagram, print_t_topology_diagram
 from ..shared.plotting import render_ascii_plot
 from .transfer import frequency_response, generate_frequency_points
 
 
+def _primary_component(result: dict) -> str:
+    """Return primary component type based on topology.
+
+    HPF T: caps at series (odd) positions = primary.
+    HPF Pi: inds at shunt (odd) positions = primary.
+    """
+    return 'inductors' if result.get('topology', 't') == 'pi' else 'capacitors'
+
+
 def format_json(result: dict) -> str:
-    """Format results as JSON (highpass: inductors first)."""
-    return format_json_result(result, primary_component='inductors')
+    """Format results as JSON."""
+    return format_json_result(result, primary_component=_primary_component(result))
 
 
 def format_csv(result: dict) -> str:
-    """Format results as CSV (highpass: inductors first)."""
-    return format_csv_result(result, primary_component='inductors')
+    """Format results as CSV."""
+    return format_csv_result(result, primary_component=_primary_component(result))
 
 
 def format_quiet(result: dict, raw: bool = False) -> str:
-    """Format minimal output (highpass: inductors first)."""
-    return format_quiet_result(result, raw, primary_component='inductors')
-
-
-def _print_t_topology_diagram(n_inductors: int, n_capacitors: int) -> None:
-    """Print dynamic T topology ASCII diagram for high-pass filter.
-
-    T topology: IN ───┤L1├───┬───┤L2├───┬─── OUT
-                              │           │
-                             ===         ===
-                             C1          C2
-                              │           │
-                             GND         GND
-    """
-    # Build main signal line with series inductors
-    main_parts = ["  IN ───"]
-    for i in range(n_inductors):
-        if i > 0:
-            main_parts.append("───")
-        main_parts.append(f"┤L{i+1}├")
-        if i < n_capacitors:  # Add branch point for capacitor
-            main_parts.append("───┬")
-
-    # Close the line
-    if n_inductors > n_capacitors:
-        main_parts.append("─── OUT")
-    else:
-        main_parts[-1] = "───┬─── OUT"
-
-    main_line = "".join(main_parts)
-    line_len = len(main_line)
-
-    # Find positions of branch points (┬)
-    cap_positions = []
-    pos = main_line.find('┬')
-    while pos != -1:
-        cap_positions.append(pos)
-        pos = main_line.find('┬', pos + 1)
-
-    def build_line(positions: list[int], elements: list[str]) -> str:
-        chars = [' '] * line_len
-        for pos, elem in zip(positions, elements):
-            start = pos - len(elem) // 2
-            for j, ch in enumerate(elem):
-                if 0 <= start + j < line_len:
-                    chars[start + j] = ch
-        return ''.join(chars)
-
-    # Build capacitor lines
-    vert_line = build_line(cap_positions, ['│'] * n_capacitors)
-    cap_sym = build_line(cap_positions, ['==='] * n_capacitors)
-    cap_labels = [f"C{i+1}" for i in range(n_capacitors)]
-    label_line = build_line(cap_positions, cap_labels)
-    gnd_wire = build_line(cap_positions, ['│'] * n_capacitors)
-    gnd_sym = build_line(cap_positions, ['GND'] * n_capacitors)
-
-    print(main_line)
-    print(vert_line)
-    print(cap_sym)
-    print(label_line)
-    print(gnd_wire)
-    print(gnd_sym)
-
-
+    """Format minimal output."""
+    return format_quiet_result(result, raw, primary_component=_primary_component(result))
 
 
 def display_results(result: dict, raw: bool = False,
@@ -101,26 +49,43 @@ def display_results(result: dict, raw: bool = False,
         print(format_quiet(result, raw))
         return
 
+    topology = result.get('topology', 't')
+    primary = _primary_component(result)
+
     # Use shared header and table printing
-    print_header(result, topology='T', filter_category='High Pass')
+    print_header(result, topology=topology.upper(), filter_category='High Pass')
 
     n_inds = len(result['inductors'])
     n_caps = len(result['capacitors'])
 
     print("\nTopology:")
-    _print_t_topology_diagram(n_inds, n_caps)
+    # HPF swaps component types: series C + shunt L
+    if topology == 't':
+        print_t_topology_diagram(n_caps, n_inds, series_label='C', shunt_label='L')
+    else:
+        print_pi_topology_diagram(n_inds, n_caps, series_label='C', shunt_label='L')
 
-    print_component_table(result, raw=raw, primary_component='inductors')
+    print_component_table(result, raw=raw, primary_component=primary)
 
     if show_match and not raw:
-        print(f"\n{eseries} Standard Inductor Recommendations")
-        print("-" * 45)
-        print("(Calculated values with nearest standard matches)")
-        print()
-        for i, ind in enumerate(result['inductors']):
-            print(f"L{i+1} Calculated: {format_inductance(ind)}")
-            for line in format_eseries_match(ind, eseries, format_inductance):
-                print(line)
+        if primary == 'inductors':
+            print(f"\n{eseries} Standard Inductor Recommendations")
+            print("-" * 45)
+            print("(Calculated values with nearest standard matches)")
+            print()
+            for i, ind in enumerate(result['inductors']):
+                print(f"L{i+1} Calculated: {format_inductance(ind)}")
+                for line in format_eseries_match(ind, eseries, format_inductance):
+                    print(line)
+        else:
+            print(f"\n{eseries} Standard Capacitor Recommendations")
+            print("-" * 45)
+            print("(Calculated values with nearest standard matches)")
+            print()
+            for i, cap in enumerate(result['capacitors']):
+                print(f"C{i+1} Calculated: {format_capacitance(cap)}")
+                for line in format_eseries_match(cap, eseries, format_capacitance):
+                    print(line)
 
     if show_plot:
         freqs = generate_frequency_points(result['freq_hz'])

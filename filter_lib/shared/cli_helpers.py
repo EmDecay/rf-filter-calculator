@@ -13,9 +13,12 @@ from .cli_aliases import (
 # Standard filter type choices (shared across all commands)
 FILTER_TYPE_CHOICES = ['butterworth', 'chebyshev', 'bessel', 'bw', 'ch', 'bs', 'b', 'c']
 
+# Topology choices for LPF/HPF
+TOPOLOGY_CHOICES = ['pi', 't']
+
 
 def add_filter_type_args(parser: ArgumentParser, filter_category: str = 'lowpass') -> None:
-    """Add filter type and frequency arguments.
+    """Add filter type, topology, and frequency arguments.
 
     Args:
         parser: ArgumentParser to add arguments to
@@ -24,6 +27,10 @@ def add_filter_type_args(parser: ArgumentParser, filter_category: str = 'lowpass
     parser.add_argument('filter_type', nargs='?',
                         choices=FILTER_TYPE_CHOICES,
                         help='Filter type')
+    if filter_category in ('lowpass', 'highpass'):
+        parser.add_argument('topology_pos', nargs='?',
+                            choices=TOPOLOGY_CHOICES,
+                            help='Topology (pi or t)')
     parser.add_argument('frequency', nargs='?',
                         help='Cutoff frequency (e.g., 10MHz)')
 
@@ -32,6 +39,10 @@ def add_filter_type_args(parser: ArgumentParser, filter_category: str = 'lowpass
                         help='Filter type (alternative)')
     parser.add_argument('-f', '--freq', dest='freq_flag',
                         help='Cutoff frequency (alternative)')
+    if filter_category in ('lowpass', 'highpass'):
+        parser.add_argument('--topology', choices=TOPOLOGY_CHOICES,
+                            dest='topology_flag',
+                            help='Filter topology: pi or t')
 
 
 def add_common_filter_args(parser: ArgumentParser) -> None:

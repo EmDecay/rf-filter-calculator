@@ -1,4 +1,4 @@
-"""High-pass filter module with T-topology."""
+"""High-pass filter module (Pi and T topologies)."""
 
 from .calculations import calculate_butterworth, calculate_chebyshev, calculate_bessel
 from .transfer import (

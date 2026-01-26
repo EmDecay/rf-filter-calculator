@@ -45,8 +45,9 @@ Background on filter types, response characteristics, and topologies.
 
 ## Filter Categories
 
-### Lowpass (Pi Topology)
+### Lowpass (Pi/T Topology)
 
+**Pi topology** (default): shunt C - series L - shunt C pattern
 ```
      ┌────[L1]────┬────[L2]────┐
 IN ──┤            │            ├── OUT
@@ -55,13 +56,7 @@ IN ──┤            │            ├── OUT
     GND          GND          GND
 ```
 
-- Shunt capacitors to ground
-- Series inductors between nodes
-- First and last elements are capacitors
-- Passes frequencies below cutoff
-
-### Highpass (T Topology)
-
+**T topology**: series L - shunt C - series L pattern
 ```
 IN ───┤L1├───┬───┤L2├───┬───┤L3├─── OUT
              │          │
@@ -70,10 +65,33 @@ IN ───┤L1├───┬───┤L2├───┬───┤L3├�
             GND        GND
 ```
 
-- Series inductors in signal path
-- Shunt capacitors to ground
-- First and last elements are inductors
+- Passes frequencies below cutoff
+- Pi: capacitors at odd (shunt) positions, inductors at even (series)
+- T: inductors at odd (series) positions, capacitors at even (shunt)
+
+### Highpass (Pi/T Topology)
+
+**T topology** (default): series C - shunt L - series C pattern
+```
+IN ───┤C1├───┬───┤C2├───┬───┤C3├─── OUT
+             │          │
+            L1         L2
+             │          │
+            GND        GND
+```
+
+**Pi topology**: shunt L - series C - shunt L pattern
+```
+     ┌────[C1]────┬────[C2]────┐
+IN ──┤            │            ├── OUT
+    L1           L2           L3
+     │            │            │
+    GND          GND          GND
+```
+
 - Passes frequencies above cutoff
+- T: capacitors at odd (series) positions, inductors at even (shunt)
+- Pi: inductors at odd (shunt) positions, capacitors at even (series)
 
 ### Bandpass (Coupled Resonator)
 
@@ -101,11 +119,20 @@ IN ────┬────┤├────┬────┤├───�
 
 All filter designs start with normalized lowpass prototype g-values, then transform to desired frequency and impedance.
 
-### Frequency Scaling
+### Lowpass Frequency Scaling
 
 ```
-C_scaled = C_normalized / (2π × f_c × Z₀)
-L_scaled = L_normalized × Z₀ / (2π × f_c)
+C = g / (2π × f_c × Z₀)
+L = g × Z₀ / (2π × f_c)
+```
+
+### Highpass Transformation
+
+Derived from the lowpass prototype via the 1/g transformation:
+
+```
+C = 1 / (g × 2π × f_c × Z₀)
+L = Z₀ / (g × 2π × f_c)
 ```
 
 ### Bandpass Transformation

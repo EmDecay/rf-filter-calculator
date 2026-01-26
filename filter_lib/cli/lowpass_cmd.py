@@ -42,6 +42,11 @@ def run(args: Namespace) -> None:
     if not freq_input:
         raise ValueError('Frequency required')
 
+    # Resolve topology from positional or flag
+    topology = getattr(args, 'topology_pos', None) or getattr(args, 'topology_flag', None)
+    if not topology:
+        raise ValueError("Topology required (pi or t). Use --topology or positional arg.")
+
     filter_type = resolve_filter_type(filter_type)
     freq_hz = parse_frequency(freq_input)
     impedance = parse_impedance(args.impedance)
@@ -49,16 +54,18 @@ def run(args: Namespace) -> None:
     validate_filter_args(freq_hz, impedance, args.components)
 
     if filter_type == 'butterworth':
-        caps, inds, order = calculate_butterworth(freq_hz, impedance, args.components)
+        caps, inds, order = calculate_butterworth(freq_hz, impedance, args.components,
+                                                   topology=topology)
         ripple = None
     elif filter_type == 'chebyshev':
         if args.ripple <= 0:
             raise ValueError("Ripple must be positive")
         caps, inds, order = calculate_chebyshev(freq_hz, impedance, args.ripple,
-                                                 args.components)
+                                                 args.components, topology=topology)
         ripple = args.ripple
     else:  # bessel
-        caps, inds, order = calculate_bessel(freq_hz, impedance, args.components)
+        caps, inds, order = calculate_bessel(freq_hz, impedance, args.components,
+                                              topology=topology)
         ripple = None
 
     result = {
@@ -69,6 +76,7 @@ def run(args: Namespace) -> None:
         'inductors': inds,
         'order': order,
         'ripple': ripple,
+        'topology': topology,
     }
 
     if args.plot_data:

@@ -43,6 +43,9 @@ def format_json_result(result: dict, primary_component: str = 'capacitors') -> s
         'components': components
     }
 
+    if result.get('topology'):
+        output['topology'] = result['topology']
+
     if result.get('ripple'):
         output['ripple_db'] = result['ripple']
 

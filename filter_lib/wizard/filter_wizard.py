@@ -6,9 +6,9 @@ from typing import Callable, Any
 
 from ..shared.parsing import parse_frequency, parse_impedance
 from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
-from .prompts import (prompt_input, prompt_filter_type, show_summary,
-                      validate_order, validate_ripple, prompt_show_plot,
-                      prompt_output_options)
+from .prompts import (prompt_input, prompt_filter_type, prompt_topology,
+                      show_summary, validate_order, validate_ripple,
+                      prompt_show_plot, prompt_output_options)
 
 
 def _export_plot_data(filter_category: str, result: dict, export_format: str) -> None:
@@ -49,7 +49,7 @@ def run_filter_wizard(
     calculate_chebyshev: Callable,
     calculate_bessel: Callable,
     display_results: Callable,
-    build_result: Callable[[str, float, float, Any, Any, int, float | None], dict],
+    build_result: Callable[[str, float, float, Any, Any, int, float | None, str], dict],
 ) -> None:
     """Run wizard for lowpass or highpass filter.
 
@@ -59,7 +59,7 @@ def run_filter_wizard(
         calculate_chebyshev: Chebyshev calculation function
         calculate_bessel: Bessel calculation function
         display_results: Display function for results
-        build_result: Function to build result dict from calculated values
+        build_result: Function to build result dict from calculated values + topology
     """
     title = filter_category.replace('-', ' ').title()
     print(f"\n--- {title} Filter Design ---\n")
@@ -67,6 +67,9 @@ def run_filter_wizard(
     while True:
         # Filter type
         filter_type = prompt_filter_type()
+
+        # Topology
+        topology = prompt_topology(filter_category)
 
         # Frequency
         print("\nEnter the cutoff frequency (-3dB point).")
@@ -94,6 +97,7 @@ def run_filter_wizard(
         # Summary
         params = {
             'Response': filter_type.title(),
+            'Topology': topology.upper(),
             'Cutoff': f"{freq_hz/1e6:.4g} MHz",
             'Impedance': f"{impedance} Ohm",
             'Order': n,
@@ -108,16 +112,20 @@ def run_filter_wizard(
         print("\n  Calculating...")
 
         if filter_type == 'butterworth':
-            components = calculate_butterworth(freq_hz, impedance, n)
+            components = calculate_butterworth(freq_hz, impedance, n,
+                                               topology=topology)
         elif filter_type == 'chebyshev':
-            components = calculate_chebyshev(freq_hz, impedance, ripple, n)
+            components = calculate_chebyshev(freq_hz, impedance, ripple, n,
+                                             topology=topology)
         else:
-            components = calculate_bessel(freq_hz, impedance, n)
+            components = calculate_bessel(freq_hz, impedance, n,
+                                          topology=topology)
 
         result = build_result(
             filter_type, freq_hz, impedance,
             components[0], components[1], components[2],
-            ripple if filter_type == 'chebyshev' else None
+            ripple if filter_type == 'chebyshev' else None,
+            topology
         )
 
         # Output options

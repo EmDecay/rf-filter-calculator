@@ -4,7 +4,7 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 
 ## Features
 
-- **Filter Types**: Lowpass (Pi topology), Highpass (T topology), Bandpass (coupled resonator)
+- **Filter Types**: Lowpass (Pi/T topology), Highpass (Pi/T topology), Bandpass (coupled resonator)
 - **Response Types**: Butterworth, Chebyshev, Bessel
 - **E-Series Matching**: Find closest E12/E24/E96 standard values with parallel combinations
 - **ASCII Plots**: Visualize frequency response in terminal
@@ -32,11 +32,17 @@ Activate the virtual environment (`source .venv/bin/activate`) each time you ope
 # Start interactive wizard (default when no arguments given)
 ./filter-calc.py
 
-# 5th-order Butterworth lowpass at 10 MHz
-./filter-calc.py lowpass butterworth 10MHz -n 5
+# 5th-order Butterworth lowpass Pi at 10 MHz
+./filter-calc.py lowpass butterworth pi 10MHz -n 5
 
-# Chebyshev highpass at 14 MHz with 0.5 dB ripple
-./filter-calc.py highpass chebyshev 14MHz -r 0.5
+# Lowpass T topology
+./filter-calc.py lowpass butterworth 10MHz -n 5 --topology t
+
+# Chebyshev highpass T at 14 MHz with 0.5 dB ripple
+./filter-calc.py highpass chebyshev 14MHz -r 0.5 --topology t
+
+# Highpass Pi topology
+./filter-calc.py highpass chebyshev 14MHz -r 0.5 --topology pi
 
 # Bandpass for 20m amateur band (14.0-14.35 MHz)
 ./filter-calc.py bandpass butterworth top -f 14.175MHz -b 350kHz
@@ -44,16 +50,16 @@ Activate the virtual environment (`source .venv/bin/activate`) each time you ope
 
 ## Usage
 
-### Lowpass Filter (Pi Topology)
+### Lowpass Filter
 
 ```bash
-./filter-calc.py lowpass <type> <frequency> [options]
-./filter-calc.py lp <type> <frequency> [options]
+./filter-calc.py lowpass <type> <topology> <frequency> [options]
+./filter-calc.py lp <type> <frequency> --topology pi|t [options]
 ```
 
 **Example:**
 ```bash
-./filter-calc.py lp bw 7.1MHz -n 5 --plot
+./filter-calc.py lp bw pi 7.1MHz -n 5 --plot
 ```
 
 ```
@@ -80,11 +86,11 @@ Activate the virtual environment (`source .venv/bin/activate`) each time you ope
 └──────────────────────────────────┴───────────────────────────────────────────┘
 ```
 
-### Highpass Filter (T Topology)
+### Highpass Filter
 
 ```bash
-./filter-calc.py highpass <type> <frequency> [options]
-./filter-calc.py hp <type> <frequency> [options]
+./filter-calc.py highpass <type> <topology> <frequency> [options]
+./filter-calc.py hp <type> <frequency> --topology pi|t [options]
 ```
 
 ### Bandpass Filter (Coupled Resonator)
@@ -156,6 +162,7 @@ All CLI options are available in wizard mode.
 
 | Option | Description |
 |--------|-------------|
+| `--topology` | Filter topology: pi or t (required for lowpass/highpass) |
 | `-n, --components` | Number of components/resonators (2-9) |
 | `-z, --impedance` | System impedance (default: 50Ω) |
 | `-r, --ripple` | Chebyshev passband ripple in dB (default: 0.5) |
@@ -227,8 +234,8 @@ rf-filter-calculator/
 ├── tests/                  # Test suite (pytest)
 └── filter_lib/
     ├── cli/                # Subcommand handlers
-    ├── lowpass/            # Pi topology calculations
-    ├── highpass/           # T topology calculations
+    ├── lowpass/            # Lowpass calculations (Pi/T)
+    ├── highpass/           # Highpass calculations (Pi/T)
     ├── bandpass/           # Coupled resonator calculations
     ├── wizard/             # Interactive design mode
     └── shared/             # Common utilities (parsing, E-series, plotting)

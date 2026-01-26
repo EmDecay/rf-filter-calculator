@@ -37,15 +37,16 @@ pip install pytest pytest-cov
 
 | Test File | Tests | Description |
 |-----------|-------|-------------|
-| `test_lowpass_calculations.py` | 35 | Pi topology filter calculations |
-| `test_highpass_calculations.py` | 20 | T topology filter calculations |
+| `test_lowpass_calculations.py` | 35 | Pi/T topology lowpass calculations |
+| `test_highpass_calculations.py` | 20 | Pi/T topology highpass calculations |
 | `test_chebyshev_calculator.py` | 21 | Chebyshev g-value computation |
 | `test_eseries_matching.py` | 37 | E12/E24/E96 component matching |
 | `test_bandpass_calculations.py` | 27 | Coupled resonator calculations |
 | `test_parsing_validation.py` | 18 | Input parsing and validation |
-| `test_display_modules.py` | 21 | Output formatting (JSON/CSV/table) |
+| `test_display_modules.py` | 49 | Output formatting (JSON/CSV/table/topology) |
+| `test_topology_calculations.py` | 20 | Pi/T topology formulas and component counts |
 
-**Total: 167+ tests**
+**Total: 217+ tests**
 
 ---
 
@@ -55,16 +56,17 @@ pip install pytest pytest-cov
 
 Verify mathematical correctness of filter component calculations.
 
-**Lowpass (Pi Topology)**
+**Lowpass (Pi/T Topology)**
 - Butterworth coefficient verification against Zverev formulas
 - Chebyshev g-value computation for arbitrary ripple
 - Bessel filter constants from Thomson filter theory
 - Impedance and frequency scaling relationships
 - Component count ranges (2-9 elements)
 
-**Highpass (T Topology)**
-- Dual transformation from lowpass prototype
-- Proper component ordering (series inductors, shunt capacitors)
+**Highpass (Pi/T Topology)**
+- HPF derived from lowpass prototype via 1/g transformation
+- T: series capacitors at odd positions, shunt inductors at even positions
+- Pi: shunt inductors at odd positions, series capacitors at even positions
 - Scaling verification across frequency/impedance ranges
 
 **Bandpass (Coupled Resonator)**
@@ -176,8 +178,8 @@ Pre-computed from Thomson filter theory for maximally flat group delay. Verified
 Tests verify proper frequency and impedance scaling:
 
 ```
-C_scaled = C_prototype / (2π * f * Z0)
-L_scaled = L_prototype * Z0 / (2π * f)
+Lowpass:  C = g / (2π * f * Z0),   L = g * Z0 / (2π * f)
+Highpass: C = 1 / (g * 2π * f * Z0), L = Z0 / (g * 2π * f)
 ```
 
 ---

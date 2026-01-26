@@ -42,23 +42,23 @@ FILTER_EXPLANATIONS: dict[str, str] = {
 - Good for data/pulse applications""",
 }
 
-# Highpass-specific explanations (T-topology note)
+# Highpass-specific explanations
 FILTER_EXPLANATIONS_HIGHPASS: dict[str, str] = {
     'butterworth': """Butterworth High-Pass Filter (Maximally Flat Magnitude)
 - Flattest possible passband response
 - No ripple in passband
 - Moderate rolloff steepness
-- T-topology: series inductors, shunt capacitors""",
+- Supports Pi and T topologies""",
     'chebyshev': """Chebyshev High-Pass Filter (Equiripple)
 - Steeper rolloff than Butterworth for same order
 - Ripple in passband (specified in dB)
 - Better stopband attenuation
-- T-topology: series inductors, shunt capacitors""",
+- Supports Pi and T topologies""",
     'bessel': """Bessel High-Pass Filter (Maximally Flat Delay)
 - Best pulse response (minimal overshoot)
 - Linear phase response
 - Gentlest rolloff
-- T-topology: series inductors, shunt capacitors""",
+- Supports Pi and T topologies""",
 }
 
 # Bandpass-specific explanations

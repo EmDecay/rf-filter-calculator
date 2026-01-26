@@ -28,6 +28,7 @@ class FilterResult:
     order: int
     capacitors: list[float]
     inductors: list[float]
+    topology: str | None = None
     ripple: float | None = None
 
     def to_dict(self) -> dict:
@@ -36,7 +37,7 @@ class FilterResult:
         Returns:
             Dict compatible with existing display_results() functions.
         """
-        return {
+        d = {
             'filter_type': self.filter_type,
             'freq_hz': self.freq_hz,
             'impedance': self.impedance,
@@ -45,3 +46,6 @@ class FilterResult:
             'inductors': self.inductors,
             'ripple': self.ripple,
         }
+        if self.topology is not None:
+            d['topology'] = self.topology
+        return d

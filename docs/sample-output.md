@@ -70,7 +70,7 @@ Frequency Response (dB)
 ## Highpass Filter (Chebyshev, 5th Order)
 
 ```bash
-./filter-calc.py hp ch 14MHz -r 0.5 -n 5
+./filter-calc.py hp ch t 14MHz -r 0.5 -n 5
 ```
 
 ```
@@ -83,35 +83,35 @@ Order:               5
 ==================================================
 
 Topology:
-  IN ───┤L1├───┬───┤L2├───┬───┤L3├─── OUT
+  IN ───┤C1├───┬───┤C2├───┬───┤C3├─── OUT
                │          │
               ===        ===
-              C1         C2
+              L1         L2
                │          │
               GND        GND
 
                  Component Values
 ┌────────────────────────┬────────────────────────┐
-│       Inductors        │       Capacitors       │
+│       Capacitors       │       Inductors        │
 ├────────────────────────┼────────────────────────┤
-│ L1: 333.22 nH          │ C1: 279.57 pF          │
-│ L2: 223.71 nH          │ C2: 279.57 pF          │
-│ L3: 333.22 nH          │                        │
+│ C1: 133.29 pF          │ L1: 462.27 nH          │
+│ C2: 89.48 pF           │ L2: 462.27 nH          │
+│ C3: 133.29 pF          │                        │
 └────────────────────────┴────────────────────────┘
 
-E24 Standard Inductor Recommendations
+E24 Standard Capacitor Recommendations
 ─────────────────────────────────────────────
 (Calculated values with nearest standard matches)
 
-L1 Calculated: 333.22 nH
-  Nearest Std:  330.00 nH (-1.0%)
-  Parallel Std: 33.00 || 300.00 nH (-0.1%)
-L2 Calculated: 223.71 nH
-  Nearest Std:  220.00 nH (-1.7%)
-  Parallel Std: 24.00 || 200.00 nH (+0.1%)
-L3 Calculated: 333.22 nH
-  Nearest Std:  330.00 nH (-1.0%)
-  Parallel Std: 33.00 || 300.00 nH (-0.1%)
+C1 Calculated: 133.29 pF
+  Nearest Std:  130.00 pF (-2.5%)
+  Parallel Std: 13.00 || 120.00 pF (-0.2%)
+C2 Calculated: 89.48 pF
+  Nearest Std:  91.00 pF (+1.7%)
+  Parallel Std: 27.00 || 62.00 pF (-0.5%)
+C3 Calculated: 133.29 pF
+  Nearest Std:  130.00 pF (-2.5%)
+  Parallel Std: 13.00 || 120.00 pF (-0.2%)
 ```
 
 ---

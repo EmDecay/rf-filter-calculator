@@ -6,8 +6,8 @@ Complete reference for all commands, options, and features.
 
 | Command | Aliases | Description |
 |---------|---------|-------------|
-| `lowpass` | `lp` | Pi topology low-pass filter |
-| `highpass` | `hp` | T topology high-pass filter |
+| `lowpass` | `lp` | Low-pass filter (Pi or T topology) |
+| `highpass` | `hp` | High-pass filter (Pi or T topology) |
 | `bandpass` | `bp` | Coupled resonator bandpass filter |
 | *(no args)* | - | Interactive wizard (default) |
 
@@ -15,13 +15,16 @@ Complete reference for all commands, options, and features.
 
 ## Lowpass Command
 
-Designs Pi-topology low-pass filters with shunt capacitors and series inductors.
+Designs low-pass filters with Pi or T topology.
+
+- **Pi topology**: shunt C - series L - shunt C - ... (capacitors at odd positions)
+- **T topology**: series L - shunt C - series L - ... (inductors at odd positions)
 
 ### Syntax
 
 ```bash
-./filter-calc.py lowpass <filter_type> <frequency> [options]
-./filter-calc.py lp <filter_type> <frequency> [options]
+./filter-calc.py lowpass <filter_type> <topology> <frequency> [options]
+./filter-calc.py lp <filter_type> <frequency> --topology pi|t [options]
 ```
 
 ### Positional Arguments
@@ -29,12 +32,14 @@ Designs Pi-topology low-pass filters with shunt capacitors and series inductors.
 | Argument | Description |
 |----------|-------------|
 | `filter_type` | `butterworth`, `chebyshev`, `bessel` (or aliases) |
+| `topology` | Filter topology: `pi` or `t` (also accepted via `--topology`) |
 | `frequency` | Cutoff frequency (e.g., `10MHz`, `7.1M`) |
 
 ### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `--topology` | - | Filter topology: `pi` or `t` (required if not positional) |
 | `-n, --components` | 3 | Number of reactive components (2-9) |
 | `-z, --impedance` | 50 | System impedance in ohms |
 | `-r, --ripple` | 0.5 | Chebyshev passband ripple in dB |
@@ -50,50 +55,59 @@ Designs Pi-topology low-pass filters with shunt capacitors and series inductors.
 ### Examples
 
 ```bash
-# Basic 5th-order Butterworth at 7.1 MHz for 40m band
-./filter-calc.py lp bw 7.1MHz -n 5
+# 5th-order Butterworth Pi at 7.1 MHz for 40m band
+./filter-calc.py lp bw pi 7.1MHz -n 5
+
+# T topology lowpass
+./filter-calc.py lp bw 10MHz -n 5 --topology t
 
 # Chebyshev with 1 dB ripple at 28 MHz
-./filter-calc.py lp ch 28MHz -r 1.0 -n 7
+./filter-calc.py lp ch pi 28MHz -r 1.0 -n 7
 
 # Output with frequency response plot
-./filter-calc.py lp bw 10MHz --plot
+./filter-calc.py lp bw pi 10MHz --plot
 
 # JSON output for scripting
-./filter-calc.py lp bw 10MHz --format json
+./filter-calc.py lp bw pi 10MHz --format json
 
 # High-precision E96 component matching
-./filter-calc.py lp bw 10MHz -e E96
+./filter-calc.py lp bw pi 10MHz -e E96
 
 # Export frequency response data
-./filter-calc.py lp bw 10MHz --plot-data csv > response.csv
+./filter-calc.py lp bw pi 10MHz --plot-data csv > response.csv
 ```
 
 ---
 
 ## Highpass Command
 
-Designs T-topology high-pass filters with series inductors and shunt capacitors.
+Designs high-pass filters with Pi or T topology.
+
+- **T topology**: series C - shunt L - series C - ... (capacitors at odd positions)
+- **Pi topology**: shunt L - series C - shunt L - ... (inductors at odd positions)
 
 ### Syntax
 
 ```bash
-./filter-calc.py highpass <filter_type> <frequency> [options]
-./filter-calc.py hp <filter_type> <frequency> [options]
+./filter-calc.py highpass <filter_type> <topology> <frequency> [options]
+./filter-calc.py hp <filter_type> <frequency> --topology pi|t [options]
 ```
 
 ### Arguments and Options
 
-Same as lowpass command. The topology is automatically inverted (T instead of Pi).
+Same options as lowpass command, with topology required (`pi` or `t`).
 
 ### Examples
 
 ```bash
-# Block below 14 MHz (20m band high-pass)
-./filter-calc.py hp bw 14MHz -n 5
+# Block below 14 MHz (20m band high-pass, T topology)
+./filter-calc.py hp bw t 14MHz -n 5
+
+# Pi topology highpass
+./filter-calc.py hp bw 14MHz -n 5 --topology pi
 
 # Steep Chebyshev rolloff
-./filter-calc.py hp ch 3.5MHz -r 0.5 -n 7
+./filter-calc.py hp ch t 3.5MHz -r 0.5 -n 7
 ```
 
 ---
@@ -192,10 +206,11 @@ Running with no arguments starts the interactive wizard for guided filter design
 The wizard prompts for:
 1. Filter category (lowpass, highpass, bandpass)
 2. Response type (Butterworth, Chebyshev, Bessel)
-3. Frequency parameters
-4. Number of components/resonators
-5. Impedance
-6. Chebyshev ripple (if applicable)
+3. Topology (Pi or T, for lowpass/highpass)
+4. Frequency parameters
+5. Number of components/resonators
+6. Impedance
+7. Chebyshev ripple (if applicable)
 
 ### Output Options
 
@@ -276,7 +291,7 @@ Human-readable format with ASCII diagrams, component tables, and E-series recomm
 ### JSON
 
 ```bash
-./filter-calc.py lp bw 10MHz --format json
+./filter-calc.py lp bw pi 10MHz --format json
 ```
 
 Structured output for programmatic use:
@@ -286,6 +301,7 @@ Structured output for programmatic use:
   "cutoff_frequency_hz": 10000000.0,
   "impedance_ohms": 50.0,
   "order": 3,
+  "topology": "pi",
   "components": {
     "capacitors": [...],
     "inductors": [...]
@@ -296,7 +312,7 @@ Structured output for programmatic use:
 ### CSV
 
 ```bash
-./filter-calc.py lp bw 10MHz --format csv
+./filter-calc.py lp bw pi 10MHz --format csv
 ```
 
 Spreadsheet-compatible format:
@@ -354,8 +370,8 @@ Features:
 
 ```bash
 # JSON format with metadata
-./filter-calc.py lp bw 10MHz --plot-data json > response.json
+./filter-calc.py lp bw pi 10MHz --plot-data json > response.json
 
 # CSV for spreadsheet/graphing software
-./filter-calc.py lp bw 10MHz --plot-data csv > response.csv
+./filter-calc.py lp bw pi 10MHz --plot-data csv > response.csv
 ```

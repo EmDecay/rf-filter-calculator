@@ -12,18 +12,19 @@ def main():
     parser = argparse.ArgumentParser(
         description='Unified Filter Calculator',
         epilog='''Subcommands:
-  lowpass (lp)   Pi LC low-pass filter
-  highpass (hp)  T LC high-pass filter
+  lowpass (lp)   LC low-pass filter (Pi or T topology)
+  highpass (hp)  LC high-pass filter (Pi or T topology)
   bandpass (bp)  Coupled resonator bandpass filter
 
 Run with no arguments to start the interactive wizard.
 
 Examples:
   %(prog)s                              # Start interactive wizard
-  %(prog)s lowpass butterworth 10MHz -n 5
-  %(prog)s lp bw 10MHz --format json
-  %(prog)s highpass bw 10MHz -n 5
-  %(prog)s hp ch 10MHz -r 0.5
+  %(prog)s lowpass butterworth pi 10MHz -n 5
+  %(prog)s lp bw 10MHz --topology t
+  %(prog)s lp bw 10MHz --topology pi --format json
+  %(prog)s highpass bw t 10MHz -n 5
+  %(prog)s hp ch 10MHz --topology pi -r 0.5
   %(prog)s bandpass bw top -f 14.2MHz -b 500kHz
   %(prog)s bp ch shunt --fl 14MHz --fh 14.35MHz -n 7''',
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -32,12 +33,12 @@ Examples:
     subparsers = parser.add_subparsers(dest='command')
 
     lp_parser = subparsers.add_parser('lowpass', aliases=['lp'],
-                                       help='Pi LC low-pass filter')
+                                       help='LC low-pass filter (Pi or T)')
     lowpass_cmd.setup_parser(lp_parser)
     lp_parser.set_defaults(func=lowpass_cmd.run)
 
     hp_parser = subparsers.add_parser('highpass', aliases=['hp'],
-                                       help='T LC high-pass filter')
+                                       help='LC high-pass filter (Pi or T)')
     highpass_cmd.setup_parser(hp_parser)
     hp_parser.set_defaults(func=highpass_cmd.run)
 

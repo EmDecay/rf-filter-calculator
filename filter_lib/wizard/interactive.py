@@ -21,7 +21,7 @@ from .bandpass_wizard import run_bandpass_wizard
 
 def _build_lowpass_result(filter_type: str, freq_hz: float, impedance: float,
                           caps: list, inds: list, order: int,
-                          ripple: float | None) -> dict:
+                          ripple: float | None, topology: str) -> dict:
     """Build result dict for lowpass filter."""
     return {
         'filter_type': filter_type,
@@ -31,12 +31,13 @@ def _build_lowpass_result(filter_type: str, freq_hz: float, impedance: float,
         'inductors': inds,
         'order': order,
         'ripple': ripple,
+        'topology': topology,
     }
 
 
 def _build_highpass_result(filter_type: str, freq_hz: float, impedance: float,
                            inds: list, caps: list, order: int,
-                           ripple: float | None) -> dict:
+                           ripple: float | None, topology: str) -> dict:
     """Build result dict for highpass filter."""
     return {
         'filter_type': filter_type,
@@ -46,6 +47,7 @@ def _build_highpass_result(filter_type: str, freq_hz: float, impedance: float,
         'capacitors': caps,
         'order': order,
         'ripple': ripple,
+        'topology': topology,
     }
 
 
