@@ -32,13 +32,17 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 ```bash
 git clone https://github.com/EmDecay/rf-filter-calculator.git
 cd rf-filter-calculator
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 chmod +x filter-calc.py
 ```
 
-Or install as a package:
+Or install as a package (still within the virtual environment):
 
 ```bash
 pip install -e .
 filter-calc lowpass butterworth 10MHz
 ```
+
+Activate the virtual environment (`source .venv/bin/activate`) each time you open a new terminal before running the tool.

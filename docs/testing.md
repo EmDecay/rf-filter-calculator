@@ -24,7 +24,10 @@ pytest tests/ --cov=filter_lib --cov-report=term-missing
 
 ### Requirements
 
+Ensure your virtual environment is active, then install test dependencies:
+
 ```bash
+source .venv/bin/activate
 pip install pytest pytest-cov
 ```
 
@@ -253,9 +256,10 @@ pytest tests/ --cov=filter_lib --cov-report=html
 
 ### Import Errors
 
-Ensure the package is installed in development mode:
+Ensure your virtual environment is active and the package is installed in development mode:
 
 ```bash
+source .venv/bin/activate
 pip install -e .
 ```
 

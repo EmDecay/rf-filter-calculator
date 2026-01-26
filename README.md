@@ -18,9 +18,13 @@ Requires Python 3.10+.
 ```bash
 git clone https://github.com/EmDecay/rf-filter-calculator.git
 cd rf-filter-calculator
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 chmod +x filter-calc.py
 ```
+
+Activate the virtual environment (`source .venv/bin/activate`) each time you open a new terminal before running the tool.
 
 ## Quick Start
 
