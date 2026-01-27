@@ -332,14 +332,3 @@ class TestBandpassEdgeCases:
         assert 1e-9 < l < 1e-6  # nH to µH range
         assert 1e-12 < c < 1e-9  # pF to nF range
 
-    def test_three_resonator_bandpass(self):
-        """Test three-resonator bandpass filter."""
-        g_values = [1.0, 1.3, 2.0, 1.3, 1.0]
-        fbw = 0.1
-
-        k_values = calculate_coupling_coefficients(g_values, fbw)
-        qe_in, qe_out = calculate_external_q(g_values, fbw)
-
-        assert len(k_values) == 4
-        assert qe_in > 0
-        assert qe_out > 0

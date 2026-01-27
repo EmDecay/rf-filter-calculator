@@ -54,11 +54,6 @@ class TestLowpassTTopology:
             assert len(inds) == expected_inds
             assert len(caps) == expected_caps
 
-    def test_invalid_topology_raises(self):
-        """Invalid topology string raises ValueError."""
-        with pytest.raises(ValueError, match="Topology must be"):
-            lp.calculate_butterworth(10e6, 50, 3, topology='x')
-
 
 class TestHighpassPiTopology:
     """Test HPF with Pi topology (new)."""

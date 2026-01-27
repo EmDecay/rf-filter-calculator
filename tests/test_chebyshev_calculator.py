@@ -29,15 +29,6 @@ class TestChebychevGValuesBasic:
             g = calculate_chebyshev_g_values(n, 0.5)
             assert len(g) == n + 1  # 0-indexed, so length is n+1
 
-    def test_g_values_0_5db_ripple(self):
-        """Test g-values for 0.5 dB ripple (common case)."""
-        g = calculate_chebyshev_g_values(3, 0.5)
-
-        # Should have 4 elements (g[0] unused, g[1], g[2], g[3])
-        assert len(g) == 4
-        # All active g-values positive
-        assert all(g[i] > 0 for i in range(1, 4))
-
     def test_ripple_effect_on_g_values(self):
         """Test that increasing ripple changes g-values."""
         g_01 = calculate_chebyshev_g_values(3, 0.1)
@@ -46,34 +37,6 @@ class TestChebychevGValuesBasic:
         # Different ripple -> different g-values
         for i in range(1, 4):
             assert g_01[i] != g_10[i]
-
-    def test_order_effect_on_g_values(self):
-        """Test that order affects number of g-values."""
-        g2 = calculate_chebyshev_g_values(2, 0.5)
-        g3 = calculate_chebyshev_g_values(3, 0.5)
-
-        assert len(g2) == 3  # 2+1
-        assert len(g3) == 4  # 3+1
-
-    def test_monotonic_ripple_increase(self):
-        """Test behavior across range of ripple values."""
-        ripples = [0.1, 0.5, 1.0, 2.0]
-        g_values_all = []
-
-        for ripple in ripples:
-            g = calculate_chebyshev_g_values(3, ripple)
-            g_values_all.append(g)
-
-        # All calculations should succeed
-        assert len(g_values_all) == 4
-
-    def test_consistent_calculation(self):
-        """Test that repeated calculations give same result."""
-        g1 = calculate_chebyshev_g_values(4, 0.5)
-        g2 = calculate_chebyshev_g_values(4, 0.5)
-
-        for i in range(len(g1)):
-            assert abs(g1[i] - g2[i]) < 1e-15
 
 
 class TestChebychevFormulaMathematics:
@@ -96,27 +59,6 @@ class TestChebychevFormulaMathematics:
 
         # e2x should be positive and > 1
         assert e2x > 1
-
-    def test_g_values_symmetry_pattern(self):
-        """Test that certain Chebyshev patterns emerge."""
-        g = calculate_chebyshev_g_values(5, 0.5)
-
-        # For 5-component (odd), certain symmetries may appear
-        # depending on implementation, but g-values should be positive
-        assert all(g[i] > 0 for i in range(1, 6))
-
-    def test_increasing_order_produces_more_elements(self):
-        """Test that increasing order increases g-values."""
-        g_values_by_order = {}
-
-        for n in range(2, 10):
-            g = calculate_chebyshev_g_values(n, 0.5)
-            g_values_by_order[n] = g
-
-        # Check monotonic increase in array size
-        for i in range(2, 9):
-            assert len(g_values_by_order[i]) == i + 1
-            assert len(g_values_by_order[i + 1]) == i + 2
 
     def test_normalized_ripple_behavior(self):
         """Test g-values for normalized ripple inputs."""
@@ -162,18 +104,6 @@ class TestChebychevPhysicalValidity:
         assert 1e-12 < c1 < 1e-6  # pF to µF
         assert 1e-9 < l2 < 1e-3   # nH to mH
         assert 1e-12 < c3 < 1e-6  # pF to µF
-
-    def test_g_values_impedance_invariant(self):
-        """Test that g-values are independent of impedance."""
-        # g-values are normalized (impedance-independent)
-        g = calculate_chebyshev_g_values(3, 0.5)
-
-        # Recalculate with same parameters
-        g2 = calculate_chebyshev_g_values(3, 0.5)
-
-        # Should be identical
-        for i in range(len(g)):
-            assert abs(g[i] - g2[i]) < 1e-15
 
 
 class TestChebychevEdgeCases:

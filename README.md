@@ -224,7 +224,7 @@ pytest tests/ -v
 pytest tests/ --cov=filter_lib
 ```
 
-**Test coverage:** 167+ tests covering filter calculations, input validation, and output formatting. See [docs/testing.md](docs/testing.md) for details.
+**Test coverage:** 344 tests covering filter calculations, transfer functions, input validation, CLI commands, and output formatting. See [docs/testing.md](docs/testing.md) for details.
 
 ## Project Structure
 

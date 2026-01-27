@@ -37,16 +37,19 @@ pip install pytest pytest-cov
 
 | Test File | Tests | Description |
 |-----------|-------|-------------|
-| `test_lowpass_calculations.py` | 35 | Pi/T topology lowpass calculations |
-| `test_highpass_calculations.py` | 20 | Pi/T topology highpass calculations |
-| `test_chebyshev_calculator.py` | 21 | Chebyshev g-value computation |
-| `test_eseries_matching.py` | 37 | E12/E24/E96 component matching |
-| `test_bandpass_calculations.py` | 27 | Coupled resonator calculations |
-| `test_parsing_validation.py` | 18 | Input parsing and validation |
+| `test_cli_and_helpers.py` | 50 | CLI commands, plotting, and formatting helpers |
+| `test_transfer_functions.py` | 49 | Frequency response (shared + LPF/HPF/BPF) |
 | `test_display_modules.py` | 49 | Output formatting (JSON/CSV/table/topology) |
-| `test_topology_calculations.py` | 20 | Pi/T topology formulas and component counts |
+| `test_bandpass_modules.py` | 39 | Bandpass g-values, formatters, display, diagrams |
+| `test_eseries_matching.py` | 35 | E12/E24/E96 component matching |
+| `test_bandpass_calculations.py` | 26 | Coupled resonator calculations |
+| `test_lowpass_calculations.py` | 24 | Pi/T topology lowpass calculations |
+| `test_highpass_calculations.py` | 20 | Pi/T topology highpass calculations |
+| `test_topology_calculations.py` | 19 | Pi/T topology formulas and component counts |
+| `test_parsing_validation.py` | 18 | Input parsing and validation |
+| `test_chebyshev_calculator.py` | 15 | Chebyshev g-value computation |
 
-**Total: 217+ tests**
+**Total: 344 tests**
 
 ---
 
@@ -137,12 +140,11 @@ Verify output formatting for all export formats.
 | `filter_lib/shared/eseries.py` | 91% | Matching algorithms tested |
 | `filter_lib/bandpass/calculations.py` | 44% | Core formulas tested |
 
-### Not Covered (Interactive/CLI)
+### Not Covered (Interactive)
 
 | Module | Reason |
 |--------|--------|
 | `filter_lib/wizard/*.py` | Interactive prompts require user input |
-| `filter_lib/cli/*.py` | Argument parsing wrappers |
 
 ---
 

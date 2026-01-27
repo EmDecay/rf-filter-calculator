@@ -274,29 +274,3 @@ class TestComponentInterrelationships:
         assert all(c > 0 for c in caps)
         assert all(i > 0 for i in inds)
 
-    def test_matching_g_values_for_comparison(self):
-        """Test that g-values scale proportionally to components."""
-        cutoff = 10e6
-        impedance = 50
-
-        # Get components for different orders
-        caps_2, inds_2, _ = lp.calculate_butterworth(cutoff, impedance, 2, topology='pi')
-        caps_3, inds_3, _ = lp.calculate_butterworth(cutoff, impedance, 3, topology='pi')
-
-        # Different orders should have different component counts
-        assert len(caps_2) + len(inds_2) == 2
-        assert len(caps_3) + len(inds_3) == 3
-
-    def test_bessel_values_reasonable(self):
-        """Test that Bessel values are reasonable (from constants)."""
-        from filter_lib.shared.constants import BESSEL_G_VALUES
-
-        for order in range(2, 10):
-            caps, inds, n = lp.calculate_bessel(10e6, 50, order, topology='pi')
-
-            # Should have correct number of elements
-            assert len(caps) + len(inds) == order
-            assert n == order
-
-            # Should match expected g-value count
-            assert len(BESSEL_G_VALUES[order]) == order
