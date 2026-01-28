@@ -212,6 +212,8 @@ The wizard prompts for:
 6. Impedance
 7. Chebyshev ripple (if applicable)
 
+For text inputs, defaults are shown in brackets (e.g., `Impedance [50]`). Press Enter to accept the default, or type a value to override it.
+
 ### Output Options
 
 After calculation, an output options screen provides an interactive interface with arrow-key navigation:

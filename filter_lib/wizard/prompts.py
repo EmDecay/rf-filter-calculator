@@ -34,11 +34,14 @@ def prompt_input(message: str, default: str | None = None,
     Raises:
         KeyboardInterrupt: If user presses Ctrl+C or cancels
     """
+    # Show default in prompt hint, but leave field empty so typing replaces
+    prompt_msg = f"{message} [{default}]" if default else message
+
     while True:
         try:
             result = questionary.text(
-                message,
-                default=default or "",
+                prompt_msg,
+                default="",
                 style=WIZARD_STYLE,
             ).ask()
 

@@ -125,6 +125,8 @@ Running with no arguments starts the interactive wizard. Step-by-step guided des
 - Frequency and bandwidth parameters
 - Impedance and filter order
 
+For text inputs, defaults are shown in brackets (e.g., `Impedance [50]`). Press Enter to accept the default, or type a value to override it.
+
 After calculation, an **Output Options** screen lets you customize the display with interactive arrow-key navigation:
 
 ```
