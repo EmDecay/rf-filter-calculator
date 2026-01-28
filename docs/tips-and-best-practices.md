@@ -147,7 +147,7 @@ Best for:
 - Preserving full precision
 
 ```bash
-./filter-calc.py lp bw 10MHz --format json | jq '.components'
+uv run filter-calc lp bw 10MHz --format json | jq '.components'
 ```
 
 ### CSV
@@ -158,7 +158,7 @@ Best for:
 - Documentation
 
 ```bash
-./filter-calc.py lp bw 10MHz --format csv > bom.csv
+uv run filter-calc lp bw 10MHz --format csv > bom.csv
 ```
 
 ---
@@ -169,7 +169,7 @@ Best for:
 
 1. Start with `--explain` to understand filter types
 2. Run with no arguments for the wizard if unfamiliar with designs
-3. Try different orders: `./filter-calc.py lp bw 10MHz -n 3` vs `-n 5`
+3. Try different orders: `uv run filter-calc lp bw 10MHz -n 3` vs `-n 5`
 4. Compare Butterworth vs Chebyshev at same order
 5. Use `--plot` to visualize response
 
@@ -177,10 +177,10 @@ Best for:
 
 ```bash
 # Save complete design
-./filter-calc.py bp bw top -f 14.175MHz -b 350kHz -n 5 > design.txt
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz -n 5 > design.txt
 
 # Save response data for external plotting
-./filter-calc.py bp bw top -f 14.175MHz -b 350kHz --plot-data json > response.json
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz --plot-data json > response.json
 ```
 
 ### Scripting
@@ -189,7 +189,7 @@ Best for:
 #!/bin/bash
 for freq in 7.1 14.175 21.2 28.5; do
     echo "=== ${freq} MHz filter ==="
-    ./filter-calc.py lp bw ${freq}MHz -n 5 --format json
+    uv run filter-calc lp bw ${freq}MHz -n 5 --format json
 done > all_designs.json
 ```
 

@@ -10,25 +10,24 @@ Comprehensive test suite for the RF Filter Calculator.
 
 ```bash
 # Run all tests
-pytest tests/
+uv run pytest tests/
 
 # Run with verbose output
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Run specific test file
-pytest tests/test_lowpass_calculations.py
+uv run pytest tests/test_lowpass_calculations.py
 
 # Run with coverage report
-pytest tests/ --cov=filter_lib --cov-report=term-missing
+uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
 ### Requirements
 
-Ensure your virtual environment is active, then install test dependencies:
+Install with the dev dependency group:
 
 ```bash
-source .venv/bin/activate
-pip install pytest pytest-cov
+uv sync --group dev
 ```
 
 ---
@@ -245,13 +244,13 @@ Tests run automatically on:
 
 ```bash
 # Standard test run
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # With coverage threshold
-pytest tests/ --cov=filter_lib --cov-fail-under=80
+uv run pytest tests/ --cov=filter_lib --cov-fail-under=80
 
 # Generate HTML coverage report
-pytest tests/ --cov=filter_lib --cov-report=html
+uv run pytest tests/ --cov=filter_lib --cov-report=html
 ```
 
 ---
@@ -260,11 +259,10 @@ pytest tests/ --cov=filter_lib --cov-report=html
 
 ### Import Errors
 
-Ensure your virtual environment is active and the package is installed in development mode:
+Ensure the package is installed in development mode:
 
 ```bash
-source .venv/bin/activate
-pip install -e .
+uv sync --group dev
 ```
 
 ### Coverage Not Detected
@@ -273,7 +271,7 @@ Run from repository root:
 
 ```bash
 cd /path/to/rf-filter-calculator
-pytest tests/ --cov=filter_lib
+uv run pytest tests/ --cov=filter_lib
 ```
 
 ### Specific Test Failures
@@ -281,5 +279,5 @@ pytest tests/ --cov=filter_lib
 Run individual test with verbose output:
 
 ```bash
-pytest tests/test_lowpass_calculations.py::TestButterworthLowpass::test_basic_2component_50ohm_1mhz -v
+uv run pytest tests/test_lowpass_calculations.py::TestButterworthLowpass::test_basic_2component_50ohm_1mhz -v
 ```

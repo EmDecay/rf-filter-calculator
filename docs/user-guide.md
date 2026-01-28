@@ -23,8 +23,8 @@ Designs low-pass filters with Pi or T topology.
 ### Syntax
 
 ```bash
-./filter-calc.py lowpass <filter_type> <topology> <frequency> [options]
-./filter-calc.py lp <filter_type> <frequency> --topology pi|t [options]
+uv run filter-calc lowpass <filter_type> <topology> <frequency> [options]
+uv run filter-calc lp <filter_type> <frequency> --topology pi|t [options]
 ```
 
 ### Positional Arguments
@@ -56,25 +56,25 @@ Designs low-pass filters with Pi or T topology.
 
 ```bash
 # 5th-order Butterworth Pi at 7.1 MHz for 40m band
-./filter-calc.py lp bw pi 7.1MHz -n 5
+uv run filter-calc lp bw pi 7.1MHz -n 5
 
 # T topology lowpass
-./filter-calc.py lp bw 10MHz -n 5 --topology t
+uv run filter-calc lp bw 10MHz -n 5 --topology t
 
 # Chebyshev with 1 dB ripple at 28 MHz
-./filter-calc.py lp ch pi 28MHz -r 1.0 -n 7
+uv run filter-calc lp ch pi 28MHz -r 1.0 -n 7
 
 # Output with frequency response plot
-./filter-calc.py lp bw pi 10MHz --plot
+uv run filter-calc lp bw pi 10MHz --plot
 
 # JSON output for scripting
-./filter-calc.py lp bw pi 10MHz --format json
+uv run filter-calc lp bw pi 10MHz --format json
 
 # High-precision E96 component matching
-./filter-calc.py lp bw pi 10MHz -e E96
+uv run filter-calc lp bw pi 10MHz -e E96
 
 # Export frequency response data
-./filter-calc.py lp bw pi 10MHz --plot-data csv > response.csv
+uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 ```
 
 ---
@@ -89,8 +89,8 @@ Designs high-pass filters with Pi or T topology.
 ### Syntax
 
 ```bash
-./filter-calc.py highpass <filter_type> <topology> <frequency> [options]
-./filter-calc.py hp <filter_type> <frequency> --topology pi|t [options]
+uv run filter-calc highpass <filter_type> <topology> <frequency> [options]
+uv run filter-calc hp <filter_type> <frequency> --topology pi|t [options]
 ```
 
 ### Arguments and Options
@@ -101,13 +101,13 @@ Same options as lowpass command, with topology required (`pi` or `t`).
 
 ```bash
 # Block below 14 MHz (20m band high-pass, T topology)
-./filter-calc.py hp bw t 14MHz -n 5
+uv run filter-calc hp bw t 14MHz -n 5
 
 # Pi topology highpass
-./filter-calc.py hp bw 14MHz -n 5 --topology pi
+uv run filter-calc hp bw 14MHz -n 5 --topology pi
 
 # Steep Chebyshev rolloff
-./filter-calc.py hp ch t 3.5MHz -r 0.5 -n 7
+uv run filter-calc hp ch t 3.5MHz -r 0.5 -n 7
 ```
 
 ---
@@ -119,8 +119,8 @@ Designs coupled-resonator bandpass filters using LC tank circuits.
 ### Syntax
 
 ```bash
-./filter-calc.py bandpass <filter_type> <coupling> [options]
-./filter-calc.py bp <filter_type> <coupling> [options]
+uv run filter-calc bandpass <filter_type> <coupling> [options]
+uv run filter-calc bp <filter_type> <coupling> [options]
 ```
 
 ### Positional Arguments
@@ -177,16 +177,16 @@ Two methods available (use one, not both):
 
 ```bash
 # 20m amateur band filter (14.0-14.35 MHz)
-./filter-calc.py bp bw top -f 14.175MHz -b 350kHz
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz
 
 # Same filter using low/high specification
-./filter-calc.py bp bw top --fl 14MHz --fh 14.35MHz
+uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 
 # 5-resonator Chebyshev (odd count required)
-./filter-calc.py bp ch top -f 7.15MHz -b 200kHz -n 5 -r 0.5
+uv run filter-calc bp ch top -f 7.15MHz -b 200kHz -n 5 -r 0.5
 
 # Shunt-coupled topology
-./filter-calc.py bp bw shunt -f 21.2MHz -b 450kHz
+uv run filter-calc bp bw shunt -f 21.2MHz -b 450kHz
 ```
 
 ---
@@ -198,7 +198,7 @@ Running with no arguments starts the interactive wizard for guided filter design
 ### Syntax
 
 ```bash
-./filter-calc.py
+uv run filter-calc
 ```
 
 ### Design Parameters
@@ -293,7 +293,7 @@ Human-readable format with ASCII diagrams, component tables, and E-series recomm
 ### JSON
 
 ```bash
-./filter-calc.py lp bw pi 10MHz --format json
+uv run filter-calc lp bw pi 10MHz --format json
 ```
 
 Structured output for programmatic use:
@@ -314,7 +314,7 @@ Structured output for programmatic use:
 ### CSV
 
 ```bash
-./filter-calc.py lp bw pi 10MHz --format csv
+uv run filter-calc lp bw pi 10MHz --format csv
 ```
 
 Spreadsheet-compatible format:
@@ -372,8 +372,8 @@ Features:
 
 ```bash
 # JSON format with metadata
-./filter-calc.py lp bw pi 10MHz --plot-data json > response.json
+uv run filter-calc lp bw pi 10MHz --plot-data json > response.json
 
 # CSV for spreadsheet/graphing software
-./filter-calc.py lp bw pi 10MHz --plot-data csv > response.csv
+uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 ```

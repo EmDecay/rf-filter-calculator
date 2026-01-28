@@ -13,39 +13,63 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 
 ## Installation
 
-Requires Python 3.10+.
+Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/).
 
+Install uv if you don't have it:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# or: brew install uv
+```
+
+Then set up the project:
 ```bash
 git clone https://github.com/EmDecay/rf-filter-calculator.git
 cd rf-filter-calculator
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-chmod +x filter-calc.py
+uv sync
 ```
 
-Activate the virtual environment (`source .venv/bin/activate`) each time you open a new terminal before running the tool.
+For development (includes pytest):
+```bash
+uv sync --group dev
+```
 
 ## Quick Start
 
 ```bash
 # Start interactive wizard (default when no arguments given)
-./filter-calc.py
+uv run filter-calc
 
 # 5th-order Butterworth lowpass Pi at 10 MHz
-./filter-calc.py lowpass butterworth pi 10MHz -n 5
+uv run filter-calc lowpass butterworth pi 10MHz -n 5
 
 # Lowpass T topology
-./filter-calc.py lowpass butterworth 10MHz -n 5 --topology t
+uv run filter-calc lowpass butterworth 10MHz -n 5 --topology t
 
 # Chebyshev highpass T at 14 MHz with 0.5 dB ripple
-./filter-calc.py highpass chebyshev 14MHz -r 0.5 --topology t
+uv run filter-calc highpass chebyshev 14MHz -r 0.5 --topology t
 
 # Highpass Pi topology
-./filter-calc.py highpass chebyshev 14MHz -r 0.5 --topology pi
+uv run filter-calc highpass chebyshev 14MHz -r 0.5 --topology pi
 
 # Bandpass for 20m amateur band (14.0-14.35 MHz)
-./filter-calc.py bandpass butterworth top -f 14.175MHz -b 350kHz
+uv run filter-calc bandpass butterworth top -f 14.175MHz -b 350kHz
+```
+
+### Running without `uv run`
+
+The `uv sync` command creates a virtual environment in `.venv/` at the project root. If you activate that virtual environment in your shell, you can run `./filter-calc.py` directly instead of prefixing every command with `uv run`:
+
+```bash
+# Activate the virtual environment
+source .venv/bin/activate    # macOS/Linux (bash/zsh)
+source .venv/bin/activate.fish  # Fish shell
+.venv\Scripts\activate       # Windows
+
+# Now you can run the script directly
+./filter-calc.py lowpass butterworth pi 10MHz -n 5
+
+# When you're done, deactivate the virtual environment
+deactivate
 ```
 
 ## Usage
@@ -53,13 +77,13 @@ Activate the virtual environment (`source .venv/bin/activate`) each time you ope
 ### Lowpass Filter
 
 ```bash
-./filter-calc.py lowpass <type> <topology> <frequency> [options]
-./filter-calc.py lp <type> <frequency> --topology pi|t [options]
+uv run filter-calc lowpass <type> <topology> <frequency> [options]
+uv run filter-calc lp <type> <frequency> --topology pi|t [options]
 ```
 
 **Example:**
 ```bash
-./filter-calc.py lp bw pi 7.1MHz -n 5 --plot
+uv run filter-calc lp bw pi 7.1MHz -n 5 --plot
 ```
 
 ```
@@ -89,24 +113,24 @@ Activate the virtual environment (`source .venv/bin/activate`) each time you ope
 ### Highpass Filter
 
 ```bash
-./filter-calc.py highpass <type> <topology> <frequency> [options]
-./filter-calc.py hp <type> <frequency> --topology pi|t [options]
+uv run filter-calc highpass <type> <topology> <frequency> [options]
+uv run filter-calc hp <type> <frequency> --topology pi|t [options]
 ```
 
 ### Bandpass Filter (Coupled Resonator)
 
 ```bash
-./filter-calc.py bandpass <type> <coupling> [options]
-./filter-calc.py bp <type> <coupling> [options]
+uv run filter-calc bandpass <type> <coupling> [options]
+uv run filter-calc bp <type> <coupling> [options]
 ```
 
 **Frequency specification:**
 ```bash
 # Method 1: Center frequency + bandwidth
-./filter-calc.py bp bw top -f 14.175MHz -b 350kHz
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz
 
 # Method 2: Lower and upper cutoff
-./filter-calc.py bp bw top --fl 14MHz --fh 14.35MHz
+uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 ```
 
 **Coupling topologies:**
@@ -116,7 +140,7 @@ Activate the virtual environment (`source .venv/bin/activate`) each time you ope
 ### Interactive Wizard
 
 ```bash
-./filter-calc.py
+uv run filter-calc
 ```
 
 Running with no arguments starts the interactive wizard. Step-by-step guided design for all filter types. The wizard prompts for:
@@ -200,18 +224,18 @@ Supported suffixes: `GHz`, `MHz`, `kHz`, `Hz`, `G`, `M`, `k`
 
 **JSON:**
 ```bash
-./filter-calc.py lp bw 10MHz --format json
+uv run filter-calc lp bw 10MHz --format json
 ```
 
 **CSV:**
 ```bash
-./filter-calc.py lp bw 10MHz --format csv > components.csv
+uv run filter-calc lp bw 10MHz --format csv > components.csv
 ```
 
 **Frequency Response Data:**
 ```bash
-./filter-calc.py lp bw 10MHz --plot-data json > response.json
-./filter-calc.py lp bw 10MHz --plot-data csv > response.csv
+uv run filter-calc lp bw 10MHz --plot-data json > response.json
+uv run filter-calc lp bw 10MHz --plot-data csv > response.csv
 ```
 
 ## Testing
@@ -220,10 +244,10 @@ Run the test suite with pytest:
 
 ```bash
 # Run all tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Run with coverage
-pytest tests/ --cov=filter_lib
+uv run pytest tests/ --cov=filter_lib
 ```
 
 **Test coverage:** 344 tests covering filter calculations, transfer functions, input validation, CLI commands, and output formatting. See [docs/testing.md](docs/testing.md) for details.

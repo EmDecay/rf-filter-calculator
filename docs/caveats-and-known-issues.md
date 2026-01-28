@@ -198,7 +198,7 @@ Component values drift with temperature:
 For bandpass filters, run the built-in verification:
 
 ```bash
-./filter-calc.py bp bw top -f 10MHz -b 1MHz --verify
+uv run filter-calc bp bw top -f 10MHz -b 1MHz --verify
 ```
 
 This checks g-value calculations and component formulas.

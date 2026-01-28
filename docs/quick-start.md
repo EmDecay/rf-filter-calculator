@@ -6,39 +6,39 @@
 
 ```bash
 # 5th-order Butterworth at 10 MHz
-./filter-calc.py lowpass butterworth 10MHz -n 5
+uv run filter-calc lowpass butterworth 10MHz -n 5
 
 # Short form
-./filter-calc.py lp bw 10MHz -n 5
+uv run filter-calc lp bw 10MHz -n 5
 ```
 
 ### Highpass Filter (Pi/T Topology)
 
 ```bash
 # 5th-order Chebyshev T at 14 MHz with 0.5 dB ripple
-./filter-calc.py highpass chebyshev t 14MHz -n 5 -r 0.5
+uv run filter-calc highpass chebyshev t 14MHz -n 5 -r 0.5
 
 # Short form
-./filter-calc.py hp ch t 14MHz -r 0.5
+uv run filter-calc hp ch t 14MHz -r 0.5
 
 # Pi topology
-./filter-calc.py hp ch pi 14MHz -r 0.5
+uv run filter-calc hp ch pi 14MHz -r 0.5
 ```
 
 ### Bandpass Filter (Coupled Resonator)
 
 ```bash
 # 20m amateur band (14.0-14.35 MHz)
-./filter-calc.py bandpass butterworth top -f 14.175MHz -b 350kHz
+uv run filter-calc bandpass butterworth top -f 14.175MHz -b 350kHz
 
 # Alternative: specify low/high cutoffs directly
-./filter-calc.py bp bw top --fl 14MHz --fh 14.35MHz
+uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 ```
 
 ### Interactive Wizard
 
 ```bash
-./filter-calc.py
+uv run filter-calc
 ```
 
 Running with no arguments starts the interactive wizard.

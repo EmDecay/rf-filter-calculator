@@ -7,7 +7,7 @@ Example outputs for all filter types and formats.
 ## Lowpass Filter (Butterworth, 5th Order)
 
 ```bash
-./filter-calc.py lp bw 10MHz -n 5 --plot
+uv run filter-calc lp bw 10MHz -n 5 --plot
 ```
 
 ```
@@ -70,7 +70,7 @@ Frequency Response (dB)
 ## Highpass Filter (Chebyshev, 5th Order)
 
 ```bash
-./filter-calc.py hp ch t 14MHz -r 0.5 -n 5
+uv run filter-calc hp ch t 14MHz -r 0.5 -n 5
 ```
 
 ```
@@ -119,7 +119,7 @@ C3 Calculated: 133.29 pF
 ## Bandpass Filter (Butterworth, 3 Resonators)
 
 ```bash
-./filter-calc.py bp bw top -f 14.175MHz -b 350kHz -n 3
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz -n 3
 ```
 
 ```
@@ -195,7 +195,7 @@ Cs23 Calculated: 3.92 pF
 ## JSON Output
 
 ```bash
-./filter-calc.py lp bw 10MHz --format json
+uv run filter-calc lp bw 10MHz --format json
 ```
 
 ```json
@@ -230,7 +230,7 @@ Cs23 Calculated: 3.92 pF
 ## CSV Output
 
 ```bash
-./filter-calc.py lp bw 10MHz --format csv
+uv run filter-calc lp bw 10MHz --format csv
 ```
 
 ```
@@ -247,7 +247,7 @@ L1,1.59,µH
 ### JSON Format
 
 ```bash
-./filter-calc.py lp bw 10MHz --plot-data json
+uv run filter-calc lp bw 10MHz --plot-data json
 ```
 
 ```json
@@ -268,7 +268,7 @@ L1,1.59,µH
 ### CSV Format
 
 ```bash
-./filter-calc.py lp bw 10MHz --plot-data csv
+uv run filter-calc lp bw 10MHz --plot-data csv
 ```
 
 ```
@@ -286,7 +286,7 @@ frequency_hz,magnitude_db
 ## Filter Explanation
 
 ```bash
-./filter-calc.py lp ch --explain
+uv run filter-calc lp ch --explain
 ```
 
 ```
@@ -302,7 +302,7 @@ Chebyshev Filter (Equiripple)
 ## Quiet Mode
 
 ```bash
-./filter-calc.py lp bw 10MHz -n 3 -q
+uv run filter-calc lp bw 10MHz -n 3 -q
 ```
 
 ```
@@ -316,7 +316,7 @@ L1: 1.59 µH
 ## Verification Test
 
 ```bash
-./filter-calc.py bp bw top -f 10MHz -b 1MHz --verify
+uv run filter-calc bp bw top -f 10MHz -b 1MHz --verify
 ```
 
 ```
