@@ -63,24 +63,14 @@ def display_results(result: dict, raw: bool = False,
     print_component_table(result, raw=raw, primary_component=primary)
 
     if show_match and not raw:
-        if primary == 'capacitors':
-            print(f"\n{eseries} Standard Capacitor Recommendations")
-            print("-" * 45)
-            print("(Calculated values with nearest standard matches)")
-            print()
-            for i, cap in enumerate(result['capacitors']):
-                print(f"C{i+1} Calculated: {format_capacitance(cap)}")
-                for line in format_eseries_match(cap, eseries, format_capacitance):
-                    print(line)
-        else:
-            print(f"\n{eseries} Standard Inductor Recommendations")
-            print("-" * 45)
-            print("(Calculated values with nearest standard matches)")
-            print()
-            for i, ind in enumerate(result['inductors']):
-                print(f"L{i+1} Calculated: {format_inductance(ind)}")
-                for line in format_eseries_match(ind, eseries, format_inductance):
-                    print(line)
+        print(f"\n{eseries} Standard Capacitor Recommendations")
+        print("-" * 45)
+        print("(Calculated values with nearest standard matches)")
+        print()
+        for i, cap in enumerate(result['capacitors']):
+            print(f"C{i+1} Calculated: {format_capacitance(cap)}")
+            for line in format_eseries_match(cap, eseries, format_capacitance):
+                print(line)
 
     if show_plot:
         freqs = generate_frequency_points(result['freq_hz'])

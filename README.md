@@ -6,7 +6,7 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 
 - **Filter Types**: Lowpass (Pi/T topology), Highpass (Pi/T topology), Bandpass (coupled resonator)
 - **Response Types**: Butterworth, Chebyshev, Bessel
-- **E-Series Matching**: Find closest E12/E24/E96 standard values with parallel combinations
+- **E-Series Matching**: Find closest E12/E24/E96 standard capacitor values with parallel combinations
 - **ASCII Plots**: Visualize frequency response in terminal
 - **Multiple Outputs**: Table, JSON, CSV formats
 - **Interactive Wizard**: Guided filter design mode

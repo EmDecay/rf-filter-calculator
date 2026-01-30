@@ -465,12 +465,12 @@ class TestDisplayResultsTopology:
         assert 'Capacitor Recommendations' in out
 
     def test_lowpass_t_display(self, lowpass_t_result, capsys):
-        """LPF T display shows T diagram and inductor recommendations."""
+        """LPF T display shows T diagram and capacitor recommendations."""
         lp_display(lowpass_t_result, show_plot=False, show_match=True)
         out = capsys.readouterr().out
 
         assert 'Low Pass' in out
-        assert 'Inductor Recommendations' in out
+        assert 'Capacitor Recommendations' in out
 
     def test_highpass_t_display(self, highpass_result, capsys):
         """HPF T display shows T diagram and capacitor recommendations."""
@@ -481,12 +481,12 @@ class TestDisplayResultsTopology:
         assert 'Capacitor Recommendations' in out
 
     def test_highpass_pi_display(self, highpass_pi_result, capsys):
-        """HPF Pi display shows Pi diagram and inductor recommendations."""
+        """HPF Pi display shows Pi diagram and capacitor recommendations."""
         hp_display(highpass_pi_result, show_plot=False, show_match=True)
         out = capsys.readouterr().out
 
         assert 'High Pass' in out
-        assert 'Inductor Recommendations' in out
+        assert 'Capacitor Recommendations' in out
 
     def test_lowpass_pi_json_format(self, lowpass_result, capsys):
         """LPF Pi JSON output works via display_results."""
