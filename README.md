@@ -90,7 +90,7 @@ uv run filter-calc lp bw pi 7.1MHz -n 5 --plot
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                        LOW-PASS FILTER DESIGN                                ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  Type: Butterworth (5th order)        Cutoff: 7.1 MHz       Z₀: 50Ω         ║
+║  Type: Butterworth (5th order)        Cutoff: 7.1 MHz       Z₀: 50Ω          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
   Topology: Pi (shunt C - series L - shunt C - series L - shunt C)
