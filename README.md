@@ -143,46 +143,20 @@ uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 uv run filter-calc
 ```
 
-Running with no arguments starts the interactive wizard. Step-by-step guided design for all filter types. The wizard prompts for:
-- Filter category (lowpass, highpass, bandpass)
-- Response type (Butterworth, Chebyshev, Bessel)
-- Frequency and bandwidth parameters
-- Impedance and filter order
+Running with no arguments starts a Textual TUI wizard with screen-based navigation:
 
-For text inputs, defaults are shown in brackets (e.g., `Impedance [50]`). Press Enter to accept the default, or type a value to override it.
+1. **Welcome Screen** - Select filter type (lowpass, highpass, bandpass)
+2. **Filter Configuration** - Set response type, topology, frequency, impedance, order
+3. **Output Options** - Choose E-series matching, output format, export settings
+4. **Results** - View calculated component values and frequency response
 
-After calculation, an **Output Options** screen lets you customize the display with interactive arrow-key navigation:
+**Keyboard shortcuts:**
+- `Tab` / `Shift+Tab` - Navigate between fields
+- `Enter` - Submit / select
+- `Escape` - Go back to previous screen
+- `Ctrl+C` - Quit
 
-```
---------------------------------------------------
-  Output Options
---------------------------------------------------
-Use ↑↓ arrows to navigate, Enter to select
-
-? E-Series component matching:
-❯ E24 - Standard tolerance (default)
-  E12 - Fewer values, looser tolerance
-  E96 - More values, tighter tolerance
-  None - Show calculated values only
-
-? Output format:
-❯ Table - Pretty printed display (default)
-  JSON - Machine readable
-  CSV - Spreadsheet compatible
-
-? Export frequency response data:
-❯ No export (default)
-  JSON file
-  CSV file
-
-? Additional options (Space to toggle, Enter to confirm):
-  ○ Raw units - Display in Farads/Henries
-  ○ Quiet mode - Minimal output
-
-? Show frequency response plot? (Y/n)
-```
-
-All CLI options are available in wizard mode.
+Default values shown as placeholders; press Enter with empty field to use default.
 
 ## Options
 

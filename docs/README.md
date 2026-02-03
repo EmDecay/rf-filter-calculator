@@ -24,7 +24,7 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 ## Requirements
 
 - Python 3.10 or higher
-- `questionary` library (for interactive wizard interface)
+- `textual` library (for interactive TUI wizard)
 - `pytest` (for running tests)
 
 ## Installation

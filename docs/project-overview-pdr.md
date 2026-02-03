@@ -131,25 +131,35 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - JSON format: Frequency array with magnitude_db
 - CSV format: Spreadsheet-compatible frequency response
 
-#### 1.6 Interactive Wizard
+#### 1.6 Interactive Wizard (Textual TUI)
 
 **FR-1.6.1: Guided Design Mode**
-- No command-line arguments triggers wizard
-- Step-by-step prompts for all parameters
-- Default values shown in brackets
-- Validation at each step
+- No command-line arguments triggers interactive TUI wizard
+- Screen-based navigation: Welcome → Parameters → Output Options → Results
+- Arrow keys, Tab, Enter for navigation
+- Default values shown as input field placeholders
+- Validation at each step with error messages
+- Escape key to navigate back, Ctrl+C to exit
 
-**FR-1.6.2: Output Options**
-- E-series selection menu (arrow key navigation)
-- Output format selection
-- Export options
-- Plot options
+**FR-1.6.2: Parameter Input Screens**
+- Filter type selection screen (lowpass/highpass/bandpass)
+- Category-specific parameter screens with conditional UI
+- Chebyshev ripple field appears only when needed
+- VerticalScroll support for small terminals (<25 lines)
 
-**FR-1.6.3: Parameter Defaults**
+**FR-1.6.3: Output Options**
+- E-series selection menu (E12/E24/E96/None)
+- Output format selection (table/json/csv)
+- Export frequency response data option
+- Toggleable flags: raw units, quiet mode
+- Async calculation with loading indicator
+
+**FR-1.6.4: Parameter Defaults**
 - Impedance: 50Ω (standard RF)
 - Ripple: 0.5 dB (Chebyshev)
 - E-series: E24 (standard tolerance)
-- Components: 3-5 (user prompt)
+- Components/Resonators: 3 (user configurable)
+- Placeholders show defaults in input fields
 
 ---
 
@@ -229,6 +239,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Minimal external dependencies
 - Click (CLI framework)
 - Rich (terminal formatting)
+- Textual (TUI for interactive wizard)
 - No system dependencies beyond Python
 
 ---
@@ -321,11 +332,12 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 #### 4.3 UI/UX Choices
 
-**DD-4.3.1: Wizard as Default**
-- `uv run filter-calc` (no args) triggers wizard
+**DD-4.3.1: Textual TUI Wizard as Default**
+- `uv run filter-calc` (no args) triggers interactive Textual TUI wizard
+- Screen-based navigation: Welcome → Parameters → Output Options → Results
 - CLI command args also available for scripting
-- Rationale: Lowers learning curve, guided experience
-- Expert users can use CLI directly
+- Rationale: Rich terminal UI lowers learning curve, provides guided experience, professional appearance
+- Expert users can use CLI directly with command arguments
 
 **DD-4.3.2: Interactive Menu System**
 - Arrow keys for navigation

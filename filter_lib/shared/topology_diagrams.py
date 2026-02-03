@@ -21,16 +21,19 @@ def _build_line(positions: list[int], elements: list[str], line_len: int) -> str
     return ''.join(chars)
 
 
-def print_pi_topology_diagram(n_shunt: int, n_series: int,
-                              series_label: str = 'L',
-                              shunt_label: str = 'C') -> None:
-    """Print Pi topology ASCII diagram: shunt - series - shunt pattern.
+def format_pi_topology_diagram(n_shunt: int, n_series: int,
+                               series_label: str = 'L',
+                               shunt_label: str = 'C') -> str:
+    """Format Pi topology ASCII diagram as string.
 
     Args:
         n_shunt: Number of shunt elements (odd positions)
         n_series: Number of series elements (even positions)
         series_label: Label prefix for series elements (default 'L')
         shunt_label: Label prefix for shunt elements (default 'C')
+
+    Returns:
+        Multi-line string with the topology diagram.
     """
     main_parts = ["  IN ───┬"]
     for i in range(n_series):
@@ -57,24 +60,36 @@ def print_pi_topology_diagram(n_shunt: int, n_series: int,
     gnd_wire = _build_line(shunt_positions, ['│'] * n_shunt, line_len)
     gnd_sym = _build_line(shunt_positions, ['GND'] * n_shunt, line_len)
 
-    print(main_line)
-    print(vert_line)
-    print(cap_sym)
-    print(label_line)
-    print(gnd_wire)
-    print(gnd_sym)
+    return '\n'.join([main_line, vert_line, cap_sym, label_line, gnd_wire, gnd_sym])
 
 
-def print_t_topology_diagram(n_series: int, n_shunt: int,
-                             series_label: str = 'L',
-                             shunt_label: str = 'C') -> None:
-    """Print T topology ASCII diagram: series - shunt - series pattern.
+def print_pi_topology_diagram(n_shunt: int, n_series: int,
+                              series_label: str = 'L',
+                              shunt_label: str = 'C') -> None:
+    """Print Pi topology ASCII diagram: shunt - series - shunt pattern.
+
+    Args:
+        n_shunt: Number of shunt elements (odd positions)
+        n_series: Number of series elements (even positions)
+        series_label: Label prefix for series elements (default 'L')
+        shunt_label: Label prefix for shunt elements (default 'C')
+    """
+    print(format_pi_topology_diagram(n_shunt, n_series, series_label, shunt_label))
+
+
+def format_t_topology_diagram(n_series: int, n_shunt: int,
+                              series_label: str = 'L',
+                              shunt_label: str = 'C') -> str:
+    """Format T topology ASCII diagram as string.
 
     Args:
         n_series: Number of series elements (odd positions, in signal path)
         n_shunt: Number of shunt elements (even positions, to ground)
         series_label: Label prefix for series elements (default 'L')
         shunt_label: Label prefix for shunt elements (default 'C')
+
+    Returns:
+        Multi-line string with the topology diagram.
     """
     main_parts = ["  IN ───"]
     for i in range(n_series):
@@ -105,9 +120,18 @@ def print_t_topology_diagram(n_series: int, n_shunt: int,
     gnd_wire = _build_line(shunt_positions, ['│'] * n_shunt, line_len)
     gnd_sym = _build_line(shunt_positions, ['GND'] * n_shunt, line_len)
 
-    print(main_line)
-    print(vert_line)
-    print(shunt_sym)
-    print(label_line)
-    print(gnd_wire)
-    print(gnd_sym)
+    return '\n'.join([main_line, vert_line, shunt_sym, label_line, gnd_wire, gnd_sym])
+
+
+def print_t_topology_diagram(n_series: int, n_shunt: int,
+                             series_label: str = 'L',
+                             shunt_label: str = 'C') -> None:
+    """Print T topology ASCII diagram: series - shunt - series pattern.
+
+    Args:
+        n_series: Number of series elements (odd positions, in signal path)
+        n_shunt: Number of shunt elements (even positions, to ground)
+        series_label: Label prefix for series elements (default 'L')
+        shunt_label: Label prefix for shunt elements (default 'C')
+    """
+    print(format_t_topology_diagram(n_series, n_shunt, series_label, shunt_label))

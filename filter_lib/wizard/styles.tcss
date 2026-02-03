@@ -1,0 +1,191 @@
+/* Global styles for the RF Filter Calculator Wizard */
+
+/* Color scheme - cyan accents matching original questionary style */
+$primary: cyan;
+$secondary: green;
+$error: red;
+$warning: yellow;
+$muted: gray;
+
+/* Screen base */
+Screen {
+    background: $surface;
+}
+
+/* Header styling */
+.header {
+    dock: top;
+    height: 3;
+    background: $primary;
+    color: $background;
+    text-align: center;
+    text-style: bold;
+    padding: 1;
+}
+
+/* Footer with help text */
+.footer {
+    dock: bottom;
+    height: 1;
+    background: $surface-darken-1;
+    color: $muted;
+    text-align: center;
+}
+
+/* Main content area - scrollable for small terminals */
+.content {
+    padding: 1 2;
+    overflow-y: auto;
+    height: 1fr;
+}
+
+/* Form sections - ensure content visibility */
+.form-section {
+    border: round $primary;
+    padding: 1;
+    margin-bottom: 1;
+    height: auto;
+}
+
+.form-section-title {
+    color: $primary;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+/* Input field styling */
+Input {
+    margin-bottom: 1;
+}
+
+Input:focus {
+    border: tall $primary;
+}
+
+Input.-invalid {
+    border: tall $error;
+}
+
+/* Validation error messages */
+.validation-error {
+    color: $error;
+    text-style: italic;
+    margin-left: 2;
+}
+
+/* Radio buttons and selections - ensure visibility */
+RadioSet {
+    margin-bottom: 1;
+    height: auto;
+}
+
+RadioButton {
+    margin-left: 2;
+    height: auto;
+}
+
+RadioButton:focus {
+    text-style: bold;
+}
+
+/* Checkboxes */
+Checkbox {
+    margin-left: 2;
+    margin-bottom: 1;
+}
+
+/* Button styling */
+Button {
+    margin: 1;
+}
+
+Button.primary {
+    background: $primary;
+}
+
+Button.secondary {
+    background: $secondary;
+}
+
+Button:focus {
+    text-style: bold reverse;
+}
+
+Button:disabled {
+    background: $muted;
+    color: $surface;
+}
+
+/* Button container */
+.button-row {
+    layout: horizontal;
+    height: auto;
+    margin-top: 1;
+    align: center middle;
+}
+
+/* Results screen */
+.results-container {
+    height: 1fr;
+    overflow-y: auto;
+    border: round $primary;
+    padding: 1;
+}
+
+.results-text {
+    width: 100%;
+}
+
+/* Loading indicator */
+LoadingIndicator {
+    height: auto;
+}
+
+/* Error modal */
+.error-modal {
+    align: center middle;
+    padding: 2;
+}
+
+.error-title {
+    color: $error;
+    text-style: bold;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+.error-message {
+    margin-bottom: 1;
+}
+
+/* Welcome screen */
+.welcome-title {
+    text-align: center;
+    text-style: bold;
+    color: $primary;
+    margin-bottom: 2;
+}
+
+.welcome-subtitle {
+    text-align: center;
+    color: $muted;
+    margin-bottom: 2;
+}
+
+/* Filter category buttons on welcome screen */
+.category-button {
+    width: 100%;
+    height: 5;
+    margin: 1;
+}
+
+/* Fractional bandwidth display (bandpass) */
+.fbw-display {
+    color: $secondary;
+    margin-left: 2;
+}
+
+.fbw-warning {
+    color: $warning;
+    margin-left: 2;
+}

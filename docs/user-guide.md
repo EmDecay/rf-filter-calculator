@@ -191,9 +191,9 @@ uv run filter-calc bp bw shunt -f 21.2MHz -b 450kHz
 
 ---
 
-## Interactive Wizard
+## Interactive Wizard (Textual TUI)
 
-Running with no arguments starts the interactive wizard for guided filter design.
+Running with no arguments starts the interactive Textual TUI wizard for guided filter design.
 
 ### Syntax
 
@@ -201,58 +201,164 @@ Running with no arguments starts the interactive wizard for guided filter design
 uv run filter-calc
 ```
 
-### Design Parameters
+### User Interface
 
-The wizard prompts for:
-1. Filter category (lowpass, highpass, bandpass)
-2. Response type (Butterworth, Chebyshev, Bessel)
-3. Topology (Pi or T, for lowpass/highpass)
-4. Frequency parameters
-5. Number of components/resonators
-6. Impedance
-7. Chebyshev ripple (if applicable)
+The wizard is a **Terminal User Interface (TUI)** built with Textual framework, featuring:
+- **Arrow key navigation**: Move between fields and options
+- **Tab/Shift+Tab**: Jump to next/previous input field
+- **Enter**: Submit form or confirm selection
+- **Space**: Toggle checkbox options
+- **Escape**: Go back to previous screen
+- **Ctrl+C**: Exit the wizard
 
-For text inputs, defaults are shown in brackets (e.g., `Impedance [50]`). Press Enter to accept the default, or type a value to override it.
+### Design Flow
 
-### Output Options
+The wizard guides you through a 4-screen sequence (5 if frequency plot selected):
 
-After calculation, an output options screen provides an interactive interface with arrow-key navigation:
-
+#### 1. Welcome Screen
+Select your filter category:
 ```
---------------------------------------------------
-  Output Options
---------------------------------------------------
-Use arrow keys to navigate, Enter to select
-
-? E-Series component matching:
-❯ E24 - Standard tolerance (default)
-  E12 - Fewer values, looser tolerance
-  E96 - More values, tighter tolerance
-  None - Show calculated values only
-
-? Output format:
-❯ Table - Pretty printed display (default)
-  JSON - Machine readable
-  CSV - Spreadsheet compatible
-
-? Export frequency response data:
-❯ No export (default)
-  JSON file
-  CSV file
-
-? Additional options (Space to toggle, Enter to confirm):
-  ○ Raw units - Display in Farads/Henries
-  ○ Quiet mode - Minimal output
+┌──────────────────────────────┐
+│ RF Filter Calculator         │
+├──────────────────────────────┤
+│ Select Filter Category:      │
+│                              │
+│ ❯ Lowpass                    │
+│   Highpass                   │
+│   Bandpass                   │
+│                              │
+│ [Enter] to continue          │
+└──────────────────────────────┘
 ```
 
-Use ↑↓ arrows to navigate between choices, Enter to select. For checkboxes, use Space to toggle options on/off.
+#### 2. Parameter Screen (Lowpass/Highpass/Bandpass)
 
-After selecting output options, you'll be prompted:
+Enter filter parameters with defaults shown as placeholders:
+
+**Lowpass/Highpass Example:**
 ```
-? Show frequency response plot? (Y/n)
+┌──────────────────────────────┐
+│ Lowpass Filter Parameters    │
+├──────────────────────────────┤
+│ Response Type: [Butterworth] │
+│ ❯ Butterworth               │
+│   Chebyshev (Ripple: 0.5 dB)│
+│   Bessel                     │
+│                              │
+│ Topology: [Pi]              │
+│ ❯ Pi                        │
+│   T                         │
+│                              │
+│ Frequency: [10.0 MHz]       │
+│ ▌                           │ (input field)
+│                              │
+│ Impedance: [50 Ω]           │
+│ ▌                           │ (input field)
+│                              │
+│ Components: [3]             │
+│ ▌                           │ (input field)
+│                              │
+│ [Tab] next field [Enter] next│
+└──────────────────────────────┘
 ```
 
-This displays an ASCII frequency response graph in the terminal.
+**Bandpass Example:**
+```
+┌──────────────────────────────┐
+│ Bandpass Filter Parameters   │
+├──────────────────────────────┤
+│ Center Frequency: [10.0 MHz] │
+│ ▌                           │ (input field)
+│                              │
+│ Bandwidth: [1.0 MHz]        │
+│ ▌                           │ (input field)
+│                              │
+│ Topology: [Top-coupled]     │
+│ ❯ Top-coupled              │
+│   Shunt-coupled            │
+│                              │
+│ Resonators: [3]             │
+│ ▌                           │ (input field)
+│                              │
+│ [Tab] next field [Enter] next│
+└──────────────────────────────┘
+```
+
+**Key Features:**
+- Input fields show **placeholder defaults** (e.g., "10.0 MHz")
+- Press Tab to move between fields
+- Press Enter to submit and continue
+- Arrow keys to select among radio options
+- Chebyshev ripple field appears only when needed
+
+#### 3. Output Options Screen (Optional Export/Format Settings)
+
+Configure output format and display options:
+
+```
+┌──────────────────────────────┐
+│ Output Options               │
+├──────────────────────────────┤
+│ E-Series Matching:           │
+│ ❯ E24 (±5% tolerance)       │
+│   E12 (±10% tolerance)      │
+│   E96 (±1% tolerance)       │
+│   None (calculated only)    │
+│                              │
+│ Output Format:               │
+│ ❯ Table (pretty display)    │
+│   JSON (machine-readable)   │
+│   CSV (spreadsheet)         │
+│                              │
+│ Export Frequency Data:       │
+│ ❯ No export                 │
+│   JSON file                 │
+│   CSV file                  │
+│                              │
+│ Additional Options:          │
+│ ☐ Raw units (Farads/Henries)│
+│ ☐ Quiet mode (minimal)      │
+│                              │
+│ [Space] toggle [Enter] next  │
+└──────────────────────────────┘
+```
+
+#### 4. Results Screen
+
+View calculated filter components:
+
+```
+┌──────────────────────────────┐
+│ Filter Results               │
+├──────────────────────────────┤
+│ [Loading calculation...]     │
+│                              │
+│ Then displays full output:   │
+│ - Circuit topology diagram   │
+│ - Component table            │
+│ - E-series recommendations   │
+│                              │
+│ Show frequency plot? (y/n)   │
+│                              │
+│ [Esc] exit wizard            │
+└──────────────────────────────┘
+```
+
+### Keyboard Reference
+
+| Key | Action |
+|-----|--------|
+| ↑↓ | Navigate between options/fields |
+| Tab | Move to next input field |
+| Shift+Tab | Move to previous field |
+| Enter | Confirm selection / Submit form / Continue |
+| Space | Toggle checkbox |
+| Escape | Go back to previous screen |
+| Ctrl+C | Exit wizard |
+
+### Input Formats
+
+All frequency and impedance inputs support the same formats as CLI commands (see [Input Formats](#input-formats) section below).
 
 ---
 

@@ -4,14 +4,17 @@ Generates Top-C (series) and Shunt-C (parallel) coupling diagrams.
 """
 
 
-def print_top_c_diagram(n: int) -> None:
-    """Print Top-C (series coupling) topology diagram.
+def format_top_c_diagram(n: int) -> str:
+    """Format Top-C (series coupling) topology diagram as string.
 
     Shows n tanks with n-1 coupling capacitors in series on main line.
     Each tank is a parallel LC circuit to ground.
 
     Args:
         n: Number of resonators
+
+    Returns:
+        Multi-line string with the topology diagram.
     """
     n_coupling = n - 1
     seg_w = 15
@@ -50,25 +53,32 @@ def print_top_c_diagram(n: int) -> None:
     gnd_wire = build_line(["   │   "] * n)
     gnd_sym = build_line(["  GND  "] * n)
 
-    print(label_line)
-    print(main_line)
-    print(vert_line)
-    print(tank_top)
-    print(tank_r1)
-    print(tank_r2)
-    print(tank_r3)
-    print(tank_bot)
-    print(gnd_wire)
-    print(gnd_sym)
+    return '\n'.join([label_line, main_line, vert_line, tank_top, tank_r1,
+                      tank_r2, tank_r3, tank_bot, gnd_wire, gnd_sym])
 
 
-def print_shunt_c_diagram(n: int) -> None:
-    """Print Shunt-C (bottom-coupled) topology diagram.
+def print_top_c_diagram(n: int) -> None:
+    """Print Top-C (series coupling) topology diagram.
+
+    Shows n tanks with n-1 coupling capacitors in series on main line.
+    Each tank is a parallel LC circuit to ground.
+
+    Args:
+        n: Number of resonators
+    """
+    print(format_top_c_diagram(n))
+
+
+def format_shunt_c_diagram(n: int) -> str:
+    """Format Shunt-C (bottom-coupled) topology diagram as string.
 
     Coupling capacitors connect bottoms of adjacent tanks horizontally.
 
     Args:
         n: Number of resonators
+
+    Returns:
+        Multi-line string with the topology diagram.
     """
     seg_w = 13
 
@@ -127,14 +137,16 @@ def print_shunt_c_diagram(n: int) -> None:
             gnd_chars[start + j] = ch
     gnd = ''.join(gnd_chars)
 
-    print(main_line)
-    print(vert1)
-    print(tank_top)
-    print(tank_r1)
-    print(tank_r2)
-    print(tank_r3)
-    print(tank_bot)
-    print(vert2)
-    print(coupling_line)
-    print(gnd_wire)
-    print(gnd)
+    return '\n'.join([main_line, vert1, tank_top, tank_r1, tank_r2, tank_r3,
+                      tank_bot, vert2, coupling_line, gnd_wire, gnd])
+
+
+def print_shunt_c_diagram(n: int) -> None:
+    """Print Shunt-C (bottom-coupled) topology diagram.
+
+    Coupling capacitors connect bottoms of adjacent tanks horizontally.
+
+    Args:
+        n: Number of resonators
+    """
+    print(format_shunt_c_diagram(n))

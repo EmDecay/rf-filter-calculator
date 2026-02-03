@@ -320,6 +320,112 @@ def lowpass_result():
 - All file I/O uses pathlib or relative paths
 - No credential handling in code
 
+## Textual TUI Patterns
+
+### Screen Architecture
+Each wizard screen is an independent Textual `Screen` subclass:
+
+```python
+from textual.screen import Screen
+from textual.app import ComposeResult
+
+class LowpassScreen(Screen):
+    """Lowpass filter configuration screen."""
+
+    BINDINGS = [
+        ("escape", "back", "Back"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        """Create screen widgets."""
+        yield Header()
+        with VerticalScroll(classes="content"):
+            # Form fields
+            yield Input(id="frequency", ...)
+        yield Footer()
+
+    @on(Button.Pressed, "#submit")
+    def handle_submit(self):
+        """Validate and update shared state."""
+        state = self.app.query_one(FilterState)
+        state.frequency_hz = parse_frequency(...)
+        self.app.push_screen(OutputOptionsScreen())
+```
+
+### State Management
+Use centralized `FilterState` dataclass for all screen-to-screen data sharing:
+
+```python
+@dataclass
+class FilterState:
+    """Shared filter parameters across all screens."""
+    # Filter selection
+    category: str = ""                         # lowpass/highpass/bandpass
+    filter_type: str = "butterworth"
+    topology: str = "pi"                       # pi, t for LP/HP; top, shunt for BP
+
+    # Frequency parameters
+    frequency_hz: float = 0.0                  # cutoff for LP/HP, center for BP
+    bandwidth_hz: float = 0.0                  # bandpass only
+
+    # Common parameters
+    impedance: float = 50.0
+    order: int = 3                             # num_components or resonators
+    ripple_db: float = 0.5
+
+    # Output options
+    eseries: str = "E24"
+    output_format: str = "table"
+    show_plot: bool = True
+    export_format: Optional[str] = None
+    raw_units: bool = False
+    quiet: bool = False
+
+    # Results (populated after calculation)
+    result: dict = {}
+    output_text: str = ""
+```
+
+### Async Calculations
+For expensive operations, use background workers to prevent UI freezing:
+
+```python
+def on_mount(self) -> None:
+    """Start background calculation when results screen mounted."""
+    self.run_worker(
+        self._calculate_results(),
+        exclusive=True,
+        thread=True
+    )
+
+def _calculate_results(self) -> None:
+    """Run calculation in background thread."""
+    result = calculate_filter(...)  # Expensive calculation
+    self.post_message(self.ResultsReady(result))
+
+@on(ResultsReady)
+def handle_results(self, message: ResultsReady) -> None:
+    """Update display with calculated results."""
+    self.result = message.result
+    self.refresh()
+```
+
+### Navigation
+Use `push_screen()` for forward navigation and `pop_screen()` for back:
+
+```python
+# Forward navigation with data passing
+self.app.push_screen(OutputOptionsScreen())
+
+# Back navigation
+self.app.pop_screen()
+
+# From Action binding (Escape key)
+def action_back(self) -> None:
+    """Go back to previous screen."""
+    self.app.pop_screen()
+```
+
 ## File Size Guidelines
 
 | File Type | Soft Limit | Hard Limit | Rationale |
@@ -327,10 +433,11 @@ def lowpass_result():
 | Calculation module | 120 lines | 150 lines | Keep logic focused |
 | Display module | 90 lines | 120 lines | Easy to understand |
 | Shared utility | 150 lines | 200 lines | Complex helpers OK |
+| Textual screen | 250 lines | 300 lines | Screen-specific logic |
 | Main entry point | N/A | 400 lines | Router exception |
 | Test file | 200 lines | 300 lines | Keep test focused |
 
-**Splitting strategy**: When approaching limit, extract subroutines or move helpers to shared module.
+**Splitting strategy**: When approaching limit, extract subroutines or move helpers to shared module. For screens, extract complex validation to shared validators module or move business logic to calculation_handler.
 
 ## Documentation in Code
 

@@ -4,10 +4,10 @@ RF Filter Calculator is a Python CLI tool for calculating LC filter component va
 
 ## Project Statistics
 
-- **Total Files**: 69 files
-- **Total Lines of Code**: ~4,600 (excluding tests and docs)
+- **Total Files**: 75 files
+- **Total Lines of Code**: ~5,000 (excluding tests and docs)
 - **Test Coverage**: 344 tests (~2,981 lines)
-- **Documentation**: 8 files (~1,740 lines)
+- **Documentation**: 13 files (~2,200 lines)
 
 ## Architecture Overview
 
@@ -61,11 +61,29 @@ rf-filter-calculator/
 - `__init__.py` - Module exports
 
 ### Wizard Module (`filter_lib/wizard/`)
-- `filter_wizard.py` - Main wizard orchestrator
-- `bandpass_wizard.py` - Bandpass-specific prompts
-- `interactive.py` - Interactive choice UI
-- `prompts.py` - User input prompts and validation
-- `__init__.py` - Module exports
+**Architecture**: Textual TUI (Terminal User Interface) with modular screen-based navigation
+
+**Core Infrastructure**:
+- `app.py` (47 LOC) - FilterWizardApp (Textual App, manages screen stack)
+- `state.py` (33 LOC) - FilterState dataclass (centralized mutable state shared across screens)
+- `interactive.py` (15 LOC) - Entry point, exports `run_wizard()` function
+- `calculation_handler.py` (354 LOC) - Calculation orchestration, result formatting
+- `validation.py` (39 LOC) - Input validators (frequency, impedance, order, ripple)
+- `styles.tcss` (192 LOC) - Textual CSS styling for all screens
+
+**Screens** (`screens/` directory):
+- `welcome.py` (56 LOC) - Filter category selection (lowpass/highpass/bandpass)
+- `lowpass.py` (229 LOC) - Lowpass filter parameters form
+- `highpass.py` (228 LOC) - Highpass filter parameters form
+- `bandpass.py` (292 LOC) - Bandpass filter parameters form
+- `output_options.py` (146 LOC) - Output format, E-series, export settings
+- `results.py` (175 LOC) - Results display with async worker for calculations
+- `__init__.py` - Screen exports
+
+**Widgets** (`widgets/` directory):
+- `__init__.py` - Placeholder for custom Textual widgets (future extensions)
+
+**Key Design Pattern**: Each screen is independent, receives/updates shared FilterState. Results screen uses background worker thread to prevent UI blocking during calculations.
 
 ### Shared Module (`filter_lib/shared/`)
 Provides cross-cutting utilities:
@@ -132,7 +150,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (344 tests total):
+**Test Files** (346 tests total):
 - `test_bandpass_calculations.py` - Coupled resonator design tests
 - `test_bandpass_modules.py` - Bandpass display and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -144,6 +162,8 @@ Provides cross-cutting utilities:
 - `test_parsing_validation.py` - Input validation and parsing
 - `test_topology_calculations.py` - Topology-specific calculations
 - `test_transfer_functions.py` - Transfer function accuracy
+- `test_wizard_state.py` - FilterState dataclass validation
+- `test_wizard_topology_diagrams.py` - Wizard topology diagram rendering
 
 ## Development Workflow
 
@@ -212,16 +232,26 @@ All code files respect 200-line limit for optimal context:
 | `README.md` (root) | 284 | Project overview and quick start |
 | `docs/README.md` | 50 | Documentation index |
 | `docs/quick-start.md` | 70 | 5-minute getting started |
-| `docs/user-guide.md` | 379 | Complete CLI reference |
-| `docs/filter-theory.md` | 214 | Educational background |
+| `docs/user-guide.md` | 485 | Complete CLI and wizard reference |
+| `docs/filter-theory.md` | 214 | Educational background on filter types |
 | `docs/testing.md` | 283 | Test suite guide |
-| `docs/sample-output.md` | 325 | Example outputs |
+| `docs/sample-output.md` | 325 | Example outputs and formats |
+| `docs/code-standards.md` | 355 | Code structure and patterns |
+| `docs/system-architecture.md` | 726 | Component architecture and layers |
+| `docs/project-overview-pdr.md` | 508 | PDR and functional requirements |
+| `docs/codebase-summary.md` | 238+ | Architecture overview (this file) |
 | `docs/tips-and-best-practices.md` | 207 | Design guidance |
 | `docs/caveats-and-known-issues.md` | 212 | Limitations and edge cases |
+| `docs/textual-wizard-patterns.md` | 69 | Textual TUI screen vs ContentSwitcher patterns |
 
 ## Recent Major Changes
 
-1. **uv Package Management** (commit 4da4f68): Switched from pip/venv to uv for consistent dependency management
-2. **ASCII Art Fixes** (commit 4049ed7): Corrected spacing in topology diagrams
-3. **Wizard Default Values** (commit 258fe6a): Fixed default value handling in interactive mode
-4. **Simplified E-Series Display** (recent): Shows capacitor recommendations consistently (not topology-dependent)
+1. **Textual TUI Wizard Migration** (commit 79291e5): Complete rewrite from prompt-based CLI to Textual screen-based architecture
+   - Modular screen components (welcome, filter config, output options, results)
+   - Async calculation handling with worker thread
+   - Centralized FilterState for state management
+   - Removed inductor E-series recommendations (capacitors only)
+
+2. **uv Package Management** (commit 4da4f68): Switched from pip/venv to uv for dependency management
+3. **ASCII Art Fixes** (commit 4049ed7): Corrected spacing in topology diagrams
+4. **Wizard Default Values** (commit 258fe6a): Fixed default value handling in interactive mode

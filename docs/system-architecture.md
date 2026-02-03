@@ -81,10 +81,10 @@ def lowpass(filter_type, topology, frequency, ...):
 Similar structure, filter-type-specific inputs.
 
 #### `wizard_cmd.py`
-Interactive mode coordinator:
-- Prompt for filter type selection
-- Delegate to appropriate wizard module
-- Present output options interactively
+Interactive mode coordinator (Textual TUI):
+- Entry point for interactive wizard mode
+- Initializes FilterWizardApp and starts event loop
+- Routes back to CLI with final results if needed
 
 ### Layer 3: Filter Calculation Modules
 
@@ -174,42 +174,224 @@ def display_results(result, format='table', raw=False, eseries='E24', ...):
             print_frequency_response_plot(result)
 ```
 
-### Layer 4: Wizard Module
+### Layer 4: Wizard Module (Textual TUI)
 
 **Location**: `filter_lib/wizard/`
 
-Interactive design flow:
+**Framework**: Textual - Terminal User Interface library for rich interactive applications
+
+#### Architecture Overview
 
 ```
-filter_wizard.py
-  ├─ Prompt: Select filter category (lowpass/highpass/bandpass)
-  │
-  ├─ Delegate to:
-  │   - bandpass_wizard.py (if bandpass)
-  │   - filter_wizard.py prompts (if lp/hp)
-  │
-  ├─ Prompt: Response type (butterworth/chebyshev/bessel)
-  ├─ Prompt: Topology (pi/t) [lp/hp only]
-  ├─ Prompt: Frequency parameters
-  ├─ Prompt: Order/resonators
-  ├─ Prompt: Impedance
-  ├─ Prompt: Ripple (if chebyshev)
-  │
-  ├─ Calculate using appropriate calculation module
-  │
-  └─ Output Options Screen:
-      ├─ E-series selection (E12/E24/E96/None)
-      ├─ Output format (table/json/csv)
-      ├─ Export frequency data (no/json/csv)
-      ├─ Additional options (raw/quiet)
-      └─ Show plot? (Y/n)
+FilterWizardApp (Textual App)
+├─ Manages screen stack
+├─ Stores centralized FilterState
+└─ Bindings:
+   ├─ Escape: Back (pop screen)
+   ├─ Ctrl+C: Quit
+   └─ Tab/Shift+Tab: Navigate fields
+
+Screen Stack (User Workflow):
+  1. WelcomeScreen
+     └─ Select filter category (lowpass/highpass/bandpass)
+        │
+        ├─ LowpassScreen (if lowpass)
+        │   └─ Collect: frequency, topology, impedance, order, ripple
+        ├─ HighpassScreen (if highpass)
+        │   └─ Collect: frequency, topology, impedance, order, ripple
+        └─ BandpassScreen (if bandpass)
+            └─ Collect: center_frequency, bandwidth, impedance, resonators, ripple
+        │
+        └─ OutputOptionsScreen
+            ├─ E-series selection (E12/E24/E96/None)
+            ├─ Output format (table/json/csv)
+            ├─ Export data format (no/json/csv)
+            ├─ Additional flags (raw/quiet)
+            └─ Show frequency response plot? (Y/n)
+        │
+        └─ ResultsScreen
+            └─ Display calculated output with async worker
 ```
 
-**Key Files**:
-- `filter_wizard.py` - Main wizard orchestrator
-- `bandpass_wizard.py` - Bandpass-specific prompts
-- `interactive.py` - Interactive choice UI (arrow keys, space selection)
-- `prompts.py` - Reusable input prompts and validators
+#### Core Components
+
+**`app.py` - FilterWizardApp**
+- Textual App subclass
+- Manages screen navigation via push_screen/pop_screen
+- Stores FilterState singleton (self.filter_state)
+- Binds keyboard shortcuts (Escape=back, Ctrl+C=quit)
+
+```python
+class FilterWizardApp(App):
+    BINDINGS = [
+        Binding("escape", "back", "Back"),
+        Binding("ctrl+c", "quit", "Quit"),
+        Binding("tab", "focus_next", "Next"),
+    ]
+
+    def on_mount(self):
+        self.push_screen(WelcomeScreen())
+```
+
+**`state.py` - FilterState**
+- Dataclass holding all filter parameters
+- Shared across all screens via app.filter_state
+- Mutable: screens update state, results screen reads final state
+
+```python
+@dataclass
+class FilterState:
+    category: str = ""              # lowpass, highpass, bandpass
+    filter_type: str = "butterworth"  # butterworth, chebyshev, bessel
+    topology: str = "pi"            # pi, t (for LP/HP); top, shunt (BP)
+    frequency_hz: float = 0.0
+    bandwidth_hz: float = 0.0       # bandpass only
+    impedance: float = 50.0
+    order: int = 3
+    ripple_db: float = 0.5
+    # ... output options, results
+```
+
+**Screen Implementations** (`screens/`)
+
+Each screen extends `Screen` and uses Textual widgets:
+
+1. **WelcomeScreen** - Category selection
+   - Radio buttons for lowpass/highpass/bandpass
+   - On selection: push appropriate filter screen
+
+2. **LowpassScreen/HighpassScreen** - Parameter collection
+   - Input fields: frequency, impedance, order
+   - Select/Radio: topology (Pi/T), response type
+   - Conditional UI: ripple field shows only for Chebyshev
+   - Vertical scrolling for terminals <25 lines
+   - On submit: push output_options screen
+
+3. **BandpassScreen** - Bandpass-specific parameters
+   - Input fields: center_frequency, bandwidth, impedance, resonators
+   - Select/Radio: topology (top/shunt), response type
+   - Conditional ripple field
+   - On submit: push output_options screen
+
+4. **OutputOptionsScreen** - Output configuration
+   - Radio buttons: E-series (E12/E24/E96/None)
+   - Radio buttons: format (table/json/csv)
+   - Checkboxes: raw_units, quiet_mode
+   - Radio buttons: export format (no/json/csv)
+   - On confirm: push results screen
+
+5. **ResultsScreen** - Display results
+   - Shows loading indicator
+   - Spawns async Worker thread for calculation
+   - On calculation complete: displays formatted output
+   - Prompt for frequency response plot (Y/n)
+
+**`calculation_handler.py` - Calculation Orchestration** (355 LOC)
+
+Encapsulates all filter calculation logic separate from UI:
+
+```python
+def calculate_and_format(state: FilterState) -> str:
+    """Perform calculation and return formatted output."""
+    if state.category == "lowpass":
+        return _calculate_lowpass(state)
+    elif state.category == "highpass":
+        return _calculate_highpass(state)
+    elif state.category == "bandpass":
+        return _calculate_bandpass(state)
+```
+
+Handles:
+- Filter calculation selection
+- E-series matching based on eseries setting
+- Output format selection (table/json/csv)
+- Frequency response plot generation
+- Error handling with user-friendly messages
+
+**`validation.py` - Input Validators**
+
+Reusable validators for user inputs:
+- `validate_frequency(hz)` - Must be positive
+- `validate_impedance(ohms)` - Must be positive
+- `validate_order(n, category)` - 2-9 range
+- `validate_ripple(db)` - Must be positive
+
+**`styles.tcss` - Textual CSS** (192 lines)
+
+Styling rules for all screens:
+- Input field focus colors
+- Button highlighting
+- Scrollbar styling
+- Grid layouts
+
+**`widgets/` directory - Custom Widgets**
+
+Placeholder for future custom Textual widget extensions:
+- Can add custom Input subclasses for specialized validation
+- Can add composite widgets combining multiple Textual widgets
+- Currently minimal: future enhancement point for reusable UI components
+
+#### User Interaction Flow
+
+```
+1. User runs: uv run filter-calc
+   └─ interactive.py calls FilterWizardApp.run()
+
+2. WelcomeScreen displays
+   └─ User presses arrow keys to select category
+   └─ User presses Enter to confirm
+   └─ app.push_screen(LowpassScreen) [or High/Bandpass]
+
+3. Parameter Screen displays
+   └─ User presses Tab to move between fields
+   └─ User types values (defaults shown in placeholders)
+   └─ User presses Enter to submit form
+   └─ app.push_screen(OutputOptionsScreen)
+
+4. OutputOptionsScreen displays
+   └─ User selects E-series with arrow keys + Enter
+   └─ User selects format with arrow keys + Enter
+   └─ User presses Space to toggle checkboxes
+   └─ User presses Enter to confirm
+   └─ app.push_screen(ResultsScreen)
+
+5. ResultsScreen displays
+   └─ Shows "Calculating..." message
+   └─ Worker thread runs calculate_and_format(state)
+   └─ On complete: displays formatted output
+   └─ User presses (Y/n) for frequency plot
+   └─ User presses Escape to exit
+```
+
+#### Key Design Patterns
+
+1. **Screen Stack Navigation**
+   - Each step is a Screen subclass
+   - Push new screen forward, pop screen to go back
+   - Escape key always pops screen (go back)
+
+2. **Centralized State**
+   - Single FilterState instance on app
+   - All screens access via self.app.filter_state
+   - State updated as user navigates forward
+   - Final state read by ResultsScreen for calculation
+
+3. **Event-Driven with @on() Decorators**
+   - on_button_pressed(event) - Button clicks
+   - on_input_changed(event) - Text input changes
+   - on_input_submitted(event) - Enter key in input
+   - on_select_changed(event) - Radio/select changes
+
+4. **Async Calculations**
+   - ResultsScreen uses Worker thread
+   - Prevents UI freeze during calculation
+   - Worker calls calculate_and_format(state)
+   - App remains responsive during processing
+
+5. **Placeholder Values as Defaults**
+   - Input fields show default values as placeholders
+   - User can see defaults without needing [] brackets
+   - On submit, empty field = default value from FilterState
 
 ### Layer 5: Shared Utilities
 
@@ -377,33 +559,48 @@ Output to Console:
   Formatted table with circuit diagram
 ```
 
-### Wizard Flow
+### Wizard Flow (Textual TUI)
 
 ```
 User runs: uv run filter-calc
 
            ↓
 
-Wizard invoked (wizard/filter_wizard.py):
-  - Interactive prompts for all parameters
-  - Shows defaults in brackets
+FilterWizardApp starts with WelcomeScreen:
+  - User selects filter category with arrow keys + Enter
 
            ↓
 
-Calculate based on filter type
+Category-Specific Parameter Screen (lowpass/highpass/bandpass):
+  - User enters frequency, impedance, order via Tab navigation
+  - User selects topology/filter type/ripple via arrow keys
+  - Input fields show placeholder defaults
+  - Conditional UI: ripple field only for Chebyshev filters
+  - User presses Enter to submit form
 
            ↓
 
-Output Options Screen (interactive.py):
-  - Choose E-series (arrow keys + Enter)
-  - Choose output format
-  - Choose plot options
-  - Toggle additional options (space + Enter)
+OutputOptionsScreen:
+  - User selects E-series (E12/E24/E96/None)
+  - User selects output format (table/json/csv)
+  - User selects export format (no/json/csv)
+  - User toggles additional options with Space
+  - User presses Enter to proceed
+
+           ↓
+
+ResultsScreen (async calculation):
+  - Shows "Calculating..." loading state
+  - Worker thread runs calculate_and_format()
+  - On complete: displays formatted output
+  - User prompted for frequency response plot (Y/n)
 
            ↓
 
 Final Output:
-  Uses same display path as CLI
+  - Same display modules as CLI (lowpass/highpass/bandpass display.py)
+  - Full formatting with E-series recommendations, topology diagram, etc.
+  - User presses Escape to exit wizard
 ```
 
 ## Topology Design Patterns
