@@ -2,7 +2,6 @@
 
 Orchestrates output formatting, topology diagrams, and E-series matching.
 """
-from __future__ import annotations
 from typing import Any
 
 from ..shared.formatting import format_frequency, format_capacitance, format_inductance

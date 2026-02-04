@@ -97,6 +97,18 @@ def validate_filter_args(freq_hz: float, impedance: float, components: int) -> N
         raise ValueError("Components must be 2-9")
 
 
+def get_filter_type_arg(args: Namespace) -> str:
+    """Get filter type from positional or flag argument.
+
+    Args:
+        args: Parsed arguments with filter_type and type_flag attributes
+
+    Returns:
+        Filter type string (may be alias or canonical name)
+    """
+    return args.filter_type or args.type_flag
+
+
 def export_plot_data(args: Namespace, freqs: list[float], response_db: list[float],
                      result: dict,
                      export_json_fn: Callable, export_csv_fn: Callable) -> bool:

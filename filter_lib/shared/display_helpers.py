@@ -2,7 +2,6 @@
 
 Provides E-series matching display, component formatting, and output formatters.
 """
-from __future__ import annotations
 from typing import Callable
 
 from .eseries import match_component

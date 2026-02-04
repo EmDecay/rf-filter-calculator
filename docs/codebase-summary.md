@@ -4,10 +4,10 @@ RF Filter Calculator is a Python CLI tool for calculating LC filter component va
 
 ## Project Statistics
 
-- **Total Files**: 75 files
+- **Total Files**: 91 files
 - **Total Lines of Code**: ~5,000 (excluding tests and docs)
-- **Test Coverage**: 344 tests (~2,981 lines)
-- **Documentation**: 13 files (~2,200 lines)
+- **Test Coverage**: 344+ tests (~2,981+ lines)
+- **Documentation**: 13 files (~2,200+ lines)
 
 ## Architecture Overview
 
@@ -67,7 +67,11 @@ rf-filter-calculator/
 - `app.py` (47 LOC) - FilterWizardApp (Textual App, manages screen stack)
 - `state.py` (33 LOC) - FilterState dataclass (centralized mutable state shared across screens)
 - `interactive.py` (15 LOC) - Entry point, exports `run_wizard()` function
-- `calculation_handler.py` (354 LOC) - Calculation orchestration, result formatting
+- `calculation_handler.py` (35 LOC) - Calculation orchestration, reduced from 355 LOC via extraction
+- `filter_type_calculators.py` (185 LOC) - **NEW** - Separated calculation logic for LP/HP/BP
+- `formatting_helpers.py` (155 LOC) - **NEW** - Wizard-specific formatting and helpers
+- `filter_screen_navigation_mixin.py` (46 LOC) - **NEW** - Screen navigation mixin for DRY code
+- `radio_button_helpers.py` (19 LOC) - **NEW** - Radio button widget utilities
 - `validation.py` (39 LOC) - Input validators (frequency, impedance, order, ripple)
 - `styles.tcss` (192 LOC) - Textual CSS styling for all screens
 
@@ -90,6 +94,8 @@ Provides cross-cutting utilities:
 
 | File | Purpose |
 |------|---------|
+| `lp_hp_base_calculations.py` | **NEW** - Strategy pattern for LP/HP calculations |
+| `lp_hp_base_transfer_functions.py` | **NEW** - Shared transfer function logic for LP/HP |
 | `chebyshev_g_calculator.py` | Normalized g-values for Chebyshev filters |
 | `cli_aliases.py` | Filter type and topology aliases |
 | `cli_helpers.py` | Common CLI parsing utilities |
@@ -150,7 +156,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (346 tests total):
+**Test Files** (344+ tests total):
 - `test_bandpass_calculations.py` - Coupled resonator design tests
 - `test_bandpass_modules.py` - Bandpass display and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -164,6 +170,9 @@ Provides cross-cutting utilities:
 - `test_transfer_functions.py` - Transfer function accuracy
 - `test_wizard_state.py` - FilterState dataclass validation
 - `test_wizard_topology_diagrams.py` - Wizard topology diagram rendering
+- `conftest.py` - Shared pytest fixtures and configuration
+- `test_wizard_unit.py` - **NEW** - Wizard module unit tests
+- `test_plotting_edge_cases.py` - **NEW** - Edge cases for plotting
 
 ## Development Workflow
 
@@ -246,12 +255,22 @@ All code files respect 200-line limit for optimal context:
 
 ## Recent Major Changes
 
-1. **Textual TUI Wizard Migration** (commit 79291e5): Complete rewrite from prompt-based CLI to Textual screen-based architecture
+1. **Wizard Refactoring** (commit 69938ca): Modularized calculation_handler.py (355 LOC → 35 LOC)
+   - Extracted filter_type_calculators.py (185 LOC) - type-specific calculation logic
+   - Extracted formatting_helpers.py (155 LOC) - wizard display formatting
+   - Added filter_screen_navigation_mixin.py - DRY screen navigation
+   - Added radio_button_helpers.py - shared radio button utilities
+
+2. **Shared Module Expansion**: Added lp_hp_base_*.py modules
+   - lp_hp_base_calculations.py (342 LOC) - Strategy pattern for LP/HP
+   - lp_hp_base_transfer_functions.py (164 LOC) - Shared transfer functions
+
+3. **Textual TUI Wizard Migration** (commit 79291e5): Textual screen-based architecture
    - Modular screen components (welcome, filter config, output options, results)
    - Async calculation handling with worker thread
    - Centralized FilterState for state management
    - Removed inductor E-series recommendations (capacitors only)
 
-2. **uv Package Management** (commit 4da4f68): Switched from pip/venv to uv for dependency management
-3. **ASCII Art Fixes** (commit 4049ed7): Corrected spacing in topology diagrams
-4. **Wizard Default Values** (commit 258fe6a): Fixed default value handling in interactive mode
+4. **uv Package Management** (commit 4da4f68): Switched from pip/venv to uv
+5. **ASCII Art Fixes** (commit 4049ed7): Corrected spacing in topology diagrams
+6. **Wizard Default Values** (commit 258fe6a): Fixed default value handling in interactive mode

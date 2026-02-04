@@ -282,24 +282,6 @@ def render_bandpass_plot(sweep_data: list[tuple[float, float]], f0: float,
     return '\n'.join(lines)
 
 
-def generate_frequency_points(f0: float, decades: float = 2.0,
-                              points_per_decade: int = 20) -> list[float]:
-    """Generate logarithmically spaced frequency points around f0.
-
-    Args:
-        f0: Center frequency in Hz
-        decades: Number of decades to span (total)
-        points_per_decade: Points per decade
-
-    Returns:
-        List of frequencies in Hz
-    """
-    total_points = int(decades * points_per_decade)
-    start_exp = math.log10(f0) - decades / 2
-    return [10 ** (start_exp + i * decades / total_points)
-            for i in range(total_points + 1)]
-
-
 def export_json(sweep_data: list[tuple[float, float]], f0: float, bw: float,
                 filter_type: str, order: int, ripple_db: float | None = None) -> str:
     """Export sweep data as JSON string.

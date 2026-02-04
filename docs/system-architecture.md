@@ -286,9 +286,9 @@ Each screen extends `Screen` and uses Textual widgets:
    - On calculation complete: displays formatted output
    - Prompt for frequency response plot (Y/n)
 
-**`calculation_handler.py` - Calculation Orchestration** (355 LOC)
+**`calculation_handler.py` - Calculation Orchestration** (35 LOC)
 
-Encapsulates all filter calculation logic separate from UI:
+Router for orchestrating calculations (refactored):
 
 ```python
 def calculate_and_format(state: FilterState) -> str:
@@ -301,12 +301,18 @@ def calculate_and_format(state: FilterState) -> str:
         return _calculate_bandpass(state)
 ```
 
-Handles:
-- Filter calculation selection
-- E-series matching based on eseries setting
-- Output format selection (table/json/csv)
-- Frequency response plot generation
-- Error handling with user-friendly messages
+**Calculation & Formatting (Extracted)**:
+- `filter_type_calculators.py` (185 LOC) - LP/HP/BP type-specific calculations
+- `formatting_helpers.py` (155 LOC) - Wizard output formatting
+- `filter_screen_navigation_mixin.py` (46 LOC) - Reusable screen navigation logic
+- `radio_button_helpers.py` (19 LOC) - Radio button widget utilities
+
+Module responsibilities:
+- calculation_handler.py - Routing only
+- filter_type_calculators.py - Calculation logic (strategies for each filter type)
+- formatting_helpers.py - Display formatting specific to wizard output
+- filter_screen_navigation_mixin.py - Shared navigation behavior for screens
+- radio_button_helpers.py - Reusable radio button widget creation
 
 **`validation.py` - Input Validators**
 
@@ -397,6 +403,12 @@ Placeholder for future custom Textual widget extensions:
 
 **Location**: `filter_lib/shared/`
 
+**New Base Modules (LP/HP Strategy Pattern)**:
+- `lp_hp_base_calculations.py` (342 LOC) - Shared LP/HP calculation logic via strategy
+- `lp_hp_base_transfer_functions.py` (164 LOC) - Shared transfer function calculations
+
+These modules implement the Strategy pattern to handle differences between LP and HP filters, reducing duplication in `lowpass/calculations.py` and `highpass/calculations.py`.
+
 #### Parsing & Validation (`parsing.py`)
 ```python
 # Parse and validate user inputs
@@ -435,6 +447,8 @@ def format_eseries_match(value, series, format_func):
 2. Find best parallel combination (two values)
 3. Return both with error percentages
 4. User chooses which to use
+
+**Note**: As of v1.1+, E-series matching applies to **capacitors only**. Inductor E-series recommendations were removed in anticipation of future component tolerance enhancements.
 
 #### Display Common (`display_common.py`)
 ```python

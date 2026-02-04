@@ -8,8 +8,6 @@ References:
 - Zverev "Handbook of Filter Synthesis" (1967)
 - Cohn "Direct-Coupled-Resonator Filters" (1957)
 """
-
-from __future__ import annotations
 import math
 from typing import Any
 

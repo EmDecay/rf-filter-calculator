@@ -7,14 +7,18 @@ from textual.validation import Number
 from textual import on
 
 from ..state import FilterState
+from ..radio_button_helpers import get_selected_radio
+from ..filter_screen_navigation_mixin import FilterScreenNavigationMixin
 
 
-class BandpassScreen(Screen):
+class BandpassScreen(FilterScreenNavigationMixin, Screen):
     """Screen for configuring bandpass filter parameters."""
 
     BINDINGS = [
         ("escape", "back", "Back"),
     ]
+    RADIO_SET_FLOW = ["filter-type", "coupling"]
+    FIRST_INPUT_ID = "frequency"
 
     def compose(self) -> ComposeResult:
         yield Static("Band-Pass Filter Design", classes="header")
@@ -101,26 +105,6 @@ class BandpassScreen(Screen):
         ripple_section = self.query_one("#ripple-section")
         ripple_section.display = event.pressed.id == "chebyshev"
 
-    def on_key(self, event) -> None:
-        """Handle Enter key to advance from RadioSet selections."""
-        if event.key == "enter":
-            focused = self.focused
-            if focused is not None:
-                try:
-                    filter_type_set = self.query_one("#filter-type", RadioSet)
-                    coupling_set = self.query_one("#coupling", RadioSet)
-
-                    if filter_type_set.has_focus:
-                        coupling_set.focus()
-                        event.prevent_default()
-                        event.stop()
-                    elif coupling_set.has_focus:
-                        self.query_one("#frequency", Input).focus()
-                        event.prevent_default()
-                        event.stop()
-                except Exception:
-                    pass
-
     @on(Input.Submitted, "#frequency")
     def _on_frequency_submitted(self, event: Input.Submitted) -> None:
         """Auto-advance to bandwidth input after frequency entry."""
@@ -185,13 +169,6 @@ class BandpassScreen(Screen):
         elif event.button.id == "reset-btn":
             self._reset_form()
 
-    def _get_selected_radio(self, radio_set_id: str) -> str:
-        """Get the ID of the selected radio button in a RadioSet."""
-        radio_set = self.query_one(f"#{radio_set_id}", RadioSet)
-        if radio_set.pressed_button:
-            return radio_set.pressed_button.id
-        return ""
-
     def _calculate(self) -> None:
         """Validate inputs and proceed to output options."""
         from filter_lib.shared.parsing import parse_frequency
@@ -242,8 +219,8 @@ class BandpassScreen(Screen):
             return
 
         # Get filter type and coupling
-        filter_type = self._get_selected_radio("filter-type")
-        coupling = self._get_selected_radio("coupling")
+        filter_type = get_selected_radio(self, "filter-type")
+        coupling = get_selected_radio(self, "coupling")
 
         # Chebyshev requires odd number of resonators
         if filter_type == "chebyshev" and resonators % 2 == 0:

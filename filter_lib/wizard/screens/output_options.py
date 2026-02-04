@@ -7,6 +7,7 @@ from textual.containers import VerticalScroll, Vertical, Horizontal
 from textual import on
 
 from ..state import FilterState
+from ..radio_button_helpers import get_selected_radio
 
 
 class OutputOptionsScreen(Screen):
@@ -93,7 +94,8 @@ class OutputOptionsScreen(Screen):
                     self.query_one("#results-btn", Button).focus()
                     event.prevent_default()
                     event.stop()
-            except Exception:
+            except (AttributeError, LookupError):
+                # Widget not yet mounted during init; safe to ignore
                 pass
 
     def action_back(self) -> None:
@@ -107,23 +109,16 @@ class OutputOptionsScreen(Screen):
         elif event.button.id == "back-btn":
             self.app.pop_screen()
 
-    def _get_selected_radio(self, radio_set_id: str) -> str:
-        """Get the ID of the selected radio button in a RadioSet."""
-        radio_set = self.query_one(f"#{radio_set_id}", RadioSet)
-        if radio_set.pressed_button:
-            return radio_set.pressed_button.id
-        return ""
-
     def _show_results(self) -> None:
         """Save options and navigate to results screen."""
         state: FilterState = self.app.filter_state
 
         # Get E-series selection
-        eseries = self._get_selected_radio("eseries")
+        eseries = get_selected_radio(self, "eseries")
         state.eseries = eseries if eseries != "none" else "E24"
 
         # Get output format
-        state.output_format = self._get_selected_radio("format")
+        state.output_format = get_selected_radio(self, "format")
 
         # Get options from SelectionList
         options_list = self.query_one("#options-list", SelectionList)
@@ -133,7 +128,7 @@ class OutputOptionsScreen(Screen):
         state.show_plot = "plot" in selected
 
         # Get export format
-        export = self._get_selected_radio("export")
+        export = get_selected_radio(self, "export")
         if export == "export-json":
             state.export_format = "json"
         elif export == "export-csv":

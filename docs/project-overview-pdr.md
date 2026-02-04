@@ -88,6 +88,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - **E12 Series**: 12 values per decade (±10% tolerance)
 - **E24 Series**: 24 values per decade (±5% tolerance) - default
 - **E96 Series**: 96 values per decade (±1% tolerance)
+- **Matching Scope**: **Capacitors only** (as of v1.1+)
 - **Matching Options**:
   - Single value: Nearest E-series standard
   - Parallel combination: Two values in parallel for better accuracy
@@ -95,6 +96,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
   - ✓ Single value matches nearest standard ±2%
   - ✓ Parallel combinations provide <0.5% error when possible
   - ✓ All three E-series selections work correctly
+  - ✓ Inductor values shown raw (no E-series matching)
 
 #### 1.4 Output Formats
 
@@ -488,7 +490,8 @@ Status: ✓ Measured ~200ms on reference machine
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | Jan 2026 | Initial release |
-| 1.1 | Jan 2026 | Simplified E-series display, ASCII art fixes, uv integration |
+| 1.1 | Jan 30 2026 | Removed inductor E-series recommendations; simplified display to capacitors only |
+| 1.2 | Feb 3 2026 | Wizard refactoring with modularized calculation/formatting logic; new LP/HP base modules (strategy pattern); new utility modules (navigation mixin, radio helpers) |
 
 ---
 
@@ -503,7 +506,7 @@ Status: ✓ Measured ~200ms on reference machine
 
 ## Document Control
 
-**Last Updated**: January 30, 2026
+**Last Updated**: February 3, 2026
 **Author**: Matt N3AR
 **Status**: Active (Production)
 **Next Review**: Q2 2026

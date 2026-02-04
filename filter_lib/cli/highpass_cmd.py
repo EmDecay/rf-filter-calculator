@@ -8,6 +8,7 @@ from ..shared.cli_aliases import (
 from ..shared.cli_helpers import (
     add_filter_type_args, add_common_filter_args, add_output_args,
     add_eseries_args, add_plot_args, validate_filter_args, export_plot_data,
+    get_filter_type_arg,
 )
 from ..highpass import (
     calculate_butterworth, calculate_chebyshev, calculate_bessel,
@@ -27,7 +28,7 @@ def setup_parser(parser: ArgumentParser) -> None:
 
 def run(args: Namespace) -> None:
     """Execute highpass command."""
-    filter_type = args.filter_type or args.type_flag
+    filter_type = get_filter_type_arg(args)
     freq_input = args.frequency or args.freq_flag
 
     if args.explain:

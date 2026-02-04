@@ -24,64 +24,8 @@ from filter_lib.highpass.display import (
 )
 
 
-@pytest.fixture
-def lowpass_result():
-    """Sample lowpass filter result."""
-    return {
-        'filter_type': 'butterworth',
-        'freq_hz': 10e6,
-        'impedance': 50.0,
-        'order': 5,
-        'capacitors': [1e-10, 2e-10, 1e-10],  # 100pF, 200pF, 100pF
-        'inductors': [1e-6, 1e-6],  # 1uH, 1uH
-        'ripple': None,
-        'topology': 'pi',
-    }
-
-
-@pytest.fixture
-def highpass_result():
-    """Sample highpass T filter result (series C, shunt L)."""
-    return {
-        'filter_type': 'chebyshev',
-        'freq_hz': 1e6,
-        'impedance': 75.0,
-        'order': 3,
-        'capacitors': [5e-10, 5e-10],  # 500pF series caps (odd positions)
-        'inductors': [2e-6],  # 2uH shunt inductor (even position)
-        'ripple': 0.5,
-        'topology': 't',
-    }
-
-
-@pytest.fixture
-def lowpass_t_result():
-    """Sample lowpass T topology result (inductors primary)."""
-    return {
-        'filter_type': 'butterworth',
-        'freq_hz': 10e6,
-        'impedance': 50.0,
-        'order': 5,
-        'inductors': [1e-6, 1e-6, 1e-6],
-        'capacitors': [1e-10, 2e-10],
-        'ripple': None,
-        'topology': 't',
-    }
-
-
-@pytest.fixture
-def highpass_pi_result():
-    """Sample highpass Pi result (shunt L at odd, series C at even)."""
-    return {
-        'filter_type': 'butterworth',
-        'freq_hz': 1e6,
-        'impedance': 75.0,
-        'order': 3,
-        'inductors': [2e-6, 2e-6],  # shunt inductors (odd positions)
-        'capacitors': [5e-10],  # series capacitor (even position)
-        'ripple': None,
-        'topology': 'pi',
-    }
+# Fixtures lowpass_result, highpass_result, lowpass_t_result, highpass_pi_result
+# are defined in conftest.py and automatically available to all tests
 
 
 class TestFormatJsonResult:

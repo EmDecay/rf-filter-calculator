@@ -21,15 +21,43 @@ BESSEL_SCALE = {
 }
 
 
-def generate_frequency_points(cutoff_hz: float, num_points: int = 51) -> list[float]:
-    """Generate logarithmically-spaced frequency points from 0.1fc to 10fc."""
-    if cutoff_hz <= 0:
+def generate_frequency_points(
+    f0: float,
+    num_points: int | None = None,
+    decades: float = 2.0,
+    points_per_decade: int = 25
+) -> list[float]:
+    """Generate logarithmically-spaced frequency points around f0.
+
+    Two calling conventions supported:
+    - num_points specified: fixed 2-decade span (0.1*f0 to 10*f0)
+    - num_points=None: use decades and points_per_decade for flexible ranging
+
+    Args:
+        f0: Center/cutoff frequency in Hz
+        num_points: Exact point count (legacy mode, spans 0.1fc to 10fc)
+        decades: Number of decades to span (default 2.0)
+        points_per_decade: Points per decade when num_points not specified
+
+    Returns:
+        List of frequencies in Hz
+    """
+    if f0 <= 0:
         raise ValueError("Cutoff frequency must be positive")
-    points = []
-    for i in range(num_points):
-        exp = -1 + (2 * i / (num_points - 1))
-        points.append(cutoff_hz * (10 ** exp))
-    return points
+
+    if num_points is not None:
+        # Legacy mode: fixed 2-decade span from 0.1*f0 to 10*f0
+        points = []
+        for i in range(num_points):
+            exp = -1 + (2 * i / (num_points - 1))
+            points.append(f0 * (10 ** exp))
+        return points
+
+    # Flexible mode: configurable decades centered on f0
+    total_points = int(decades * points_per_decade)
+    start_exp = math.log10(f0) - decades / 2
+    return [10 ** (start_exp + i * decades / total_points)
+            for i in range(total_points + 1)]
 
 
 def chebyshev_polynomial(n: int, x: float) -> float:

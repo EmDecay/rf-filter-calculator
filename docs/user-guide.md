@@ -435,7 +435,7 @@ L1,1.59,µH
 
 ## E-Series Component Matching
 
-The calculator automatically finds the nearest standard component values.
+The calculator automatically finds the nearest standard component values for capacitors.
 
 ### Available Series
 
@@ -444,6 +444,7 @@ The calculator automatically finds the nearest standard component values.
 | E12 | ±10% | 12 |
 | E24 | ±5% | 24 |
 | E96 | ±1% | 96 |
+| None | - | Calculated values only |
 
 ### Matching Modes
 
@@ -452,6 +453,8 @@ The calculator automatically finds the nearest standard component values.
 
 For capacitors, parallel combination is additive (C_total = C1 + C2).
 For inductors, parallel combination is harmonic (L_total = L1*L2/(L1+L2)).
+
+**Note**: E-series matching recommendations are provided for capacitors. Inductor component selection is typically custom-wound or sourced by specification.
 
 ### Example Output
 

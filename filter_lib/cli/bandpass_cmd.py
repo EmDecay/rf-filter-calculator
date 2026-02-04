@@ -10,6 +10,7 @@ from ..shared.cli_aliases import (
     DEFAULT_Q_SAFETY, DEFAULT_ESERIES,
     resolve_filter_type, resolve_coupling,
 )
+from ..shared.cli_helpers import get_filter_type_arg
 from ..bandpass import calculate_bandpass_filter, display_results
 
 
@@ -77,7 +78,7 @@ def run(args: Namespace) -> None:
         _run_verification()
         return
 
-    filter_type = args.filter_type or args.type_flag
+    filter_type = get_filter_type_arg(args)
     coupling = args.coupling_pos or args.coupling_flag
 
     if args.explain:

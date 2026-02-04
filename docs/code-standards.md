@@ -238,11 +238,18 @@ def display_results(result: dict, raw: bool = False,
 ### Shared Utilities Pattern
 Reduce duplication via centralized shared functions:
 
+**Core Utilities:**
 - `display_common.py` - Shared display formatting
 - `formatting.py` - Number formatting (mF, pF, µH, nH)
 - `eseries.py` - E-series value databases
 - `topology_diagrams.py` - ASCII circuit diagrams
 - `transfer_functions.py` - Transfer function calculations
+
+**New Base Modules (Strategy Pattern for LP/HP):**
+- `lp_hp_base_calculations.py` - Strategy-based LP/HP calculation logic
+- `lp_hp_base_transfer_functions.py` - Shared transfer function implementations
+
+**Pattern**: LP/HP calculation modules delegate to base modules, passing strategy functions to handle topology-specific differences (denormalization, component ordering).
 
 ## Testing Standards
 
@@ -319,6 +326,29 @@ def lowpass_result():
 - No unsafe eval/exec
 - All file I/O uses pathlib or relative paths
 - No credential handling in code
+
+## Wizard Module Architecture
+
+### Refactored Structure (Recent Simplification)
+
+**calculation_handler.py** (35 LOC after refactoring):
+- Minimal orchestration router
+- Delegates to type-specific calculators
+- Routes output formatting to helpers
+
+**filter_type_calculators.py** (185 LOC):
+- Contains _calculate_lowpass, _calculate_highpass, _calculate_bandpass
+- Handles filter selection and parameter passing
+- Calls shared base calculation modules
+
+**formatting_helpers.py** (155 LOC):
+- Wizard-specific formatting logic
+- E-series matching display
+- Output format selection (table/json/csv)
+
+**Key Mixins:**
+- `filter_screen_navigation_mixin.py` - Shared screen navigation logic
+- `radio_button_helpers.py` - Radio button widget utilities
 
 ## Textual TUI Patterns
 

@@ -81,7 +81,8 @@ class ResultsScreen(Screen):
                     self._save_export()
                     event.prevent_default()
                     event.stop()
-            except Exception:
+            except (AttributeError, LookupError):
+                # Widget not yet mounted during init; safe to ignore
                 pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
