@@ -23,7 +23,6 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
     def compose(self) -> ComposeResult:
         yield Static("High-Pass Filter Design", classes="header")
         with VerticalScroll(classes="content"):
-            # Response Type
             with Vertical(classes="form-section"):
                 yield Static("Response Type", classes="form-section-title")
                 with RadioSet(id="filter-type"):
@@ -47,7 +46,6 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                     yield RadioButton("T (L-C-L) - Series C first", value=True, id="t")
                     yield RadioButton("Pi (C-L-C) - Shunt L first", id="pi")
 
-            # Parameters
             with Vertical(classes="form-section"):
                 yield Static("Parameters", classes="form-section-title")
                 yield Static("Cutoff Frequency (e.g., 10MHz, 14.2M, 7100kHz):")
@@ -75,7 +73,6 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                         validators=[Number(minimum=0.01, maximum=3.0)],
                     )
 
-            # Buttons
             with Horizontal(classes="button-row"):
                 yield Button("Next", id="calculate-btn", variant="primary")
                 yield Button("Reset", id="reset-btn")

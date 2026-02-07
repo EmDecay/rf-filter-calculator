@@ -1,4 +1,4 @@
-"""Shared base calculations for low-pass and high-pass filters.
+"""Shared base calculations for lowpass and highpass filters.
 
 This module contains common calculation logic using strategy pattern to handle
 LP vs HP specific formulas and component ordering.
@@ -6,7 +6,8 @@ LP vs HP specific formulas and component ordering.
 Key differences between LP and HP:
 - LP: capacitors in shunt, inductors in series (Pi: C-L-C, T: L-C-L)
 - HP: inverted - capacitors in series, inductors in shunt
-- Component value formulas are inverted (LP: g/Z*w, HP: 1/g*Z*w)
+- Component formulas are duals (LP: C=g/(Z*omega), L=g*Z/omega;
+  HP: C=1/(g*omega*Z), L=Z/(omega*g))
 """
 import math
 from typing import Callable

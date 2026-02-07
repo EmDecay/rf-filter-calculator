@@ -6,10 +6,10 @@ import math
 
 
 def chebyshev_polynomial(n: int, x: float) -> float:
-    """Evaluate Chebyshev polynomial Cn(x).
+    """Evaluate a magnitude-form Chebyshev polynomial Cn(x).
 
     |x| <= 1: Cn(x) = cos(n * arccos(x))
-    |x| > 1:  Cn(x) = cosh(n * arccosh(x))
+    |x| > 1:  Cn(x) = cosh(n * arccosh(|x|))
     """
     if abs(x) <= 1:
         return math.cos(n * math.acos(x))

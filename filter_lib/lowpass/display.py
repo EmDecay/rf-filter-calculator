@@ -1,4 +1,4 @@
-"""Display functions for low-pass filters."""
+"""Display functions for lowpass filters."""
 from ..shared.formatting import format_capacitance, format_inductance
 from ..shared.display_helpers import format_eseries_match
 from ..shared.display_common import (

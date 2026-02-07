@@ -1,4 +1,4 @@
-"""Shared transfer function calculations for low-pass and high-pass filters.
+"""Shared transfer function calculations for lowpass and highpass filters.
 
 HPF response is derived from LPF response using frequency transformation:
 - LP uses ratio = f/fc

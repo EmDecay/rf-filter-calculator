@@ -18,7 +18,7 @@ BESSEL_G_VALUES: dict[int, list[float]] = {
     9: [0.0780, 0.2313, 0.3770, 0.5108, 0.6306, 0.7407, 0.8639, 1.0863, 2.2649],
 }
 
-# Chebyshev g-values for equal-termination bandpass filters
+# Chebyshev low-pass prototype g-values used in equal-termination bandpass synthesis
 # Outer dict key: ripple in dB (0.1, 0.5, 1.0)
 # Inner dict key: number of resonators (odd only: 3, 5, 7, 9)
 # Note: Chebyshev requires odd resonator count for equal source/load impedance

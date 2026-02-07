@@ -1,4 +1,4 @@
-"""Transfer function calculations for low-pass filter frequency response.
+"""Transfer function calculations for lowpass filter frequency response.
 
 This module is a thin wrapper around the shared base transfer functions.
 """

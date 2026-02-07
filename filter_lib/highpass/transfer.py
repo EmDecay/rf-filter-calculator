@@ -1,4 +1,4 @@
-"""Transfer function calculations for high-pass filter frequency response.
+"""Transfer function calculations for highpass filter frequency response.
 
 HPF response is derived from LPF response using frequency transformation:
 H_HP(f) = H_LP(fc^2/f)

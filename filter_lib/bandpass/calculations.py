@@ -36,6 +36,9 @@ def calculate_coupling_coefficients(g_values: list[float], fbw: float) -> list[f
 def calculate_external_q(g_values: list[float], fbw: float) -> tuple[float, float]:
     """Calculate external Q factors for input/output coupling.
 
+    Assumes equal source/load terminations, so g0 = g_{n+1} = 1 and:
+    Qe_in = g1/FBW, Qe_out = gn/FBW.
+
     Args:
         g_values: Prototype g-values [g1, g2, ..., gn]
         fbw: Fractional bandwidth

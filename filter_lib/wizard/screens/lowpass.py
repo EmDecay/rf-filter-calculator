@@ -23,7 +23,6 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
     def compose(self) -> ComposeResult:
         yield Static("Low-Pass Filter Design", classes="header")
         with VerticalScroll(classes="content"):
-            # Response Type
             with Vertical(classes="form-section"):
                 yield Static("Response Type", classes="form-section-title")
                 with RadioSet(id="filter-type"):
@@ -40,14 +39,12 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
                         id="bessel"
                     )
 
-            # Topology
             with Vertical(classes="form-section"):
                 yield Static("Topology", classes="form-section-title")
                 with RadioSet(id="topology"):
                     yield RadioButton("Pi (C-L-C) - Shunt C first", value=True, id="pi")
                     yield RadioButton("T (L-C-L) - Series L first", id="t")
 
-            # Parameters
             with Vertical(classes="form-section"):
                 yield Static("Parameters", classes="form-section-title")
                 yield Static("Cutoff Frequency (e.g., 10MHz, 14.2M, 7100kHz):")
@@ -75,7 +72,6 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
                         validators=[Number(minimum=0.01, maximum=3.0)],
                     )
 
-            # Buttons
             with Horizontal(classes="button-row"):
                 yield Button("Next", id="calculate-btn", variant="primary")
                 yield Button("Reset", id="reset-btn")

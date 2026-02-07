@@ -1,4 +1,4 @@
-"""LC high-pass filter calculations (Pi and T topologies).
+"""LC highpass filter calculations (Pi and T topologies).
 
 Provides Butterworth, Chebyshev, and Bessel filter coefficient calculations.
 Topology parameter controls component position mapping:
