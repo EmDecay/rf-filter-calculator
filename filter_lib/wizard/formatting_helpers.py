@@ -85,6 +85,30 @@ def format_eseries_recs(components: list, prefix: str, name: str,
     return lines
 
 
+def format_bandpass_eseries_recs(result: dict, eseries: str) -> list[str]:
+    """Format E-series recommendations for bandpass capacitor values."""
+    from filter_lib.shared.display_helpers import format_eseries_match
+    from filter_lib.shared.formatting import format_capacitance
+
+    lines = []
+    lines.append(f"\n{eseries} Standard Capacitor Recommendations")
+    lines.append("-" * 45)
+    lines.append("(Calculated values with nearest standard matches)")
+    lines.append("")
+
+    for i, ct in enumerate(result['c_tank']):
+        lines.append(f"Cp{i+1} Calculated: {format_capacitance(ct)}")
+        for line in format_eseries_match(ct, eseries, format_capacitance):
+            lines.append(line)
+
+    for i, cs in enumerate(result['c_coupling']):
+        lines.append(f"Cs{i+1}{i+2} Calculated: {format_capacitance(cs)}")
+        for line in format_eseries_match(cs, eseries, format_capacitance):
+            lines.append(line)
+
+    return lines
+
+
 def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
     """Format bandpass filter results as table."""
     from filter_lib.shared.formatting import format_frequency, format_capacitance, format_inductance

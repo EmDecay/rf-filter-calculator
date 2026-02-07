@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from ..shared.formatting import format_frequency, format_capacitance, format_inductance
 from ..shared.display_helpers import format_eseries_match as _shared_format_eseries
+from ..shared.eseries import match_component
 
 # Type alias for filter result dict
 FilterResult = dict[str, Any]
@@ -31,7 +32,30 @@ def format_eseries_match(value: float, series: str,
     return _shared_format_eseries(value, series, unit_formatter, parallel_mode='additive')
 
 
-def format_json(result: FilterResult) -> str:
+def _build_standard_match(value: float, eseries: str, unit_key: str,
+                          parallel_mode: str) -> dict[str, Any]:
+    """Build JSON-serializable E-series match data."""
+    match = match_component(value, eseries, parallel_mode=parallel_mode)
+
+    standard: dict[str, Any] = {
+        'series': eseries,
+        'nearest': {
+            unit_key: match.single_value,
+            'error_pct': match.single_error_pct,
+        }
+    }
+
+    if match.parallel and match.parallel_value is not None and match.parallel_error_pct is not None:
+        standard['parallel'] = {
+            'components': [{unit_key: match.parallel[0]}, {unit_key: match.parallel[1]}],
+            unit_key: match.parallel_value,
+            'error_pct': match.parallel_error_pct,
+        }
+
+    return standard
+
+
+def format_json(result: FilterResult, eseries: str | None = None) -> str:
     """Format results as JSON.
 
     Args:
@@ -52,12 +76,24 @@ def format_json(result: FilterResult) -> str:
         'n_resonators': result['n_resonators'],
         'q_min': result['q_min'],
         'components': {
-            'tank_capacitors': [{'name': f'Cp{i+1}', 'value_farads': v}
-                               for i, v in enumerate(result['c_tank'])],
-            'inductors': [{'name': f'L{i+1}', 'value_henries': result['L_resonant']}
-                         for i in range(result['n_resonators'])],
-            'coupling_capacitors': [{'name': f'Cs{i+1}{i+2}', 'value_farads': v}
-                                   for i, v in enumerate(result['c_coupling'])]
+            'tank_capacitors': [
+                _bandpass_json_component(
+                    f'Cp{i+1}', v, 'value_farads', eseries, 'additive'
+                )
+                for i, v in enumerate(result['c_tank'])
+            ],
+            'inductors': [
+                _bandpass_json_component(
+                    f'L{i+1}', result['L_resonant'], 'value_henries', eseries, 'harmonic'
+                )
+                for i in range(result['n_resonators'])
+            ],
+            'coupling_capacitors': [
+                _bandpass_json_component(
+                    f'Cs{i+1}{i+2}', v, 'value_farads', eseries, 'additive'
+                )
+                for i, v in enumerate(result['c_coupling'])
+            ]
         },
         'external_q': {'input': result['qe_in'], 'output': result['qe_out']}
     }
@@ -66,7 +102,46 @@ def format_json(result: FilterResult) -> str:
     return json.dumps(output, indent=2)
 
 
-def format_csv(result: FilterResult) -> str:
+def _bandpass_json_component(name: str, value: float, unit_key: str,
+                             eseries: str | None, parallel_mode: str) -> dict[str, Any]:
+    """Build one JSON component entry for bandpass export."""
+    component: dict[str, Any] = {'name': name, unit_key: value}
+    if eseries:
+        component['standard_match'] = _build_standard_match(
+            value, eseries, unit_key, parallel_mode
+        )
+    return component
+
+
+def _csv_match_fields(value: float, formatter, eseries: str | None,
+                      parallel_mode: str) -> list[str]:
+    """Build optional E-series columns for CSV."""
+    if not eseries:
+        return []
+
+    match = match_component(value, eseries, parallel_mode=parallel_mode)
+    nearest_fmt = formatter(match.single_value)
+    nearest_val, nearest_unit = nearest_fmt.rsplit(' ', 1)
+
+    parallel_vals = ''
+    parallel_err = ''
+    if match.parallel and match.parallel_error_pct is not None:
+        p1_fmt = formatter(match.parallel[0])
+        p2_fmt = formatter(match.parallel[1])
+        parallel_vals = f'{p1_fmt} || {p2_fmt}'
+        parallel_err = f'{match.parallel_error_pct:.1f}'
+
+    return [
+        nearest_val,
+        nearest_unit,
+        f'{match.single_error_pct:.1f}',
+        parallel_vals,
+        parallel_err,
+        eseries,
+    ]
+
+
+def format_csv(result: FilterResult, eseries: str | None = None) -> str:
     """Format results as CSV.
 
     Args:
@@ -77,19 +152,35 @@ def format_csv(result: FilterResult) -> str:
     """
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Component', 'Value', 'Unit'])
+    header = ['Component', 'Value', 'Unit']
+    if eseries:
+        header.extend([
+            'NearestStdValue',
+            'NearestStdUnit',
+            'NearestStdErrorPct',
+            'ParallelStdValues',
+            'ParallelStdErrorPct',
+            'Eseries',
+        ])
+    writer.writerow(header)
     for i, v in enumerate(result['c_tank']):
         formatted = format_capacitance(v)
         val, unit = formatted.rsplit(' ', 1)
-        writer.writerow([f'Cp{i+1}', val, unit])
+        row = [f'Cp{i+1}', val, unit]
+        row.extend(_csv_match_fields(v, format_capacitance, eseries, 'additive'))
+        writer.writerow(row)
     for i in range(result['n_resonators']):
         formatted = format_inductance(result['L_resonant'])
         val, unit = formatted.rsplit(' ', 1)
-        writer.writerow([f'L{i+1}', val, unit])
+        row = [f'L{i+1}', val, unit]
+        row.extend(_csv_match_fields(result['L_resonant'], format_inductance, eseries, 'harmonic'))
+        writer.writerow(row)
     for i, v in enumerate(result['c_coupling']):
         formatted = format_capacitance(v)
         val, unit = formatted.rsplit(' ', 1)
-        writer.writerow([f'Cs{i+1}{i+2}', val, unit])
+        row = [f'Cs{i+1}{i+2}', val, unit]
+        row.extend(_csv_match_fields(v, format_capacitance, eseries, 'additive'))
+        writer.writerow(row)
     return output.getvalue()
 
 

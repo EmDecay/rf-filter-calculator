@@ -50,10 +50,10 @@ def display_results(result: FilterResult, raw: bool = False,
         return
 
     if output_format == 'json':
-        print(format_json(result))
+        print(format_json(result, eseries=eseries))
         return
     if output_format == 'csv':
-        print(format_csv(result), end='')
+        print(format_csv(result, eseries=eseries), end='')
         return
     if quiet:
         print(format_quiet(result, raw))

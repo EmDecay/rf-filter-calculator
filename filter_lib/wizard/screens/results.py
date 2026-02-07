@@ -142,27 +142,31 @@ class ResultsScreen(Screen):
 
     def _get_json_export(self, state: FilterState) -> str:
         """Get JSON export using existing formatters."""
+        eseries = None if state.eseries == "none" else state.eseries
+
         if state.category == "lowpass":
             from filter_lib.lowpass.display import format_json
-            return format_json(state.result)
+            return format_json(state.result, eseries=eseries)
         elif state.category == "highpass":
             from filter_lib.highpass.display import format_json
-            return format_json(state.result)
+            return format_json(state.result, eseries=eseries)
         else:  # bandpass
             from filter_lib.bandpass.formatters import format_json
-            return format_json(state.result)
+            return format_json(state.result, eseries=eseries)
 
     def _get_csv_export(self, state: FilterState) -> str:
         """Get CSV export using existing formatters."""
+        eseries = None if state.eseries == "none" else state.eseries
+
         if state.category == "lowpass":
             from filter_lib.lowpass.display import format_csv
-            return format_csv(state.result)
+            return format_csv(state.result, eseries=eseries)
         elif state.category == "highpass":
             from filter_lib.highpass.display import format_csv
-            return format_csv(state.result)
+            return format_csv(state.result, eseries=eseries)
         else:  # bandpass
             from filter_lib.bandpass.formatters import format_csv
-            return format_csv(state.result)
+            return format_csv(state.result, eseries=eseries)
 
     def _design_another(self) -> None:
         """Start a new design."""

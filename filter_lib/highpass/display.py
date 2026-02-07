@@ -19,14 +19,18 @@ def _primary_component(result: dict) -> str:
     return 'inductors' if result.get('topology', 't') == 'pi' else 'capacitors'
 
 
-def format_json(result: dict) -> str:
+def format_json(result: dict, eseries: str | None = None) -> str:
     """Format results as JSON."""
-    return format_json_result(result, primary_component=_primary_component(result))
+    return format_json_result(
+        result, primary_component=_primary_component(result), eseries=eseries
+    )
 
 
-def format_csv(result: dict) -> str:
+def format_csv(result: dict, eseries: str | None = None) -> str:
     """Format results as CSV."""
-    return format_csv_result(result, primary_component=_primary_component(result))
+    return format_csv_result(
+        result, primary_component=_primary_component(result), eseries=eseries
+    )
 
 
 def format_quiet(result: dict, raw: bool = False) -> str:
@@ -40,10 +44,10 @@ def display_results(result: dict, raw: bool = False,
                     show_plot: bool = False) -> None:
     """Display calculated filter component values."""
     if output_format == 'json':
-        print(format_json(result))
+        print(format_json(result, eseries=eseries if show_match else None))
         return
     if output_format == 'csv':
-        print(format_csv(result), end='')
+        print(format_csv(result, eseries=eseries if show_match else None), end='')
         return
     if quiet:
         print(format_quiet(result, raw))

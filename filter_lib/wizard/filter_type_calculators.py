@@ -47,10 +47,12 @@ def calculate_lowpass(state: FilterState) -> list[str]:
     }
     state.result = result
 
+    eseries = None if state.eseries == "none" else state.eseries
+
     if state.output_format == 'json':
-        return [format_json(result)]
+        return [format_json(result, eseries=eseries)]
     if state.output_format == 'csv':
-        return [format_csv(result)]
+        return [format_csv(result, eseries=eseries)]
     if state.quiet:
         return [format_quiet(result, state.raw_units)]
 
@@ -115,10 +117,12 @@ def calculate_highpass(state: FilterState) -> list[str]:
     }
     state.result = result
 
+    eseries = None if state.eseries == "none" else state.eseries
+
     if state.output_format == 'json':
-        return [format_json(result)]
+        return [format_json(result, eseries=eseries)]
     if state.output_format == 'csv':
-        return [format_csv(result)]
+        return [format_csv(result, eseries=eseries)]
     if state.quiet:
         return [format_quiet(result, state.raw_units)]
 
@@ -149,7 +153,7 @@ def calculate_bandpass(state: FilterState) -> list[str]:
     from filter_lib.bandpass.formatters import format_json, format_csv, format_quiet
     from filter_lib.bandpass.transfer import frequency_sweep
     from filter_lib.shared.plotting import render_bandpass_plot
-    from .formatting_helpers import format_bandpass_table
+    from .formatting_helpers import format_bandpass_table, format_bandpass_eseries_recs
 
     result = calculate_bandpass_filter(
         f0=state.frequency_hz,
@@ -162,14 +166,19 @@ def calculate_bandpass(state: FilterState) -> list[str]:
     )
     state.result = result
 
+    eseries = None if state.eseries == "none" else state.eseries
+
     if state.output_format == 'json':
-        return [format_json(result)]
+        return [format_json(result, eseries=eseries)]
     if state.output_format == 'csv':
-        return [format_csv(result)]
+        return [format_csv(result, eseries=eseries)]
     if state.quiet:
         return [format_quiet(result, state.raw_units)]
 
     lines = format_bandpass_table(result, state)
+
+    if state.eseries != "none" and not state.raw_units:
+        lines.extend(format_bandpass_eseries_recs(result, state.eseries))
 
     if state.show_plot:
         sweep = frequency_sweep(

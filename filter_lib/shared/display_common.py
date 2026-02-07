@@ -7,14 +7,79 @@ import json
 
 from .formatting import format_capacitance, format_inductance
 from .display_helpers import format_component_value, split_value_unit
+from .eseries import match_component
 
 
-def format_json_result(result: dict, primary_component: str = 'capacitors') -> str:
+def _build_standard_match(value: float, eseries: str, unit_key: str,
+                          parallel_mode: str) -> dict:
+    """Build JSON-serializable E-series match data."""
+    match = match_component(value, eseries, parallel_mode=parallel_mode)
+
+    standard = {
+        'series': eseries,
+        'nearest': {
+            unit_key: match.single_value,
+            'error_pct': match.single_error_pct,
+        }
+    }
+
+    if match.parallel and match.parallel_value is not None and match.parallel_error_pct is not None:
+        standard['parallel'] = {
+            'components': [{unit_key: match.parallel[0]}, {unit_key: match.parallel[1]}],
+            unit_key: match.parallel_value,
+            'error_pct': match.parallel_error_pct,
+        }
+
+    return standard
+
+
+def _json_component(name: str, value: float, unit_key: str,
+                    eseries: str | None, parallel_mode: str) -> dict:
+    """Build one component object for JSON export."""
+    component = {'name': name, unit_key: value}
+    if eseries:
+        component['standard_match'] = _build_standard_match(
+            value, eseries, unit_key, parallel_mode
+        )
+    return component
+
+
+def _csv_match_fields(value: float, formatter, eseries: str | None,
+                      parallel_mode: str) -> list[str]:
+    """Build extra CSV columns for E-series matching."""
+    if not eseries:
+        return []
+
+    match = match_component(value, eseries, parallel_mode=parallel_mode)
+    nearest_fmt = formatter(match.single_value)
+    nearest_val, nearest_unit = split_value_unit(nearest_fmt)
+
+    parallel_vals = ''
+    parallel_err = ''
+    if match.parallel and match.parallel_error_pct is not None:
+        p1_fmt = formatter(match.parallel[0])
+        p2_fmt = formatter(match.parallel[1])
+        parallel_vals = f'{p1_fmt} || {p2_fmt}'
+        parallel_err = f'{match.parallel_error_pct:.1f}'
+
+    return [
+        nearest_val,
+        nearest_unit,
+        f'{match.single_error_pct:.1f}',
+        parallel_vals,
+        parallel_err,
+        eseries,
+    ]
+
+
+def format_json_result(result: dict, primary_component: str = 'capacitors',
+                       eseries: str | None = None) -> str:
     """Format filter results as JSON.
 
     Args:
         result: Filter result dictionary with capacitors, inductors, etc.
         primary_component: Which component type to list first ('capacitors' or 'inductors')
+        eseries: E-series for standard matching (None to disable)
 
     Returns:
         JSON string with filter data.
@@ -22,17 +87,33 @@ def format_json_result(result: dict, primary_component: str = 'capacitors') -> s
     # Build components dict with specified order
     if primary_component == 'capacitors':
         components = {
-            'capacitors': [{'name': f'C{i+1}', 'value_farads': v}
-                          for i, v in enumerate(result['capacitors'])],
-            'inductors': [{'name': f'L{i+1}', 'value_henries': v}
-                         for i, v in enumerate(result['inductors'])]
+            'capacitors': [
+                _json_component(
+                    f'C{i+1}', v, 'value_farads', eseries, 'additive'
+                )
+                for i, v in enumerate(result['capacitors'])
+            ],
+            'inductors': [
+                _json_component(
+                    f'L{i+1}', v, 'value_henries', eseries, 'harmonic'
+                )
+                for i, v in enumerate(result['inductors'])
+            ]
         }
     else:
         components = {
-            'inductors': [{'name': f'L{i+1}', 'value_henries': v}
-                         for i, v in enumerate(result['inductors'])],
-            'capacitors': [{'name': f'C{i+1}', 'value_farads': v}
-                          for i, v in enumerate(result['capacitors'])]
+            'inductors': [
+                _json_component(
+                    f'L{i+1}', v, 'value_henries', eseries, 'harmonic'
+                )
+                for i, v in enumerate(result['inductors'])
+            ],
+            'capacitors': [
+                _json_component(
+                    f'C{i+1}', v, 'value_farads', eseries, 'additive'
+                )
+                for i, v in enumerate(result['capacitors'])
+            ]
         }
 
     output = {
@@ -52,38 +133,44 @@ def format_json_result(result: dict, primary_component: str = 'capacitors') -> s
     return json.dumps(output, indent=2)
 
 
-def format_csv_result(result: dict, primary_component: str = 'capacitors') -> str:
+def format_csv_result(result: dict, primary_component: str = 'capacitors',
+                      eseries: str | None = None) -> str:
     """Format filter results as CSV.
 
     Args:
         result: Filter result dictionary with capacitors, inductors, etc.
         primary_component: Which component type to list first ('capacitors' or 'inductors')
+        eseries: E-series for standard matching (None to disable)
 
     Returns:
         CSV string with component data.
     """
-    lines = ['Component,Value,Unit']
+    header = ['Component', 'Value', 'Unit']
+    if eseries:
+        header.extend([
+            'NearestStdValue',
+            'NearestStdUnit',
+            'NearestStdErrorPct',
+            'ParallelStdValues',
+            'ParallelStdErrorPct',
+            'Eseries',
+        ])
+    lines = [','.join(header)]
 
     if primary_component == 'capacitors':
-        # Capacitors first, then inductors
-        for i, v in enumerate(result['capacitors']):
-            formatted = format_capacitance(v)
-            val, unit = split_value_unit(formatted)
-            lines.append(f'C{i+1},{val},{unit}')
-        for i, v in enumerate(result['inductors']):
-            formatted = format_inductance(v)
-            val, unit = split_value_unit(formatted)
-            lines.append(f'L{i+1},{val},{unit}')
+        left = [('C', result['capacitors'], format_capacitance, 'additive')]
+        right = [('L', result['inductors'], format_inductance, 'harmonic')]
     else:
-        # Inductors first, then capacitors
-        for i, v in enumerate(result['inductors']):
-            formatted = format_inductance(v)
+        left = [('L', result['inductors'], format_inductance, 'harmonic')]
+        right = [('C', result['capacitors'], format_capacitance, 'additive')]
+
+    for prefix, values, formatter, parallel_mode in left + right:
+        for i, v in enumerate(values):
+            formatted = formatter(v)
             val, unit = split_value_unit(formatted)
-            lines.append(f'L{i+1},{val},{unit}')
-        for i, v in enumerate(result['capacitors']):
-            formatted = format_capacitance(v)
-            val, unit = split_value_unit(formatted)
-            lines.append(f'C{i+1},{val},{unit}')
+            row = [f'{prefix}{i+1}', val, unit]
+            row.extend(_csv_match_fields(v, formatter, eseries, parallel_mode))
+            lines.append(','.join(row))
 
     return '\n'.join(lines)
 

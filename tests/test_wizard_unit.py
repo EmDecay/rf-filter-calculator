@@ -10,6 +10,7 @@ These modules contain the core business logic for wizard calculations,
 separated from the Textual UI rendering logic.
 """
 import pytest
+import json
 from unittest.mock import Mock, patch
 from filter_lib.wizard.state import FilterState
 from filter_lib.wizard.filter_type_calculators import (
@@ -26,6 +27,7 @@ from filter_lib.wizard.formatting_helpers import (
 from filter_lib.wizard.calculation_handler import calculate_and_format
 from filter_lib.wizard.radio_button_helpers import get_selected_radio
 from filter_lib.wizard.validation import validate_order, validate_ripple
+from filter_lib.wizard.screens.results import ResultsScreen
 
 
 # ============================================================================
@@ -138,6 +140,29 @@ class TestCalculateLowpass:
         assert '{' in output  # JSON output
         assert 'butterworth' in output.lower()
 
+    def test_lowpass_json_with_eseries(self):
+        """Test lowpass JSON includes standard match fields."""
+        state = FilterState(
+            category="lowpass",
+            filter_type="butterworth",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            topology="pi",
+            output_format="json",
+            quiet=False,
+            raw_units=False,
+            show_plot=False,
+            eseries="E24",
+        )
+
+        lines = calculate_lowpass(state)
+
+        data = json.loads(lines[0])
+        first_cap = data["components"]["capacitors"][0]
+        assert "standard_match" in first_cap
+        assert first_cap["standard_match"]["series"] == "E24"
+
     def test_lowpass_csv_output(self):
         """Test CSV output format for lowpass."""
         state = FilterState(
@@ -158,6 +183,27 @@ class TestCalculateLowpass:
         output = lines[0]
         # CSV typically uses commas or specific format
         assert len(output) > 0
+
+    def test_lowpass_csv_with_eseries(self):
+        """Test lowpass CSV includes standard match columns."""
+        state = FilterState(
+            category="lowpass",
+            filter_type="butterworth",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            topology="pi",
+            output_format="csv",
+            quiet=False,
+            raw_units=False,
+            show_plot=False,
+            eseries="E24",
+        )
+
+        lines = calculate_lowpass(state)
+        header = lines[0].splitlines()[0]
+        assert "NearestStdValue" in header
+        assert "Eseries" in header
 
     def test_lowpass_quiet_mode(self):
         """Test quiet mode output for lowpass."""
@@ -345,6 +391,50 @@ class TestCalculateHighpass:
         assert len(lines) == 1
         assert '{' in lines[0]
 
+    def test_highpass_json_with_eseries(self):
+        """Test highpass JSON includes standard match fields."""
+        state = FilterState(
+            category="highpass",
+            filter_type="butterworth",
+            frequency_hz=1e6,
+            impedance=50.0,
+            order=3,
+            topology="pi",
+            output_format="json",
+            quiet=False,
+            raw_units=False,
+            show_plot=False,
+            eseries="E24",
+        )
+
+        lines = calculate_highpass(state)
+
+        data = json.loads(lines[0])
+        first_cap = data["components"]["capacitors"][0]
+        assert "standard_match" in first_cap
+        assert first_cap["standard_match"]["series"] == "E24"
+
+    def test_highpass_csv_with_eseries(self):
+        """Test highpass CSV includes standard match columns."""
+        state = FilterState(
+            category="highpass",
+            filter_type="butterworth",
+            frequency_hz=1e6,
+            impedance=50.0,
+            order=3,
+            topology="pi",
+            output_format="csv",
+            quiet=False,
+            raw_units=False,
+            show_plot=False,
+            eseries="E24",
+        )
+
+        lines = calculate_highpass(state)
+        header = lines[0].splitlines()[0]
+        assert "NearestStdValue" in header
+        assert "Eseries" in header
+
     def test_highpass_with_eseries(self):
         """Test highpass with E-series recommendations for inductors."""
         state = FilterState(
@@ -486,6 +576,52 @@ class TestCalculateBandpass:
 
         assert len(lines) == 1
 
+    def test_bandpass_json_with_eseries(self):
+        """Test bandpass JSON includes standard match fields."""
+        state = FilterState(
+            category="bandpass",
+            filter_type="butterworth",
+            frequency_hz=14.175e6,
+            bandwidth_hz=350e3,
+            impedance=50.0,
+            order=3,
+            topology="top",
+            output_format="json",
+            quiet=False,
+            raw_units=False,
+            show_plot=False,
+            eseries="E24",
+        )
+
+        lines = calculate_bandpass(state)
+
+        data = json.loads(lines[0])
+        first_tank_cap = data["components"]["tank_capacitors"][0]
+        assert "standard_match" in first_tank_cap
+        assert first_tank_cap["standard_match"]["series"] == "E24"
+
+    def test_bandpass_csv_with_eseries(self):
+        """Test bandpass CSV includes standard match columns."""
+        state = FilterState(
+            category="bandpass",
+            filter_type="butterworth",
+            frequency_hz=14.175e6,
+            bandwidth_hz=350e3,
+            impedance=50.0,
+            order=3,
+            topology="top",
+            output_format="csv",
+            quiet=False,
+            raw_units=False,
+            show_plot=False,
+            eseries="E24",
+        )
+
+        lines = calculate_bandpass(state)
+        header = lines[0].splitlines()[0]
+        assert "NearestStdValue" in header
+        assert "Eseries" in header
+
     def test_bandpass_quiet_mode(self):
         """Test quiet mode for bandpass."""
         state = FilterState(
@@ -527,6 +663,30 @@ class TestCalculateBandpass:
         assert len(lines) > 5
         output = '\n'.join(lines)
         assert len(output) > 200
+
+    def test_bandpass_with_eseries(self):
+        """Test bandpass includes capacitor E-series recommendations."""
+        state = FilterState(
+            category="bandpass",
+            filter_type="butterworth",
+            frequency_hz=14.175e6,
+            bandwidth_hz=350e3,
+            impedance=50.0,
+            order=3,
+            topology="top",
+            output_format="table",
+            quiet=False,
+            raw_units=False,
+            show_plot=False,
+            eseries="E24",
+        )
+
+        lines = calculate_bandpass(state)
+
+        output = '\n'.join(lines)
+        assert 'E24 Standard Capacitor Recommendations' in output
+        assert 'Cp1 Calculated:' in output
+        assert 'Cs12 Calculated:' in output
 
 
 # ============================================================================
@@ -806,6 +966,63 @@ class TestFormatBandpassTable:
         output = '\n'.join(lines)
         # Should have scientific notation
         assert 'e-' in output or 'E-' in output
+
+
+# ============================================================================
+# Tests for results screen export helpers
+# ============================================================================
+
+
+class TestResultsScreenExport:
+    """Tests for ResultsScreen export helper methods."""
+
+    def test_bandpass_json_export_with_eseries(self):
+        """Export button JSON includes standard match data for bandpass."""
+        screen = ResultsScreen()
+        state = FilterState(
+            category="bandpass",
+            filter_type="butterworth",
+            frequency_hz=14.175e6,
+            bandwidth_hz=350e3,
+            impedance=50.0,
+            order=3,
+            topology="top",
+            eseries="E24",
+            output_format="table",
+            raw_units=False,
+            show_plot=False,
+        )
+        calculate_bandpass(state)
+
+        output = screen._get_json_export(state)
+        data = json.loads(output)
+
+        first_tank_cap = data["components"]["tank_capacitors"][0]
+        assert "standard_match" in first_tank_cap
+        assert first_tank_cap["standard_match"]["series"] == "E24"
+
+    def test_bandpass_csv_export_with_eseries(self):
+        """Export button CSV includes standard match columns for bandpass."""
+        screen = ResultsScreen()
+        state = FilterState(
+            category="bandpass",
+            filter_type="butterworth",
+            frequency_hz=14.175e6,
+            bandwidth_hz=350e3,
+            impedance=50.0,
+            order=3,
+            topology="top",
+            eseries="E24",
+            output_format="table",
+            raw_units=False,
+            show_plot=False,
+        )
+        calculate_bandpass(state)
+
+        output = screen._get_csv_export(state)
+        header = output.splitlines()[0]
+        assert "NearestStdValue" in header
+        assert "Eseries" in header
 
 
 # ============================================================================
