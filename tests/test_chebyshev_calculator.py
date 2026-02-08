@@ -2,11 +2,12 @@
 
 Tests verify mathematical correctness of Chebyshev coefficient calculations.
 """
+
 import math
-import pytest
+
 from filter_lib.shared.chebyshev_g_calculator import (
-    calculate_chebyshev_g_values,
     CHEBYSHEV_DB_TO_NEPER_FACTOR,
+    calculate_chebyshev_g_values,
 )
 
 
@@ -102,7 +103,7 @@ class TestChebychevPhysicalValidity:
 
         # Components should be realistic (pF to µH range)
         assert 1e-12 < c1 < 1e-6  # pF to µF
-        assert 1e-9 < l2 < 1e-3   # nH to mH
+        assert 1e-9 < l2 < 1e-3  # nH to mH
         assert 1e-12 < c3 < 1e-6  # pF to µF
 
 
@@ -173,7 +174,7 @@ class TestChebychevConsistency:
 
         # Each ripple should produce different g-values
         for i, ripple1 in enumerate(ripples):
-            for ripple2 in ripples[i + 1:]:
+            for ripple2 in ripples[i + 1 :]:
                 # At least one g-value should differ
                 differs = False
                 for j in range(1, 4):

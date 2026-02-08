@@ -4,6 +4,7 @@ Main entry point that routes to filter-specific calculators.
 The actual calculation logic is in filter_type_calculators.py.
 Formatting helpers are in formatting_helpers.py.
 """
+
 from .state import FilterState
 
 
@@ -16,9 +17,7 @@ def calculate_and_format(state: FilterState) -> str:
     Returns:
         Formatted output string for display
     """
-    from .filter_type_calculators import (
-        calculate_lowpass, calculate_highpass, calculate_bandpass
-    )
+    from .filter_type_calculators import calculate_bandpass, calculate_highpass, calculate_lowpass
 
     try:
         if state.category == "lowpass":
@@ -32,4 +31,4 @@ def calculate_and_format(state: FilterState) -> str:
     except Exception as e:
         lines = [f"Calculation error: {e}"]
 
-    return '\n'.join(lines)
+    return "\n".join(lines)

@@ -1,14 +1,16 @@
 """Results screen displaying calculated filter values."""
+
 import os
 from datetime import datetime
+
 from textual.app import ComposeResult
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Static, RadioSet, RadioButton
-from textual.containers import Container, Horizontal, VerticalScroll, Vertical
+from textual.widgets import Button, Footer, RadioButton, RadioSet, Static
 from textual.worker import Worker
 
-from ..state import FilterState
 from ..calculation_handler import calculate_and_format
+from ..state import FilterState
 
 
 class ResultsScreen(Screen):
@@ -146,12 +148,15 @@ class ResultsScreen(Screen):
 
         if state.category == "lowpass":
             from filter_lib.lowpass.display import format_json
+
             return format_json(state.result, eseries=eseries)
         elif state.category == "highpass":
             from filter_lib.highpass.display import format_json
+
             return format_json(state.result, eseries=eseries)
         else:  # bandpass
             from filter_lib.bandpass.formatters import format_json
+
             return format_json(state.result, eseries=eseries)
 
     def _get_csv_export(self, state: FilterState) -> str:
@@ -160,12 +165,15 @@ class ResultsScreen(Screen):
 
         if state.category == "lowpass":
             from filter_lib.lowpass.display import format_csv
+
             return format_csv(state.result, eseries=eseries)
         elif state.category == "highpass":
             from filter_lib.highpass.display import format_csv
+
             return format_csv(state.result, eseries=eseries)
         else:  # bandpass
             from filter_lib.bandpass.formatters import format_csv
+
             return format_csv(state.result, eseries=eseries)
 
     def _design_another(self) -> None:

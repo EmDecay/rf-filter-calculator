@@ -1,4 +1,5 @@
 """Shared state dataclasses for the Textual wizard."""
+
 from dataclasses import dataclass, field
 
 

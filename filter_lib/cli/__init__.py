@@ -1,17 +1,18 @@
 """CLI subcommand handlers."""
+
 import argparse
 import sys
 
-from . import lowpass_cmd, highpass_cmd, bandpass_cmd
+from . import bandpass_cmd, highpass_cmd, lowpass_cmd
 
-__all__ = ['lowpass_cmd', 'highpass_cmd', 'bandpass_cmd', 'main']
+__all__ = ["lowpass_cmd", "highpass_cmd", "bandpass_cmd", "main"]
 
 
 def main():
     """Main entry point for the filter calculator CLI."""
     parser = argparse.ArgumentParser(
-        description='Unified Filter Calculator',
-        epilog='''Subcommands:
+        description="Unified Filter Calculator",
+        epilog="""Subcommands:
   lowpass (lp)   LC low-pass filter (Pi or T topology)
   highpass (hp)  LC high-pass filter (Pi or T topology)
   bandpass (bp)  Coupled resonator bandpass filter
@@ -26,24 +27,27 @@ Examples:
   %(prog)s highpass bw t 10MHz -n 5
   %(prog)s hp ch 10MHz --topology pi -r 0.5
   %(prog)s bandpass bw top -f 14.2MHz -b 500kHz
-  %(prog)s bp ch shunt --fl 14MHz --fh 14.35MHz -n 7''',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+  %(prog)s bp ch shunt --fl 14MHz --fh 14.35MHz -n 7""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    subparsers = parser.add_subparsers(dest='command')
+    subparsers = parser.add_subparsers(dest="command")
 
-    lp_parser = subparsers.add_parser('lowpass', aliases=['lp'],
-                                       help='LC low-pass filter (Pi or T)')
+    lp_parser = subparsers.add_parser(
+        "lowpass", aliases=["lp"], help="LC low-pass filter (Pi or T)"
+    )
     lowpass_cmd.setup_parser(lp_parser)
     lp_parser.set_defaults(func=lowpass_cmd.run)
 
-    hp_parser = subparsers.add_parser('highpass', aliases=['hp'],
-                                       help='LC high-pass filter (Pi or T)')
+    hp_parser = subparsers.add_parser(
+        "highpass", aliases=["hp"], help="LC high-pass filter (Pi or T)"
+    )
     highpass_cmd.setup_parser(hp_parser)
     hp_parser.set_defaults(func=highpass_cmd.run)
 
-    bp_parser = subparsers.add_parser('bandpass', aliases=['bp'],
-                                       help='Coupled resonator bandpass filter')
+    bp_parser = subparsers.add_parser(
+        "bandpass", aliases=["bp"], help="Coupled resonator bandpass filter"
+    )
     bandpass_cmd.setup_parser(bp_parser)
     bp_parser.set_defaults(func=bandpass_cmd.run)
 
@@ -53,6 +57,7 @@ Examples:
         # Default to wizard when no command given
         if args.command is None:
             from ..wizard import run_wizard
+
             run_wizard()
         else:
             args.func(args)

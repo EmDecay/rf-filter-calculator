@@ -1,10 +1,9 @@
 """Tests for topology diagram formatting functions."""
-import pytest
+
+from filter_lib.bandpass.diagrams import format_shunt_c_diagram, format_top_c_diagram
 from filter_lib.shared.topology_diagrams import (
-    format_pi_topology_diagram, format_t_topology_diagram
-)
-from filter_lib.bandpass.diagrams import (
-    format_top_c_diagram, format_shunt_c_diagram
+    format_pi_topology_diagram,
+    format_t_topology_diagram,
 )
 
 
@@ -32,7 +31,7 @@ class TestPiTopologyDiagram:
 
     def test_custom_labels(self):
         """Test Pi diagram with custom labels."""
-        result = format_pi_topology_diagram(2, 1, series_label='X', shunt_label='Y')
+        result = format_pi_topology_diagram(2, 1, series_label="X", shunt_label="Y")
         assert "X1" in result
         assert "Y1" in result
         assert "Y2" in result
@@ -41,7 +40,7 @@ class TestPiTopologyDiagram:
         """Test that function returns a string."""
         result = format_pi_topology_diagram(2, 1)
         assert isinstance(result, str)
-        assert '\n' in result
+        assert "\n" in result
 
 
 class TestTTopologyDiagram:
@@ -68,7 +67,7 @@ class TestTTopologyDiagram:
 
     def test_custom_labels(self):
         """Test T diagram with custom labels."""
-        result = format_t_topology_diagram(2, 1, series_label='X', shunt_label='Y')
+        result = format_t_topology_diagram(2, 1, series_label="X", shunt_label="Y")
         assert "X1" in result
         assert "X2" in result
         assert "Y1" in result
@@ -77,7 +76,7 @@ class TestTTopologyDiagram:
         """Test that function returns a string."""
         result = format_t_topology_diagram(2, 1)
         assert isinstance(result, str)
-        assert '\n' in result
+        assert "\n" in result
 
 
 class TestTopCDiagram:
@@ -111,7 +110,7 @@ class TestTopCDiagram:
         """Test that function returns a string."""
         result = format_top_c_diagram(3)
         assert isinstance(result, str)
-        assert '\n' in result
+        assert "\n" in result
 
 
 class TestShuntCDiagram:
@@ -145,4 +144,4 @@ class TestShuntCDiagram:
         """Test that function returns a string."""
         result = format_shunt_c_diagram(3)
         assert isinstance(result, str)
-        assert '\n' in result
+        assert "\n" in result

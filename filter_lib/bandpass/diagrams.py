@@ -25,36 +25,48 @@ def format_top_c_diagram(n: int) -> str:
     line_len = len(main_line)
 
     # Coupling capacitor labels above main line
-    label_chars = [' '] * line_len
+    label_chars = [" "] * line_len
     for i in range(n_coupling):
         mid = (tank_pos[i] + tank_pos[i + 1]) // 2
-        label = f"Cs{i+1}{i+2}"
+        label = f"Cs{i + 1}{i + 2}"
         start = mid - len(label) // 2
         for j, ch in enumerate(label):
             if 0 <= start + j < line_len:
                 label_chars[start + j] = ch
-    label_line = ''.join(label_chars)
+    label_line = "".join(label_chars)
 
     def build_line(elements: list[str]) -> str:
-        chars = [' '] * line_len
+        chars = [" "] * line_len
         for pos, elem in zip(tank_pos, elements):
             start = pos - len(elem) // 2
             for j, ch in enumerate(elem):
                 if 0 <= start + j < line_len:
                     chars[start + j] = ch
-        return ''.join(chars)
+        return "".join(chars)
 
     vert_line = build_line(["   │   "] * n)
     tank_top = build_line(["┌──┴──┐"] * n)
     tank_r1 = build_line(["│     │"] * n)
-    tank_r2 = build_line([f"Cp{i+1:<2} L{i+1}" for i in range(n)])
+    tank_r2 = build_line([f"Cp{i + 1:<2} L{i + 1}" for i in range(n)])
     tank_r3 = build_line(["│     │"] * n)
     tank_bot = build_line(["└──┬──┘"] * n)
     gnd_wire = build_line(["   │   "] * n)
     gnd_sym = build_line(["  GND  "] * n)
 
-    return '\n'.join([label_line, main_line, vert_line, tank_top, tank_r1,
-                      tank_r2, tank_r3, tank_bot, gnd_wire, gnd_sym])
+    return "\n".join(
+        [
+            label_line,
+            main_line,
+            vert_line,
+            tank_top,
+            tank_r1,
+            tank_r2,
+            tank_r3,
+            tank_bot,
+            gnd_wire,
+            gnd_sym,
+        ]
+    )
 
 
 def print_top_c_diagram(n: int) -> None:
@@ -87,58 +99,71 @@ def format_shunt_c_diagram(n: int) -> str:
     line_len = len(main_line)
 
     def build_line(elements: list[str]) -> str:
-        chars = [' '] * line_len
+        chars = [" "] * line_len
         for pos, elem in zip(tank_pos, elements):
             start = pos - len(elem) // 2
             for j, ch in enumerate(elem):
                 if 0 <= start + j < line_len:
                     chars[start + j] = ch
-        return ''.join(chars)
+        return "".join(chars)
 
     vert1 = build_line(["   │   "] * n)
     tank_top = build_line(["┌──┴──┐"] * n)
     tank_r1 = build_line(["│     │"] * n)
-    tank_r2 = build_line([f"Cp{i+1:<2} L{i+1}" for i in range(n)])
+    tank_r2 = build_line([f"Cp{i + 1:<2} L{i + 1}" for i in range(n)])
     tank_r3 = build_line(["│     │"] * n)
     tank_bot = build_line(["└──┬──┘"] * n)
     vert2 = build_line(["   │   "] * n)
 
     # Bottom coupling rail
-    coupling_line_chars = [' '] * line_len
+    coupling_line_chars = [" "] * line_len
     for i, pos in enumerate(tank_pos):
         if i == 0:
-            coupling_line_chars[pos] = '├'
+            coupling_line_chars[pos] = "├"
         elif i == n - 1:
-            coupling_line_chars[pos] = '┤'
+            coupling_line_chars[pos] = "┤"
         else:
-            coupling_line_chars[pos] = '┼'
+            coupling_line_chars[pos] = "┼"
         if i < n - 1:
             next_pos = tank_pos[i + 1]
             mid = (pos + next_pos) // 2
             for j in range(pos + 1, next_pos):
-                coupling_line_chars[j] = '─'
-            label = f"Cs{i+1}{i+2}"
+                coupling_line_chars[j] = "─"
+            label = f"Cs{i + 1}{i + 2}"
             start = mid - len(label) // 2
             for j, ch in enumerate(label):
                 if 0 <= start + j < line_len:
                     coupling_line_chars[start + j] = ch
-    coupling_line = ''.join(coupling_line_chars)
+    coupling_line = "".join(coupling_line_chars)
 
     center_pos = tank_pos[n // 2]
-    gnd_wire_chars = [' '] * line_len
-    gnd_wire_chars[center_pos] = '│'
-    gnd_wire = ''.join(gnd_wire_chars)
+    gnd_wire_chars = [" "] * line_len
+    gnd_wire_chars[center_pos] = "│"
+    gnd_wire = "".join(gnd_wire_chars)
 
-    gnd_chars = [' '] * line_len
+    gnd_chars = [" "] * line_len
     gnd_label = "GND"
     start = center_pos - len(gnd_label) // 2
     for j, ch in enumerate(gnd_label):
         if 0 <= start + j < line_len:
             gnd_chars[start + j] = ch
-    gnd = ''.join(gnd_chars)
+    gnd = "".join(gnd_chars)
 
-    return '\n'.join([main_line, vert1, tank_top, tank_r1, tank_r2, tank_r3,
-                      tank_bot, vert2, coupling_line, gnd_wire, gnd])
+    return "\n".join(
+        [
+            main_line,
+            vert1,
+            tank_top,
+            tank_r1,
+            tank_r2,
+            tank_r3,
+            tank_bot,
+            vert2,
+            coupling_line,
+            gnd_wire,
+            gnd,
+        ]
+    )
 
 
 def print_shunt_c_diagram(n: int) -> None:

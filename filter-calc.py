@@ -11,5 +11,5 @@ Written by Matt N3AR (with AI coding assistance)
 
 from filter_lib.cli import main
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

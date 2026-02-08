@@ -203,6 +203,7 @@ cython_debug/
 
 # Claude Code
 .claude/
+repomix-output.xml
 
 # Marimo
 marimo/_static/

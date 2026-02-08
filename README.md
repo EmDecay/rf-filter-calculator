@@ -28,7 +28,7 @@ cd rf-filter-calculator
 uv sync
 ```
 
-For development (includes pytest):
+For development (includes pytest and ruff):
 ```bash
 uv sync --group dev
 ```
@@ -212,7 +212,7 @@ uv run filter-calc lp bw 10MHz --plot-data json > response.json
 uv run filter-calc lp bw 10MHz --plot-data csv > response.csv
 ```
 
-## Testing
+## Testing & CI
 
 Run the test suite with pytest:
 
@@ -221,10 +221,23 @@ Run the test suite with pytest:
 uv run pytest tests/ -v
 
 # Run with coverage
-uv run pytest tests/ --cov=filter_lib
+uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test coverage:** 344 tests covering filter calculations, transfer functions, input validation, CLI commands, and output formatting. See [docs/testing.md](docs/testing.md) for details.
+**Test suite:** 556 tests covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, and the interactive wizard. See [docs/testing.md](docs/testing.md) for details.
+
+### Linting
+
+[Ruff](https://docs.astral.sh/ruff/) is used for linting and formatting:
+
+```bash
+uv run ruff check .          # Lint
+uv run ruff format --check .  # Check formatting
+```
+
+### Continuous Integration
+
+GitHub Actions runs lint, format check, and the full test suite on every push and PR to `main`.
 
 ## Project Structure
 

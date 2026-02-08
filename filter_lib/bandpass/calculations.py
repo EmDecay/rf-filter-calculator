@@ -8,6 +8,7 @@ References:
 - Zverev "Handbook of Filter Synthesis" (1967)
 - Cohn "Direct-Coupled-Resonator Filters" (1957)
 """
+
 import math
 from typing import Any
 
@@ -29,8 +30,7 @@ def calculate_coupling_coefficients(g_values: list[float], fbw: float) -> list[f
     Returns:
         List of coupling coefficients [k12, k23, ..., k_{n-1,n}]
     """
-    return [fbw / math.sqrt(g_values[i] * g_values[i + 1])
-            for i in range(len(g_values) - 1)]
+    return [fbw / math.sqrt(g_values[i] * g_values[i + 1]) for i in range(len(g_values) - 1)]
 
 
 def calculate_external_q(g_values: list[float], fbw: float) -> tuple[float, float]:
@@ -78,8 +78,9 @@ def calculate_coupling_capacitors(k_values: list[float], c_resonant: float) -> l
     return [k * c_resonant for k in k_values]
 
 
-def calculate_tank_capacitors(n_resonators: int, c_resonant: float,
-                               c_coupling: list[float]) -> list[float]:
+def calculate_tank_capacitors(
+    n_resonators: int, c_resonant: float, c_coupling: list[float]
+) -> list[float]:
     """Calculate compensated tank capacitors.
 
     Tank capacitors are reduced to account for coupling capacitor effects.
@@ -118,8 +119,9 @@ def calculate_min_q(f0: float, bw: float, safety_factor: float = 2.0) -> float:
     return (f0 / bw) * safety_factor
 
 
-def _validate_inputs(f0: float, bw: float, z0: float, n_resonators: int,
-                     filter_type: str, coupling: str) -> None:
+def _validate_inputs(
+    f0: float, bw: float, z0: float, n_resonators: int, filter_type: str, coupling: str
+) -> None:
     """Validate input parameters for bandpass filter calculation."""
     if f0 <= 0:
         raise ValueError("Center frequency must be positive")
@@ -131,26 +133,34 @@ def _validate_inputs(f0: float, bw: float, z0: float, n_resonators: int,
         raise ValueError("Impedance must be positive")
     if not 2 <= n_resonators <= 9:
         raise ValueError("Number of resonators must be between 2 and 9")
-    if filter_type not in ('butterworth', 'chebyshev', 'bessel'):
+    if filter_type not in ("butterworth", "chebyshev", "bessel"):
         raise ValueError("Filter type must be 'butterworth', 'chebyshev', or 'bessel'")
-    if coupling not in ('top', 'shunt'):
+    if coupling not in ("top", "shunt"):
         raise ValueError("Coupling must be 'top' or 'shunt'")
 
 
 def _get_fbw_warnings(fbw: float, coupling: str) -> list[str]:
     """Generate FBW-related warnings."""
     warnings: list[str] = []
-    if coupling == 'shunt' and fbw > 0.10:
-        warnings.append(f"FBW {fbw*100:.1f}% exceeds 10% limit for Shunt-C; consider Top-C topology")
+    if coupling == "shunt" and fbw > 0.10:
+        warnings.append(
+            f"FBW {fbw * 100:.1f}% exceeds 10% limit for Shunt-C; consider Top-C topology"
+        )
     if fbw > 0.40:
-        warnings.append(f"FBW {fbw*100:.1f}% exceeds 40%; consider transmission-line design")
+        warnings.append(f"FBW {fbw * 100:.1f}% exceeds 40%; consider transmission-line design")
     return warnings
 
 
-def calculate_bandpass_filter(f0: float, bw: float, z0: float, n_resonators: int,
-                               filter_type: str, coupling: str,
-                               ripple_db: float = 0.5,
-                               q_safety: float = 2.0) -> FilterResult:
+def calculate_bandpass_filter(
+    f0: float,
+    bw: float,
+    z0: float,
+    n_resonators: int,
+    filter_type: str,
+    coupling: str,
+    ripple_db: float = 0.5,
+    q_safety: float = 2.0,
+) -> FilterResult:
     """Calculate complete bandpass filter component values.
 
     Args:
@@ -198,25 +208,25 @@ def calculate_bandpass_filter(f0: float, bw: float, z0: float, n_resonators: int
         )
 
     return {
-        'f0': f0,
-        'f_low': f0 - bw / 2,
-        'f_high': f0 + bw / 2,
-        'bw': bw,
-        'fbw': fbw,
-        'z0': z0,
-        'n_resonators': n_resonators,
-        'filter_type': filter_type,
-        'coupling': coupling,
-        'ripple_db': ripple_db if filter_type == 'chebyshev' else None,
-        'q_safety': q_safety,
-        'g_values': g_values,
-        'k_values': k_values,
-        'qe_in': qe_in,
-        'qe_out': qe_out,
-        'L_resonant': L_resonant,
-        'C_resonant': C_resonant,
-        'c_coupling': c_coupling,
-        'c_tank': c_tank,
-        'q_min': calculate_min_q(f0, bw, q_safety),
-        'warnings': warnings,
+        "f0": f0,
+        "f_low": f0 - bw / 2,
+        "f_high": f0 + bw / 2,
+        "bw": bw,
+        "fbw": fbw,
+        "z0": z0,
+        "n_resonators": n_resonators,
+        "filter_type": filter_type,
+        "coupling": coupling,
+        "ripple_db": ripple_db if filter_type == "chebyshev" else None,
+        "q_safety": q_safety,
+        "g_values": g_values,
+        "k_values": k_values,
+        "qe_in": qe_in,
+        "qe_out": qe_out,
+        "L_resonant": L_resonant,
+        "C_resonant": C_resonant,
+        "c_coupling": c_coupling,
+        "c_tank": c_tank,
+        "q_min": calculate_min_q(f0, bw, q_safety),
+        "warnings": warnings,
     }

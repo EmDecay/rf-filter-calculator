@@ -1,12 +1,12 @@
 # Codebase Summary
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv for package management) and comprehensive testing (344 tests).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv for package management, ruff for linting, GitHub Actions CI) and comprehensive testing (556 tests).
 
 ## Project Statistics
 
 - **Total Files**: 91 files
-- **Total Lines of Code**: ~5,000 (excluding tests and docs)
-- **Test Coverage**: 344+ tests (~2,981+ lines)
+- **Total Lines of Code**: ~6,280 (source: 40+ .py files in filter_lib/)
+- **Test Coverage**: 556 tests (~0.36s runtime)
 - **Documentation**: 13 files (~2,200+ lines)
 
 ## Architecture Overview
@@ -156,7 +156,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (344+ tests total):
+**Test Files** (556 tests total):
 - `test_bandpass_calculations.py` - Coupled resonator design tests
 - `test_bandpass_modules.py` - Bandpass display and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -167,12 +167,12 @@ Provides cross-cutting utilities:
 - `test_lowpass_calculations.py` - Lowpass filter calculations
 - `test_parsing_validation.py` - Input validation and parsing
 - `test_topology_calculations.py` - Topology-specific calculations
-- `test_transfer_functions.py` - Transfer function accuracy
+- `test_transfer_functions.py` - Transfer function accuracy (49+ tests)
 - `test_wizard_state.py` - FilterState dataclass validation
 - `test_wizard_topology_diagrams.py` - Wizard topology diagram rendering
 - `conftest.py` - Shared pytest fixtures and configuration
-- `test_wizard_unit.py` - **NEW** - Wizard module unit tests
-- `test_plotting_edge_cases.py` - **NEW** - Edge cases for plotting
+- `test_wizard_unit.py` - Wizard module unit tests (40,500+ chars)
+- `test_plotting_edge_cases.py` - Edge cases for ASCII plot rendering (22,700+ chars)
 
 ## Development Workflow
 
@@ -255,22 +255,29 @@ All code files respect 200-line limit for optimal context:
 
 ## Recent Major Changes
 
-1. **Wizard Refactoring** (commit 69938ca): Modularized calculation_handler.py (355 LOC → 35 LOC)
+1. **Ruff Linting & GitHub Actions CI** (recent):
+   - Added ruff>=0.8 to dev dependencies
+   - Config in pyproject.toml: target py310, line-length 100, rules E/F/I/UP/B
+   - GitHub Actions workflow (.github/workflows/ci.yml): lint → format check → pytest+coverage
+   - 67 files reformatted by ruff format (E731 lambdas→defs, f-string compat, cleanup)
+   - Test suite expanded from 344 to 556 tests during refactoring
+
+2. **Wizard Refactoring** (commit 69938ca): Modularized calculation_handler.py (355 LOC → 35 LOC)
    - Extracted filter_type_calculators.py (185 LOC) - type-specific calculation logic
    - Extracted formatting_helpers.py (155 LOC) - wizard display formatting
    - Added filter_screen_navigation_mixin.py - DRY screen navigation
    - Added radio_button_helpers.py - shared radio button utilities
 
-2. **Shared Module Expansion**: Added lp_hp_base_*.py modules
+3. **Shared Module Expansion**: Added lp_hp_base_*.py modules
    - lp_hp_base_calculations.py (342 LOC) - Strategy pattern for LP/HP
    - lp_hp_base_transfer_functions.py (164 LOC) - Shared transfer functions
 
-3. **Textual TUI Wizard Migration** (commit 79291e5): Textual screen-based architecture
+4. **Textual TUI Wizard Migration** (commit 79291e5): Textual screen-based architecture
    - Modular screen components (welcome, filter config, output options, results)
    - Async calculation handling with worker thread
    - Centralized FilterState for state management
    - Removed inductor E-series recommendations (capacitors only)
 
-4. **uv Package Management** (commit 4da4f68): Switched from pip/venv to uv
-5. **ASCII Art Fixes** (commit 4049ed7): Corrected spacing in topology diagrams
-6. **Wizard Default Values** (commit 258fe6a): Fixed default value handling in interactive mode
+5. **uv Package Management** (commit 4da4f68): Switched from pip/venv to uv
+6. **ASCII Art Fixes** (commit 4049ed7): Corrected spacing in topology diagrams
+7. **Wizard Default Values** (commit 258fe6a): Fixed default value handling in interactive mode

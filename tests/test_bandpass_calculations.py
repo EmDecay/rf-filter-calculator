@@ -2,13 +2,14 @@
 
 Tests verify coupled resonator calculations for bandpass filter design.
 """
+
 import math
-import pytest
+
 from filter_lib.bandpass.calculations import (
+    calculate_coupling_capacitors,
     calculate_coupling_coefficients,
     calculate_external_q,
     calculate_resonator_components,
-    calculate_coupling_capacitors,
     calculate_tank_capacitors,
 )
 
@@ -138,9 +139,9 @@ class TestResonatorComponents:
         f0 = 14.175e6  # 20m amateur band
         z0 = 50
 
-        l, c = calculate_resonator_components(f0, z0)
+        ind, c = calculate_resonator_components(f0, z0)
 
-        assert l > 0
+        assert ind > 0
         assert c > 0
 
     def test_resonator_formula(self):
@@ -149,12 +150,12 @@ class TestResonatorComponents:
         z0 = 50
         omega0 = 2 * math.pi * f0
 
-        l, c = calculate_resonator_components(f0, z0)
+        ind, c = calculate_resonator_components(f0, z0)
 
         expected_l = z0 / omega0
         expected_c = 1 / (omega0 * z0)
 
-        assert abs(l - expected_l) < 1e-15
+        assert abs(ind - expected_l) < 1e-15
         assert abs(c - expected_c) < 1e-15
 
     def test_impedance_scaling(self):
@@ -184,10 +185,10 @@ class TestResonatorComponents:
         f0 = 14.175e6
         z0 = 50
 
-        l, c = calculate_resonator_components(f0, z0)
+        ind, c = calculate_resonator_components(f0, z0)
 
         # LC product should match: LC = 1/(4π²f0²)
-        lc_product = l * c
+        lc_product = ind * c
         expected_lc = 1 / (4 * math.pi**2 * f0**2)
 
         assert abs(lc_product - expected_lc) < 1e-25
@@ -323,12 +324,10 @@ class TestBandpassEdgeCases:
     def test_real_world_20m_bandpass(self):
         """Test realistic 20m amateur radio bandpass."""
         f0 = 14.175e6  # 20m band center
-        fbw = 350e3 / f0  # 350 kHz bandwidth
         z0 = 50
 
-        l, c = calculate_resonator_components(f0, z0)
+        ind, c = calculate_resonator_components(f0, z0)
 
         # Should produce reasonable component values
-        assert 1e-9 < l < 1e-6  # nH to µH range
+        assert 1e-9 < ind < 1e-6  # nH to µH range
         assert 1e-12 < c < 1e-9  # pF to nF range
-

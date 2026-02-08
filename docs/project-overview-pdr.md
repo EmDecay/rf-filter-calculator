@@ -21,11 +21,13 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 1.0+ (Production ready)
-- 344 comprehensive tests
+**Version**: 1.2+ (Production ready)
+- 556 comprehensive tests
 - Full CLI and interactive modes
 - Complete documentation
 - Python 3.10+ compatible
+- Automated CI/CD with GitHub Actions
+- Code quality enforced via ruff linting
 
 ---
 
@@ -213,9 +215,9 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - No silent failures
 
 **NFR-2.4.2: Testing**
-- 344 tests covering all filter types
+- 556 tests covering all filter types
 - >90% code coverage
-- Automated CI/CD validation
+- Automated GitHub Actions CI (lint → format → test on push/PR)
 
 #### 2.5 Maintainability
 
@@ -224,6 +226,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Type hints on all parameters and returns
 - Modular design with <200 line files
 - Comments explain non-obvious logic
+- Ruff linting enforced (E/F/I/UP/B rules, py310+ target)
+- Code formatting standardized via ruff format
 
 **NFR-2.5.2: Architecture Clarity**
 - Clear separation of concerns (CLI → Calculate → Display)
@@ -463,7 +467,7 @@ Status: ✓ Measured ~200ms on reference machine
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
 | Test Coverage | >90% | 95%+ | ✓ Met |
-| Test Count | >300 | 344 | ✓ Met |
+| Test Count | >300 | 556 | ✓ Met |
 | Documentation Files | >6 | 8+ | ✓ Met |
 | Code Issues | 0 critical | 0 | ✓ Met |
 | Response Time | <500ms | ~200ms | ✓ Met |
@@ -491,7 +495,7 @@ Status: ✓ Measured ~200ms on reference machine
 |---------|------|---------|
 | 1.0 | Jan 2026 | Initial release |
 | 1.1 | Jan 30 2026 | Removed inductor E-series recommendations; simplified display to capacitors only |
-| 1.2 | Feb 3 2026 | Wizard refactoring with modularized calculation/formatting logic; new LP/HP base modules (strategy pattern); new utility modules (navigation mixin, radio helpers) |
+| 1.2 | Feb 3-8 2026 | Wizard refactoring with modularized calculation/formatting logic; new LP/HP base modules (strategy pattern); new utility modules (navigation mixin, radio helpers); added ruff linting (py310 target, E/F/I/UP/B rules); GitHub Actions CI pipeline; expanded test suite to 556 tests; reformatted 67 files |
 
 ---
 
@@ -506,7 +510,7 @@ Status: ✓ Measured ~200ms on reference machine
 
 ## Document Control
 
-**Last Updated**: February 3, 2026
+**Last Updated**: February 8, 2026
 **Author**: Matt N3AR
 **Status**: Active (Production)
 **Next Review**: Q2 2026

@@ -1,4 +1,5 @@
 """Main Textual application for the filter wizard."""
+
 from textual.app import App
 from textual.binding import Binding
 
@@ -25,6 +26,7 @@ class FilterWizardApp(App):
     def on_mount(self) -> None:
         """Push the welcome screen on startup."""
         from .screens import WelcomeScreen
+
         self.push_screen(WelcomeScreen())
 
     def action_back(self) -> None:

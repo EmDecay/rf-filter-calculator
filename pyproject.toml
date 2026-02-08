@@ -36,6 +36,7 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "ruff>=0.8",
 ]
 
 [project.scripts]
@@ -49,6 +50,26 @@ Issues = "https://github.com/EmDecay/rf-filter-calculator/issues"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["filter_lib*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes (undefined names, unused imports)
+    "I",    # isort (import sorting)
+    "UP",   # pyupgrade (modernize syntax for 3.10+)
+    "B",    # flake8-bugbear (likely bugs)
+]
+ignore = [
+    "E501",  # line too long (formatter handles this)
+    "B905",  # zip() without strict= (safe in this codebase — matched-length arrays)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

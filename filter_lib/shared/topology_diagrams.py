@@ -12,18 +12,18 @@ def _build_line(positions: list[int], elements: list[str], line_len: int) -> str
         elements: Text elements to place
         line_len: Total line length
     """
-    chars = [' '] * line_len
+    chars = [" "] * line_len
     for pos, elem in zip(positions, elements):
         start = pos - len(elem) // 2
         for j, ch in enumerate(elem):
             if 0 <= start + j < line_len:
                 chars[start + j] = ch
-    return ''.join(chars)
+    return "".join(chars)
 
 
-def format_pi_topology_diagram(n_shunt: int, n_series: int,
-                               series_label: str = 'L',
-                               shunt_label: str = 'C') -> str:
+def format_pi_topology_diagram(
+    n_shunt: int, n_series: int, series_label: str = "L", shunt_label: str = "C"
+) -> str:
     """Format Pi topology ASCII diagram as string.
 
     Args:
@@ -37,7 +37,7 @@ def format_pi_topology_diagram(n_shunt: int, n_series: int,
     """
     main_parts = ["  IN ───┬"]
     for i in range(n_series):
-        main_parts.append(f"───┤ {series_label}{i+1} ├───┬")
+        main_parts.append(f"───┤ {series_label}{i + 1} ├───┬")
 
     if n_shunt > n_series:
         main_parts.append("─── OUT")
@@ -48,24 +48,24 @@ def format_pi_topology_diagram(n_shunt: int, n_series: int,
     line_len = len(main_line)
 
     shunt_positions = []
-    pos = main_line.find('┬')
+    pos = main_line.find("┬")
     while pos != -1:
         shunt_positions.append(pos)
-        pos = main_line.find('┬', pos + 1)
+        pos = main_line.find("┬", pos + 1)
 
-    vert_line = _build_line(shunt_positions, ['│'] * n_shunt, line_len)
-    cap_sym = _build_line(shunt_positions, ['==='] * n_shunt, line_len)
-    shunt_labels = [f"{shunt_label}{i+1}" for i in range(n_shunt)]
+    vert_line = _build_line(shunt_positions, ["│"] * n_shunt, line_len)
+    cap_sym = _build_line(shunt_positions, ["==="] * n_shunt, line_len)
+    shunt_labels = [f"{shunt_label}{i + 1}" for i in range(n_shunt)]
     label_line = _build_line(shunt_positions, shunt_labels, line_len)
-    gnd_wire = _build_line(shunt_positions, ['│'] * n_shunt, line_len)
-    gnd_sym = _build_line(shunt_positions, ['GND'] * n_shunt, line_len)
+    gnd_wire = _build_line(shunt_positions, ["│"] * n_shunt, line_len)
+    gnd_sym = _build_line(shunt_positions, ["GND"] * n_shunt, line_len)
 
-    return '\n'.join([main_line, vert_line, cap_sym, label_line, gnd_wire, gnd_sym])
+    return "\n".join([main_line, vert_line, cap_sym, label_line, gnd_wire, gnd_sym])
 
 
-def print_pi_topology_diagram(n_shunt: int, n_series: int,
-                              series_label: str = 'L',
-                              shunt_label: str = 'C') -> None:
+def print_pi_topology_diagram(
+    n_shunt: int, n_series: int, series_label: str = "L", shunt_label: str = "C"
+) -> None:
     """Print Pi topology ASCII diagram: shunt - series - shunt pattern.
 
     Args:
@@ -77,9 +77,9 @@ def print_pi_topology_diagram(n_shunt: int, n_series: int,
     print(format_pi_topology_diagram(n_shunt, n_series, series_label, shunt_label))
 
 
-def format_t_topology_diagram(n_series: int, n_shunt: int,
-                              series_label: str = 'L',
-                              shunt_label: str = 'C') -> str:
+def format_t_topology_diagram(
+    n_series: int, n_shunt: int, series_label: str = "L", shunt_label: str = "C"
+) -> str:
     """Format T topology ASCII diagram as string.
 
     Args:
@@ -95,7 +95,7 @@ def format_t_topology_diagram(n_series: int, n_shunt: int,
     for i in range(n_series):
         if i > 0:
             main_parts.append("───")
-        main_parts.append(f"┤{series_label}{i+1}├")
+        main_parts.append(f"┤{series_label}{i + 1}├")
         if i < n_shunt:
             main_parts.append("───┬")
 
@@ -108,24 +108,24 @@ def format_t_topology_diagram(n_series: int, n_shunt: int,
     line_len = len(main_line)
 
     shunt_positions = []
-    pos = main_line.find('┬')
+    pos = main_line.find("┬")
     while pos != -1:
         shunt_positions.append(pos)
-        pos = main_line.find('┬', pos + 1)
+        pos = main_line.find("┬", pos + 1)
 
-    vert_line = _build_line(shunt_positions, ['│'] * n_shunt, line_len)
-    shunt_sym = _build_line(shunt_positions, ['==='] * n_shunt, line_len)
-    shunt_labels = [f"{shunt_label}{i+1}" for i in range(n_shunt)]
+    vert_line = _build_line(shunt_positions, ["│"] * n_shunt, line_len)
+    shunt_sym = _build_line(shunt_positions, ["==="] * n_shunt, line_len)
+    shunt_labels = [f"{shunt_label}{i + 1}" for i in range(n_shunt)]
     label_line = _build_line(shunt_positions, shunt_labels, line_len)
-    gnd_wire = _build_line(shunt_positions, ['│'] * n_shunt, line_len)
-    gnd_sym = _build_line(shunt_positions, ['GND'] * n_shunt, line_len)
+    gnd_wire = _build_line(shunt_positions, ["│"] * n_shunt, line_len)
+    gnd_sym = _build_line(shunt_positions, ["GND"] * n_shunt, line_len)
 
-    return '\n'.join([main_line, vert_line, shunt_sym, label_line, gnd_wire, gnd_sym])
+    return "\n".join([main_line, vert_line, shunt_sym, label_line, gnd_wire, gnd_sym])
 
 
-def print_t_topology_diagram(n_series: int, n_shunt: int,
-                             series_label: str = 'L',
-                             shunt_label: str = 'C') -> None:
+def print_t_topology_diagram(
+    n_series: int, n_shunt: int, series_label: str = "L", shunt_label: str = "C"
+) -> None:
     """Print T topology ASCII diagram: series - shunt - series pattern.
 
     Args:

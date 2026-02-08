@@ -1,5 +1,7 @@
 """Tests for wizard state management."""
+
 import pytest
+
 from filter_lib.wizard.state import FilterState
 from filter_lib.wizard.validation import validate_order, validate_ripple
 

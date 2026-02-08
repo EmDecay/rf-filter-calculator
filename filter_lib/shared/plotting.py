@@ -7,6 +7,7 @@ Provides adaptive ASCII frequency response plots with:
 - Adaptive Y-axis range based on response data
 - Support for lowpass, highpass, and bandpass filters
 """
+
 import json
 import math
 
@@ -14,16 +15,17 @@ import math
 def _format_freq_compact(freq_hz: float) -> str:
     """Format frequency compactly for plot labels."""
     if freq_hz >= 1e9:
-        return f"{freq_hz/1e9:.3g}G"
+        return f"{freq_hz / 1e9:.3g}G"
     elif freq_hz >= 1e6:
-        return f"{freq_hz/1e6:.3g}M"
+        return f"{freq_hz / 1e6:.3g}M"
     elif freq_hz >= 1e3:
-        return f"{freq_hz/1e3:.3g}k"
+        return f"{freq_hz / 1e3:.3g}k"
     return f"{freq_hz:.3g}"
 
 
-def _find_3db_frequency(freqs: list[float], response_db: list[float],
-                        direction: str = 'falling') -> float | None:
+def _find_3db_frequency(
+    freqs: list[float], response_db: list[float], direction: str = "falling"
+) -> float | None:
     """Find frequency where response crosses -3dB threshold.
 
     Args:
@@ -35,7 +37,7 @@ def _find_3db_frequency(freqs: list[float], response_db: list[float],
         Interpolated -3dB frequency, or None if not found
     """
     for i in range(len(response_db) - 1):
-        if direction == 'falling':
+        if direction == "falling":
             # LPF: look for crossing from above -3dB to below
             if response_db[i] >= -3 and response_db[i + 1] < -3:
                 if response_db[i] == response_db[i + 1]:
@@ -54,10 +56,15 @@ def _find_3db_frequency(freqs: list[float], response_db: list[float],
     return None
 
 
-def render_ascii_plot(freqs: list[float], response_db: list[float],
-                      cutoff_hz: float, width: int = 60, height: int = 12,
-                      title: str = "Frequency Response (dB)",
-                      filter_type: str = 'lowpass') -> str:
+def render_ascii_plot(
+    freqs: list[float],
+    response_db: list[float],
+    cutoff_hz: float,
+    width: int = 60,
+    height: int = 12,
+    title: str = "Frequency Response (dB)",
+    filter_type: str = "lowpass",
+) -> str:
     """Render adaptive ASCII frequency response plot.
 
     Automatically adjusts Y-axis range based on response data. Shows -3dB
@@ -97,14 +104,14 @@ def render_ascii_plot(freqs: list[float], response_db: list[float],
     # Grid dimensions (leave room for labels)
     plot_width = width - 8
     plot_height = height - 2
-    grid = [[' ' for _ in range(plot_width)] for _ in range(plot_height)]
+    grid = [[" " for _ in range(plot_width)] for _ in range(plot_height)]
 
     # Calculate -3dB row position
     db_3db_row = int((db_max - (-3)) / db_range * (plot_height - 1))
     db_3db_row = max(0, min(plot_height - 1, db_3db_row))
 
     # Find actual -3dB crossing point
-    direction = 'rising' if filter_type == 'highpass' else 'falling'
+    direction = "rising" if filter_type == "highpass" else "falling"
     f_3db = _find_3db_frequency(freqs, response_db, direction)
     f_3db_col, show_3db_marker = None, False
     if f_3db and f_3db > 0:
@@ -116,8 +123,8 @@ def render_ascii_plot(freqs: list[float], response_db: list[float],
 
     # Draw -3dB reference line (dashed)
     for col in range(plot_width):
-        if grid[db_3db_row][col] == ' ':
-            grid[db_3db_row][col] = '·' if col % 2 == 0 else ' '
+        if grid[db_3db_row][col] == " ":
+            grid[db_3db_row][col] = "·" if col % 2 == 0 else " "
 
     # Plot the response curve - fill from curve down to bottom
     for freq, db in zip(freqs, response_db):
@@ -129,11 +136,11 @@ def render_ascii_plot(freqs: list[float], response_db: list[float],
         row = max(0, min(plot_height - 1, row))
         # Fill from curve down to show attenuation region
         for r in range(row, plot_height):
-            grid[r][col] = '█'
+            grid[r][col] = "█"
 
     # Mark -3dB crossing point
     if show_3db_marker and f_3db_col is not None:
-        grid[db_3db_row][f_3db_col] = '●'
+        grid[db_3db_row][f_3db_col] = "●"
 
     # Build output string
     lines = [title, ""]
@@ -151,24 +158,24 @@ def render_ascii_plot(freqs: list[float], response_db: list[float],
             label = f"{(db_max + db_min) / 2:5.0f} │"
         else:
             label = "      │"
-        lines.append(label + ''.join(grid[row_idx]))
+        lines.append(label + "".join(grid[row_idx]))
 
     # X-axis with tick marks at decade subdivisions
     x_axis = list("─" * plot_width)
     tick_multipliers = [1, 2, 5]
     for decade in range(-1, 2):
         for mult in tick_multipliers:
-            tick_freq = cutoff_hz * mult * (10 ** decade)
+            tick_freq = cutoff_hz * mult * (10**decade)
             if freq_min <= tick_freq <= freq_max:
                 log_tick = math.log10(tick_freq)
                 tick_col = int((log_tick - log_min) / log_range * (plot_width - 1))
                 if 0 <= tick_col < plot_width:
-                    x_axis[tick_col] = '┼'
+                    x_axis[tick_col] = "┼"
 
     # Add arrow at -3dB crossing
     if show_3db_marker and f_3db_col is not None and 0 <= f_3db_col < plot_width:
-        x_axis[f_3db_col] = '▲'
-    lines.append("      +" + ''.join(x_axis))
+        x_axis[f_3db_col] = "▲"
+    lines.append("      +" + "".join(x_axis))
 
     # Frequency labels
     low_label = _format_freq_compact(freq_min)
@@ -177,7 +184,9 @@ def render_ascii_plot(freqs: list[float], response_db: list[float],
     fc_label = _format_freq_compact(cutoff_hz) + "(fc)"
     freq_label = " " * 7 + low_label
     freq_label += " " * max(0, fc_col - len(low_label) - len(fc_label) // 2) + fc_label
-    freq_label += " " * max(0, plot_width - fc_col - len(fc_label) // 2 - len(high_label)) + high_label
+    freq_label += (
+        " " * max(0, plot_width - fc_col - len(fc_label) // 2 - len(high_label)) + high_label
+    )
     lines.append(freq_label)
 
     # Add -3dB frequency label if it differs from cutoff
@@ -186,12 +195,17 @@ def render_ascii_plot(freqs: list[float], response_db: list[float],
         f3_col = f_3db_col if f_3db_col else plot_width // 2
         lines.append(" " * 7 + " " * f3_col + "▲" + f3_label)
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
-def render_bandpass_plot(sweep_data: list[tuple[float, float]], f0: float,
-                         bw: float, width: int = 60, height: int = 10,
-                         title: str = "Frequency Response") -> str:
+def render_bandpass_plot(
+    sweep_data: list[tuple[float, float]],
+    f0: float,
+    bw: float,
+    width: int = 60,
+    height: int = 10,
+    title: str = "Frequency Response",
+) -> str:
     """Render ASCII frequency response plot for bandpass filters.
 
     Args:
@@ -222,7 +236,7 @@ def render_bandpass_plot(sweep_data: list[tuple[float, float]], f0: float,
 
     width = max(40, width)
     height = max(6, height)
-    grid = [[' ' for _ in range(width)] for _ in range(height)]
+    grid = [[" " for _ in range(width)] for _ in range(height)]
 
     # Plot response - fill from curve down
     for f, db in sweep_data:
@@ -234,14 +248,14 @@ def render_bandpass_plot(sweep_data: list[tuple[float, float]], f0: float,
         row = int((db_max - db) / db_range * (height - 1))
         row = max(0, min(height - 1, row))
         for r in range(row, height):
-            grid[r][col] = '█'
+            grid[r][col] = "█"
 
     # Draw -3dB reference line
     row_3db = int((db_max - (-3)) / db_range * (height - 1))
     row_3db = max(0, min(height - 1, row_3db))
     for col in range(width):
-        if grid[row_3db][col] == ' ':
-            grid[row_3db][col] = '·'
+        if grid[row_3db][col] == " ":
+            grid[row_3db][col] = "·"
 
     # Mark center frequency
     if f0 > 0:
@@ -249,9 +263,9 @@ def render_bandpass_plot(sweep_data: list[tuple[float, float]], f0: float,
         col_f0 = int((log_f0 - log_min) / log_range * (width - 1))
         col_f0 = max(0, min(width - 1, col_f0))
         for row in range(height):
-            if grid[row][col_f0] in (' ', '·'):
-                grid[row][col_f0] = '│'
-        grid[row_3db][col_f0] = '┼'
+            if grid[row][col_f0] in (" ", "·"):
+                grid[row][col_f0] = "│"
+        grid[row_3db][col_f0] = "┼"
 
     # Build output
     lines = [title, ""]
@@ -263,7 +277,7 @@ def render_bandpass_plot(sweep_data: list[tuple[float, float]], f0: float,
             prefix = f"{db_label:4d} │"
         else:
             prefix = "     │"
-        lines.append(prefix + ''.join(grid[row]))
+        lines.append(prefix + "".join(grid[row]))
 
     lines.append("     +" + "─" * width)
 
@@ -275,15 +289,21 @@ def render_bandpass_plot(sweep_data: list[tuple[float, float]], f0: float,
         f"{_format_freq_compact(f_low):>10}",
         f"{_format_freq_compact(f0):>8}(f₀)",
         f"{_format_freq_compact(f_high):>10}",
-        f"{_format_freq_compact(f_max):>8}"
+        f"{_format_freq_compact(f_max):>8}",
     ]
-    lines.append("  ".join(label_parts)[:6 + width])
+    lines.append("  ".join(label_parts)[: 6 + width])
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
-def export_json(sweep_data: list[tuple[float, float]], f0: float, bw: float,
-                filter_type: str, order: int, ripple_db: float | None = None) -> str:
+def export_json(
+    sweep_data: list[tuple[float, float]],
+    f0: float,
+    bw: float,
+    filter_type: str,
+    order: int,
+    ripple_db: float | None = None,
+) -> str:
     """Export sweep data as JSON string.
 
     Args:
@@ -302,7 +322,7 @@ def export_json(sweep_data: list[tuple[float, float]], f0: float, bw: float,
         "f0_hz": f0,
         "bandwidth_hz": bw,
         "order": order,
-        "data": [{"frequency_hz": f, "magnitude_db": round(db, 2)} for f, db in sweep_data]
+        "data": [{"frequency_hz": f, "magnitude_db": round(db, 2)} for f, db in sweep_data],
     }
     if ripple_db is not None:
         data["ripple_db"] = ripple_db
@@ -321,4 +341,4 @@ def export_csv(sweep_data: list[tuple[float, float]]) -> str:
     lines = ["frequency_hz,magnitude_db"]
     for f, db in sweep_data:
         lines.append(f"{f},{db:.2f}")
-    return '\n'.join(lines)
+    return "\n".join(lines)

@@ -3,8 +3,11 @@
 Tests verify mathematical correctness of Butterworth, Chebyshev, and Bessel
 highpass filter component value calculations (T topology).
 """
+
 import math
+
 import pytest
+
 from filter_lib.highpass import calculations as hp
 
 
@@ -15,7 +18,7 @@ class TestButterworthHighpass:
         """Test basic 2-component Butterworth at 1 MHz, 50 Ohms."""
         cutoff = 1e6
         impedance = 50
-        inds, caps, order = hp.calculate_butterworth(cutoff, impedance, 2, topology='t')
+        inds, caps, order = hp.calculate_butterworth(cutoff, impedance, 2, topology="t")
 
         assert order == 2
         assert len(inds) == 1
@@ -27,7 +30,7 @@ class TestButterworthHighpass:
 
     def test_5component_butterworth(self):
         """Test 5-component Butterworth filter."""
-        inds, caps, order = hp.calculate_butterworth(10e6, 50, 5, topology='t')
+        inds, caps, order = hp.calculate_butterworth(10e6, 50, 5, topology="t")
 
         assert order == 5
         assert len(caps) == 3  # T topology: C-L-C-L-C
@@ -36,8 +39,8 @@ class TestButterworthHighpass:
     def test_impedance_scaling(self):
         """Test impedance scaling in T topology."""
         cutoff = 10e6
-        inds_50, caps_50, _ = hp.calculate_butterworth(cutoff, 50, 3, topology='t')
-        inds_100, caps_100, _ = hp.calculate_butterworth(cutoff, 100, 3, topology='t')
+        inds_50, caps_50, _ = hp.calculate_butterworth(cutoff, 50, 3, topology="t")
+        inds_100, caps_100, _ = hp.calculate_butterworth(cutoff, 100, 3, topology="t")
 
         # Higher impedance -> larger inductors, smaller capacitors
         for i50, i100 in zip(inds_50, inds_100):
@@ -48,8 +51,8 @@ class TestButterworthHighpass:
     def test_frequency_scaling(self):
         """Test that higher frequency reduces component values."""
         impedance = 50
-        inds_1m, caps_1m, _ = hp.calculate_butterworth(1e6, impedance, 3, topology='t')
-        inds_10m, caps_10m, _ = hp.calculate_butterworth(10e6, impedance, 3, topology='t')
+        inds_1m, caps_1m, _ = hp.calculate_butterworth(1e6, impedance, 3, topology="t")
+        inds_10m, caps_10m, _ = hp.calculate_butterworth(10e6, impedance, 3, topology="t")
 
         # Higher frequency -> smaller inductors and capacitors
         for i1, i10 in zip(inds_1m, inds_10m):
@@ -60,7 +63,7 @@ class TestButterworthHighpass:
     def test_order_range(self):
         """Test all valid filter orders (2-9)."""
         for order in range(2, 10):
-            inds, caps, n = hp.calculate_butterworth(10e6, 50, order, topology='t')
+            inds, caps, n = hp.calculate_butterworth(10e6, 50, order, topology="t")
             assert n == order
             assert len(inds) + len(caps) == order
 
@@ -77,7 +80,7 @@ class TestButterworthHighpass:
         z0 = 50
         omega = 2 * math.pi * cutoff
 
-        inds, caps, _ = hp.calculate_butterworth(cutoff, z0, 2, topology='t')
+        inds, caps, _ = hp.calculate_butterworth(cutoff, z0, 2, topology="t")
 
         # Expected values
         g1 = 2 * math.sin(math.pi / 4)
@@ -92,7 +95,7 @@ class TestButterworthHighpass:
     def test_hpf_lowers_component_values_vs_lpf(self):
         """Test that HPF components are typically smaller than LPF at same frequency."""
         # This is a qualitative test - HPF has dual topology of LPF
-        inds, caps, _ = hp.calculate_butterworth(10e6, 50, 3, topology='t')
+        inds, caps, _ = hp.calculate_butterworth(10e6, 50, 3, topology="t")
 
         # All inductors should be in reasonable range (uH)
         assert all(1e-9 < i < 1e-3 for i in inds)
@@ -105,7 +108,7 @@ class TestChebychevHighpass:
 
     def test_basic_chebyshev_0_5db(self):
         """Test basic Chebyshev with 0.5 dB ripple."""
-        inds, caps, order = hp.calculate_chebyshev(10e6, 50, 0.5, 3, topology='t')
+        inds, caps, order = hp.calculate_chebyshev(10e6, 50, 0.5, 3, topology="t")
 
         assert order == 3
         assert len(caps) == 2  # T: series C at odd positions
@@ -121,8 +124,8 @@ class TestChebychevHighpass:
         impedance = 50
         order = 3
 
-        inds_01, caps_01, _ = hp.calculate_chebyshev(cutoff, impedance, 0.1, order, topology='t')
-        inds_10, caps_10, _ = hp.calculate_chebyshev(cutoff, impedance, 1.0, order, topology='t')
+        inds_01, caps_01, _ = hp.calculate_chebyshev(cutoff, impedance, 0.1, order, topology="t")
+        inds_10, caps_10, _ = hp.calculate_chebyshev(cutoff, impedance, 1.0, order, topology="t")
 
         # Different ripples should produce different values
         assert inds_01 != inds_10
@@ -130,14 +133,14 @@ class TestChebychevHighpass:
     def test_order_range(self):
         """Test all valid Chebyshev orders."""
         for order in range(2, 10):
-            inds, caps, n = hp.calculate_chebyshev(10e6, 50, 0.5, order, topology='t')
+            inds, caps, n = hp.calculate_chebyshev(10e6, 50, 0.5, order, topology="t")
             assert n == order
             assert len(inds) + len(caps) == order
 
     def test_impedance_scaling(self):
         """Test impedance scaling for Chebyshev HPF."""
-        inds_50, caps_50, _ = hp.calculate_chebyshev(10e6, 50, 0.5, 3, topology='t')
-        inds_100, caps_100, _ = hp.calculate_chebyshev(10e6, 100, 0.5, 3, topology='t')
+        inds_50, caps_50, _ = hp.calculate_chebyshev(10e6, 50, 0.5, 3, topology="t")
+        inds_100, caps_100, _ = hp.calculate_chebyshev(10e6, 100, 0.5, 3, topology="t")
 
         # Higher impedance -> larger inductors
         for i50, i100 in zip(inds_50, inds_100):
@@ -149,7 +152,7 @@ class TestBesselHighpass:
 
     def test_basic_bessel(self):
         """Test basic Bessel highpass filter."""
-        inds, caps, order = hp.calculate_bessel(10e6, 50, 3, topology='t')
+        inds, caps, order = hp.calculate_bessel(10e6, 50, 3, topology="t")
 
         assert order == 3
         assert len(caps) == 2  # T: series C at odd positions
@@ -162,22 +165,22 @@ class TestBesselHighpass:
     def test_all_orders(self):
         """Test all supported Bessel orders (2-9)."""
         for order in range(2, 10):
-            inds, caps, n = hp.calculate_bessel(10e6, 50, order, topology='t')
+            inds, caps, n = hp.calculate_bessel(10e6, 50, order, topology="t")
             assert n == order
             assert len(inds) + len(caps) == order
 
     def test_invalid_order_raises(self):
         """Test that invalid order raises ValueError."""
         with pytest.raises(ValueError, match="Bessel filter supports"):
-            hp.calculate_bessel(10e6, 50, 1, topology='t')
+            hp.calculate_bessel(10e6, 50, 1, topology="t")
 
         with pytest.raises(ValueError, match="Bessel filter supports"):
-            hp.calculate_bessel(10e6, 50, 10, topology='t')
+            hp.calculate_bessel(10e6, 50, 10, topology="t")
 
     def test_frequency_scaling(self):
         """Test frequency scaling for Bessel."""
-        inds_1m, caps_1m, _ = hp.calculate_bessel(1e6, 50, 3, topology='t')
-        inds_10m, caps_10m, _ = hp.calculate_bessel(10e6, 50, 3, topology='t')
+        inds_1m, caps_1m, _ = hp.calculate_bessel(1e6, 50, 3, topology="t")
+        inds_10m, caps_10m, _ = hp.calculate_bessel(10e6, 50, 3, topology="t")
 
         # Higher frequency -> smaller components
         for i1, i10 in zip(inds_1m, inds_10m):
@@ -191,8 +194,8 @@ class TestHighpassEdgeCases:
 
     def test_very_small_frequency(self):
         """Test very small frequency produces very large components."""
-        inds, caps, _ = hp.calculate_butterworth(1e3, 50, 2, topology='t')
-        inds_high, caps_high, _ = hp.calculate_butterworth(1e9, 50, 2, topology='t')
+        inds, caps, _ = hp.calculate_butterworth(1e3, 50, 2, topology="t")
+        inds_high, caps_high, _ = hp.calculate_butterworth(1e9, 50, 2, topology="t")
 
         # Smaller frequency -> larger inductors
         assert inds[0] > inds_high[0]
@@ -201,7 +204,7 @@ class TestHighpassEdgeCases:
 
     def test_very_high_frequency(self):
         """Test very high frequency produces very small components."""
-        inds, caps, _ = hp.calculate_butterworth(1e9, 50, 2, topology='t')
+        inds, caps, _ = hp.calculate_butterworth(1e9, 50, 2, topology="t")
 
         # Components should still be positive
         assert all(i > 0 for i in inds)
@@ -209,8 +212,8 @@ class TestHighpassEdgeCases:
 
     def test_very_large_impedance(self):
         """Test large impedance scaling."""
-        inds_50, caps_50, _ = hp.calculate_butterworth(10e6, 50, 2, topology='t')
-        inds_1k, caps_1k, _ = hp.calculate_butterworth(10e6, 1000, 2, topology='t')
+        inds_50, caps_50, _ = hp.calculate_butterworth(10e6, 50, 2, topology="t")
+        inds_1k, caps_1k, _ = hp.calculate_butterworth(10e6, 1000, 2, topology="t")
 
         # 20x impedance -> 20x inductors
         ratio = inds_1k[0] / inds_50[0]
@@ -224,7 +227,7 @@ class TestTopologyDifference:
 
     def test_t_topology_ordering(self):
         """Verify T-topology ordering: C at series (odd), L at shunt (even)."""
-        inds, caps, _ = hp.calculate_butterworth(10e6, 50, 5, topology='t')
+        inds, caps, _ = hp.calculate_butterworth(10e6, 50, 5, topology="t")
 
         # 5-component HPF T should be: C-L-C-L-C
         assert len(caps) == 3
@@ -239,8 +242,8 @@ class TestTopologyDifference:
         order = 3
 
         # Butterworth is self-dual, but topology differs
-        caps_lp, inds_lp, _ = lp.calculate_butterworth(freq, impedance, order, topology='pi')
-        inds_hp, caps_hp, _ = hp.calculate_butterworth(freq, impedance, order, topology='t')
+        caps_lp, inds_lp, _ = lp.calculate_butterworth(freq, impedance, order, topology="pi")
+        inds_hp, caps_hp, _ = hp.calculate_butterworth(freq, impedance, order, topology="t")
 
         # LPF Pi: more capacitors (shunt, odd pos); HPF T: more capacitors (series, odd pos)
         assert len(caps_lp) > len(inds_lp)

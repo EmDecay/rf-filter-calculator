@@ -1,9 +1,10 @@
 """Welcome screen for filter category selection."""
+
 from textual.app import ComposeResult
-from textual.screen import Screen
-from textual.widgets import Footer, Static, OptionList
-from textual.widgets.option_list import Option
 from textual.containers import VerticalScroll
+from textual.screen import Screen
+from textual.widgets import Footer, OptionList, Static
+from textual.widgets.option_list import Option
 
 
 class WelcomeScreen(Screen):
@@ -17,10 +18,7 @@ class WelcomeScreen(Screen):
         yield Static("RF Filter Calculator", classes="header")
         with VerticalScroll(classes="content"):
             yield Static("Select Filter Type", classes="welcome-title")
-            yield Static(
-                "Design LC filters for RF applications",
-                classes="welcome-subtitle"
-            )
+            yield Static("Design LC filters for RF applications", classes="welcome-subtitle")
             yield OptionList(
                 Option("Low-Pass Filter - Attenuates frequencies above cutoff", id="lowpass"),
                 Option("High-Pass Filter - Attenuates frequencies below cutoff", id="highpass"),
@@ -41,14 +39,17 @@ class WelcomeScreen(Screen):
         if option_id == "lowpass":
             app.filter_state.category = "lowpass"
             from .lowpass import LowpassScreen
+
             app.push_screen(LowpassScreen())
         elif option_id == "highpass":
             app.filter_state.category = "highpass"
             from .highpass import HighpassScreen
+
             app.push_screen(HighpassScreen())
         elif option_id == "bandpass":
             app.filter_state.category = "bandpass"
             from .bandpass import BandpassScreen
+
             app.push_screen(BandpassScreen())
 
     def action_quit(self) -> None:

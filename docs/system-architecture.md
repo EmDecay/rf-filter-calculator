@@ -745,3 +745,15 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 2. Add transfer function to `shared/transfer_functions.py`
 3. Add alias to `shared/cli_aliases.py`
 4. Test with existing calculation modules
+
+---
+
+## Quality Assurance
+
+Code quality is enforced via automated tooling:
+
+**Linting**: Ruff linting (py310 target, E/F/I/UP/B rules) runs on all commits
+**Testing**: 556 comprehensive tests, >90% coverage
+**CI/CD**: GitHub Actions pipeline (lint → format → test on push/PR)
+
+See [docs/code-standards.md](./code-standards.md) for linting standards and [docs/testing.md](./testing.md) for test details.

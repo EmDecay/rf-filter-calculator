@@ -3,6 +3,7 @@
 Provides a standardized way to return filter calculation results,
 eliminating confusion from different tuple ordering between modules.
 """
+
 from dataclasses import dataclass
 
 
@@ -22,6 +23,7 @@ class FilterResult:
         inductors: List of inductor values in Henries
         ripple: Chebyshev passband ripple in dB (None for other types)
     """
+
     filter_type: str
     freq_hz: float
     impedance: float
@@ -38,14 +40,14 @@ class FilterResult:
             Dict compatible with existing display_results() functions.
         """
         d = {
-            'filter_type': self.filter_type,
-            'freq_hz': self.freq_hz,
-            'impedance': self.impedance,
-            'order': self.order,
-            'capacitors': self.capacitors,
-            'inductors': self.inductors,
-            'ripple': self.ripple,
+            "filter_type": self.filter_type,
+            "freq_hz": self.freq_hz,
+            "impedance": self.impedance,
+            "order": self.order,
+            "capacitors": self.capacitors,
+            "inductors": self.inductors,
+            "ripple": self.ripple,
         }
         if self.topology is not None:
-            d['topology'] = self.topology
+            d["topology"] = self.topology
         return d

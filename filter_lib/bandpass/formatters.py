@@ -2,21 +2,24 @@
 
 Provides JSON, CSV, and quiet text formatting.
 """
+
 import csv
 import io
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from ..shared.formatting import format_frequency, format_capacitance, format_inductance
 from ..shared.display_helpers import format_eseries_match as _shared_format_eseries
 from ..shared.eseries import match_component
+from ..shared.formatting import format_capacitance, format_inductance
 
 # Type alias for filter result dict
 FilterResult = dict[str, Any]
 
 
-def format_eseries_match(value: float, series: str,
-                         unit_formatter: Callable[[float], str]) -> list[str]:
+def format_eseries_match(
+    value: float, series: str, unit_formatter: Callable[[float], str]
+) -> list[str]:
     """Format E-series match for a component value.
 
     Uses additive parallel mode for consistency with lowpass/highpass.
@@ -29,27 +32,28 @@ def format_eseries_match(value: float, series: str,
     Returns:
         List of formatted match strings
     """
-    return _shared_format_eseries(value, series, unit_formatter, parallel_mode='additive')
+    return _shared_format_eseries(value, series, unit_formatter, parallel_mode="additive")
 
 
-def _build_standard_match(value: float, eseries: str, unit_key: str,
-                          parallel_mode: str) -> dict[str, Any]:
+def _build_standard_match(
+    value: float, eseries: str, unit_key: str, parallel_mode: str
+) -> dict[str, Any]:
     """Build JSON-serializable E-series match data."""
     match = match_component(value, eseries, parallel_mode=parallel_mode)
 
     standard: dict[str, Any] = {
-        'series': eseries,
-        'nearest': {
+        "series": eseries,
+        "nearest": {
             unit_key: match.single_value,
-            'error_pct': match.single_error_pct,
-        }
+            "error_pct": match.single_error_pct,
+        },
     }
 
     if match.parallel and match.parallel_value is not None and match.parallel_error_pct is not None:
-        standard['parallel'] = {
-            'components': [{unit_key: match.parallel[0]}, {unit_key: match.parallel[1]}],
+        standard["parallel"] = {
+            "components": [{unit_key: match.parallel[0]}, {unit_key: match.parallel[1]}],
             unit_key: match.parallel_value,
-            'error_pct': match.parallel_error_pct,
+            "error_pct": match.parallel_error_pct,
         }
 
     return standard
@@ -65,76 +69,74 @@ def format_json(result: FilterResult, eseries: str | None = None) -> str:
         JSON formatted string
     """
     output = {
-        'filter_type': result['filter_type'],
-        'coupling': result['coupling'],
-        'center_frequency_hz': result['f0'],
-        'bandwidth_hz': result['bw'],
-        'f_low_hz': result['f_low'],
-        'f_high_hz': result['f_high'],
-        'fractional_bw': result['fbw'],
-        'impedance_ohms': result['z0'],
-        'n_resonators': result['n_resonators'],
-        'q_min': result['q_min'],
-        'components': {
-            'tank_capacitors': [
-                _bandpass_json_component(
-                    f'Cp{i+1}', v, 'value_farads', eseries, 'additive'
-                )
-                for i, v in enumerate(result['c_tank'])
+        "filter_type": result["filter_type"],
+        "coupling": result["coupling"],
+        "center_frequency_hz": result["f0"],
+        "bandwidth_hz": result["bw"],
+        "f_low_hz": result["f_low"],
+        "f_high_hz": result["f_high"],
+        "fractional_bw": result["fbw"],
+        "impedance_ohms": result["z0"],
+        "n_resonators": result["n_resonators"],
+        "q_min": result["q_min"],
+        "components": {
+            "tank_capacitors": [
+                _bandpass_json_component(f"Cp{i + 1}", v, "value_farads", eseries, "additive")
+                for i, v in enumerate(result["c_tank"])
             ],
-            'inductors': [
+            "inductors": [
                 _bandpass_json_component(
-                    f'L{i+1}', result['L_resonant'], 'value_henries', eseries, 'harmonic'
+                    f"L{i + 1}", result["L_resonant"], "value_henries", eseries, "harmonic"
                 )
-                for i in range(result['n_resonators'])
+                for i in range(result["n_resonators"])
             ],
-            'coupling_capacitors': [
+            "coupling_capacitors": [
                 _bandpass_json_component(
-                    f'Cs{i+1}{i+2}', v, 'value_farads', eseries, 'additive'
+                    f"Cs{i + 1}{i + 2}", v, "value_farads", eseries, "additive"
                 )
-                for i, v in enumerate(result['c_coupling'])
-            ]
+                for i, v in enumerate(result["c_coupling"])
+            ],
         },
-        'external_q': {'input': result['qe_in'], 'output': result['qe_out']}
+        "external_q": {"input": result["qe_in"], "output": result["qe_out"]},
     }
-    if result.get('ripple_db') is not None:
-        output['ripple_db'] = result['ripple_db']
+    if result.get("ripple_db") is not None:
+        output["ripple_db"] = result["ripple_db"]
     return json.dumps(output, indent=2)
 
 
-def _bandpass_json_component(name: str, value: float, unit_key: str,
-                             eseries: str | None, parallel_mode: str) -> dict[str, Any]:
+def _bandpass_json_component(
+    name: str, value: float, unit_key: str, eseries: str | None, parallel_mode: str
+) -> dict[str, Any]:
     """Build one JSON component entry for bandpass export."""
-    component: dict[str, Any] = {'name': name, unit_key: value}
+    component: dict[str, Any] = {"name": name, unit_key: value}
     if eseries:
-        component['standard_match'] = _build_standard_match(
-            value, eseries, unit_key, parallel_mode
-        )
+        component["standard_match"] = _build_standard_match(value, eseries, unit_key, parallel_mode)
     return component
 
 
-def _csv_match_fields(value: float, formatter, eseries: str | None,
-                      parallel_mode: str) -> list[str]:
+def _csv_match_fields(
+    value: float, formatter, eseries: str | None, parallel_mode: str
+) -> list[str]:
     """Build optional E-series columns for CSV."""
     if not eseries:
         return []
 
     match = match_component(value, eseries, parallel_mode=parallel_mode)
     nearest_fmt = formatter(match.single_value)
-    nearest_val, nearest_unit = nearest_fmt.rsplit(' ', 1)
+    nearest_val, nearest_unit = nearest_fmt.rsplit(" ", 1)
 
-    parallel_vals = ''
-    parallel_err = ''
+    parallel_vals = ""
+    parallel_err = ""
     if match.parallel and match.parallel_error_pct is not None:
         p1_fmt = formatter(match.parallel[0])
         p2_fmt = formatter(match.parallel[1])
-        parallel_vals = f'{p1_fmt} || {p2_fmt}'
-        parallel_err = f'{match.parallel_error_pct:.1f}'
+        parallel_vals = f"{p1_fmt} || {p2_fmt}"
+        parallel_err = f"{match.parallel_error_pct:.1f}"
 
     return [
         nearest_val,
         nearest_unit,
-        f'{match.single_error_pct:.1f}',
+        f"{match.single_error_pct:.1f}",
         parallel_vals,
         parallel_err,
         eseries,
@@ -152,34 +154,36 @@ def format_csv(result: FilterResult, eseries: str | None = None) -> str:
     """
     output = io.StringIO()
     writer = csv.writer(output)
-    header = ['Component', 'Value', 'Unit']
+    header = ["Component", "Value", "Unit"]
     if eseries:
-        header.extend([
-            'NearestStdValue',
-            'NearestStdUnit',
-            'NearestStdErrorPct',
-            'ParallelStdValues',
-            'ParallelStdErrorPct',
-            'Eseries',
-        ])
+        header.extend(
+            [
+                "NearestStdValue",
+                "NearestStdUnit",
+                "NearestStdErrorPct",
+                "ParallelStdValues",
+                "ParallelStdErrorPct",
+                "Eseries",
+            ]
+        )
     writer.writerow(header)
-    for i, v in enumerate(result['c_tank']):
+    for i, v in enumerate(result["c_tank"]):
         formatted = format_capacitance(v)
-        val, unit = formatted.rsplit(' ', 1)
-        row = [f'Cp{i+1}', val, unit]
-        row.extend(_csv_match_fields(v, format_capacitance, eseries, 'additive'))
+        val, unit = formatted.rsplit(" ", 1)
+        row = [f"Cp{i + 1}", val, unit]
+        row.extend(_csv_match_fields(v, format_capacitance, eseries, "additive"))
         writer.writerow(row)
-    for i in range(result['n_resonators']):
-        formatted = format_inductance(result['L_resonant'])
-        val, unit = formatted.rsplit(' ', 1)
-        row = [f'L{i+1}', val, unit]
-        row.extend(_csv_match_fields(result['L_resonant'], format_inductance, eseries, 'harmonic'))
+    for i in range(result["n_resonators"]):
+        formatted = format_inductance(result["L_resonant"])
+        val, unit = formatted.rsplit(" ", 1)
+        row = [f"L{i + 1}", val, unit]
+        row.extend(_csv_match_fields(result["L_resonant"], format_inductance, eseries, "harmonic"))
         writer.writerow(row)
-    for i, v in enumerate(result['c_coupling']):
+    for i, v in enumerate(result["c_coupling"]):
         formatted = format_capacitance(v)
-        val, unit = formatted.rsplit(' ', 1)
-        row = [f'Cs{i+1}{i+2}', val, unit]
-        row.extend(_csv_match_fields(v, format_capacitance, eseries, 'additive'))
+        val, unit = formatted.rsplit(" ", 1)
+        row = [f"Cs{i + 1}{i + 2}", val, unit]
+        row.extend(_csv_match_fields(v, format_capacitance, eseries, "additive"))
         writer.writerow(row)
     return output.getvalue()
 
@@ -195,19 +199,19 @@ def format_quiet(result: FilterResult, raw: bool = False) -> str:
         Minimal text output
     """
     lines: list[str] = []
-    for i, v in enumerate(result['c_tank']):
+    for i, v in enumerate(result["c_tank"]):
         if raw:
-            lines.append(f"Cp{i+1}: {v:.6e} F")
+            lines.append(f"Cp{i + 1}: {v:.6e} F")
         else:
-            lines.append(f"Cp{i+1}: {format_capacitance(v)}")
-    for i in range(result['n_resonators']):
+            lines.append(f"Cp{i + 1}: {format_capacitance(v)}")
+    for i in range(result["n_resonators"]):
         if raw:
-            lines.append(f"L{i+1}: {result['L_resonant']:.6e} H")
+            lines.append(f"L{i + 1}: {result['L_resonant']:.6e} H")
         else:
-            lines.append(f"L{i+1}: {format_inductance(result['L_resonant'])}")
-    for i, v in enumerate(result['c_coupling']):
+            lines.append(f"L{i + 1}: {format_inductance(result['L_resonant'])}")
+    for i, v in enumerate(result["c_coupling"]):
         if raw:
-            lines.append(f"Cs{i+1}{i+2}: {v:.6e} F")
+            lines.append(f"Cs{i + 1}{i + 2}: {v:.6e} F")
         else:
-            lines.append(f"Cs{i+1}{i+2}: {format_capacitance(v)}")
-    return '\n'.join(lines)
+            lines.append(f"Cs{i + 1}{i + 2}: {format_capacitance(v)}")
+    return "\n".join(lines)

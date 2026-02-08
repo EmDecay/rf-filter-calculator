@@ -5,6 +5,7 @@ These normalized element values are derived from:
 - Zverev "Handbook of Filter Synthesis" (1967)
 - Direct formula computation for arbitrary ripple values
 """
+
 import math
 
 # Conversion factor from dB to nepers for Chebyshev ripple calculation.
@@ -48,7 +49,7 @@ def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
         k = (2 * i - 1) * math.pi / (2 * n)
         a[i] = math.sin(k)
         k2 = math.pi * i / n
-        b[i] = gn ** 2 + math.sin(k2) ** 2
+        b[i] = gn**2 + math.sin(k2) ** 2
 
     g[1] = 2 * a[1] / gn
     for i in range(2, n + 1):

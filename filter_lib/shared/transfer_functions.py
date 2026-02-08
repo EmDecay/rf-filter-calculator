@@ -1,6 +1,7 @@
 """Shared transfer function utilities for frequency response calculations."""
-import math
+
 import json
+import math
 
 # Bessel polynomial coefficients for orders 2-9
 BESSEL_COEFFS = {
@@ -16,16 +17,19 @@ BESSEL_COEFFS = {
 
 # Bessel -3dB normalization scale factors
 BESSEL_SCALE = {
-    2: 1.3617, 3: 1.7557, 4: 2.1139, 5: 2.4274,
-    6: 2.7034, 7: 2.9517, 8: 3.1796, 9: 3.3917
+    2: 1.3617,
+    3: 1.7557,
+    4: 2.1139,
+    5: 2.4274,
+    6: 2.7034,
+    7: 2.9517,
+    8: 3.1796,
+    9: 3.3917,
 }
 
 
 def generate_frequency_points(
-    f0: float,
-    num_points: int | None = None,
-    decades: float = 2.0,
-    points_per_decade: int = 25
+    f0: float, num_points: int | None = None, decades: float = 2.0, points_per_decade: int = 25
 ) -> list[float]:
     """Generate logarithmically-spaced frequency points around f0.
 
@@ -50,14 +54,13 @@ def generate_frequency_points(
         points = []
         for i in range(num_points):
             exp = -1 + (2 * i / (num_points - 1))
-            points.append(f0 * (10 ** exp))
+            points.append(f0 * (10**exp))
         return points
 
     # Flexible mode: configurable decades centered on f0
     total_points = int(decades * points_per_decade)
     start_exp = math.log10(f0) - decades / 2
-    return [10 ** (start_exp + i * decades / total_points)
-            for i in range(total_points + 1)]
+    return [10 ** (start_exp + i * decades / total_points) for i in range(total_points + 1)]
 
 
 def chebyshev_polynomial(n: int, x: float) -> float:
@@ -80,24 +83,24 @@ def magnitude_to_db(magnitude: float) -> float:
     return max(20 * math.log10(magnitude), -120.0)
 
 
-def export_response_json(freqs: list[float], response_db: list[float],
-                         filter_info: dict) -> str:
+def export_response_json(freqs: list[float], response_db: list[float], filter_info: dict) -> str:
     """Export frequency response as JSON."""
     output = {
-        'filter_type': filter_info.get('filter_type', 'unknown'),
-        'cutoff_hz': filter_info.get('cutoff_hz') or filter_info.get('freq_hz', 0),
-        'order': filter_info.get('order', 0),
-        'data': [{'frequency_hz': f, 'magnitude_db': round(db, 2)}
-                 for f, db in zip(freqs, response_db)]
+        "filter_type": filter_info.get("filter_type", "unknown"),
+        "cutoff_hz": filter_info.get("cutoff_hz") or filter_info.get("freq_hz", 0),
+        "order": filter_info.get("order", 0),
+        "data": [
+            {"frequency_hz": f, "magnitude_db": round(db, 2)} for f, db in zip(freqs, response_db)
+        ],
     }
-    if filter_info.get('ripple') is not None:
-        output['ripple_db'] = filter_info['ripple']
+    if filter_info.get("ripple") is not None:
+        output["ripple_db"] = filter_info["ripple"]
     return json.dumps(output, indent=2)
 
 
 def export_response_csv(freqs: list[float], response_db: list[float]) -> str:
     """Export frequency response as CSV."""
-    lines = ['frequency_hz,magnitude_db']
+    lines = ["frequency_hz,magnitude_db"]
     for f, db in zip(freqs, response_db):
-        lines.append(f'{f:.6g},{db:.2f}')
-    return '\n'.join(lines)
+        lines.append(f"{f:.6g},{db:.2f}")
+    return "\n".join(lines)

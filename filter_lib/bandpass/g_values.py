@@ -83,11 +83,11 @@ def get_g_values(filter_type: str, n: int, ripple_db: float = 0.5) -> list[float
     Raises:
         ValueError: If filter_type unknown or parameters invalid
     """
-    if filter_type == 'butterworth':
+    if filter_type == "butterworth":
         return calculate_butterworth_g_values(n)
-    elif filter_type == 'chebyshev':
+    elif filter_type == "chebyshev":
         return get_chebyshev_g_values(n, ripple_db)
-    elif filter_type == 'bessel':
+    elif filter_type == "bessel":
         return get_bessel_g_values(n)
     else:
         raise ValueError(f"Unknown filter type: {filter_type}")

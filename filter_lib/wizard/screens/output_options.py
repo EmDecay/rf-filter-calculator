@@ -1,13 +1,13 @@
 """Output options screen for configuring display format."""
-from textual.app import ComposeResult
-from textual.screen import Screen
-from textual.widgets import Button, Footer, Static, RadioSet, RadioButton, SelectionList
-from textual.widgets.selection_list import Selection
-from textual.containers import VerticalScroll, Vertical, Horizontal
-from textual import on
 
-from ..state import FilterState
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import Screen
+from textual.widgets import Button, Footer, RadioButton, RadioSet, SelectionList, Static
+from textual.widgets.selection_list import Selection
+
 from ..radio_button_helpers import get_selected_radio
+from ..state import FilterState
 
 
 class OutputOptionsScreen(Screen):
@@ -24,10 +24,7 @@ class OutputOptionsScreen(Screen):
             with Vertical(classes="form-section"):
                 yield Static("Component Matching", classes="form-section-title")
                 with RadioSet(id="eseries"):
-                    yield RadioButton(
-                        "E24 - Standard tolerance (default)",
-                        value=True, id="E24"
-                    )
+                    yield RadioButton("E24 - Standard tolerance (default)", value=True, id="E24")
                     yield RadioButton("E12 - Fewer values, looser tolerance", id="E12")
                     yield RadioButton("E96 - More values, tighter tolerance", id="E96")
                     yield RadioButton("None - Calculated values only", id="none")
@@ -138,4 +135,5 @@ class OutputOptionsScreen(Screen):
 
         # Navigate to results
         from .results import ResultsScreen
+
         self.app.push_screen(ResultsScreen())

@@ -1,5 +1,7 @@
 """Tests for input parsing and validation functions."""
+
 import pytest
+
 from filter_lib.shared.parsing import parse_frequency, parse_impedance
 
 

@@ -2,6 +2,7 @@
 
 Interactive mode for guided filter design.
 """
+
 from argparse import ArgumentParser, Namespace
 
 from ..wizard import run_wizard

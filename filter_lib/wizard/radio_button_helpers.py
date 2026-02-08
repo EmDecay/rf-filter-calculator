@@ -1,6 +1,7 @@
 """Shared utility functions for wizard screens."""
-from textual.widgets import RadioSet
+
 from textual.screen import Screen
+from textual.widgets import RadioSet
 
 
 def get_selected_radio(screen: Screen, radio_set_id: str) -> str:

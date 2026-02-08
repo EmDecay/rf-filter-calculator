@@ -1,14 +1,15 @@
 """Highpass filter input screen."""
-from textual.app import ComposeResult
-from textual.screen import Screen
-from textual.widgets import Button, Footer, Static, Input, RadioSet, RadioButton
-from textual.containers import VerticalScroll, Vertical, Horizontal
-from textual.validation import Number
-from textual import on
 
-from ..state import FilterState
-from ..radio_button_helpers import get_selected_radio
+from textual import on
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import Screen
+from textual.validation import Number
+from textual.widgets import Button, Footer, Input, RadioButton, RadioSet, Static
+
 from ..filter_screen_navigation_mixin import FilterScreenNavigationMixin
+from ..radio_button_helpers import get_selected_radio
+from ..state import FilterState
 
 
 class HighpassScreen(FilterScreenNavigationMixin, Screen):
@@ -27,17 +28,10 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                 yield Static("Response Type", classes="form-section-title")
                 with RadioSet(id="filter-type"):
                     yield RadioButton(
-                        "Butterworth - Maximally flat passband",
-                        value=True, id="butterworth"
+                        "Butterworth - Maximally flat passband", value=True, id="butterworth"
                     )
-                    yield RadioButton(
-                        "Chebyshev - Sharper cutoff, passband ripple",
-                        id="chebyshev"
-                    )
-                    yield RadioButton(
-                        "Bessel - Best transient response",
-                        id="bessel"
-                    )
+                    yield RadioButton("Chebyshev - Sharper cutoff, passband ripple", id="chebyshev")
+                    yield RadioButton("Bessel - Best transient response", id="bessel")
 
             # Topology - T is default for highpass
             with Vertical(classes="form-section"):
@@ -191,6 +185,7 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
 
         # Navigate to output options
         from .output_options import OutputOptionsScreen
+
         self.app.push_screen(OutputOptionsScreen())
 
     def _reset_form(self) -> None:

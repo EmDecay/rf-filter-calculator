@@ -7,16 +7,17 @@ Topology parameter controls component position mapping:
 
 This module is a thin wrapper around the shared base calculations.
 """
+
 from ..shared.lp_hp_base_calculations import (
+    calculate_highpass_bessel,
     calculate_highpass_butterworth,
     calculate_highpass_chebyshev,
-    calculate_highpass_bessel,
 )
 
 
-def calculate_butterworth(cutoff_hz: float, impedance: float,
-                          num_components: int,
-                          topology: str) -> tuple[list[float], list[float], int]:
+def calculate_butterworth(
+    cutoff_hz: float, impedance: float, num_components: int, topology: str
+) -> tuple[list[float], list[float], int]:
     """Calculate Butterworth high-pass filter component values.
 
     Args:
@@ -31,9 +32,9 @@ def calculate_butterworth(cutoff_hz: float, impedance: float,
     return calculate_highpass_butterworth(cutoff_hz, impedance, num_components, topology)
 
 
-def calculate_chebyshev(cutoff_hz: float, impedance: float, ripple_db: float,
-                        num_components: int,
-                        topology: str) -> tuple[list[float], list[float], int]:
+def calculate_chebyshev(
+    cutoff_hz: float, impedance: float, ripple_db: float, num_components: int, topology: str
+) -> tuple[list[float], list[float], int]:
     """Calculate Chebyshev high-pass filter component values.
 
     Args:
@@ -49,9 +50,9 @@ def calculate_chebyshev(cutoff_hz: float, impedance: float, ripple_db: float,
     return calculate_highpass_chebyshev(cutoff_hz, impedance, ripple_db, num_components, topology)
 
 
-def calculate_bessel(cutoff_hz: float, impedance: float,
-                     num_components: int,
-                     topology: str) -> tuple[list[float], list[float], int]:
+def calculate_bessel(
+    cutoff_hz: float, impedance: float, num_components: int, topology: str
+) -> tuple[list[float], list[float], int]:
     """Calculate Bessel (Thomson) high-pass filter component values.
 
     Bessel filters provide maximally-flat group delay (linear phase response).

@@ -2,14 +2,18 @@
 
 Provides E-series matching display, component formatting, and output formatters.
 """
-from typing import Callable
+
+from collections.abc import Callable
 
 from .eseries import match_component
 
 
-def format_eseries_match(value: float, series: str,
-                         unit_formatter: Callable[[float], str],
-                         parallel_mode: str = 'additive') -> list[str]:
+def format_eseries_match(
+    value: float,
+    series: str,
+    unit_formatter: Callable[[float], str],
+    parallel_mode: str = "additive",
+) -> list[str]:
     """Format E-series match for display.
 
     Args:
@@ -24,7 +28,7 @@ def format_eseries_match(value: float, series: str,
     match = match_component(value, series, parallel_mode=parallel_mode)
     lines: list[str] = []
     formatted = unit_formatter(match.single_value)
-    error_sign = '+' if match.single_error_pct > 0 else ''
+    error_sign = "+" if match.single_error_pct > 0 else ""
     lines.append(f"  Nearest Std:  {formatted} ({error_sign}{match.single_error_pct:.1f}%)")
 
     if match.parallel and match.parallel_error_pct is not None:
@@ -32,14 +36,16 @@ def format_eseries_match(value: float, series: str,
             p1, p2 = match.parallel
             p1_fmt = unit_formatter(p1).split()[0]
             p2_fmt = unit_formatter(p2)
-            err_sign = '+' if match.parallel_error_pct > 0 else ''
-            lines.append(f"  Parallel Std: {p1_fmt} || {p2_fmt} ({err_sign}{match.parallel_error_pct:.1f}%)")
+            err_sign = "+" if match.parallel_error_pct > 0 else ""
+            lines.append(
+                f"  Parallel Std: {p1_fmt} || {p2_fmt} ({err_sign}{match.parallel_error_pct:.1f}%)"
+            )
     return lines
 
 
-def format_component_value(name: str, value: float,
-                           unit_formatter: Callable[[float], str],
-                           raw: bool = False) -> str:
+def format_component_value(
+    name: str, value: float, unit_formatter: Callable[[float], str], raw: bool = False
+) -> str:
     """Format a component value with optional raw mode.
 
     Args:
@@ -52,7 +58,7 @@ def format_component_value(name: str, value: float,
         Formatted string like "C1: 150 pF" or "C1: 1.50e-10 F"
     """
     if raw:
-        unit = 'F' if 'capacit' in unit_formatter.__name__.lower() else 'H'
+        unit = "F" if "capacit" in unit_formatter.__name__.lower() else "H"
         return f"{name}: {value:.6e} {unit}"
     return f"{name}: {unit_formatter(value)}"
 
@@ -66,4 +72,4 @@ def split_value_unit(formatted_string: str) -> tuple[str, str]:
     Returns:
         Tuple of (value_str, unit_str), e.g., ("150", "pF")
     """
-    return tuple(formatted_string.rsplit(' ', 1))
+    return tuple(formatted_string.rsplit(" ", 1))

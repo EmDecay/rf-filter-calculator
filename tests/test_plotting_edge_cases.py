@@ -6,22 +6,25 @@ Tests extreme values, boundary conditions, and error handling for:
 - Component formatting functions
 - E-series matching display
 """
+
 import json
-import math
+
 import pytest
 
-from filter_lib.shared.plotting import (
-    render_ascii_plot, render_bandpass_plot, export_json, export_csv,
-    _format_freq_compact, _find_3db_frequency
-)
 from filter_lib.shared.display_common import (
-    format_json_result, format_csv_result, format_quiet_result
+    format_csv_result,
+    format_json_result,
+    format_quiet_result,
 )
-from filter_lib.shared.display_helpers import (
-    format_eseries_match, format_component_value
-)
-from filter_lib.shared.formatting import (
-    format_capacitance, format_inductance, format_frequency
+from filter_lib.shared.display_helpers import format_component_value, format_eseries_match
+from filter_lib.shared.formatting import format_capacitance, format_frequency, format_inductance
+from filter_lib.shared.plotting import (
+    _find_3db_frequency,
+    _format_freq_compact,
+    export_csv,
+    export_json,
+    render_ascii_plot,
+    render_bandpass_plot,
 )
 
 
@@ -31,38 +34,38 @@ class TestFormatFreqCompact:
     def test_extreme_low_frequency(self):
         """Format 1 Hz correctly."""
         result = _format_freq_compact(1.0)
-        assert result == '1'
+        assert result == "1"
 
     def test_extreme_high_frequency(self):
         """Format 10 GHz correctly."""
         result = _format_freq_compact(10e9)
-        assert 'G' in result
-        assert '10' in result
+        assert "G" in result
+        assert "10" in result
 
     def test_sub_hz_frequency(self):
         """Format fractional Hz."""
         result = _format_freq_compact(0.5)
-        assert result == '0.5'
+        assert result == "0.5"
 
     def test_kilohertz_boundary(self):
         """Format exactly 1 kHz."""
         result = _format_freq_compact(1000.0)
-        assert 'k' in result.lower()
+        assert "k" in result.lower()
 
     def test_megahertz_boundary(self):
         """Format exactly 1 MHz."""
         result = _format_freq_compact(1e6)
-        assert 'M' in result
+        assert "M" in result
 
     def test_gigahertz_boundary(self):
         """Format exactly 1 GHz."""
         result = _format_freq_compact(1e9)
-        assert 'G' in result
+        assert "G" in result
 
     def test_very_small_frequency(self):
         """Format millihertz."""
         result = _format_freq_compact(0.001)
-        assert result == '0.001'
+        assert result == "0.001"
 
 
 class TestFind3dbFrequency:
@@ -70,33 +73,33 @@ class TestFind3dbFrequency:
 
     def test_empty_lists(self):
         """Empty lists return None."""
-        result = _find_3db_frequency([], [], 'falling')
+        result = _find_3db_frequency([], [], "falling")
         assert result is None
 
     def test_single_point(self):
         """Single point returns None (no crossing)."""
-        result = _find_3db_frequency([1000], [-5], 'falling')
+        result = _find_3db_frequency([1000], [-5], "falling")
         assert result is None
 
     def test_no_crossing_all_above(self):
         """No crossing when all points above -3dB."""
         freqs = [100, 200, 300]
         response = [-1, -2, -2.5]
-        result = _find_3db_frequency(freqs, response, 'falling')
+        result = _find_3db_frequency(freqs, response, "falling")
         assert result is None
 
     def test_no_crossing_all_below(self):
         """No crossing when all points below -3dB."""
         freqs = [100, 200, 300]
         response = [-10, -15, -20]
-        result = _find_3db_frequency(freqs, response, 'falling')
+        result = _find_3db_frequency(freqs, response, "falling")
         assert result is None
 
     def test_exact_crossing_falling(self):
         """Exact -3dB point in falling response."""
         freqs = [100, 200, 300]
         response = [-1, -3, -10]
-        result = _find_3db_frequency(freqs, response, 'falling')
+        result = _find_3db_frequency(freqs, response, "falling")
         assert result is not None
         # Allow floating point tolerance
         assert 100 < result <= 200.001
@@ -105,7 +108,7 @@ class TestFind3dbFrequency:
         """Exact -3dB point in rising response (highpass)."""
         freqs = [100, 200, 300]
         response = [-10, -3, -1]
-        result = _find_3db_frequency(freqs, response, 'rising')
+        result = _find_3db_frequency(freqs, response, "rising")
         assert result is not None
         # Allow floating point tolerance
         assert 100 < result <= 200.001
@@ -114,7 +117,7 @@ class TestFind3dbFrequency:
         """Interpolation returns reasonable value."""
         freqs = [1000, 2000]
         response = [-2, -4]
-        result = _find_3db_frequency(freqs, response, 'falling')
+        result = _find_3db_frequency(freqs, response, "falling")
         assert result is not None
         assert 1000 < result < 2000
 
@@ -122,7 +125,7 @@ class TestFind3dbFrequency:
         """Flat response at -3dB returns first point or None."""
         freqs = [100, 200, 300]
         response = [-1, -3, -3]
-        result = _find_3db_frequency(freqs, response, 'falling')
+        result = _find_3db_frequency(freqs, response, "falling")
         # Flat response means no crossing through -3dB, so None is acceptable
         # (response never goes below -3dB, just equals it)
         # This is an edge case - implementation returns None which is reasonable
@@ -163,7 +166,7 @@ class TestRenderAsciiPlotEdgeCases:
         response = [-3, -10, -20]
         result = render_ascii_plot(freqs, response, 5e9)
         assert isinstance(result, str)
-        assert 'G' in result  # GHz label
+        assert "G" in result  # GHz label
 
     def test_very_narrow_bandwidth(self):
         """Very narrow frequency span."""
@@ -214,14 +217,14 @@ class TestRenderAsciiPlotEdgeCases:
         """Highpass filter type works correctly."""
         freqs = [100, 1000, 10000]
         response = [-20, -3, -1]
-        result = render_ascii_plot(freqs, response, 1000, filter_type='highpass')
+        result = render_ascii_plot(freqs, response, 1000, filter_type="highpass")
         assert isinstance(result, str)
 
     def test_bandpass_filter_type(self):
         """Bandpass filter type works correctly."""
         freqs = [100, 1000, 10000]
         response = [-20, -3, -20]
-        result = render_ascii_plot(freqs, response, 1000, filter_type='bandpass')
+        result = render_ascii_plot(freqs, response, 1000, filter_type="bandpass")
         assert isinstance(result, str)
 
     def test_zero_frequency_in_list(self):
@@ -302,52 +305,52 @@ class TestExportJsonEdgeCases:
 
     def test_empty_sweep_data(self):
         """Empty sweep data produces valid JSON."""
-        result = export_json([], 1e6, 100e3, 'butterworth', 3)
+        result = export_json([], 1e6, 100e3, "butterworth", 3)
         data = json.loads(result)
-        assert data['data'] == []
+        assert data["data"] == []
 
     def test_single_point_json(self):
         """Single point exports correctly."""
         sweep_data = [(1e6, -3.0)]
-        result = export_json(sweep_data, 1e6, 100e3, 'butterworth', 3)
+        result = export_json(sweep_data, 1e6, 100e3, "butterworth", 3)
         data = json.loads(result)
-        assert len(data['data']) == 1
-        assert data['data'][0]['frequency_hz'] == 1e6
+        assert len(data["data"]) == 1
+        assert data["data"][0]["frequency_hz"] == 1e6
 
     def test_extreme_frequencies_in_json(self):
         """Extreme frequencies export correctly."""
         sweep_data = [(1, -50), (10e9, -50)]
-        result = export_json(sweep_data, 1e6, 100e3, 'butterworth', 3)
+        result = export_json(sweep_data, 1e6, 100e3, "butterworth", 3)
         data = json.loads(result)
-        assert data['data'][0]['frequency_hz'] == 1
-        assert data['data'][1]['frequency_hz'] == 10e9
+        assert data["data"][0]["frequency_hz"] == 1
+        assert data["data"][1]["frequency_hz"] == 10e9
 
     def test_extreme_db_values(self):
         """Extreme dB values export correctly."""
         sweep_data = [(1e6, 0), (2e6, -150.5)]
-        result = export_json(sweep_data, 1e6, 100e3, 'butterworth', 3)
+        result = export_json(sweep_data, 1e6, 100e3, "butterworth", 3)
         data = json.loads(result)
-        assert data['data'][0]['magnitude_db'] == 0
-        assert data['data'][1]['magnitude_db'] == -150.5
+        assert data["data"][0]["magnitude_db"] == 0
+        assert data["data"][1]["magnitude_db"] == -150.5
 
     def test_ripple_none_not_in_output(self):
         """None ripple not included in JSON."""
-        result = export_json([], 1e6, 100e3, 'butterworth', 3, ripple_db=None)
+        result = export_json([], 1e6, 100e3, "butterworth", 3, ripple_db=None)
         data = json.loads(result)
-        assert 'ripple_db' not in data
+        assert "ripple_db" not in data
 
     def test_ripple_value_in_output(self):
         """Non-None ripple included in JSON."""
-        result = export_json([], 1e6, 100e3, 'chebyshev', 3, ripple_db=0.5)
+        result = export_json([], 1e6, 100e3, "chebyshev", 3, ripple_db=0.5)
         data = json.loads(result)
-        assert data['ripple_db'] == 0.5
+        assert data["ripple_db"] == 0.5
 
     def test_rounding_precision(self):
         """dB values rounded to 2 decimals."""
         sweep_data = [(1e6, -3.14159265)]
-        result = export_json(sweep_data, 1e6, 100e3, 'butterworth', 3)
+        result = export_json(sweep_data, 1e6, 100e3, "butterworth", 3)
         data = json.loads(result)
-        assert data['data'][0]['magnitude_db'] == -3.14
+        assert data["data"][0]["magnitude_db"] == -3.14
 
 
 class TestExportCsvEdgeCases:
@@ -356,30 +359,30 @@ class TestExportCsvEdgeCases:
     def test_empty_sweep_csv(self):
         """Empty sweep produces header only."""
         result = export_csv([])
-        lines = result.strip().split('\n')
+        lines = result.strip().split("\n")
         assert len(lines) == 1
-        assert lines[0] == 'frequency_hz,magnitude_db'
+        assert lines[0] == "frequency_hz,magnitude_db"
 
     def test_single_point_csv(self):
         """Single point exports correctly."""
         result = export_csv([(1e6, -3.0)])
-        lines = result.strip().split('\n')
+        lines = result.strip().split("\n")
         assert len(lines) == 2
-        assert '1000000' in lines[1]
+        assert "1000000" in lines[1]
 
     def test_extreme_values_csv(self):
         """Extreme values format correctly."""
         sweep_data = [(1, -100), (10e9, 0)]
         result = export_csv(sweep_data)
-        lines = result.strip().split('\n')
-        assert '1,' in lines[1]
-        assert '10000000000' in lines[2]
+        lines = result.strip().split("\n")
+        assert "1," in lines[1]
+        assert "10000000000" in lines[2]
 
     def test_csv_decimal_precision(self):
         """dB values have 2 decimal places."""
         result = export_csv([(1e6, -3.14159)])
-        lines = result.strip().split('\n')
-        assert '-3.14' in lines[1]
+        lines = result.strip().split("\n")
+        assert "-3.14" in lines[1]
 
 
 class TestFormatJsonResultEdgeCases:
@@ -388,52 +391,52 @@ class TestFormatJsonResultEdgeCases:
     def test_empty_component_lists(self):
         """Empty component lists produce valid JSON."""
         result_dict = {
-            'filter_type': 'butterworth',
-            'freq_hz': 1e6,
-            'impedance': 50.0,
-            'order': 0,
-            'capacitors': [],
-            'inductors': [],
-            'ripple': None
+            "filter_type": "butterworth",
+            "freq_hz": 1e6,
+            "impedance": 50.0,
+            "order": 0,
+            "capacitors": [],
+            "inductors": [],
+            "ripple": None,
         }
         output = format_json_result(result_dict)
         data = json.loads(output)
-        assert data['components']['capacitors'] == []
-        assert data['components']['inductors'] == []
+        assert data["components"]["capacitors"] == []
+        assert data["components"]["inductors"] == []
 
     def test_single_component(self):
         """Single component in each list."""
         result_dict = {
-            'filter_type': 'butterworth',
-            'freq_hz': 1e6,
-            'impedance': 50.0,
-            'order': 1,
-            'capacitors': [1e-12],
-            'inductors': [1e-9],
-            'ripple': None
+            "filter_type": "butterworth",
+            "freq_hz": 1e6,
+            "impedance": 50.0,
+            "order": 1,
+            "capacitors": [1e-12],
+            "inductors": [1e-9],
+            "ripple": None,
         }
         output = format_json_result(result_dict)
         data = json.loads(output)
-        assert len(data['components']['capacitors']) == 1
-        assert len(data['components']['inductors']) == 1
+        assert len(data["components"]["capacitors"]) == 1
+        assert len(data["components"]["inductors"]) == 1
 
     def test_extreme_component_values(self):
         """Extreme component values preserved."""
         result_dict = {
-            'filter_type': 'butterworth',
-            'freq_hz': 1e6,
-            'impedance': 50.0,
-            'order': 2,
-            'capacitors': [1e-15, 1e-3],  # femtofarad to millifarad
-            'inductors': [1e-12, 1],      # picohenry to henry
-            'ripple': None
+            "filter_type": "butterworth",
+            "freq_hz": 1e6,
+            "impedance": 50.0,
+            "order": 2,
+            "capacitors": [1e-15, 1e-3],  # femtofarad to millifarad
+            "inductors": [1e-12, 1],  # picohenry to henry
+            "ripple": None,
         }
         output = format_json_result(result_dict)
         data = json.loads(output)
-        assert data['components']['capacitors'][0]['value_farads'] == 1e-15
-        assert data['components']['capacitors'][1]['value_farads'] == 1e-3
-        assert data['components']['inductors'][0]['value_henries'] == 1e-12
-        assert data['components']['inductors'][1]['value_henries'] == 1
+        assert data["components"]["capacitors"][0]["value_farads"] == 1e-15
+        assert data["components"]["capacitors"][1]["value_farads"] == 1e-3
+        assert data["components"]["inductors"][0]["value_henries"] == 1e-12
+        assert data["components"]["inductors"][1]["value_henries"] == 1
 
 
 class TestFormatCsvResultEdgeCases:
@@ -441,36 +444,33 @@ class TestFormatCsvResultEdgeCases:
 
     def test_empty_components_csv(self):
         """Empty component lists produce header only."""
-        result_dict = {
-            'capacitors': [],
-            'inductors': []
-        }
+        result_dict = {"capacitors": [], "inductors": []}
         output = format_csv_result(result_dict)
-        lines = output.strip().split('\n')
-        assert lines[0] == 'Component,Value,Unit'
+        lines = output.strip().split("\n")
+        assert lines[0] == "Component,Value,Unit"
         assert len(lines) == 1
 
     def test_extreme_capacitance_values(self):
         """Extreme capacitance formats correctly."""
         result_dict = {
-            'capacitors': [1e-15, 1e-3],  # 1 fF, 1 mF
-            'inductors': []
+            "capacitors": [1e-15, 1e-3],  # 1 fF, 1 mF
+            "inductors": [],
         }
         output = format_csv_result(result_dict)
-        lines = output.strip().split('\n')
-        assert 'C1' in lines[1]
-        assert 'C2' in lines[2]
+        lines = output.strip().split("\n")
+        assert "C1" in lines[1]
+        assert "C2" in lines[2]
 
     def test_extreme_inductance_values(self):
         """Extreme inductance formats correctly."""
         result_dict = {
-            'capacitors': [],
-            'inductors': [1e-12, 1.0]  # 1 pH, 1 H
+            "capacitors": [],
+            "inductors": [1e-12, 1.0],  # 1 pH, 1 H
         }
         output = format_csv_result(result_dict)
-        lines = output.strip().split('\n')
-        assert 'L1' in lines[1]
-        assert 'L2' in lines[2]
+        lines = output.strip().split("\n")
+        assert "L1" in lines[1]
+        assert "L2" in lines[2]
 
 
 class TestFormatQuietResultEdgeCases:
@@ -478,31 +478,22 @@ class TestFormatQuietResultEdgeCases:
 
     def test_empty_components_quiet(self):
         """Empty components produce empty output."""
-        result_dict = {
-            'capacitors': [],
-            'inductors': []
-        }
+        result_dict = {"capacitors": [], "inductors": []}
         output = format_quiet_result(result_dict)
-        assert output == ''
+        assert output == ""
 
     def test_raw_mode_extreme_values(self):
         """Raw mode shows scientific notation for extreme values."""
-        result_dict = {
-            'capacitors': [1e-15],
-            'inductors': [1.0]
-        }
+        result_dict = {"capacitors": [1e-15], "inductors": [1.0]}
         output = format_quiet_result(result_dict, raw=True)
-        assert 'e' in output.lower() or 'E' in output
+        assert "e" in output.lower() or "E" in output
 
     def test_formatted_mode_extreme_values(self):
         """Formatted mode uses engineering notation."""
-        result_dict = {
-            'capacitors': [1e-12],
-            'inductors': [1e-6]
-        }
+        result_dict = {"capacitors": [1e-12], "inductors": [1e-6]}
         output = format_quiet_result(result_dict, raw=False)
         # Should contain unit suffixes like pF, µH, etc.
-        assert any(unit in output for unit in ['pF', 'nF', 'µF', 'nH', 'µH', 'mH'])
+        assert any(unit in output for unit in ["pF", "nF", "µF", "nH", "µH", "mH"])
 
 
 class TestFormatComponentValueEdgeCases:
@@ -510,24 +501,24 @@ class TestFormatComponentValueEdgeCases:
 
     def test_zero_value_formatted(self):
         """Zero value formats without crashing."""
-        result = format_component_value('C1', 0, format_capacitance, raw=False)
-        assert 'C1' in result
+        result = format_component_value("C1", 0, format_capacitance, raw=False)
+        assert "C1" in result
 
     def test_zero_value_raw(self):
         """Zero value in raw mode."""
-        result = format_component_value('C1', 0, format_capacitance, raw=True)
-        assert 'C1' in result
-        assert 'e' in result.lower() or '0.000000e+00' in result
+        result = format_component_value("C1", 0, format_capacitance, raw=True)
+        assert "C1" in result
+        assert "e" in result.lower() or "0.000000e+00" in result
 
     def test_very_small_value(self):
         """Very small value (femtofarad)."""
-        result = format_component_value('C1', 1e-15, format_capacitance, raw=False)
-        assert 'C1' in result
+        result = format_component_value("C1", 1e-15, format_capacitance, raw=False)
+        assert "C1" in result
 
     def test_very_large_value(self):
         """Very large value (farads)."""
-        result = format_component_value('C1', 1.0, format_capacitance, raw=False)
-        assert 'C1' in result
+        result = format_component_value("C1", 1.0, format_capacitance, raw=False)
+        assert "C1" in result
 
 
 class TestFormattingFunctionsEdgeCases:
@@ -536,57 +527,57 @@ class TestFormattingFunctionsEdgeCases:
     def test_format_capacitance_zero(self):
         """Zero capacitance."""
         result = format_capacitance(0)
-        assert 'pF' in result  # Should use smallest unit
+        assert "pF" in result  # Should use smallest unit
 
     def test_format_capacitance_femtofarad(self):
         """Femtofarad range."""
         result = format_capacitance(1e-15)
-        assert 'pF' in result
+        assert "pF" in result
 
     def test_format_capacitance_millifarad(self):
         """Millifarad range."""
         result = format_capacitance(1e-3)
-        assert 'mF' in result
+        assert "mF" in result
 
     def test_format_inductance_zero(self):
         """Zero inductance."""
         result = format_inductance(0)
-        assert 'nH' in result  # Should use smallest unit
+        assert "nH" in result  # Should use smallest unit
 
     def test_format_inductance_picohenry(self):
         """Picohenry range."""
         result = format_inductance(1e-12)
-        assert 'nH' in result
+        assert "nH" in result
 
     def test_format_inductance_henry(self):
         """Henry range."""
         result = format_inductance(1.0)
-        assert 'H' in result
+        assert "H" in result
 
     def test_format_frequency_zero(self):
         """Zero frequency."""
         result = format_frequency(0)
-        assert 'Hz' in result
+        assert "Hz" in result
 
     def test_format_frequency_subhertz(self):
         """Sub-hertz frequency."""
         result = format_frequency(0.1)
-        assert 'Hz' in result
+        assert "Hz" in result
 
     def test_format_frequency_terahertz(self):
         """Terahertz range."""
         result = format_frequency(1e12)
-        assert 'GHz' in result  # Should use GHz as highest unit
+        assert "GHz" in result  # Should use GHz as highest unit
 
     def test_negative_capacitance(self):
         """Negative capacitance (physically invalid but should not crash)."""
         result = format_capacitance(-1e-12)
-        assert '-' in result or 'pF' in result
+        assert "-" in result or "pF" in result
 
     def test_negative_inductance(self):
         """Negative inductance (physically invalid but should not crash)."""
         result = format_inductance(-1e-6)
-        assert '-' in result or 'µH' in result
+        assert "-" in result or "µH" in result
 
 
 class TestFormatEseriesMatchEdgeCases:
@@ -596,7 +587,7 @@ class TestFormatEseriesMatchEdgeCases:
         """Zero value E-series matching."""
         # This might not be physically meaningful but should not crash
         try:
-            result = format_eseries_match(0, 'E12', format_capacitance)
+            result = format_eseries_match(0, "E12", format_capacitance)
             assert isinstance(result, list)
         except (ValueError, ZeroDivisionError):
             # Acceptable to raise error for zero
@@ -604,31 +595,29 @@ class TestFormatEseriesMatchEdgeCases:
 
     def test_very_small_value_eseries(self):
         """Very small value E-series matching."""
-        result = format_eseries_match(1e-15, 'E12', format_capacitance)
+        result = format_eseries_match(1e-15, "E12", format_capacitance)
         assert isinstance(result, list)
         assert len(result) > 0
 
     def test_very_large_value_eseries(self):
         """Very large value E-series matching."""
-        result = format_eseries_match(1.0, 'E12', format_capacitance)
+        result = format_eseries_match(1.0, "E12", format_capacitance)
         assert isinstance(result, list)
         assert len(result) > 0
 
     def test_exact_match_zero_error(self):
         """Exact E-series match (0% error)."""
         # 100 pF is in E12 series
-        result = format_eseries_match(100e-12, 'E12', format_capacitance)
+        result = format_eseries_match(100e-12, "E12", format_capacitance)
         assert isinstance(result, list)
         # Should show match info
 
     def test_parallel_mode_additive(self):
         """Parallel mode additive."""
-        result = format_eseries_match(150e-12, 'E12', format_capacitance,
-                                     parallel_mode='additive')
+        result = format_eseries_match(150e-12, "E12", format_capacitance, parallel_mode="additive")
         assert isinstance(result, list)
 
     def test_parallel_mode_harmonic(self):
         """Parallel mode harmonic (for inductors)."""
-        result = format_eseries_match(150e-9, 'E12', format_inductance,
-                                     parallel_mode='harmonic')
+        result = format_eseries_match(150e-9, "E12", format_inductance, parallel_mode="harmonic")
         assert isinstance(result, list)

@@ -51,7 +51,7 @@ uv sync --group dev
 | `test_wizard_unit.py` | - | **NEW** - Wizard module unit tests |
 | `test_plotting_edge_cases.py` | - | **NEW** - Edge cases for ASCII plot rendering |
 
-**Total: 344+ tests**
+**Total: 556 tests**
 
 **New Modules** (tested and integrated):
 - `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations
@@ -250,11 +250,21 @@ def lowpass_result():
 
 ## Continuous Integration
 
-Tests run automatically on:
-- Pull requests
-- Commits to main branch
+### GitHub Actions CI Pipeline
 
-### CI Commands
+Tests run automatically on every push and PR to `main` via `.github/workflows/ci.yml`:
+
+**Pipeline stages:**
+1. **Lint** - Ruff linting checks (errors fail fast)
+2. **Format** - Ruff format verification
+3. **Test** - Full pytest suite with coverage reporting
+
+**Environment:**
+- Python 3.13
+- ubuntu-latest runner
+- Full dev dependencies group
+
+### Running Tests Locally
 
 ```bash
 # Standard test run
@@ -266,6 +276,27 @@ uv run pytest tests/ --cov=filter_lib --cov-fail-under=80
 # Generate HTML coverage report
 uv run pytest tests/ --cov=filter_lib --cov-report=html
 ```
+
+### Code Linting
+
+[Ruff](https://docs.astral.sh/ruff/) enforces code quality:
+
+```bash
+# Check for linting issues
+uv run ruff check .
+
+# Format code
+uv run ruff format .
+
+# Check formatting without changes
+uv run ruff format --check .
+```
+
+**Configuration** (pyproject.toml):
+- Target: Python 3.10+
+- Line length: 100 chars
+- Rules: E (errors), F (pyflakes), I (imports), UP (upgrades), B (flake8-bugbear)
+- Ignored: E501 (line too long - handled by formatter), B905
 
 ---
 

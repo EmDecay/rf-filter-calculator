@@ -1,4 +1,5 @@
 """Input parsing utilities for filter calculators."""
+
 import math
 
 
@@ -19,13 +20,18 @@ def parse_frequency(freq_str: str) -> float:
 
     # Full suffixes (ghz, mhz, khz, hz) and shorthand (g, m, k)
     suffixes = [
-        ('ghz', 1e9), ('mhz', 1e6), ('khz', 1e3), ('hz', 1),
-        ('g', 1e9), ('m', 1e6), ('k', 1e3),
+        ("ghz", 1e9),
+        ("mhz", 1e6),
+        ("khz", 1e3),
+        ("hz", 1),
+        ("g", 1e9),
+        ("m", 1e6),
+        ("k", 1e3),
     ]
 
     for suffix, mult in suffixes:
         if freq_str_lower.endswith(suffix):
-            num_part = freq_str[:-len(suffix)].strip()
+            num_part = freq_str[: -len(suffix)].strip()
             result = float(num_part) * mult
             if not math.isfinite(result) or result <= 0:
                 raise ValueError(f"Frequency must be positive: {freq_str}")
@@ -51,15 +57,15 @@ def parse_impedance(z_str: str) -> float:
     """
     z_str = z_str.strip()
     # Handle Unicode omega symbols
-    for omega_char in ['ω', 'Ω']:
-        z_str = z_str.replace(omega_char, 'ohm')
-    z_str = z_str.lower().replace('omega', 'ohm')
+    for omega_char in ["ω", "Ω"]:
+        z_str = z_str.replace(omega_char, "ohm")
+    z_str = z_str.lower().replace("omega", "ohm")
 
-    multipliers = {'mohm': 1e6, 'kohm': 1e3, 'ohm': 1}
+    multipliers = {"mohm": 1e6, "kohm": 1e3, "ohm": 1}
 
     for suffix, mult in multipliers.items():
         if z_str.endswith(suffix):
-            result = float(z_str[:-len(suffix)].strip()) * mult
+            result = float(z_str[: -len(suffix)].strip()) * mult
             if not math.isfinite(result) or result <= 0:
                 raise ValueError(f"Impedance must be positive: {z_str}")
             return result

@@ -89,7 +89,47 @@ from ..shared.parsing import parse_frequency
 from ..shared.formatting import format_capacitance
 ```
 
-## Code Quality Standards
+## Code Quality & Linting Standards
+
+### Ruff Linting
+
+[Ruff](https://docs.astral.sh/ruff/) enforces code quality across the project:
+
+**Configuration** (pyproject.toml):
+```toml
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B905"]
+```
+
+**Rules enforced:**
+- `E` - PEP 8 errors (indentation, whitespace, imports)
+- `F` - Pyflakes (undefined names, unused imports, duplicates)
+- `I` - isort (import sorting)
+- `UP` - pyupgrade (Python 3.10+ syntax upgrades, f-strings)
+- `B` - flake8-bugbear (likely bugs: `lambda x: ...` should be `def`, etc.)
+
+**Ignored:**
+- `E501` - Line too long (handled by formatter instead)
+- `B905` - `zip()` without strict (Python 3.10 compat)
+
+**Running linting locally:**
+```bash
+uv run ruff check .          # Report issues
+uv run ruff check . --fix    # Auto-fix issues
+uv run ruff format .         # Format code
+uv run ruff format --check . # Check without changes
+```
+
+**Recent reformatting** (all 67 affected files):
+- Lambda functions converted to `def` (E731)
+- F-string syntax upgraded for py310+ compatibility
+- Unused variable cleanup
+- Import organization standardized
 
 ### Docstrings
 - **Module level**: Brief description of module purpose
@@ -466,6 +506,7 @@ def action_back(self) -> None:
 | Textual screen | 250 lines | 300 lines | Screen-specific logic |
 | Main entry point | N/A | 400 lines | Router exception |
 | Test file | 200 lines | 300 lines | Keep test focused |
+| Documentation file | Soft limit: 800 LOC | Keep searchable and focused |
 
 **Splitting strategy**: When approaching limit, extract subroutines or move helpers to shared module. For screens, extract complex validation to shared validators module or move business logic to calculation_handler.
 

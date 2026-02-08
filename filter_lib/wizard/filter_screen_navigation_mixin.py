@@ -1,5 +1,6 @@
 """Navigation mixin for wizard screens with consistent Enter key handling."""
-from textual.widgets import RadioSet, Input
+
+from textual.widgets import Input, RadioSet
 
 
 class FilterScreenNavigationMixin:
@@ -30,9 +31,7 @@ class FilterScreenNavigationMixin:
                 if radio_set.has_focus:
                     # Move to next RadioSet or first Input
                     if i < len(self.RADIO_SET_FLOW) - 1:
-                        next_radio = self.query_one(
-                            f"#{self.RADIO_SET_FLOW[i + 1]}", RadioSet
-                        )
+                        next_radio = self.query_one(f"#{self.RADIO_SET_FLOW[i + 1]}", RadioSet)
                         next_radio.focus()
                     elif self.FIRST_INPUT_ID:
                         self.query_one(f"#{self.FIRST_INPUT_ID}", Input).focus()

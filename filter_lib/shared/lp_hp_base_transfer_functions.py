@@ -5,18 +5,19 @@ HPF response is derived from LPF response using frequency transformation:
 - HP uses inverted ratio = fc/f
 - HP returns 0.0 at DC (freq_hz=0), LP returns 1.0
 """
+
 import math
-from typing import Callable
 
 from .transfer_functions import (
-    BESSEL_COEFFS, BESSEL_SCALE,
+    BESSEL_COEFFS,
+    BESSEL_SCALE,
     chebyshev_polynomial,
-    magnitude_to_db,
 )
 
 
-def _butterworth_response_base(freq_hz: float, cutoff_hz: float, order: int,
-                                is_lowpass: bool) -> float:
+def _butterworth_response_base(
+    freq_hz: float, cutoff_hz: float, order: int, is_lowpass: bool
+) -> float:
     """Calculate Butterworth filter magnitude response (0 to 1).
 
     Args:
@@ -42,8 +43,9 @@ def _butterworth_response_base(freq_hz: float, cutoff_hz: float, order: int,
     return math.sqrt(h_squared)
 
 
-def _chebyshev_response_base(freq_hz: float, cutoff_hz: float, order: int,
-                              ripple_db: float, is_lowpass: bool) -> float:
+def _chebyshev_response_base(
+    freq_hz: float, cutoff_hz: float, order: int, ripple_db: float, is_lowpass: bool
+) -> float:
     """Calculate Chebyshev Type I filter magnitude response.
 
     Args:
@@ -69,12 +71,11 @@ def _chebyshev_response_base(freq_hz: float, cutoff_hz: float, order: int,
         ratio = cutoff_hz / freq_hz  # Inverted for HPF
 
     tn = chebyshev_polynomial(order, ratio)
-    h_squared = 1.0 / (1.0 + epsilon ** 2 * tn ** 2)
+    h_squared = 1.0 / (1.0 + epsilon**2 * tn**2)
     return math.sqrt(h_squared)
 
 
-def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int,
-                           is_lowpass: bool) -> float:
+def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpass: bool) -> float:
     """Calculate Bessel filter magnitude response.
 
     Args:
@@ -114,7 +115,7 @@ def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int,
         w_power *= w
 
     dc_gain_squared = coeffs[0] ** 2
-    denom_squared = real_part ** 2 + imag_part ** 2
+    denom_squared = real_part**2 + imag_part**2
     if denom_squared == 0:
         return 1.0 if is_lowpass else 0.0  # LP passes DC, HP blocks DC
     h_squared = dc_gain_squared / denom_squared
@@ -127,8 +128,9 @@ def lowpass_butterworth_response(freq_hz: float, cutoff_hz: float, order: int) -
     return _butterworth_response_base(freq_hz, cutoff_hz, order, is_lowpass=True)
 
 
-def lowpass_chebyshev_response(freq_hz: float, cutoff_hz: float, order: int,
-                                ripple_db: float) -> float:
+def lowpass_chebyshev_response(
+    freq_hz: float, cutoff_hz: float, order: int, ripple_db: float
+) -> float:
     """Calculate Chebyshev Type I lowpass filter magnitude response."""
     return _chebyshev_response_base(freq_hz, cutoff_hz, order, ripple_db, is_lowpass=True)
 
@@ -147,8 +149,9 @@ def highpass_butterworth_response(freq_hz: float, cutoff_hz: float, order: int) 
     return _butterworth_response_base(freq_hz, cutoff_hz, order, is_lowpass=False)
 
 
-def highpass_chebyshev_response(freq_hz: float, cutoff_hz: float, order: int,
-                                 ripple_db: float) -> float:
+def highpass_chebyshev_response(
+    freq_hz: float, cutoff_hz: float, order: int, ripple_db: float
+) -> float:
     """Calculate Chebyshev Type I highpass filter magnitude response.
 
     HPF uses inverted frequency ratio: fc/f instead of f/fc
