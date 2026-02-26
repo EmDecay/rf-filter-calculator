@@ -204,6 +204,12 @@ cython_debug/
 # Claude Code
 .claude/
 repomix-output.xml
+plans/
+docs/visuals/
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Marimo
 marimo/_static/
