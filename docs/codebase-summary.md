@@ -1,13 +1,16 @@
 # Codebase Summary
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv for package management, ruff for linting, GitHub Actions CI) and comprehensive testing (556 tests).
+**Last Updated**: April 2, 2026
+
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (556+ tests).
 
 ## Project Statistics
 
-- **Total Files**: 91 files
-- **Total Lines of Code**: ~6,280 (source: 40+ .py files in filter_lib/)
-- **Test Coverage**: 556 tests (~0.36s runtime)
-- **Documentation**: 13 files (~2,200+ lines)
+- **Total Files**: 91+ files
+- **Total Lines of Code**: ~8,000 LOC (2,140 core lib + 5,863 tests + ~350 CLI entry)
+- **Test Coverage**: 556+ tests, >90% coverage (~0.4s runtime)
+- **Documentation**: 13 files (~2,300+ LOC)
+- **Core Library**: 40+ modules in filter_lib/, organized by filter type + shared utilities
 
 ## Architecture Overview
 
@@ -68,10 +71,10 @@ rf-filter-calculator/
 - `state.py` (33 LOC) - FilterState dataclass (centralized mutable state shared across screens)
 - `interactive.py` (15 LOC) - Entry point, exports `run_wizard()` function
 - `calculation_handler.py` (35 LOC) - Calculation orchestration, reduced from 355 LOC via extraction
-- `filter_type_calculators.py` (185 LOC) - **NEW** - Separated calculation logic for LP/HP/BP
-- `formatting_helpers.py` (155 LOC) - **NEW** - Wizard-specific formatting and helpers
-- `filter_screen_navigation_mixin.py` (46 LOC) - **NEW** - Screen navigation mixin for DRY code
-- `radio_button_helpers.py` (19 LOC) - **NEW** - Radio button widget utilities
+- `filter_type_calculators.py` (185 LOC) - Calculation logic for LP/HP/BP (Feb 2026)
+- `formatting_helpers.py` (155 LOC) - Wizard-specific formatting helpers (Feb 2026)
+- `filter_screen_navigation_mixin.py` (46 LOC) - Screen navigation mixin (Feb 2026)
+- `radio_button_helpers.py` (19 LOC) - Radio button widget utilities (Feb 2026)
 - `validation.py` (39 LOC) - Input validators (frequency, impedance, order, ripple)
 - `styles.tcss` (192 LOC) - Textual CSS styling for all screens
 
@@ -171,8 +174,8 @@ Provides cross-cutting utilities:
 - `test_wizard_state.py` - FilterState dataclass validation
 - `test_wizard_topology_diagrams.py` - Wizard topology diagram rendering
 - `conftest.py` - Shared pytest fixtures and configuration
-- `test_wizard_unit.py` - Wizard module unit tests (40,500+ chars)
-- `test_plotting_edge_cases.py` - Edge cases for ASCII plot rendering (22,700+ chars)
+- `test_wizard_unit.py` - Wizard module unit tests (Feb 2026)
+- `test_plotting_edge_cases.py` - ASCII plot rendering edge cases (Feb 2026)
 
 ## Development Workflow
 
@@ -255,29 +258,34 @@ All code files respect 200-line limit for optimal context:
 
 ## Recent Major Changes
 
-1. **Ruff Linting & GitHub Actions CI** (recent):
+1. **Ruff Linting & GitHub Actions CI** (Feb 2026, commit cc4e9c1):
    - Added ruff>=0.8 to dev dependencies
-   - Config in pyproject.toml: target py310, line-length 100, rules E/F/I/UP/B
-   - GitHub Actions workflow (.github/workflows/ci.yml): lint → format check → pytest+coverage
-   - 67 files reformatted by ruff format (E731 lambdas→defs, f-string compat, cleanup)
-   - Test suite expanded from 344 to 556 tests during refactoring
+   - Config: target py310, line-length 100, rules E/F/I/UP/B (E501, B905 ignored)
+   - GitHub Actions CI workflow: lint → format check → pytest+coverage on all pushes/PRs
+   - 67 files reformatted by ruff format (E731 lambdas→defs, f-string upgrades, cleanup)
+   - Test suite expanded from 344 to 556 tests during major refactor
 
-2. **Wizard Refactoring** (commit 69938ca): Modularized calculation_handler.py (355 LOC → 35 LOC)
-   - Extracted filter_type_calculators.py (185 LOC) - type-specific calculation logic
-   - Extracted formatting_helpers.py (155 LOC) - wizard display formatting
-   - Added filter_screen_navigation_mixin.py - DRY screen navigation
-   - Added radio_button_helpers.py - shared radio button utilities
+2. **Wizard Refactoring** (commit 69938ca, Feb 2026): Modularized calculation_handler.py (355 → 35 LOC)
+   - Extracted filter_type_calculators.py (185 LOC) - LP/HP/BP calculation routing
+   - Extracted formatting_helpers.py (155 LOC) - wizard-specific display formatting
+   - Added filter_screen_navigation_mixin.py (46 LOC) - reusable screen navigation
+   - Added radio_button_helpers.py (19 LOC) - radio button widget utilities
 
-3. **Shared Module Expansion**: Added lp_hp_base_*.py modules
-   - lp_hp_base_calculations.py (342 LOC) - Strategy pattern for LP/HP
-   - lp_hp_base_transfer_functions.py (164 LOC) - Shared transfer functions
+3. **Shared Module Expansion** (Feb 2026): Added lp_hp_base_*.py modules
+   - lp_hp_base_calculations.py (342 LOC) - Strategy pattern for LP/HP duality
+   - lp_hp_base_transfer_functions.py (164 LOC) - Shared transfer function logic
 
-4. **Textual TUI Wizard Migration** (commit 79291e5): Textual screen-based architecture
-   - Modular screen components (welcome, filter config, output options, results)
-   - Async calculation handling with worker thread
-   - Centralized FilterState for state management
-   - Removed inductor E-series recommendations (capacitors only)
+4. **Textual TUI Wizard Migration** (commit 69938ca, Feb 2026):
+   - Screen-based architecture (welcome → params → output options → results)
+   - Async calculation with worker thread to prevent UI blocking
+   - Centralized FilterState for state management across screens
+   - Capacitor-only E-series matching (inductor E-series removed)
 
-5. **uv Package Management** (commit 4da4f68): Switched from pip/venv to uv
-6. **ASCII Art Fixes** (commit 4049ed7): Corrected spacing in topology diagrams
-7. **Wizard Default Values** (commit 258fe6a): Fixed default value handling in interactive mode
+5. **Package Management** (commit 4da4f68): Switched from pip/venv to uv
+6. **Bug Fixes** (Jan-Feb 2026): ASCII topology spacing, HPF capacitor formula, wizard defaults, E-series export
+
+**Quality Metrics** (as of Apr 2, 2026):
+- 556+ tests, >90% coverage
+- 67 files ruff-formatted
+- 8,000+ total LOC
+- GitHub Actions CI enforcing lint → format → test on all PRs

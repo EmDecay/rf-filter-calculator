@@ -86,19 +86,19 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 #### 1.3 Component Matching
 
-**FR-1.3.1: E-Series Matching**
+**FR-1.3.1: E-Series Matching (Capacitors Only)**
+- **Scope**: Capacitor values matched to E-series standards; inductors shown as raw calculated values
 - **E12 Series**: 12 values per decade (±10% tolerance)
 - **E24 Series**: 24 values per decade (±5% tolerance) - default
 - **E96 Series**: 96 values per decade (±1% tolerance)
-- **Matching Scope**: **Capacitors only** (as of v1.1+)
-- **Matching Options**:
-  - Single value: Nearest E-series standard
+- **Matching Strategies**:
+  - Single value: Nearest E-series standard with error %
   - Parallel combination: Two values in parallel for better accuracy
 - **Acceptance Criteria**:
   - ✓ Single value matches nearest standard ±2%
   - ✓ Parallel combinations provide <0.5% error when possible
   - ✓ All three E-series selections work correctly
-  - ✓ Inductor values shown raw (no E-series matching)
+  - ✓ Inductors always shown as raw values (no matching)
 
 #### 1.4 Output Formats
 
@@ -494,8 +494,9 @@ Status: ✓ Measured ~200ms on reference machine
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | Jan 2026 | Initial release |
-| 1.1 | Jan 30 2026 | Removed inductor E-series recommendations; simplified display to capacitors only |
-| 1.2 | Feb 3-8 2026 | Wizard refactoring with modularized calculation/formatting logic; new LP/HP base modules (strategy pattern); new utility modules (navigation mixin, radio helpers); added ruff linting (py310 target, E/F/I/UP/B rules); GitHub Actions CI pipeline; expanded test suite to 556 tests; reformatted 67 files |
+| 1.1 | Jan 30 2026 | Removed inductor E-series recommendations; capacitor-only E-series matching |
+| 1.2 | Feb 3-8 2026 | Wizard refactoring (modularized calculation/formatting); strategy pattern LP/HP base modules; navigation mixin + radio helpers; ruff linting (py310); GitHub Actions CI; 556 tests; 67 files reformatted |
+| 1.2+ | Apr 2 2026 | Documentation sync (updated PDR, success metrics, code standards, architecture notes) |
 
 ---
 
@@ -510,7 +511,7 @@ Status: ✓ Measured ~200ms on reference machine
 
 ## Document Control
 
-**Last Updated**: February 8, 2026
+**Last Updated**: April 2, 2026
 **Author**: Matt N3AR
 **Status**: Active (Production)
 **Next Review**: Q2 2026

@@ -11,6 +11,7 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 - [Caveats & Known Issues](caveats-and-known-issues.md) - Edge cases and limitations
 - [Sample Output](sample-output.md) - Example outputs for all filter types
 - [Testing Guide](testing.md) - Test suite documentation and coverage
+- [Textual Wizard Patterns](textual-wizard-patterns.md) - Developer guide to wizard screen architecture
 
 ## Features
 

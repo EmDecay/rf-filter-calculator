@@ -1,5 +1,7 @@
 # System Architecture
 
+**Last Updated**: April 2, 2026
+
 Detailed architecture design and component interactions for RF Filter Calculator.
 
 ## System Overview
@@ -748,12 +750,29 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 
 ---
 
-## Quality Assurance
+## Quality Assurance & CI/CD
 
-Code quality is enforced via automated tooling:
+### Automated Tooling
 
-**Linting**: Ruff linting (py310 target, E/F/I/UP/B rules) runs on all commits
-**Testing**: 556 comprehensive tests, >90% coverage
-**CI/CD**: GitHub Actions pipeline (lint → format → test on push/PR)
+**Linting**: Ruff (py310 target, E/F/I/UP/B rules)
+- Line length: 100 chars
+- Enforced on all pushes via GitHub Actions
+- 67 files reformatted (Feb 2026, commit cc4e9c1)
 
-See [docs/code-standards.md](./code-standards.md) for linting standards and [docs/testing.md](./testing.md) for test details.
+**Testing**: 556+ tests, >90% coverage
+- Unit tests for all calculation modules
+- Integration tests for CLI and wizard
+- Coverage enforced via pytest-cov in CI
+
+**CI/CD Pipeline** (.github/workflows/ci.yml):
+1. **Lint** (ruff check .) - Fail fast on violations
+2. **Format** (ruff format --check) - Code style compliance
+3. **Test** (pytest --cov=filter_lib) - All tests with coverage
+
+**Test Metrics** (as of Apr 2, 2026):
+- Total: 556+ tests across 17 test modules
+- Coverage: >90% of filter_lib/
+- Runtime: ~0.4s on CI runner
+- Python: 3.10, 3.11, 3.12, 3.13 (tested on ubuntu-latest)
+
+See [code-standards.md](./code-standards.md) for linting rules and [testing.md](./testing.md) for test coverage details.

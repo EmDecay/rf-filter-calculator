@@ -1,5 +1,7 @@
 # Code Standards & Architecture Guidelines
 
+**Last Updated**: April 2, 2026
+
 Standards and patterns for maintaining code quality in RF Filter Calculator.
 
 ## Naming Conventions
@@ -368,6 +370,8 @@ def lowpass_result():
 - No credential handling in code
 
 ## Wizard Module Architecture
+
+See [system-architecture.md § Layer 4: Wizard Module](./system-architecture.md) for detailed wizard architecture, screen navigation flow, and state management patterns.
 
 ### Refactored Structure (Recent Simplification)
 

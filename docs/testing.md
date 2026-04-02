@@ -48,8 +48,8 @@ uv sync --group dev
 | `test_parsing_validation.py` | 18 | Input parsing and validation |
 | `test_chebyshev_calculator.py` | 15 | Chebyshev g-value computation |
 | `conftest.py` | - | Shared pytest fixtures and configuration |
-| `test_wizard_unit.py` | - | **NEW** - Wizard module unit tests |
-| `test_plotting_edge_cases.py` | - | **NEW** - Edge cases for ASCII plot rendering |
+| `test_wizard_unit.py` | 40+ | Wizard module unit tests (Feb 2026) |
+| `test_plotting_edge_cases.py` | 15+ | ASCII plot edge cases (Feb 2026) |
 
 **Total: 556 tests**
 
@@ -149,8 +149,8 @@ Verify output formatting for all export formats.
 | `filter_lib/shared/display_common.py` | 93% | Core formatting tested |
 | `filter_lib/shared/eseries.py` | 91% | Matching algorithms tested |
 | `filter_lib/bandpass/calculations.py` | 44% | Core formulas tested |
-| `filter_lib/shared/lp_hp_base_calculations.py` | In Progress | Base strategy logic being tested |
-| `filter_lib/shared/lp_hp_base_transfer_functions.py` | In Progress | Shared transfer functions |
+| `filter_lib/shared/lp_hp_base_calculations.py` | 85%+ | Strategy logic tested (Feb 2026) |
+| `filter_lib/shared/lp_hp_base_transfer_functions.py` | 80%+ | Transfer functions tested (Feb 2026) |
 
 ### Not Covered (Interactive)
 
