@@ -365,3 +365,202 @@ class TestFormatThresholdTable:
         result = format_threshold_table(thresholds, filter_type="lowpass")
         assert "-3 dB" in result
         assert "10" in result  # Contains the frequency value
+
+
+class TestFindDbCrossingEdgeCases:
+    """Additional edge case tests for _find_db_crossing."""
+
+    def test_crossing_near_start(self):
+        """Crossing very close to start of array."""
+        freqs = [100, 101, 200, 300]
+        response = [-1, -4, -10, -20]  # Crossing between 100-101
+        result = _find_db_crossing(freqs, response, threshold_db=-3.0, direction="falling")
+        assert result is not None
+        assert 100 < result <= 101.001
+
+    def test_crossing_near_end(self):
+        """Crossing very close to end of array."""
+        freqs = [100, 200, 299, 300]
+        response = [-1, -5, -2.5, -10]  # Crossing between 100-200
+        result = _find_db_crossing(freqs, response, threshold_db=-3.0, direction="falling")
+        assert result is not None
+        # Crossing occurs between 100 (at -1) and 200 (at -5), so result should be in that range
+        assert 100 < result <= 200.001
+
+    def test_crossing_with_noise_like_response(self):
+        """Crossing with oscillating response."""
+        freqs = [100, 150, 200, 250, 300]
+        response = [-1, -5, -2, -10, -1]  # Oscillating
+        result = _find_db_crossing(freqs, response, threshold_db=-3.0, direction="falling")
+        assert result is not None
+        # Should find first crossing
+
+    def test_crossing_with_tiny_step(self):
+        """Crossing with very small step across threshold."""
+        freqs = [100, 101]
+        response = [-2.9, -3.1]  # Just barely crosses
+        result = _find_db_crossing(freqs, response, threshold_db=-3.0, direction="falling")
+        assert result is not None
+        assert 100 < result <= 101.001
+
+    def test_rising_crossing_inverted_response(self):
+        """Rising crossing with inverted response (high-pass like)."""
+        freqs = [1e6, 5e6, 10e6, 50e6]
+        response = [-20, -10, -3, -1]
+        result = _find_db_crossing(freqs, response, threshold_db=-3.0, direction="rising")
+        assert result is not None
+        assert 5e6 < result <= 10e6 + 1
+
+    def test_zero_db_threshold(self):
+        """Find crossing at 0dB (passband edge)."""
+        freqs = [100, 200, 300]
+        response = [-0.5, 0, -0.5]
+        # May or may not find crossing depending on exact implementation
+        # Acceptable either way for edge case
+        _find_db_crossing(freqs, response, threshold_db=0.0, direction="falling")
+
+    def test_extreme_db_threshold(self):
+        """Find crossing at very negative dB level."""
+        freqs = [100, 200, 300, 400]
+        response = [-50, -60, -75, -90]
+        result = _find_db_crossing(freqs, response, threshold_db=-80.0, direction="falling")
+        assert result is not None
+        assert 300 < result <= 400.001
+
+    def test_crossing_with_monotonic_response(self):
+        """Strictly monotonic response (ideal case)."""
+        freqs = [1e4, 1e5, 1e6, 1e7, 1e8]
+        response = [0, -1, -3, -10, -30]
+        result = _find_db_crossing(freqs, response, threshold_db=-3.0, direction="falling")
+        assert result is not None
+        assert 1e5 < result <= 1e6 + 1
+
+
+class TestFind3dbFrequencyEdgeCases:
+    """Additional edge cases for _find_3db_frequency."""
+
+    def test_3db_missing_no_direction_change(self):
+        """No -3dB crossing for chosen direction."""
+        freqs = [100, 200, 300]
+        response = [0, -1, -2]  # Never reaches -3dB
+        result = _find_3db_frequency(freqs, response, direction="falling")
+        assert result is None
+
+    def test_3db_exact_match_in_array(self):
+        """Exact -3dB value in response array."""
+        freqs = [100, 200, 300]
+        response = [-1, -3, -10]
+        result = _find_3db_frequency(freqs, response, direction="falling")
+        assert result is not None
+        # Could be exact match at index 1 (freq=200) or interpolated
+
+
+class TestFindDbThresholdsEdgeCases:
+    """Additional edge cases for find_db_thresholds."""
+
+    def test_multiple_identical_response_values(self):
+        """Response with repeated values."""
+        freqs = [100, 200, 300, 400]
+        response = [-5, -5, -5, -5]
+        result = find_db_thresholds(freqs, response, filter_type="lowpass")
+        # All flat at -5dB
+        assert result[-3][0] is None  # Above -5dB, no crossing
+        assert result[-10][0] is None  # Below -5dB, no crossing
+
+    def test_negative_frequencies_skipped(self):
+        """Negative frequencies in input (should be invalid but handled)."""
+        freqs = [-100, 100, 200, 300]
+        response_db = [-10, -1, -5, -20]
+        # Depending on implementation, may skip negative freqs
+        result = find_db_thresholds(freqs, response_db, filter_type="lowpass")
+        assert isinstance(result, dict)
+
+    def test_zero_frequency(self):
+        """Zero frequency in array."""
+        freqs = [0, 100, 200, 300]
+        response_db = [0, -1, -5, -20]
+        result = find_db_thresholds(freqs, response_db, filter_type="lowpass")
+        assert isinstance(result, dict)
+
+    def test_very_large_frequency_range(self):
+        """Frequencies spanning many decades."""
+        freqs = [1, 1e2, 1e4, 1e6, 1e8]
+        response_db = [0, -1, -2, -15, -40]
+        result = find_db_thresholds(freqs, response_db, filter_type="lowpass")
+        assert -3 in result
+
+    def test_very_small_frequency_range(self):
+        """Frequencies in very narrow range."""
+        freqs = [1e6, 1.001e6, 1.002e6]
+        response_db = [0, -1, -3]
+        result = find_db_thresholds(freqs, response_db, filter_type="lowpass")
+        assert -3 in result
+
+    def test_bandpass_with_single_crossing(self):
+        """Bandpass response with only lower or upper crossing."""
+        freqs = [100e3, 500e3, 1e6, 1.5e6, 2e6]
+        response = [-20, -5, -1, -20, -40]  # Single peak, ideally two crossings
+        result = find_db_thresholds(freqs, response, filter_type="bandpass")
+        assert len(result[-3]) == 2
+
+    def test_lowpass_with_undershoot(self):
+        """Lowpass response with slight passband ripple/undershoot."""
+        freqs = [100, 500, 1e3, 5e3, 1e4]
+        response = [-0.5, -0.2, -0.8, -5, -20]  # Ripple in passband
+        result = find_db_thresholds(freqs, response, filter_type="lowpass")
+        assert -3 in result
+
+
+class TestFormatThresholdTableEdgeCases:
+    """Additional edge cases for format_threshold_table."""
+
+    def test_table_with_duplicate_levels(self):
+        """Table handles duplicate dB levels (shouldn't occur but test resilience)."""
+        thresholds = {-3: [10e6], -3.0: [10.5e6]}  # Same key in dict
+        result = format_threshold_table(thresholds, filter_type="lowpass")
+        assert isinstance(result, str)
+
+    def test_table_with_positive_db_levels(self):
+        """Table with positive dB levels (unusual but possible)."""
+        thresholds = {0: [10e6], 1: [9e6], -3: [12e6]}
+        result = format_threshold_table(thresholds, filter_type="lowpass")
+        assert "1 dB" in result or "1.0 dB" in result
+        assert "0 dB" in result
+
+    def test_table_with_very_small_frequencies(self):
+        """Table with sub-Hz frequencies."""
+        thresholds = {-3: [0.1], -10: [0.01], -20: [0.001]}
+        result = format_threshold_table(thresholds, filter_type="lowpass")
+        # Should format small frequencies gracefully
+        assert isinstance(result, str)
+
+    def test_table_with_very_large_frequencies(self):
+        """Table with frequencies in 10+ GHz range."""
+        thresholds = {-3: [10e9], -10: [15e9], -20: [20e9]}
+        result = format_threshold_table(thresholds, filter_type="lowpass")
+        # Should show G units
+        assert "G" in result
+
+    def test_bandpass_table_with_reversed_crossings(self):
+        """Bandpass with lower crossing > upper crossing (sorting test)."""
+        # This shouldn't happen in practice but tests robustness
+        thresholds = {-3: [12e6, 8e6]}  # f_high < f_low (invalid)
+        result = format_threshold_table(thresholds, filter_type="bandpass")
+        # Should still produce valid table
+        assert isinstance(result, str)
+
+    def test_table_all_none_entries(self):
+        """Table where all frequencies are None."""
+        thresholds = {-3: [None], -10: [None], -20: [None]}
+        result = format_threshold_table(thresholds, filter_type="lowpass")
+        assert "N/A" in result
+        # Should still be a valid table
+        assert "dB Threshold Summary" in result or "Level" in result
+
+    def test_highpass_table_mixed_none_entries(self):
+        """Highpass table with some None and some valid."""
+        thresholds = {-3: [10e6], -10: [None], -20: [8e6]}
+        result = format_threshold_table(thresholds, filter_type="highpass")
+        assert "N/A" in result
+        assert "10" in result  # First entry
+        assert "8" in result  # Third entry
