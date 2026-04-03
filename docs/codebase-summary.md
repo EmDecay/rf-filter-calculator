@@ -6,11 +6,11 @@ RF Filter Calculator is a Python CLI tool for calculating LC filter component va
 
 ## Project Statistics
 
-- **Total Files**: 91+ files
-- **Total Lines of Code**: ~8,000 LOC (2,140 core lib + 5,863 tests + ~350 CLI entry)
-- **Test Coverage**: 556+ tests, >90% coverage (~0.4s runtime)
+- **Total Files**: 93+ files
+- **Total Lines of Code**: ~8,200 LOC (2,200+ core lib + 5,900+ tests + ~350 CLI entry)
+- **Test Coverage**: 639 tests, 96% coverage (~0.4s runtime)
 - **Documentation**: 13 files (~2,300+ LOC)
-- **Core Library**: 40+ modules in filter_lib/, organized by filter type + shared utilities
+- **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
 
 ## Architecture Overview
 
@@ -97,8 +97,8 @@ Provides cross-cutting utilities:
 
 | File | Purpose |
 |------|---------|
-| `lp_hp_base_calculations.py` | **NEW** - Strategy pattern for LP/HP calculations |
-| `lp_hp_base_transfer_functions.py` | **NEW** - Shared transfer function logic for LP/HP |
+| `lp_hp_base_calculations.py` | Strategy pattern for LP/HP calculations |
+| `lp_hp_base_transfer_functions.py` | Shared transfer function logic for LP/HP |
 | `chebyshev_g_calculator.py` | Normalized g-values for Chebyshev filters |
 | `cli_aliases.py` | Filter type and topology aliases |
 | `cli_helpers.py` | Common CLI parsing utilities |
@@ -109,7 +109,10 @@ Provides cross-cutting utilities:
 | `filter_result.py` | Result data structure wrapper |
 | `formatting.py` | Number formatting for user display |
 | `parsing.py` | Input validation and normalization |
-| `plotting.py` | ASCII frequency response plots |
+| `plotting.py` | **Facade** — re-exports plotting functions for backward compat |
+| `plot_ascii_renderers.py` | **NEW (Apr 2026)** - ASCII plot rendering with db_floor + zoom pairs |
+| `plot_threshold_analysis.py` | **NEW (Apr 2026)** - dB crossing detection + summary table formatting |
+| `plot_data_export.py` | **NEW (Apr 2026)** - JSON/CSV data export functions |
 | `topology_diagrams.py` | ASCII circuit topology diagrams |
 | `transfer_functions.py` | Transfer function calculations |
 
@@ -159,7 +162,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (556 tests total):
+**Test Files** (639 tests total):
 - `test_bandpass_calculations.py` - Coupled resonator design tests
 - `test_bandpass_modules.py` - Bandpass display and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -173,9 +176,11 @@ Provides cross-cutting utilities:
 - `test_transfer_functions.py` - Transfer function accuracy (49+ tests)
 - `test_wizard_state.py` - FilterState dataclass validation
 - `test_wizard_topology_diagrams.py` - Wizard topology diagram rendering
-- `conftest.py` - Shared pytest fixtures and configuration
 - `test_wizard_unit.py` - Wizard module unit tests (Feb 2026)
 - `test_plotting_edge_cases.py` - ASCII plot rendering edge cases (Feb 2026)
+- `test_plot_threshold_analysis.py` - **NEW (Apr 2026)** - dB threshold detection and table formatting (41 tests)
+- `test_plot_zoomed.py` - **NEW (Apr 2026)** - Zoomed passband plot and zoom range computation (42 tests)
+- `conftest.py` - Shared pytest fixtures and configuration
 
 ## Development Workflow
 
@@ -258,7 +263,18 @@ All code files respect 200-line limit for optimal context:
 
 ## Recent Major Changes
 
-1. **Ruff Linting & GitHub Actions CI** (Feb 2026, commit cc4e9c1):
+1. **Graph Enhancements: dB Threshold Table + Zoomed Passband** (Apr 2, 2026):
+   - Split monolithic `plotting.py` (345 LOC) into 3 focused modules (facade pattern):
+     - `plot_ascii_renderers.py` — plot rendering with configurable `db_floor` for zooming
+     - `plot_threshold_analysis.py` — dB crossing detection for -3, -10, -20 dB levels
+     - `plot_data_export.py` — JSON/CSV export functions
+   - Added `render_plot_pair()` for LP/HP and `render_bandpass_plot_pair()` for BP (full + zoomed side-by-side)
+   - Integrated threshold summary tables into all display paths (automatic with `--plot`)
+   - Added 83 new tests: 41 threshold analysis tests + 42 zoomed plot tests
+   - Test count: 556 → 639 tests, coverage: 92% → 96%
+   - Closed GitHub issue #7
+
+2. **Ruff Linting & GitHub Actions CI** (Feb 2026, commit cc4e9c1):
    - Added ruff>=0.8 to dev dependencies
    - Config: target py310, line-length 100, rules E/F/I/UP/B (E501, B905 ignored)
    - GitHub Actions CI workflow: lint → format check → pytest+coverage on all pushes/PRs
@@ -285,7 +301,8 @@ All code files respect 200-line limit for optimal context:
 6. **Bug Fixes** (Jan-Feb 2026): ASCII topology spacing, HPF capacitor formula, wizard defaults, E-series export
 
 **Quality Metrics** (as of Apr 2, 2026):
-- 556+ tests, >90% coverage
+- 639 tests, 96% coverage
 - 67 files ruff-formatted
-- 8,000+ total LOC
+- 8,200+ total LOC
 - GitHub Actions CI enforcing lint → format → test on all PRs
+- Graph enhancements (GH-7) complete with threshold tables + zoomed plots
