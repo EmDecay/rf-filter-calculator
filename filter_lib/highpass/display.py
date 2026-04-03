@@ -9,8 +9,9 @@ from ..shared.display_common import (
 )
 from ..shared.display_helpers import format_eseries_match
 from ..shared.formatting import format_capacitance
-from ..shared.plotting import render_ascii_plot
+from ..shared.plotting import find_db_thresholds, format_threshold_table, render_plot_pair
 from ..shared.topology_diagrams import print_pi_topology_diagram, print_t_topology_diagram
+from ..shared.transfer_response_dispatch import make_hp_response_db
 from .transfer import frequency_response, generate_frequency_points
 
 
@@ -92,7 +93,20 @@ def display_results(
         response = frequency_response(
             result["filter_type"], freqs, result["freq_hz"], result["order"], ripple
         )
+        cutoff = result["freq_hz"]
+        response_fn = make_hp_response_db(result["filter_type"], cutoff, result["order"], ripple)
         print()
-        print(render_ascii_plot(freqs, response, result["freq_hz"], filter_type="highpass"))
+        print(
+            render_plot_pair(
+                freqs,
+                response,
+                cutoff,
+                filter_type="highpass",
+                ripple_db=ripple,
+                response_fn=response_fn,
+            )
+        )
+        thresholds = find_db_thresholds(freqs, response, filter_type="highpass")
+        print(format_threshold_table(thresholds, filter_type="highpass"))
 
     print()

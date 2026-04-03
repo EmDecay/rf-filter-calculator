@@ -13,7 +13,11 @@ def calculate_lowpass(state: FilterState) -> list[str]:
     from filter_lib.lowpass.display import format_csv, format_json, format_quiet
     from filter_lib.lowpass.transfer import frequency_response, generate_frequency_points
     from filter_lib.shared.formatting import format_capacitance
-    from filter_lib.shared.plotting import render_ascii_plot
+    from filter_lib.shared.plotting import (
+        find_db_thresholds,
+        format_threshold_table,
+        render_plot_pair,
+    )
 
     from .formatting_helpers import format_eseries_recs, format_lp_hp_table
 
@@ -65,13 +69,30 @@ def calculate_lowpass(state: FilterState) -> list[str]:
         )
 
     if state.show_plot:
+        from filter_lib.shared.transfer_response_dispatch import make_lp_response_db
+
         freqs = generate_frequency_points(result["freq_hz"])
         ripple_val = result.get("ripple") or 0.5
         response = frequency_response(
             result["filter_type"], freqs, result["freq_hz"], result["order"], ripple_val
         )
+        cutoff = result["freq_hz"]
+        response_fn = make_lp_response_db(
+            result["filter_type"], cutoff, result["order"], ripple_val
+        )
         lines.append("")
-        lines.append(render_ascii_plot(freqs, response, result["freq_hz"], filter_type="lowpass"))
+        lines.append(
+            render_plot_pair(
+                freqs,
+                response,
+                cutoff,
+                filter_type="lowpass",
+                ripple_db=ripple_val,
+                response_fn=response_fn,
+            )
+        )
+        thresholds = find_db_thresholds(freqs, response, filter_type="lowpass")
+        lines.append(format_threshold_table(thresholds, filter_type="lowpass"))
     return lines
 
 
@@ -81,7 +102,11 @@ def calculate_highpass(state: FilterState) -> list[str]:
     from filter_lib.highpass.display import format_csv, format_json, format_quiet
     from filter_lib.highpass.transfer import frequency_response, generate_frequency_points
     from filter_lib.shared.formatting import format_inductance
-    from filter_lib.shared.plotting import render_ascii_plot
+    from filter_lib.shared.plotting import (
+        find_db_thresholds,
+        format_threshold_table,
+        render_plot_pair,
+    )
 
     from .formatting_helpers import format_eseries_recs, format_lp_hp_table
 
@@ -132,13 +157,30 @@ def calculate_highpass(state: FilterState) -> list[str]:
         )
 
     if state.show_plot:
+        from filter_lib.shared.transfer_response_dispatch import make_hp_response_db
+
         freqs = generate_frequency_points(result["freq_hz"])
         ripple_val = result.get("ripple") or 0.5
         response = frequency_response(
             result["filter_type"], freqs, result["freq_hz"], result["order"], ripple_val
         )
+        cutoff = result["freq_hz"]
+        response_fn = make_hp_response_db(
+            result["filter_type"], cutoff, result["order"], ripple_val
+        )
         lines.append("")
-        lines.append(render_ascii_plot(freqs, response, result["freq_hz"], filter_type="highpass"))
+        lines.append(
+            render_plot_pair(
+                freqs,
+                response,
+                cutoff,
+                filter_type="highpass",
+                ripple_db=ripple_val,
+                response_fn=response_fn,
+            )
+        )
+        thresholds = find_db_thresholds(freqs, response, filter_type="highpass")
+        lines.append(format_threshold_table(thresholds, filter_type="highpass"))
     return lines
 
 
@@ -147,7 +189,11 @@ def calculate_bandpass(state: FilterState) -> list[str]:
     from filter_lib.bandpass import calculate_bandpass_filter
     from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
     from filter_lib.bandpass.transfer import frequency_sweep
-    from filter_lib.shared.plotting import render_bandpass_plot
+    from filter_lib.shared.plotting import (
+        find_db_thresholds,
+        format_threshold_table,
+        render_bandpass_plot_pair,
+    )
 
     from .formatting_helpers import format_bandpass_eseries_recs, format_bandpass_table
 
@@ -177,16 +223,39 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         lines.extend(format_bandpass_eseries_recs(result, state.eseries))
 
     if state.show_plot:
+        from filter_lib.shared.transfer_response_dispatch import make_bp_response_db
+
+        ripple_val = result.get("ripple_db") or 0.5
         sweep = frequency_sweep(
             result["f0"],
             result["bw"],
             result["n_resonators"],
             result["filter_type"],
-            ripple_db=result.get("ripple_db") or 0.5,
+            ripple_db=ripple_val,
             points=61,
         )
         title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"
+        response_fn = make_bp_response_db(
+            result["f0"],
+            result["bw"],
+            result["n_resonators"],
+            result["filter_type"],
+            ripple_val,
+        )
         lines.append("")
-        lines.append(render_bandpass_plot(sweep, result["f0"], result["bw"], title=title))
+        lines.append(
+            render_bandpass_plot_pair(
+                sweep,
+                result["f0"],
+                result["bw"],
+                title=title,
+                ripple_db=ripple_val,
+                response_fn=response_fn,
+            )
+        )
+        freqs = [f for f, _ in sweep]
+        dbs = [db for _, db in sweep]
+        thresholds = find_db_thresholds(freqs, dbs, filter_type="bandpass")
+        lines.append(format_threshold_table(thresholds, filter_type="bandpass"))
 
     return lines

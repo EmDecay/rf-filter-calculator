@@ -8,7 +8,11 @@ from typing import Any
 from ..shared.formatting import format_capacitance, format_frequency, format_inductance
 from ..shared.plotting import export_csv as plot_export_csv
 from ..shared.plotting import export_json as plot_export_json
-from ..shared.plotting import render_bandpass_plot
+from ..shared.plotting import (
+    find_db_thresholds,
+    format_threshold_table,
+    render_bandpass_plot_pair,
+)
 from .diagrams import print_shunt_c_diagram, print_top_c_diagram
 from .formatters import format_csv, format_eseries_match, format_json, format_quiet
 from .transfer import frequency_sweep
@@ -187,14 +191,30 @@ def _print_eseries_matching(result: FilterResult, eseries: str) -> None:
 
 
 def _print_frequency_response(result: FilterResult) -> None:
-    """Print frequency response plot."""
+    """Print frequency response plot with zoomed passband and threshold table."""
+    from ..shared.transfer_response_dispatch import make_bp_response_db
+
+    ripple = result.get("ripple_db") or 0.5
     sweep = frequency_sweep(
         result["f0"],
         result["bw"],
         result["n_resonators"],
         result["filter_type"],
-        ripple_db=result.get("ripple_db") or 0.5,
+        ripple_db=ripple,
         points=PLOT_POINTS,
     )
     title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"
-    print(f"\n{render_bandpass_plot(sweep, result['f0'], result['bw'], title=title)}")
+    response_fn = make_bp_response_db(
+        result["f0"],
+        result["bw"],
+        result["n_resonators"],
+        result["filter_type"],
+        ripple,
+    )
+    print(
+        f"\n{render_bandpass_plot_pair(sweep, result['f0'], result['bw'], title=title, ripple_db=ripple, response_fn=response_fn)}"
+    )
+    freqs = [f for f, _ in sweep]
+    dbs = [db for _, db in sweep]
+    thresholds = find_db_thresholds(freqs, dbs, filter_type="bandpass")
+    print(format_threshold_table(thresholds, filter_type="bandpass"))
