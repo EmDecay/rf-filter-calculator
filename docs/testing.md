@@ -47,15 +47,23 @@ uv sync --group dev
 | `test_topology_calculations.py` | 19 | Pi/T topology formulas and component counts |
 | `test_parsing_validation.py` | 18 | Input parsing and validation |
 | `test_chebyshev_calculator.py` | 15 | Chebyshev g-value computation |
-| `conftest.py` | - | Shared pytest fixtures and configuration |
 | `test_wizard_unit.py` | 40+ | Wizard module unit tests (Feb 2026) |
 | `test_plotting_edge_cases.py` | 15+ | ASCII plot edge cases (Feb 2026) |
+| `test_plot_threshold_analysis.py` | 41 | dB threshold detection and summary tables (Apr 2026) |
+| `test_plot_zoomed.py` | 42 | Zoomed passband plot computation and rendering (Apr 2026) |
+| `test_transfer_response_dispatch.py` | 26 | Response function factory (Apr 2026) |
+| `conftest.py` | - | Shared pytest fixtures and configuration |
 
-**Total: 556 tests**
+**Total: 732 tests**
 
 **New Modules** (tested and integrated):
 - `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations
 - `filter_lib/shared/lp_hp_base_transfer_functions.py` - Shared LP/HP transfer functions
+- `filter_lib/shared/plot_ascii_renderers.py` - ASCII plot rendering with db_floor
+- `filter_lib/shared/plot_zoom_pairs.py` - Zoomed passband plot pairs
+- `filter_lib/shared/plot_threshold_analysis.py` - dB threshold detection
+- `filter_lib/shared/plot_data_export.py` - JSON/CSV export
+- `filter_lib/shared/transfer_response_dispatch.py` - Response function factory
 - `filter_lib/wizard/filter_type_calculators.py` - Wizard calculation logic
 - `filter_lib/wizard/formatting_helpers.py` - Wizard formatting utilities
 - `filter_lib/wizard/filter_screen_navigation_mixin.py` - Screen navigation mixin

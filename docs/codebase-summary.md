@@ -2,13 +2,13 @@
 
 **Last Updated**: April 2, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (556+ tests).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (732+ tests).
 
 ## Project Statistics
 
 - **Total Files**: 93+ files
 - **Total Lines of Code**: ~8,200 LOC (2,200+ core lib + 5,900+ tests + ~350 CLI entry)
-- **Test Coverage**: 639 tests, 96% coverage (~0.4s runtime)
+- **Test Coverage**: 732 tests, 75% coverage (~0.85s runtime)
 - **Documentation**: 13 files (~2,300+ LOC)
 - **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
 
@@ -73,8 +73,9 @@ rf-filter-calculator/
 - `calculation_handler.py` (35 LOC) - Calculation orchestration, reduced from 355 LOC via extraction
 - `filter_type_calculators.py` (185 LOC) - Calculation logic for LP/HP/BP (Feb 2026)
 - `formatting_helpers.py` (155 LOC) - Wizard-specific formatting helpers (Feb 2026)
-- `filter_screen_navigation_mixin.py` (46 LOC) - Screen navigation mixin (Feb 2026)
+- `screen_navigation_mixin.py` (46 LOC) - Screen navigation mixin (Feb 2026)
 - `radio_button_helpers.py` (19 LOC) - Radio button widget utilities (Feb 2026)
+- `filter_type_calculators.py` (261 LOC) - Calculation logic for LP/HP/BP (Apr 2026, expanded)
 - `validation.py` (39 LOC) - Input validators (frequency, impedance, order, ripple)
 - `styles.tcss` (192 LOC) - Textual CSS styling for all screens
 
@@ -110,9 +111,11 @@ Provides cross-cutting utilities:
 | `formatting.py` | Number formatting for user display |
 | `parsing.py` | Input validation and normalization |
 | `plotting.py` | **Facade** — re-exports plotting functions for backward compat |
-| `plot_ascii_renderers.py` | **NEW (Apr 2026)** - ASCII plot rendering with db_floor + zoom pairs |
+| `plot_ascii_renderers.py` | **NEW (Apr 2026)** - ASCII plot rendering with configurable `db_floor` |
+| `plot_zoom_pairs.py` | **NEW (Apr 2026)** - Zoomed passband plot pairs (full + zoomed side-by-side) |
 | `plot_threshold_analysis.py` | **NEW (Apr 2026)** - dB crossing detection + summary table formatting |
 | `plot_data_export.py` | **NEW (Apr 2026)** - JSON/CSV data export functions |
+| `transfer_response_dispatch.py` | **NEW (Apr 2026)** - Shared factory for response-function closures |
 | `topology_diagrams.py` | ASCII circuit topology diagrams |
 | `transfer_functions.py` | Transfer function calculations |
 
@@ -162,7 +165,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (639 tests total):
+**Test Files** (732 tests total):
 - `test_bandpass_calculations.py` - Coupled resonator design tests
 - `test_bandpass_modules.py` - Bandpass display and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -178,8 +181,9 @@ Provides cross-cutting utilities:
 - `test_wizard_topology_diagrams.py` - Wizard topology diagram rendering
 - `test_wizard_unit.py` - Wizard module unit tests (Feb 2026)
 - `test_plotting_edge_cases.py` - ASCII plot rendering edge cases (Feb 2026)
-- `test_plot_threshold_analysis.py` - **NEW (Apr 2026)** - dB threshold detection and table formatting (41 tests)
-- `test_plot_zoomed.py` - **NEW (Apr 2026)** - Zoomed passband plot and zoom range computation (42 tests)
+- `test_plot_threshold_analysis.py` - dB threshold detection and table formatting (Apr 2026, 41 tests)
+- `test_plot_zoomed.py` - Zoomed passband plot and zoom range computation (Apr 2026, 42 tests)
+- `test_transfer_response_dispatch.py` - **NEW (Apr 2026)** - Response function factory (26 tests)
 - `conftest.py` - Shared pytest fixtures and configuration
 
 ## Development Workflow
@@ -264,14 +268,19 @@ All code files respect 200-line limit for optimal context:
 ## Recent Major Changes
 
 1. **Graph Enhancements: dB Threshold Table + Zoomed Passband** (Apr 2, 2026):
-   - Split monolithic `plotting.py` (345 LOC) into 3 focused modules (facade pattern):
-     - `plot_ascii_renderers.py` — plot rendering with configurable `db_floor` for zooming
-     - `plot_threshold_analysis.py` — dB crossing detection for -3, -10, -20 dB levels
-     - `plot_data_export.py` — JSON/CSV export functions
-   - Added `render_plot_pair()` for LP/HP and `render_bandpass_plot_pair()` for BP (full + zoomed side-by-side)
-   - Integrated threshold summary tables into all display paths (automatic with `--plot`)
-   - Added 83 new tests: 41 threshold analysis tests + 42 zoomed plot tests
-   - Test count: 556 → 639 tests, coverage: 92% → 96%
+   - Split monolithic `plotting.py` (345 LOC) into 5 focused modules (facade pattern):
+     - `plot_ascii_renderers.py` (276 LOC) — plot rendering with configurable `db_floor` for zooming
+     - `plot_zoom_pairs.py` (133 LOC) — zoomed passband plot pairs (full + zoomed side-by-side)
+     - `plot_threshold_analysis.py` (148 LOC) — dB crossing detection for -3, -10, -20 dB levels
+     - `plot_data_export.py` (54 LOC) — JSON/CSV export functions
+     - `transfer_response_dispatch.py` (58 LOC) — shared factory for response-fn closures
+   - **Features**:
+     - dB Threshold Summary Table: Shows frequencies at -3, -10, -20 dB with direction indicators
+     - Zoomed Passband Graph: 0 to -6dB detail view alongside full-range plot (adaptive for Chebyshev)
+     - 2× frequency resolution in zoomed plots for smoother curves
+   - Integrated into all output paths (automatic with `--plot`)
+   - Added 93 new tests: 41 threshold analysis + 42 zoomed plot + 26 dispatch tests
+   - Test count: 639 → 732 tests
    - Closed GitHub issue #7
 
 2. **Ruff Linting & GitHub Actions CI** (Feb 2026, commit cc4e9c1):
@@ -301,7 +310,7 @@ All code files respect 200-line limit for optimal context:
 6. **Bug Fixes** (Jan-Feb 2026): ASCII topology spacing, HPF capacitor formula, wizard defaults, E-series export
 
 **Quality Metrics** (as of Apr 2, 2026):
-- 639 tests, 96% coverage
+- 732 tests, 75% coverage
 - 67 files ruff-formatted
 - 8,200+ total LOC
 - GitHub Actions CI enforcing lint → format → test on all PRs

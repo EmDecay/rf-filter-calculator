@@ -286,12 +286,22 @@ Reduce duplication via centralized shared functions:
 - `eseries.py` - E-series value databases
 - `topology_diagrams.py` - ASCII circuit diagrams
 - `transfer_functions.py` - Transfer function calculations
+- `parsing.py` - Input validation and frequency/impedance parsing
+- `constants.py` - Physical constants and default values
 
-**New Base Modules (Strategy Pattern for LP/HP):**
+**Base Modules (Strategy Pattern for LP/HP):**
 - `lp_hp_base_calculations.py` - Strategy-based LP/HP calculation logic
 - `lp_hp_base_transfer_functions.py` - Shared transfer function implementations
 
-**Pattern**: LP/HP calculation modules delegate to base modules, passing strategy functions to handle topology-specific differences (denormalization, component ordering).
+**Plotting Modules (Modular Architecture - Apr 2026):**
+- `plot_ascii_renderers.py` - ASCII plot rendering with configurable `db_floor`
+- `plot_zoom_pairs.py` - Zoomed passband plot pairs (full + detail)
+- `plot_threshold_analysis.py` - dB crossing detection and summary tables
+- `plot_data_export.py` - JSON/CSV export utilities
+- `transfer_response_dispatch.py` - Response function factory for LP/HP/BP
+- `plotting.py` - Facade re-exporting all plot functions
+
+**Pattern**: LP/HP calculation modules delegate to base modules, passing strategy functions to handle topology-specific differences (denormalization, component ordering). Plotting uses facade pattern with focused sub-modules for rendering, zooming, threshold analysis, and data export.
 
 ## Testing Standards
 

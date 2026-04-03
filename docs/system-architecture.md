@@ -496,16 +496,46 @@ def bessel_response(normalized_freq):
     """H(s) using Bessel polynomial"""
 ```
 
-#### Plotting (`plotting.py`)
-```python
-# ASCII frequency response plots
-def render_ascii_plot(frequencies, magnitude_db, cutoff_hz, filter_type='lowpass'):
-    """Generate ASCII plot with dB scale and frequency axis."""
-    # Algorithm:
-    # 1. Scale frequency to log axis
-    # 2. Scale magnitude to dB range
-    # 3. Render bar chart with Unicode blocks
-    # 4. Add axis labels and reference lines
+#### Plotting (Modular Structure - Apr 2026)
+
+**Architecture**: Facade pattern with 5 focused modules (replaces monolithic `plotting.py`):
+
+| Module | Purpose |
+|--------|---------|
+| `plotting.py` | **Facade** — re-exports all plot functions for backward compatibility |
+| `plot_ascii_renderers.py` | ASCII plot rendering with configurable `db_floor` parameter for detail zooming |
+| `plot_zoom_pairs.py` | Zoomed passband plot pairs: full-range + 0 to -6dB detail view side-by-side |
+| `plot_threshold_analysis.py` | dB crossing detection and summary table formatting (-3, -10, -20 dB) |
+| `plot_data_export.py` | JSON/CSV data export utilities |
+| `transfer_response_dispatch.py` | Shared factory for response-function closures (LP/HP/BP) |
+
+**Key Features** (GH-7):
+- **dB Threshold Summary Table**: Shows frequencies where response crosses -3, -10, -20 dB thresholds
+  - LP/HP: Single frequency column with direction arrows (↓ for LP, ↑ for HP)
+  - BP: Dual-column table (f_low / f_high)
+  - Shows "N/A" when threshold not reached within sweep range
+- **Zoomed Passband Graph**: Detail view with 2× frequency resolution for smoother curves
+  - Adaptive range: max(6, 2×ripple) dB for Chebyshev
+  - Skipped if passband is flat (all 0 dB)
+- Both features activate automatically with `--plot` flag (no new CLI flags)
+
+**Example Output** (Butterworth 5th order):
+```
+Frequency Response (dB)         Passband Detail (0 to -6 dB)
+  0 │███████████                   0 │████████████████
+    │█████████████                   │█████████████████
+    │██████████████                  │█████████████████
+    │████████████████              -3 │██████████████████
+    │██████████████████            -6 │████████████████████
+-30 │███████████████████████
+    │...                            dB Threshold Summary
+-60 │██████████████████████████    ┌────────┬──────────────┐
+    +┼──────┼──────┼──────┼──────┼  │ Level  │  Frequency   │
+     1M         10M(fc)      100M   ├────────┼──────────────┤
+                                    │ -3 dB  │   ↓ 9.99M    │
+                                    │ -10 dB │   ↓ 12.4M    │
+                                    │ -20 dB │   ↓ 15.8M    │
+                                    └────────┴──────────────┘
 ```
 
 #### Constants (`constants.py`)

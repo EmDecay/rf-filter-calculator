@@ -21,13 +21,14 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 1.2+ (Production ready)
-- 556 comprehensive tests
-- Full CLI and interactive modes
+**Version**: 1.3+ (Production ready with enhanced plotting)
+- 732 comprehensive tests
+- Full CLI and interactive modes with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
 - Automated CI/CD with GitHub Actions
 - Code quality enforced via ruff linting
+- Graph enhancements (GH-7): dB threshold tables + zoomed plots
 
 ---
 
@@ -130,8 +131,17 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - -3dB reference line
 - Cutoff frequency marking
 - Works for all filter types
+- Dual plot view: full-range + zoomed passband (0 to -6dB)
+- 2× frequency resolution in zoomed view for smoother curves
+- Automatic with `--plot` flag (no new CLI flags needed)
 
-**FR-1.5.2: Data Export**
+**FR-1.5.2: Threshold Detection & Summary Tables**
+- Automatic detection of -3, -10, -20 dB crossing frequencies
+- Direction indicators: ↓ (Lowpass falling), ↑ (Highpass rising)
+- Dual-column tables for Bandpass (f_low / f_high)
+- "N/A" for thresholds not reached within sweep range
+
+**FR-1.5.3: Data Export**
 - JSON format: Frequency array with magnitude_db
 - CSV format: Spreadsheet-compatible frequency response
 

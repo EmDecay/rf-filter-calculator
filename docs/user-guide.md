@@ -468,14 +468,38 @@ C1 Calculated: 196.73 pF
 
 ## ASCII Frequency Response Plots
 
-Add `--plot` to visualize filter response in the terminal.
+Add `--plot` to visualize filter response in the terminal. Both lowpass and highpass filters automatically include two plots with a dB threshold summary table.
 
-Features:
-- Logarithmic frequency axis
-- Adaptive dB scale based on response
-- -3 dB reference line
-- Cutoff frequency marking
-- Works for all filter types
+### Full-Range and Zoomed Plots
+
+Two side-by-side ASCII plots appear automatically:
+
+1. **Full-Range Plot**: Shows complete response from 1 MHz to 100+ MHz or sweep range
+   - Logarithmic frequency axis
+   - Full dynamic range (0 dB to max attenuation)
+   - Cutoff frequency marked with (fc)
+   - Works for all filter types
+
+2. **Zoomed Passband Plot**: Detail view of low-dB region (0 to -6 dB)
+   - 2× frequency resolution for smoother curves
+   - Helps visualize ripple and transition sharpness
+   - Skipped if passband is completely flat
+   - For Chebyshev: adaptive range = max(6, 2×ripple) dB
+
+### Threshold Summary Table
+
+Automatically displays frequencies where response crosses key dB levels:
+- **-3 dB** — Approximate -3dB frequency (cutoff point)
+- **-10 dB** — Start of significant attenuation
+- **-20 dB** — Strong attenuation reference
+
+For **Lowpass** and **Highpass**: Single column with direction arrows:
+- **↓** (down arrow) = Lowpass response falling below threshold
+- **↑** (up arrow) = Highpass response rising above threshold
+
+For **Bandpass**: Dual columns (f_low / f_high) showing where response crosses thresholds
+
+Shows "N/A" when a threshold is not reached within the sweep frequency range.
 
 ### Export Plot Data
 
