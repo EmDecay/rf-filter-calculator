@@ -34,7 +34,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest>=7.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.0",
     "ruff>=0.8",
 ]
