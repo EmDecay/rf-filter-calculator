@@ -98,9 +98,7 @@ class TestMakeLpResponseDb:
         response_fn = make_lp_response_db("chebyshev", cutoff_hz, order, ripple_db)
         test_freq = 5e6
 
-        expected = magnitude_to_db(
-            lp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db)
-        )
+        expected = magnitude_to_db(lp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db))
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
 
@@ -111,9 +109,7 @@ class TestMakeLpResponseDb:
         ripple_db = 0.5
         test_freq = 5e6
         response_fn = make_lp_response_db("ch", cutoff_hz, order, ripple_db)
-        expected = magnitude_to_db(
-            lp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db)
-        )
+        expected = magnitude_to_db(lp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db))
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
 
@@ -266,9 +262,7 @@ class TestMakeHpResponseDb:
         response_fn = make_hp_response_db("chebyshev", cutoff_hz, order, ripple_db)
         test_freq = 20e6
 
-        expected = magnitude_to_db(
-            hp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db)
-        )
+        expected = magnitude_to_db(hp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db))
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
 
@@ -279,9 +273,7 @@ class TestMakeHpResponseDb:
         ripple_db = 0.5
         test_freq = 20e6
         response_fn = make_hp_response_db("ch", cutoff_hz, order, ripple_db)
-        expected = magnitude_to_db(
-            hp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db)
-        )
+        expected = magnitude_to_db(hp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db))
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
 

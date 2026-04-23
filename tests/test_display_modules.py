@@ -479,7 +479,7 @@ class TestDisplayResultsTopology:
         assert data["topology"] == "pi"
 
     def test_display_no_match_raw(self, lowpass_result, capsys):
-        """Display with raw=True skips E-series matching."""
-        lp_display(lowpass_result, raw=True, show_match=True)
+        """Display with raw=True skips E-series matching (toroids still show; skip for this assertion)."""
+        lp_display(lowpass_result, raw=True, show_match=True, include_toroids=False)
         out = capsys.readouterr().out
         assert "Recommendations" not in out

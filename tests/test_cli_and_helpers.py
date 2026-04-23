@@ -209,6 +209,8 @@ def _lp_args(**overrides):
         no_match=True,
         plot=False,
         plot_data=None,
+        no_toroids=True,
+        toroid_compact=False,
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -234,6 +236,8 @@ def _hp_args(**overrides):
         no_match=True,
         plot=False,
         plot_data=None,
+        no_toroids=True,
+        toroid_compact=False,
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -263,6 +267,8 @@ def _bp_args(**overrides):
         no_match=True,
         plot=False,
         plot_data=None,
+        no_toroids=True,
+        toroid_compact=False,
     )
     defaults.update(overrides)
     return Namespace(**defaults)
