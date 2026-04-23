@@ -172,6 +172,8 @@ def render_bandpass_plot(
     sweep_data: list[tuple[float, float]],
     f0: float,
     bw: float,
+    f_low_hz: float | None = None,
+    f_high_hz: float | None = None,
     width: int = 60,
     height: int = 10,
     title: str = "Frequency Response",
@@ -183,6 +185,8 @@ def render_bandpass_plot(
         sweep_data: List of (frequency_hz, magnitude_db) tuples
         f0: Center frequency in Hz
         bw: Bandwidth in Hz
+        f_low_hz: Optional lower band edge for labeling
+        f_high_hz: Optional upper band edge for labeling
         width: Plot width in characters
         height: Plot height in lines
         title: Plot title
@@ -262,8 +266,8 @@ def render_bandpass_plot(
     lines.append("     +" + "\u2500" * width)
 
     # Frequency labels for bandpass
-    f_low = f0 - bw / 2
-    f_high = f0 + bw / 2
+    f_low = f_low_hz if f_low_hz is not None else f0 - bw / 2
+    f_high = f_high_hz if f_high_hz is not None else f0 + bw / 2
     label_parts = [
         f"     {_format_freq_compact(f_min):>8}",
         f"{_format_freq_compact(f_low):>10}",

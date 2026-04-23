@@ -144,6 +144,10 @@ Two methods available (use one, not both):
 --fl <low_cutoff> --fh <high_cutoff>
 ```
 
+When `--fl` and `--fh` are used, the calculator derives the synthesis center from the
+geometric mean `f₀ = √(f_low × f_high)`. The displayed and exported `f_low` / `f_high`
+values, and the bandpass plot labels, remain the exact edge frequencies you entered.
+
 ### Options
 
 | Option | Default | Description |
@@ -498,6 +502,9 @@ For **Lowpass** and **Highpass**: Single column with direction arrows:
 - **↑** (up arrow) = Highpass response rising above threshold
 
 For **Bandpass**: Dual columns (f_low / f_high) showing where response crosses thresholds
+
+If the bandpass filter was specified with `--fl` / `--fh`, the bandpass plot labels use
+those exact entered edge frequencies rather than reconstructing them from `f₀ ± BW/2`.
 
 Shows "N/A" when a threshold is not reached within the sweep frequency range.
 

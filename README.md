@@ -134,6 +134,10 @@ uv run filter-calc bp bw top -f 14.175MHz -b 350kHz
 uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 ```
 
+When using `--fl` and `--fh`, the calculator synthesizes around the geometric center
+`f₀ = √(f_low × f_high)`. Output tables and bandpass plot labels preserve the exact
+`f_low` and `f_high` values you entered.
+
 **Coupling topologies:**
 - `top` / `t` - Top-coupled (series coupling capacitors)
 - `shunt` / `s` - Shunt-coupled (parallel coupling capacitors)
@@ -227,7 +231,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** 825 tests covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, and toroid recommendations. See [docs/testing.md](docs/testing.md) for details.
+**Test suite:** 826 tests covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, and toroid recommendations. See [docs/testing.md](docs/testing.md) for details.
 
 ### Linting
 

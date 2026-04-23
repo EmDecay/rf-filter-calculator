@@ -70,6 +70,10 @@ Example: 14 MHz to 14.35 MHz
 - Arithmetic center: 14.175 MHz
 - Geometric center: 14.1747 MHz (what calculator uses)
 
+When frequencies are entered with `--fl` and `--fh`, the calculator preserves those
+exact low/high edge values in text output, JSON/CSV export metadata, and bandpass plot
+labels. Only the internal synthesis center uses the geometric mean.
+
 ### Frequency Order
 
 `--fl` must be less than `--fh`. Reversed values produce an error.
@@ -185,7 +189,7 @@ Component values drift with temperature:
 
 2. **High order + narrow bandwidth**: Component tolerances become critical; parallel E-series combinations essential
 
-3. **Bessel bandpass**: Less common; response characteristics may not match theoretical exactly
+3. **Wideband direct-coupled bandpass**: Uses ideal prototype/FBW synthesis and does not include a Cohn-style correction for coupling-reactance frequency dispersion at wider bandwidths
 
 4. **Impedance transformation**: Calculator assumes matched source and load impedance
 

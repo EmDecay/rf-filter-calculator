@@ -85,6 +85,8 @@ def render_bandpass_plot_pair(
     sweep_data: list[tuple[float, float]],
     f0: float,
     bw: float,
+    f_low_hz: float | None = None,
+    f_high_hz: float | None = None,
     title: str = "Frequency Response",
     ripple_db: float | None = None,
     response_fn: Callable[[float], float] | None = None,
@@ -96,6 +98,8 @@ def render_bandpass_plot_pair(
         sweep_data: List of (frequency_hz, magnitude_db) tuples
         f0: Center frequency in Hz
         bw: Bandwidth in Hz
+        f_low_hz: Optional lower band edge for labeling
+        f_high_hz: Optional upper band edge for labeling
         title: Plot title
         ripple_db: Chebyshev ripple in dB (affects zoom range)
         response_fn: Callable (freq_hz) -> magnitude_db for 2x zoom resolution
@@ -104,7 +108,15 @@ def render_bandpass_plot_pair(
     Returns:
         Combined multi-line string with full plot + zoomed plot
     """
-    full = render_bandpass_plot(sweep_data, f0, bw, title=title, **kwargs)
+    full = render_bandpass_plot(
+        sweep_data,
+        f0,
+        bw,
+        f_low_hz=f_low_hz,
+        f_high_hz=f_high_hz,
+        title=title,
+        **kwargs,
+    )
 
     zoom_db = _compute_zoom_range(ripple_db)
 
@@ -125,6 +137,8 @@ def render_bandpass_plot_pair(
         zoom_sweep,
         f0,
         bw,
+        f_low_hz=f_low_hz,
+        f_high_hz=f_high_hz,
         title=f"Passband Detail (0 to -{zoom_db:.0f} dB)",
         db_floor=-zoom_db,
         **kwargs,

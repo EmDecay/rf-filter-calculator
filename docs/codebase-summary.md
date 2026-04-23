@@ -2,13 +2,13 @@
 
 **Last Updated**: April 2, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (825+ tests).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (826+ tests).
 
 ## Project Statistics
 
 - **Total Files**: 93+ files
 - **Total Lines of Code**: ~8,200 LOC (2,200+ core lib + 5,900+ tests + ~350 CLI entry)
-- **Test Coverage**: 825 tests, 78% coverage (~0.5s runtime)
+- **Test Coverage**: 826 tests, 78% coverage (~0.5s runtime)
 - **Documentation**: 13 files (~2,300+ LOC)
 - **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
 
@@ -172,7 +172,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (825 tests total):
+**Test Files** (826 tests total):
 - `test_bandpass_calculations.py` - Coupled resonator design tests
 - `test_bandpass_modules.py` - Bandpass display and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -323,7 +323,7 @@ All code files respect 200-line limit for optimal context:
 6. **Bug Fixes** (Jan-Feb 2026): ASCII topology spacing, HPF capacitor formula, wizard defaults, E-series export
 
 **Quality Metrics** (as of Apr 2, 2026):
-- 825 tests, 78% coverage
+- 826 tests, 78% coverage
 - 67 files ruff-formatted
 - 8,200+ total LOC
 - GitHub Actions CI enforcing lint → format → test on all PRs

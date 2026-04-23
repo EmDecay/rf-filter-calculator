@@ -35,6 +35,9 @@ uv run filter-calc bandpass butterworth top -f 14.175MHz -b 350kHz
 uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 ```
 
+With `--fl` / `--fh`, the calculator uses the geometric center internally and keeps your
+exact low/high edge values in the output and bandpass plot labels.
+
 ### Interactive Wizard
 
 ```bash

@@ -791,7 +791,7 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 - Enforced on all pushes via GitHub Actions
 - 67 files reformatted (Feb 2026, commit cc4e9c1)
 
-**Testing**: 825+ tests, ~78% coverage
+**Testing**: 826+ tests, ~78% coverage
 - Unit tests for all calculation modules
 - Integration tests for CLI and wizard
 - Coverage enforced via pytest-cov in CI
@@ -802,7 +802,7 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 3. **Test** (pytest --cov=filter_lib) - All tests with coverage
 
 **Test Metrics** (as of Apr 2, 2026):
-- Total: 825+ tests across 23 test modules
+- Total: 826+ tests across 23 test modules
 - Coverage: >90% of filter_lib/
 - Runtime: ~0.4s on CI runner
 - Python: 3.10, 3.11, 3.12, 3.13 (tested on ubuntu-latest)

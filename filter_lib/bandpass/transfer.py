@@ -1,9 +1,12 @@
 """Transfer function magnitude calculations for bandpass filters.
 
-Supports Butterworth, Chebyshev Type I, and Bessel (approximated) responses.
+Supports Butterworth, Chebyshev Type I, and Bessel responses via
+lowpass-prototype frequency transformation.
 """
 
 import math
+
+from ..shared.lp_hp_base_transfer_functions import lowpass_bessel_response
 
 
 def chebyshev_polynomial(n: int, x: float) -> float:
@@ -51,12 +54,14 @@ def magnitude_chebyshev(f: float, f0: float, bw: float, order: int, ripple_db: f
 
 
 def magnitude_bessel(f: float, f0: float, bw: float, order: int) -> float:
-    """Return |H(f)| for Bessel bandpass filter (Butterworth approximation).
+    """Return |H(f)| for Bessel bandpass filter.
 
-    Note: Bessel has no simple closed-form for magnitude. Using Butterworth
-    shape provides reasonable visual approximation for frequency plots.
+    The normalized bandpass deviation maps directly onto the corresponding
+    lowpass prototype variable, so the Bessel magnitude can be evaluated by
+    reusing the normalized lowpass Bessel response.
     """
-    return magnitude_butterworth(f, f0, bw, order)
+    delta = abs(_bandpass_deviation(f, f0, bw))
+    return lowpass_bessel_response(delta, 1.0, order)
 
 
 def magnitude_db(

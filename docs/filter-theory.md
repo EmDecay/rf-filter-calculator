@@ -147,6 +147,14 @@ Fractional bandwidth:
 FBW = (f_high - f_low) / f₀
 ```
 
+Normalized bandpass deviation:
+```
+δ = (f² - f₀²) / (BW × f)
+```
+
+Butterworth, Chebyshev, and Bessel bandpass responses are evaluated from their
+respective lowpass prototypes using `|δ|`.
+
 ---
 
 ## Component Q Requirements

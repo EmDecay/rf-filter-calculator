@@ -397,6 +397,21 @@ class TestRenderBandpassPlotPair:
         result = render_bandpass_plot_pair(sweep_data, f0, bw, width=100, height=20)
         assert isinstance(result, str)
 
+    def test_explicit_band_edges_override_arithmetic_labels(self):
+        """Explicit band edges are used for labels when provided."""
+        f0 = (8e6 * 12e6) ** 0.5
+        bw = 4e6
+        sweep_data = bp_frequency_sweep(f0, bw, 3, "butterworth")
+        result = render_bandpass_plot_pair(
+            sweep_data,
+            f0,
+            bw,
+            f_low_hz=8e6,
+            f_high_hz=12e6,
+        )
+        assert "8M" in result
+        assert "12M" in result
+
 
 class TestFormatFreqCompact:
     """Tests for _format_freq_compact helper."""

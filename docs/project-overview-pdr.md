@@ -22,7 +22,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 ### Current Status
 **Version**: 1.4+ (Production ready with toroid recommendations)
-- 825 comprehensive tests
+- 826 comprehensive tests
 - Full CLI and interactive modes with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
@@ -226,7 +226,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - No silent failures
 
 **NFR-2.4.2: Testing**
-- 825 tests covering all filter types (includes 93 toroid tests)
+- 826 tests covering all filter types (includes 93 toroid tests)
 - >90% code coverage
 - Automated GitHub Actions CI (lint → format → test on push/PR)
 
@@ -478,7 +478,7 @@ Status: ✓ Measured ~200ms on reference machine
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
 | Test Coverage | >90% | 95%+ | ✓ Met |
-| Test Count | >300 | 825 | ✓ Met |
+| Test Count | >300 | 826 | ✓ Met |
 | Documentation Files | >6 | 8+ | ✓ Met |
 | Code Issues | 0 critical | 0 | ✓ Met |
 | Response Time | <500ms | ~200ms | ✓ Met |

@@ -195,10 +195,10 @@ class TestBandpassTransfer:
     def test_magnitude_chebyshev_at_center(self):
         assert bp_transfer.magnitude_chebyshev(14e6, 14e6, 1e6, 3, 0.5) == pytest.approx(1.0)
 
-    def test_magnitude_bessel_uses_butterworth(self):
+    def test_magnitude_bessel_differs_from_butterworth_off_center(self):
         mag_bes = bp_transfer.magnitude_bessel(10e6, 14e6, 1e6, 3)
         mag_bw = bp_transfer.magnitude_butterworth(10e6, 14e6, 1e6, 3)
-        assert mag_bes == mag_bw
+        assert mag_bes != pytest.approx(mag_bw)
 
     def test_magnitude_db_at_center(self):
         assert bp_transfer.magnitude_db(14e6, 14e6, 1e6, 3, "butterworth") == pytest.approx(0.0)

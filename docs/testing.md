@@ -50,7 +50,7 @@ uv sync --group dev
 | `test_wizard_unit.py` | 40+ | Wizard module unit tests (Feb 2026) |
 | `test_plotting_edge_cases.py` | 15+ | ASCII plot edge cases (Feb 2026) |
 | `test_plot_threshold_analysis.py` | 41 | dB threshold detection and summary tables (Apr 2026) |
-| `test_plot_zoomed.py` | 42 | Zoomed passband plot computation and rendering (Apr 2026) |
+| `test_plot_zoomed.py` | 68 | Zoomed passband plot computation and rendering (Apr 2026) |
 | `test_transfer_response_dispatch.py` | 26 | Response function factory (Apr 2026) |
 | `test_toroid_core_data.py` | 12 | Iron-powder T-series core database (Apr 2026) |
 | `test_toroid_inductance.py` | 16 | L↔N math + T68-2 unit-mismatch regression (Apr 2026) |
@@ -60,7 +60,7 @@ uv sync --group dev
 | `test_toroid_integration.py` | 19 | End-to-end LP/HP/BP × flag matrix (Apr 2026) |
 | `conftest.py` | - | Shared pytest fixtures and configuration |
 
-**Total: 825 tests**
+**Total: 826 tests**
 
 **New Modules** (tested and integrated):
 - `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations

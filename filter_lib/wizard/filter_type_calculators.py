@@ -248,6 +248,8 @@ def calculate_bandpass(state: FilterState) -> list[str]:
                 sweep,
                 result["f0"],
                 result["bw"],
+                f_low_hz=result["f_low"],
+                f_high_hz=result["f_high"],
                 title=title,
                 ripple_db=ripple_val,
                 response_fn=response_fn,

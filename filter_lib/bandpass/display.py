@@ -248,7 +248,7 @@ def _print_frequency_response(result: FilterResult) -> None:
         ripple,
     )
     print(
-        f"\n{render_bandpass_plot_pair(sweep, result['f0'], result['bw'], title=title, ripple_db=ripple, response_fn=response_fn)}"
+        f"\n{render_bandpass_plot_pair(sweep, result['f0'], result['bw'], f_low_hz=result['f_low'], f_high_hz=result['f_high'], title=title, ripple_db=ripple, response_fn=response_fn)}"
     )
     freqs = [f for f, _ in sweep]
     dbs = [db for _, db in sweep]
