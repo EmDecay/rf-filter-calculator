@@ -212,3 +212,13 @@ Q_ext = f₀ / BW × g_value
 ```
 
 The calculator displays Q_ext values for input and output matching networks.
+
+## Iron-Powder Toroids in LC Filters
+
+Iron-powder T-series cores are the workhorse of HF/VHF LC filter construction because they combine three useful properties:
+
+1. **Distributed air gap.** The binder between powdered iron particles behaves as a large, uniformly distributed air gap, which keeps effective permeability modest and, crucially, stable with drive level. Saturation flux density is high and soft; the core does not abruptly clip like a gapless ferrite tank.
+2. **Predictable A_L at the rated frequency band.** Each "mix" (material) targets a published frequency window (e.g. mix 2: 250 kHz – 10 MHz; mix 6: 3 MHz – 40 MHz). Inside that window, A_L (in nH/turn²) is quoted with ±5% tolerance, so a designer can solve `N = √(1000 L[µH] / A_L)` and expect real-world L within a few percent after rounding.
+3. **Low core loss in the target band.** Loss goes up sharply outside the published window, which is why the recommender gates hard on freq range.
+
+The recommender picks the best-accuracy core that (a) covers the design frequency and (b) mechanically fits the required N turns of a default AWG for the family. See `docs/user-guide.md` "Toroid Winding Recommendations" for usage and `docs/caveats-and-known-issues.md` for v1 scope limits (notably: Q reported is a DC upper bound; no core-loss / skin-effect modeling).

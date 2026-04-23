@@ -52,9 +52,15 @@ uv sync --group dev
 | `test_plot_threshold_analysis.py` | 41 | dB threshold detection and summary tables (Apr 2026) |
 | `test_plot_zoomed.py` | 42 | Zoomed passband plot computation and rendering (Apr 2026) |
 | `test_transfer_response_dispatch.py` | 26 | Response function factory (Apr 2026) |
+| `test_toroid_core_data.py` | 12 | Iron-powder T-series core database (Apr 2026) |
+| `test_toroid_inductance.py` | 16 | L↔N math + T68-2 unit-mismatch regression (Apr 2026) |
+| `test_toroid_wire.py` | 16 | AWG, wire length, DCR, mechanical fit (Apr 2026) |
+| `test_toroid_selection.py` | 12 | Freq-range gate + ranking algorithm (Apr 2026) |
+| `test_toroid_display.py` | 12 | Full/compact text, JSON, CSV formatters (Apr 2026) |
+| `test_toroid_integration.py` | 19 | End-to-end LP/HP/BP × flag matrix (Apr 2026) |
 | `conftest.py` | - | Shared pytest fixtures and configuration |
 
-**Total: 732 tests**
+**Total: 825 tests**
 
 **New Modules** (tested and integrated):
 - `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations
@@ -67,6 +73,12 @@ uv sync --group dev
 - `filter_lib/wizard/filter_type_calculators.py` - Wizard calculation logic
 - `filter_lib/wizard/formatting_helpers.py` - Wizard formatting utilities
 - `filter_lib/wizard/filter_screen_navigation_mixin.py` - Screen navigation mixin
+- `filter_lib/shared/toroid_core_data.py` - 43-core iron-powder T-series database (Apr 2026)
+- `filter_lib/shared/toroid_inductance.py` - Turns ↔ inductance math (Apr 2026)
+- `filter_lib/shared/toroid_wire.py` - AWG, wire length, DCR, mechanical fit (Apr 2026)
+- `filter_lib/shared/toroid_selection.py` - Top-3 recommendation ranking (Apr 2026)
+- `filter_lib/shared/toroid_display.py` - Full/compact text, JSON, CSV formatters (Apr 2026)
+- `filter_lib/cli/toroid_flags.py` - Shared `--no-toroids` / `--toroid-compact` flags (Apr 2026)
 - `filter_lib/wizard/radio_button_helpers.py` - Radio button utilities
 
 ---

@@ -2,13 +2,13 @@
 
 **Last Updated**: April 2, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (732+ tests).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (825+ tests).
 
 ## Project Statistics
 
 - **Total Files**: 93+ files
 - **Total Lines of Code**: ~8,200 LOC (2,200+ core lib + 5,900+ tests + ~350 CLI entry)
-- **Test Coverage**: 732 tests, 75% coverage (~0.85s runtime)
+- **Test Coverage**: 825 tests, 78% coverage (~0.5s runtime)
 - **Documentation**: 13 files (~2,300+ LOC)
 - **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
 
@@ -41,6 +41,7 @@ rf-filter-calculator/
 - `highpass_cmd.py` - Highpass filter command handler
 - `lowpass_cmd.py` - Lowpass filter command handler
 - `wizard_cmd.py` - Interactive wizard coordinator
+- `toroid_flags.py` - **NEW (Apr 2026)** Shared `--no-toroids` and `--toroid-compact` flags
 
 ### Lowpass Module (`filter_lib/lowpass/`)
 - `calculations.py` - Component value calculations for Pi/T topologies
@@ -117,6 +118,12 @@ Provides cross-cutting utilities:
 | `plot_data_export.py` | **NEW (Apr 2026)** - JSON/CSV data export functions |
 | `transfer_response_dispatch.py` | **NEW (Apr 2026)** - Shared factory for response-function closures |
 | `topology_diagrams.py` | ASCII circuit topology diagrams |
+| `toroid_core_data.json` | **NEW (Apr 2026)** - Vendored 43-core iron-powder T-series database |
+| `toroid_core_data.py` | **NEW (Apr 2026)** - `ToroidCore` dataclass + lookup helpers |
+| `toroid_inductance.py` | **NEW (Apr 2026)** - L↔N math, rounding, tolerance range, `solve_winding` |
+| `toroid_wire.py` | **NEW (Apr 2026)** - AWG, Pythagorean wire length, DCR, `MechanicalFit` |
+| `toroid_selection.py` | **NEW (Apr 2026)** - Freq-range gate + ranking → top-3 `ToroidRecommendation` |
+| `toroid_display.py` | **NEW (Apr 2026)** - Full/compact text, JSON builder, CSV columns |
 | `transfer_functions.py` | Transfer function calculations |
 
 ## Filter Types Supported
@@ -165,7 +172,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (732 tests total):
+**Test Files** (825 tests total):
 - `test_bandpass_calculations.py` - Coupled resonator design tests
 - `test_bandpass_modules.py` - Bandpass display and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -183,7 +190,13 @@ Provides cross-cutting utilities:
 - `test_plotting_edge_cases.py` - ASCII plot rendering edge cases (Feb 2026)
 - `test_plot_threshold_analysis.py` - dB threshold detection and table formatting (Apr 2026, 41 tests)
 - `test_plot_zoomed.py` - Zoomed passband plot and zoom range computation (Apr 2026, 42 tests)
-- `test_transfer_response_dispatch.py` - **NEW (Apr 2026)** - Response function factory (26 tests)
+- `test_transfer_response_dispatch.py` - Response function factory (Apr 2026, 26 tests)
+- `test_toroid_core_data.py` - **NEW (Apr 2026)** Iron-powder core database (12 tests)
+- `test_toroid_inductance.py` - **NEW (Apr 2026)** L↔N math + T68-2 regression (16 tests)
+- `test_toroid_wire.py` - **NEW (Apr 2026)** AWG, wire length, DCR, fit (16 tests)
+- `test_toroid_selection.py` - **NEW (Apr 2026)** Ranking algorithm (12 tests)
+- `test_toroid_display.py` - **NEW (Apr 2026)** Text/JSON/CSV formatters (12 tests)
+- `test_toroid_integration.py` - **NEW (Apr 2026)** End-to-end LP/HP/BP × flags (19 tests)
 - `conftest.py` - Shared pytest fixtures and configuration
 
 ## Development Workflow
@@ -310,7 +323,7 @@ All code files respect 200-line limit for optimal context:
 6. **Bug Fixes** (Jan-Feb 2026): ASCII topology spacing, HPF capacitor formula, wizard defaults, E-series export
 
 **Quality Metrics** (as of Apr 2, 2026):
-- 732 tests, 75% coverage
+- 825 tests, 78% coverage
 - 67 files ruff-formatted
 - 8,200+ total LOC
 - GitHub Actions CI enforcing lint → format → test on all PRs

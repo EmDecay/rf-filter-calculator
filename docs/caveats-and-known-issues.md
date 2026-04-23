@@ -210,3 +210,30 @@ For critical applications:
 2. Simulate in SPICE before building
 3. Verify E-series matches with actual measurements
 4. Build and measure prototype before final construction
+
+---
+
+## Toroid Recommendations (v1)
+
+### Schema additions (JSON / CSV)
+
+- **JSON (LP/HP)**: each inductor object gains a `toroid_recommendations` array (up to 3 entries). Consumers that strictly reject unknown fields must handle this. Opt out with `--no-toroids`.
+- **JSON (BP)**: top-level key `resonator_toroid_recommendations` added. Opt out with `--no-toroids`.
+- **CSV (LP/HP/BP)**: 10 additional columns appended (`ToroidCore`, `ToroidMix`, `ToroidTurns`, `ToroidAWG`, `ToroidActualL_uH`, `ToroidErrorPct`, `ToroidWireLength_mm`, `ToroidDCR_mohm`, `ToroidQ_DC_Upper`, `ToroidTempCoeff_ppm`). `--no-toroids` restores the pre-feature column count exactly for scripted consumers.
+
+### What Q (DC est, upper bound) really is
+
+`Q = 2πfL / R_dc`, using bare-copper DC resistance. This **does not** model core loss, skin effect, proximity effect, or saturation. Actual measured Q at HF is typically 5–10× lower. Labelled "upper bound" for honesty; do not use for tight-Q budget sizing without measurement.
+
+### What is excluded in v1
+
+- FT-series ferrite, FB ferrite beads, BLN binocular cores
+- AC resistance (skin effect), self-resonant frequency, core loss, saturation
+- Temperature derating into the reported L range (ppm/°C shown but not applied)
+- Multi-toroid stacking, user-override AWG per inductor
+
+See `plan.md` "Deferred" section in the GH-6 plan directory for the full list.
+
+### Unit-convention warning
+
+A_L values in the database are in **nH/turn²** (e.g. T50-2 = 4.9). The Amidon "µH per 100 turns²" convention uses numerically 10× larger values. The code uses nH/turn² exclusively. The upstream research doc's `N = 100·√(L/A_L)` formula is unit-mismatched for our database; the correct form is `N_ideal = √(1000·L[µH] / A_L[nH/turn²])`. A regression test locks this.

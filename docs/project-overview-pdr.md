@@ -21,14 +21,15 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 1.3+ (Production ready with enhanced plotting)
-- 732 comprehensive tests
+**Version**: 1.4+ (Production ready with toroid recommendations)
+- 825 comprehensive tests
 - Full CLI and interactive modes with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
 - Automated CI/CD with GitHub Actions
 - Code quality enforced via ruff linting
 - Graph enhancements (GH-7): dB threshold tables + zoomed plots
+- Toroid inductor recommendations (GH-6): 43-core iron-powder T-series database; top-3 per inductor with turns, AWG, wire length, DCR, DC-Q upper bound; `--no-toroids` / `--toroid-compact` flags
 
 ---
 
@@ -225,7 +226,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - No silent failures
 
 **NFR-2.4.2: Testing**
-- 556 tests covering all filter types
+- 825 tests covering all filter types (includes 93 toroid tests)
 - >90% code coverage
 - Automated GitHub Actions CI (lint → format → test on push/PR)
 
@@ -477,7 +478,7 @@ Status: ✓ Measured ~200ms on reference machine
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
 | Test Coverage | >90% | 95%+ | ✓ Met |
-| Test Count | >300 | 556 | ✓ Met |
+| Test Count | >300 | 825 | ✓ Met |
 | Documentation Files | >6 | 8+ | ✓ Met |
 | Code Issues | 0 critical | 0 | ✓ Met |
 | Response Time | <500ms | ~200ms | ✓ Met |

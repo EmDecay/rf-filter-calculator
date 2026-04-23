@@ -510,3 +510,54 @@ uv run filter-calc lp bw pi 10MHz --plot-data json > response.json
 # CSV for spreadsheet/graphing software
 uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 ```
+
+## Toroid Winding Recommendations
+
+For every inductor produced by the calculator, the tool auto-shows the top 3 iron-powder T-series toroid cores that fit the design frequency and the target inductance. For each rec you see: core name + colour, integer turn count + AWG, actual L after N rounding (plus signed error %), A_L-tolerance-derived L range, bare-copper wire length + DC resistance, DC-based Q upper bound, and core dimensions.
+
+### Default (full) output
+
+```
+Toroid Winding Recommendations (Iron-Powder T-Series)
+-------------------------------------------------------
+(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)
+
+  L1 target: 1.46 µH  (design freq 10 MHz)
+  ──────────────────────────────────────────────
+  1. T68-2  (Red/Clear, mix 2, 95 ppm/°C)
+       Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
+       L range (A_L ±5%): 1.22 µH – 1.35 µH
+       Wire: 294 mm of AWG 20 (0.812 mm)   DCR: 9.5 mΩ
+       Q (DC est, upper bound): 8,450 @ 10 MHz
+       Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
+  ...
+```
+
+### Compact output (`--toroid-compact`)
+
+```
+  L1 target: 1.46 µH @ 10 MHz
+  1. T68-2    N=15 AWG20 L=1.283µH (-0.40%) R=10mΩ Q≈8,450
+  2. T50-6    N=18 AWG22 L=1.296µH (+0.65%) R=15mΩ Q≈5,463
+  3. T37-2    N=18 AWG24 L=1.296µH (+0.65%) R=18mΩ Q≈4,629
+```
+
+### Disable toroid output (`--no-toroids`)
+
+`--no-toroids` skips toroid computation entirely and keeps the output schema (text, JSON, CSV) backward-compatible with pre-feature consumers. `--no-toroids` overrides `--toroid-compact` if both are given.
+
+### Bandpass behaviour
+
+All N resonators share the same `L_resonant`, so bandpass prints a single toroid block labelled `L_resonant (applies to L1…Ln)`. JSON output adds the top-level field `resonator_toroid_recommendations`; CSV writes N duplicate inductor rows, each carrying the same best-match toroid columns.
+
+### Design frequency used
+
+- Lowpass / highpass: filter cutoff frequency
+- Bandpass: centre frequency `f0`
+
+### Important caveats
+
+- **Q is an upper bound**: computed from DC resistance only. Skin effect, core loss, and proximity effect are not modelled. Actual Q at HF is typically 5–10× lower.
+- **Frequency gating is a hard filter**: cores whose published range does not cover the design freq are excluded outright, not penalised.
+- **Wire-fit is conservative**: 0.9 fill factor × 1.07 enamel factor. Expect real windings to match or exceed the reported N_max.
+- See `docs/caveats-and-known-issues.md` for the full deferred list (FT ferrite, SRF, saturation, etc.).

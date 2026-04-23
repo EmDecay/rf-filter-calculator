@@ -7,6 +7,7 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 - **Filter Types**: Lowpass (Pi/T topology), Highpass (Pi/T topology), Bandpass (coupled resonator)
 - **Response Types**: Butterworth, Chebyshev, Bessel
 - **E-Series Matching**: Find closest E12/E24/E96 standard capacitor values with parallel combinations
+- **Toroid Winding Recommendations**: Top-3 iron-powder T-series core + turns, AWG, wire length, DCR, DC-Q (auto-shown for every inductor; 43-core database; `--no-toroids` / `--toroid-compact` opt-outs)
 - **ASCII Plots**: Visualize frequency response in terminal
 - **Multiple Outputs**: Table, JSON, CSV formats
 - **Interactive Wizard**: Guided filter design mode
@@ -174,6 +175,8 @@ Default values shown as placeholders; press Enter with empty field to use defaul
 | `--plot` | Show ASCII frequency response |
 | `--plot-data` | Export response data: json, csv |
 | `--explain` | Explain filter type characteristics |
+| `--no-toroids` | Suppress toroid recommendations in text, JSON, and CSV |
+| `--toroid-compact` | One-line-per-rec toroid text output (ignored for JSON/CSV) |
 
 ## Filter Type Aliases
 
@@ -224,7 +227,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** 556 tests covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, and the interactive wizard. See [docs/testing.md](docs/testing.md) for details.
+**Test suite:** 825 tests covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, and toroid recommendations. See [docs/testing.md](docs/testing.md) for details.
 
 ### Linting
 
