@@ -11,6 +11,11 @@ from ..shared.display_helpers import format_eseries_match
 from ..shared.formatting import format_capacitance
 from ..shared.plotting import find_db_thresholds, format_threshold_table, render_plot_pair
 from ..shared.topology_diagrams import print_pi_topology_diagram, print_t_topology_diagram
+from ..shared.toroid_display import (
+    format_recommendation_block,
+    format_recommendation_block_compact,
+)
+from ..shared.toroid_selection import recommend_cores
 from ..shared.transfer_response_dispatch import make_lp_response_db
 from .transfer import frequency_response, generate_frequency_points
 
@@ -20,14 +25,34 @@ def _primary_component(result: dict) -> str:
     return "capacitors" if result.get("topology", "pi") == "pi" else "inductors"
 
 
-def format_json(result: dict, eseries: str | None = None) -> str:
+def format_json(
+    result: dict,
+    eseries: str | None = None,
+    include_toroids: bool = True,
+) -> str:
     """Format results as JSON."""
-    return format_json_result(result, primary_component=_primary_component(result), eseries=eseries)
+    return format_json_result(
+        result,
+        primary_component=_primary_component(result),
+        eseries=eseries,
+        toroid_freq_hz=result["freq_hz"],
+        include_toroids=include_toroids,
+    )
 
 
-def format_csv(result: dict, eseries: str | None = None) -> str:
+def format_csv(
+    result: dict,
+    eseries: str | None = None,
+    include_toroids: bool = True,
+) -> str:
     """Format results as CSV."""
-    return format_csv_result(result, primary_component=_primary_component(result), eseries=eseries)
+    return format_csv_result(
+        result,
+        primary_component=_primary_component(result),
+        eseries=eseries,
+        toroid_freq_hz=result["freq_hz"],
+        include_toroids=include_toroids,
+    )
 
 
 def format_quiet(result: dict, raw: bool = False) -> str:
@@ -43,13 +68,28 @@ def display_results(
     eseries: str = "E24",
     show_match: bool = True,
     show_plot: bool = False,
+    include_toroids: bool = True,
+    toroid_compact: bool = False,
 ) -> None:
     """Display calculated filter component values."""
     if output_format == "json":
-        print(format_json(result, eseries=eseries if show_match else None))
+        print(
+            format_json(
+                result,
+                eseries=eseries if show_match else None,
+                include_toroids=include_toroids,
+            )
+        )
         return
     if output_format == "csv":
-        print(format_csv(result, eseries=eseries if show_match else None), end="")
+        print(
+            format_csv(
+                result,
+                eseries=eseries if show_match else None,
+                include_toroids=include_toroids,
+            ),
+            end="",
+        )
         return
     if quiet:
         print(format_quiet(result, raw))
@@ -82,6 +122,9 @@ def display_results(
             for line in format_eseries_match(cap, eseries, format_capacitance):
                 print(line)
 
+    if include_toroids:
+        _print_toroid_block(result, compact=toroid_compact)
+
     if show_plot:
         freqs = generate_frequency_points(result["freq_hz"])
         ripple = result.get("ripple") or 0.5
@@ -105,3 +148,20 @@ def display_results(
         print(format_threshold_table(thresholds, filter_type="lowpass"))
 
     print()
+
+
+def _print_toroid_block(result: dict, compact: bool) -> None:
+    """Render per-inductor toroid recommendations (full or compact)."""
+    formatter = format_recommendation_block_compact if compact else format_recommendation_block
+    freq_hz = result["freq_hz"]
+    print()
+    print("Toroid Winding Recommendations (Iron-Powder T-Series)")
+    print("-" * 55)
+    if not compact:
+        print("(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)")
+    print()
+    for i, L in enumerate(result["inductors"]):
+        recs = recommend_cores(L, freq_hz)
+        for line in formatter(f"L{i + 1}", L, freq_hz, recs):
+            print(line)
+        print()

@@ -12,6 +12,12 @@ from typing import Any
 from ..shared.display_helpers import format_eseries_match as _shared_format_eseries
 from ..shared.eseries import match_component
 from ..shared.formatting import format_capacitance, format_inductance
+from ..shared.toroid_display import (
+    CSV_TOROID_HEADER,
+    build_json_recommendations,
+    csv_columns_for_best,
+)
+from ..shared.toroid_selection import recommend_cores
 
 # Type alias for filter result dict
 FilterResult = dict[str, Any]
@@ -59,11 +65,17 @@ def _build_standard_match(
     return standard
 
 
-def format_json(result: FilterResult, eseries: str | None = None) -> str:
+def format_json(
+    result: FilterResult,
+    eseries: str | None = None,
+    include_toroids: bool = True,
+) -> str:
     """Format results as JSON.
 
     Args:
         result: Dict from calculate_bandpass_filter()
+        eseries: E-series name (None disables matching)
+        include_toroids: Attach resonator_toroid_recommendations top-level field
 
     Returns:
         JSON formatted string
@@ -101,6 +113,9 @@ def format_json(result: FilterResult, eseries: str | None = None) -> str:
     }
     if result.get("ripple_db") is not None:
         output["ripple_db"] = result["ripple_db"]
+    if include_toroids:
+        recs = recommend_cores(result["L_resonant"], result["f0"])
+        output["resonator_toroid_recommendations"] = build_json_recommendations(recs)
     return json.dumps(output, indent=2)
 
 
@@ -143,11 +158,17 @@ def _csv_match_fields(
     ]
 
 
-def format_csv(result: FilterResult, eseries: str | None = None) -> str:
+def format_csv(
+    result: FilterResult,
+    eseries: str | None = None,
+    include_toroids: bool = True,
+) -> str:
     """Format results as CSV.
 
     Args:
         result: Dict from calculate_bandpass_filter()
+        eseries: E-series name (None disables matching)
+        include_toroids: Append toroid best-match columns and populate inductor rows
 
     Returns:
         CSV formatted string
@@ -166,24 +187,39 @@ def format_csv(result: FilterResult, eseries: str | None = None) -> str:
                 "Eseries",
             ]
         )
+    if include_toroids:
+        header.extend(CSV_TOROID_HEADER)
     writer.writerow(header)
+    n_toroid_cols = len(CSV_TOROID_HEADER)
+
+    toroid_cols: list[str] = []
+    if include_toroids:
+        recs = recommend_cores(result["L_resonant"], result["f0"])
+        toroid_cols = csv_columns_for_best(recs)
+
     for i, v in enumerate(result["c_tank"]):
         formatted = format_capacitance(v)
         val, unit = formatted.rsplit(" ", 1)
         row = [f"Cp{i + 1}", val, unit]
         row.extend(_csv_match_fields(v, format_capacitance, eseries, "additive"))
+        if include_toroids:
+            row.extend([""] * n_toroid_cols)
         writer.writerow(row)
     for i in range(result["n_resonators"]):
         formatted = format_inductance(result["L_resonant"])
         val, unit = formatted.rsplit(" ", 1)
         row = [f"L{i + 1}", val, unit]
         row.extend(_csv_match_fields(result["L_resonant"], format_inductance, eseries, "harmonic"))
+        if include_toroids:
+            row.extend(toroid_cols)
         writer.writerow(row)
     for i, v in enumerate(result["c_coupling"]):
         formatted = format_capacitance(v)
         val, unit = formatted.rsplit(" ", 1)
         row = [f"Cs{i + 1}{i + 2}", val, unit]
         row.extend(_csv_match_fields(v, format_capacitance, eseries, "additive"))
+        if include_toroids:
+            row.extend([""] * n_toroid_cols)
         writer.writerow(row)
     return output.getvalue()
 

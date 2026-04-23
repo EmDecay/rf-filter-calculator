@@ -13,6 +13,11 @@ from ..shared.plotting import (
     format_threshold_table,
     render_bandpass_plot_pair,
 )
+from ..shared.toroid_display import (
+    format_recommendation_block,
+    format_recommendation_block_compact,
+)
+from ..shared.toroid_selection import recommend_cores
 from .diagrams import print_shunt_c_diagram, print_top_c_diagram
 from .formatters import format_csv, format_eseries_match, format_json, format_quiet
 from .transfer import frequency_sweep
@@ -32,6 +37,8 @@ def display_results(
     eseries: str | None = "E24",
     show_plot: bool = False,
     plot_data: str | None = None,
+    include_toroids: bool = True,
+    toroid_compact: bool = False,
 ) -> None:
     """Display calculated filter component values.
 
@@ -43,6 +50,8 @@ def display_results(
         eseries: E-series for matching (None to disable)
         show_plot: Show ASCII frequency response
         plot_data: Export plot data as 'json' or 'csv'
+        include_toroids: Include toroid recommendations in output
+        toroid_compact: Use compact 1-line-per-rec text format
     """
     # Handle plot data export
     if plot_data:
@@ -70,20 +79,25 @@ def display_results(
         return
 
     if output_format == "json":
-        print(format_json(result, eseries=eseries))
+        print(format_json(result, eseries=eseries, include_toroids=include_toroids))
         return
     if output_format == "csv":
-        print(format_csv(result, eseries=eseries), end="")
+        print(format_csv(result, eseries=eseries, include_toroids=include_toroids), end="")
         return
     if quiet:
         print(format_quiet(result, raw))
         return
 
-    _print_table_output(result, raw, eseries, show_plot)
+    _print_table_output(result, raw, eseries, show_plot, include_toroids, toroid_compact)
 
 
 def _print_table_output(
-    result: FilterResult, raw: bool, eseries: str | None, show_plot: bool
+    result: FilterResult,
+    raw: bool,
+    eseries: str | None,
+    show_plot: bool,
+    include_toroids: bool = True,
+    toroid_compact: bool = False,
 ) -> None:
     """Print full table output with diagram and component values."""
     coupling_name = "Top-C (Series)" if result["coupling"] == "top" else "Shunt-C (Parallel)"
@@ -118,9 +132,31 @@ def _print_table_output(
     if eseries and not raw:
         _print_eseries_matching(result, eseries)
 
+    if include_toroids:
+        _print_toroid_block(result, compact=toroid_compact)
+
     if show_plot:
         _print_frequency_response(result)
 
+    print()
+
+
+def _print_toroid_block(result: FilterResult, compact: bool) -> None:
+    """Render shared-L_resonant toroid recommendations (full or compact)."""
+    formatter = format_recommendation_block_compact if compact else format_recommendation_block
+    L0 = result["L_resonant"]
+    n = result["n_resonators"]
+    f0 = result["f0"]
+    recs = recommend_cores(L0, f0)
+    label = f"L_resonant (applies to L1…L{n})"
+    print()
+    print("Toroid Winding Recommendations (Iron-Powder T-Series)")
+    print("-" * 55)
+    if not compact:
+        print("(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)")
+    print()
+    for line in formatter(label, L0, f0, recs):
+        print(line)
     print()
 
 

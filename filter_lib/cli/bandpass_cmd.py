@@ -17,6 +17,7 @@ from ..shared.cli_aliases import (
 )
 from ..shared.cli_helpers import get_filter_type_arg
 from ..shared.parsing import parse_frequency, parse_impedance
+from .toroid_flags import add_toroid_flags
 
 
 def setup_parser(parser: ArgumentParser) -> None:
@@ -109,6 +110,7 @@ def setup_parser(parser: ArgumentParser) -> None:
     parser.add_argument(
         "--plot-data", choices=["json", "csv"], help="Export frequency response data"
     )
+    add_toroid_flags(parser)
 
 
 def run(args: Namespace) -> None:
@@ -167,6 +169,8 @@ def run(args: Namespace) -> None:
         eseries=None if args.no_match else args.eseries,
         show_plot=args.plot,
         plot_data=args.plot_data,
+        include_toroids=not args.no_toroids,
+        toroid_compact=args.toroid_compact,
     )
 
 

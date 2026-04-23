@@ -9,6 +9,8 @@ import json
 from .display_helpers import format_component_value, split_value_unit
 from .eseries import match_component
 from .formatting import format_capacitance, format_inductance
+from .toroid_display import CSV_TOROID_HEADER, build_json_recommendations, csv_columns_for_best
+from .toroid_selection import recommend_cores
 
 
 def _build_standard_match(value: float, eseries: str, unit_key: str, parallel_mode: str) -> dict:
@@ -34,12 +36,24 @@ def _build_standard_match(value: float, eseries: str, unit_key: str, parallel_mo
 
 
 def _json_component(
-    name: str, value: float, unit_key: str, eseries: str | None, parallel_mode: str
+    name: str,
+    value: float,
+    unit_key: str,
+    eseries: str | None,
+    parallel_mode: str,
+    toroid_freq_hz: float | None = None,
 ) -> dict:
-    """Build one component object for JSON export."""
+    """Build one component object for JSON export.
+
+    If toroid_freq_hz is provided AND this is an inductor row (unit_key=value_henries),
+    attach `toroid_recommendations` sourced via recommend_cores.
+    """
     component = {"name": name, unit_key: value}
     if eseries:
         component["standard_match"] = _build_standard_match(value, eseries, unit_key, parallel_mode)
+    if toroid_freq_hz is not None and unit_key == "value_henries":
+        recs = recommend_cores(value, toroid_freq_hz)
+        component["toroid_recommendations"] = build_json_recommendations(recs)
     return component
 
 
@@ -73,7 +87,11 @@ def _csv_match_fields(
 
 
 def format_json_result(
-    result: dict, primary_component: str = "capacitors", eseries: str | None = None
+    result: dict,
+    primary_component: str = "capacitors",
+    eseries: str | None = None,
+    toroid_freq_hz: float | None = None,
+    include_toroids: bool = True,
 ) -> str:
     """Format filter results as JSON.
 
@@ -81,33 +99,26 @@ def format_json_result(
         result: Filter result dictionary with capacitors, inductors, etc.
         primary_component: Which component type to list first ('capacitors' or 'inductors')
         eseries: E-series for standard matching (None to disable)
+        toroid_freq_hz: Design freq for toroid recommendations (None disables)
+        include_toroids: If False, skip toroid recommendations entirely
 
     Returns:
         JSON string with filter data.
     """
-    # Build components dict with specified order
+    freq_for_toroids = toroid_freq_hz if include_toroids else None
+
+    cap_list = [
+        _json_component(f"C{i + 1}", v, "value_farads", eseries, "additive")
+        for i, v in enumerate(result["capacitors"])
+    ]
+    ind_list = [
+        _json_component(f"L{i + 1}", v, "value_henries", eseries, "harmonic", freq_for_toroids)
+        for i, v in enumerate(result["inductors"])
+    ]
     if primary_component == "capacitors":
-        components = {
-            "capacitors": [
-                _json_component(f"C{i + 1}", v, "value_farads", eseries, "additive")
-                for i, v in enumerate(result["capacitors"])
-            ],
-            "inductors": [
-                _json_component(f"L{i + 1}", v, "value_henries", eseries, "harmonic")
-                for i, v in enumerate(result["inductors"])
-            ],
-        }
+        components = {"capacitors": cap_list, "inductors": ind_list}
     else:
-        components = {
-            "inductors": [
-                _json_component(f"L{i + 1}", v, "value_henries", eseries, "harmonic")
-                for i, v in enumerate(result["inductors"])
-            ],
-            "capacitors": [
-                _json_component(f"C{i + 1}", v, "value_farads", eseries, "additive")
-                for i, v in enumerate(result["capacitors"])
-            ],
-        }
+        components = {"inductors": ind_list, "capacitors": cap_list}
 
     output = {
         "filter_type": result["filter_type"],
@@ -127,7 +138,11 @@ def format_json_result(
 
 
 def format_csv_result(
-    result: dict, primary_component: str = "capacitors", eseries: str | None = None
+    result: dict,
+    primary_component: str = "capacitors",
+    eseries: str | None = None,
+    toroid_freq_hz: float | None = None,
+    include_toroids: bool = True,
 ) -> str:
     """Format filter results as CSV.
 
@@ -135,10 +150,15 @@ def format_csv_result(
         result: Filter result dictionary with capacitors, inductors, etc.
         primary_component: Which component type to list first ('capacitors' or 'inductors')
         eseries: E-series for standard matching (None to disable)
+        toroid_freq_hz: Design freq for toroid best-match columns (None disables)
+        include_toroids: If False, skip toroid columns entirely (backward-compat CSV)
 
     Returns:
         CSV string with component data.
     """
+    emit_toroids = include_toroids and toroid_freq_hz is not None
+    n_toroid_cols = len(CSV_TOROID_HEADER)
+
     header = ["Component", "Value", "Unit"]
     if eseries:
         header.extend(
@@ -151,6 +171,8 @@ def format_csv_result(
                 "Eseries",
             ]
         )
+    if emit_toroids:
+        header.extend(CSV_TOROID_HEADER)
     lines = [",".join(header)]
 
     if primary_component == "capacitors":
@@ -166,6 +188,12 @@ def format_csv_result(
             val, unit = split_value_unit(formatted)
             row = [f"{prefix}{i + 1}", val, unit]
             row.extend(_csv_match_fields(v, formatter, eseries, parallel_mode))
+            if emit_toroids:
+                if prefix == "L":
+                    recs = recommend_cores(v, toroid_freq_hz)
+                    row.extend(csv_columns_for_best(recs))
+                else:
+                    row.extend([""] * n_toroid_cols)
             lines.append(",".join(row))
 
     return "\n".join(lines)

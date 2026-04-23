@@ -28,6 +28,7 @@ from ..shared.cli_helpers import (
     validate_filter_args,
 )
 from ..shared.parsing import parse_frequency, parse_impedance
+from .toroid_flags import add_toroid_flags
 
 
 def setup_parser(parser: ArgumentParser) -> None:
@@ -37,6 +38,7 @@ def setup_parser(parser: ArgumentParser) -> None:
     add_output_args(parser)
     add_eseries_args(parser)
     add_plot_args(parser)
+    add_toroid_flags(parser)
 
 
 def run(args: Namespace) -> None:
@@ -109,4 +111,6 @@ def run(args: Namespace) -> None:
         eseries=args.eseries,
         show_match=not args.no_match,
         show_plot=args.plot,
+        include_toroids=not args.no_toroids,
+        toroid_compact=args.toroid_compact,
     )
