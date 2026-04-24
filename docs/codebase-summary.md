@@ -1,15 +1,15 @@
 # Codebase Summary
 
-**Last Updated**: April 2, 2026
+**Last Updated**: April 24, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (826+ tests).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1046 tests, 94% coverage).
 
 ## Project Statistics
 
-- **Total Files**: 93+ files
-- **Total Lines of Code**: ~8,200 LOC (2,200+ core lib + 5,900+ tests + ~350 CLI entry)
-- **Test Coverage**: 826 tests, 78% coverage (~0.5s runtime)
-- **Documentation**: 13 files (~2,300+ LOC)
+- **Total Files**: 95+ files
+- **Total Lines of Code**: ~8,400 LOC (2,200+ core lib + 6,100+ tests + ~350 CLI entry)
+- **Test Coverage**: 1046 tests, 94% coverage (~0.5s runtime)
+- **Documentation**: 13 files (~2,500+ LOC)
 - **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
 
 ## Architecture Overview
@@ -172,7 +172,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (826 tests total):
+**Test Files** (1046 tests total, 94% coverage):
 - `test_bandpass_calculations.py` - Coupled resonator design tests
 - `test_bandpass_modules.py` - Bandpass display and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -191,12 +191,16 @@ Provides cross-cutting utilities:
 - `test_plot_threshold_analysis.py` - dB threshold detection and table formatting (Apr 2026, 41 tests)
 - `test_plot_zoomed.py` - Zoomed passband plot and zoom range computation (Apr 2026, 42 tests)
 - `test_transfer_response_dispatch.py` - Response function factory (Apr 2026, 26 tests)
-- `test_toroid_core_data.py` - **NEW (Apr 2026)** Iron-powder core database (12 tests)
-- `test_toroid_inductance.py` - **NEW (Apr 2026)** L↔N math + T68-2 regression (16 tests)
-- `test_toroid_wire.py` - **NEW (Apr 2026)** AWG, wire length, DCR, fit (16 tests)
-- `test_toroid_selection.py` - **NEW (Apr 2026)** Ranking algorithm (12 tests)
-- `test_toroid_display.py` - **NEW (Apr 2026)** Text/JSON/CSV formatters (12 tests)
-- `test_toroid_integration.py` - **NEW (Apr 2026)** End-to-end LP/HP/BP × flags (19 tests)
+- `test_toroid_core_data.py` - Iron-powder core database (Apr 2026, 12 tests)
+- `test_toroid_inductance.py` - L↔N math + T68-2 regression (Apr 2026, 16 tests)
+- `test_toroid_wire.py` - AWG, wire length, DCR, fit (Apr 2026, 16 tests)
+- `test_toroid_selection.py` - Ranking algorithm (Apr 2026, 12 tests)
+- `test_toroid_display.py` - Text/JSON/CSV formatters (Apr 2026, 12 tests)
+- `test_toroid_integration.py` - End-to-end LP/HP/BP × flags (Apr 2026, 19 tests)
+- `test_cli_coverage_gaps.py` - **NEW (Apr 2026)** CLI main(), setup_parser, validation error paths (45 tests)
+- `test_transfer_and_shared_edges.py` - **NEW (Apr 2026)** HP transfer dispatch, E-series edges, toroid validation (24 tests)
+- `test_wizard_screens_coverage.py` - **NEW (Apr 2026)** Screen navigation via Mock pattern (91 tests)
+- `test_wizard_event_handlers_and_final_edges.py` - **NEW (Apr 2026)** Input handlers, filter type changes, csv export (29 tests)
 - `conftest.py` - Shared pytest fixtures and configuration
 
 ## Development Workflow
@@ -322,9 +326,11 @@ All code files respect 200-line limit for optimal context:
 5. **Package Management** (commit 4da4f68): Switched from pip/venv to uv
 6. **Bug Fixes** (Jan-Feb 2026): ASCII topology spacing, HPF capacitor formula, wizard defaults, E-series export
 
-**Quality Metrics** (as of Apr 2, 2026):
-- 826 tests, 78% coverage
+**Quality Metrics** (as of Apr 24, 2026):
+- 1046 tests, 94% coverage
 - 67 files ruff-formatted
-- 8,200+ total LOC
+- 8,400+ total LOC
 - GitHub Actions CI enforcing lint → format → test on all PRs
 - Graph enhancements (GH-7) complete with threshold tables + zoomed plots
+- Wizard screens now 68-82% covered via Mock(spec=...) + property override pattern
+- CLI validation error paths fully tested (negative frequency/impedance/ripple rejection)

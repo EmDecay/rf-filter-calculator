@@ -1,6 +1,6 @@
 # System Architecture
 
-**Last Updated**: April 2, 2026
+**Last Updated**: April 24, 2026
 
 Detailed architecture design and component interactions for RF Filter Calculator.
 
@@ -651,77 +651,65 @@ Final Output:
   - User presses Escape to exit wizard
 ```
 
+## Design Patterns & Constraints
+
+### Filter-Type Alias Canonicalization
+
+**Single Source of Truth**: `filter_lib/shared/cli_aliases.py::FILTER_TYPE_ALIASES`
+
+All filter-type dispatch logic must consult this mapping rather than re-implementing alias handling:
+
+```python
+FILTER_TYPE_ALIASES = {
+    'butterworth': ['bw', 'b'],
+    'chebyshev': ['ch', 'c'],
+    'bessel': ['bs'],
+}
+```
+
+**Canonical dispatch**: `shared/transfer_response_dispatch.py::_canonicalize_filter_type(alias)` normalizes any alias to its canonical form before use.
+
+**Impact**: Ensures CLI, wizard, and API all recognize the same aliases with zero divergence.
+
+### Chebyshev Even-Order Constraint
+
+**Requirement**: Chebyshev filters with equal source/load terminations require **odd order only** (3, 5, 7, 9).
+
+**Scope**: LP, HP, and BP designs
+- CLI validation: `cli/lowpass_cmd.py`, `cli/highpass_cmd.py`, `cli/bandpass_cmd.py` reject even orders with clear error
+- Wizard validation: `wizard/screens/lowpass.py`, `wizard/screens/highpass.py`, `wizard/screens/bandpass.py` pre-filter order selections for Chebyshev
+- Core validation: `shared/lp_hp_base_calculations.py::_validate_chebyshev_order(order)` enforces at calculation time
+
+**Error message**: "Chebyshev filters with equal source/load terminations require odd order (3, 5, 7, 9)"
+
+**Ripple limits**: Wizard restricts ripple to 0.1, 0.5, 1.0 dB (practical tolerance range).
+
+### Bandpass True -3 dB Edges
+
+**Source of Truth**: `filter_lib/bandpass/calculations.py::compute_bandpass_3db_edges(f_low, f_high, bw, order, ripple_db, response_type)`
+
+Instead of `f₀ ± BW/2`, true -3 dB edges are computed by solving `(f² - f₀²)/(BW·f) = ±1` using the quadratic formula.
+
+**Key insight**: For wide bandwidth, `f_low = f₀² / f_high` avoids catastrophic cancellation in the `f_low = f₀ - (f₀² / f_high)` form.
+
+**Impact**: High-accuracy edge detection for wide-band designs (BW > 30% of f₀).
+
 ## Topology Design Patterns
 
-### Lowpass Filters
+### Filter Topologies
 
-**Pi Topology** (default):
-- Pattern: Shunt C - Series L - Shunt C - Series L - Shunt C
-- Capacitors at odd positions (primary component)
-- Used for: Input impedance matching, low source impedance
+**Lowpass**: Pi (default; shunt C - series L) or T (series L - shunt C)
+- Capacitors at odd positions (Pi) → primary component
+- Inductors at odd positions (T) → primary component
 
-**T Topology**:
-- Pattern: Series L - Shunt C - Series L - Shunt C - Series L
-- Inductors at odd positions (primary component)
-- Used for: Output impedance matching, high source impedance
+**Highpass**: Topologies inverted vs. lowpass
+- T (default; series C - shunt L) or Pi (shunt L - series C)
+- Series capacitors (T) → primary component
+- Shunt inductors (Pi) → primary component
 
-### Highpass Filters
-
-**Note**: Topologies are inverted compared to lowpass!
-
-**T Topology** (default):
-- Pattern: Series C - Shunt L - Series C - Shunt L - Series C
-- Capacitors at odd positions (primary component)
-- Opposite of lowpass T!
-
-**Pi Topology**:
-- Pattern: Shunt L - Series C - Shunt L - Series C - Shunt L
-- Inductors at odd positions (primary component)
-- Opposite of lowpass Pi!
-
-### Bandpass Filters
-
-**Top-Coupled** (series coupling):
-- LC tank resonators coupled via series capacitors
-- Coupling capacitors in series path
-- Better for low impedance systems
-
-**Shunt-Coupled** (parallel coupling):
-- LC tank resonators coupled via parallel capacitors
-- Coupling capacitors to ground
-- Better for high impedance systems
-
-## Request-Response Cycle
-
-### CLI Command
-
-```
-Request: uv run filter-calc lp bw pi 10MHz -n 5 --format json
-         │
-         ├─ Parse args (Click)
-         ├─ Route to lowpass_cmd
-         ├─ Validate inputs
-         ├─ Call calculate_lowpass
-         ├─ Call display_results(format='json')
-         │
-Response: {"filter_type": "butterworth", "capacitors": [...], ...}
-```
-
-### Wizard Mode
-
-```
-Request: uv run filter-calc
-         │
-         ├─ No args → invoke wizard
-         ├─ Interactive prompts (loop until valid)
-         ├─ Calculate based on responses
-         ├─ Show output options screen
-         ├─ Format and display based on selections
-         │
-Response: Pretty table with topology diagram
-          + E-series recommendations
-          + (Optional) frequency response plot
-```
+**Bandpass**: Top-coupled (series) or shunt-coupled (parallel) resonators
+- Top-coupled: series coupling capacitors
+- Shunt-coupled: parallel coupling capacitors
 
 ## Error Handling
 
@@ -791,7 +779,7 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 - Enforced on all pushes via GitHub Actions
 - 67 files reformatted (Feb 2026, commit cc4e9c1)
 
-**Testing**: 826+ tests, ~78% coverage
+**Testing**: 1046 tests, 94% coverage
 - Unit tests for all calculation modules
 - Integration tests for CLI and wizard
 - Coverage enforced via pytest-cov in CI
@@ -801,10 +789,11 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 2. **Format** (ruff format --check) - Code style compliance
 3. **Test** (pytest --cov=filter_lib) - All tests with coverage
 
-**Test Metrics** (as of Apr 2, 2026):
-- Total: 826+ tests across 23 test modules
-- Coverage: >90% of filter_lib/
-- Runtime: ~0.4s on CI runner
+**Test Metrics** (as of Apr 24, 2026):
+- Total: 1046 tests across 27 test modules (820→1046, +220 tests)
+- Coverage: 94% of filter_lib/ (78%→94%, +16%)
+- Runtime: ~0.5s on CI runner
 - Python: 3.10, 3.11, 3.12, 3.13 (tested on ubuntu-latest)
+- New test coverage: CLI main/subcommand wiring, wizard screen navigation via Mock pattern, HP transfer dispatch, input validation error paths
 
 See [code-standards.md](./code-standards.md) for linting rules and [testing.md](./testing.md) for test coverage details.

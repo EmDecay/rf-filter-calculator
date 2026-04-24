@@ -58,9 +58,13 @@ uv sync --group dev
 | `test_toroid_selection.py` | 12 | Freq-range gate + ranking algorithm (Apr 2026) |
 | `test_toroid_display.py` | 12 | Full/compact text, JSON, CSV formatters (Apr 2026) |
 | `test_toroid_integration.py` | 19 | End-to-end LP/HP/BP × flag matrix (Apr 2026) |
+| `test_cli_coverage_gaps.py` | 45 | CLI main(), setup_parser wiring, CLI helpers, validation error paths (Apr 2026) |
+| `test_transfer_and_shared_edges.py` | 24 | HP transfer alias dispatch, E-series edge cases, toroid validation (Apr 2026) |
+| `test_wizard_screens_coverage.py` | 91 | FilterScreenNavigationMixin, screen navigation, validation via Mock pattern (Apr 2026) |
+| `test_wizard_event_handlers_and_final_edges.py` | 29 | Input.Submitted handlers, _on_filter_type_changed, csv export, wizard entry (Apr 2026) |
 | `conftest.py` | - | Shared pytest fixtures and configuration |
 
-**Total: 826 tests**
+**Total: 1046 tests** (94% coverage)
 
 **New Modules** (tested and integrated):
 - `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations
@@ -172,12 +176,21 @@ Verify output formatting for all export formats.
 | `filter_lib/shared/lp_hp_base_calculations.py` | 85%+ | Strategy logic tested (Feb 2026) |
 | `filter_lib/shared/lp_hp_base_transfer_functions.py` | 80%+ | Transfer functions tested (Feb 2026) |
 
-### Not Covered (Interactive)
+### Wizard Screen Coverage (Mock-Based Testing)
 
-| Module | Reason |
-|--------|--------|
-| `filter_lib/wizard/screens/*.py` | Interactive TUI screens require user input |
-| `filter_lib/wizard/app.py` | Screen stack navigation requires user interaction |
+| Module | Coverage | Testing Method |
+|--------|----------|-----------------|
+| `filter_lib/wizard/screens/lowpass.py` | 75% | Mock(spec=RadioSet/Input/...); `type(screen).app = property(...)` pattern |
+| `filter_lib/wizard/screens/highpass.py` | 73% | Mock pattern + state injection |
+| `filter_lib/wizard/screens/bandpass.py` | 68% | Mock pattern + validation error paths |
+| `filter_lib/wizard/screens/welcome.py` | 82% | Mock pattern + category selection |
+| `filter_lib/wizard/screens/output_options.py` | 79% | Mock pattern + option transitions |
+| `filter_lib/wizard/screens/results.py` | 71% | Mock pattern + async worker testing |
+| `filter_lib/wizard/app.py` | 100% | Screen stack, filter_state access |
+
+**Coverage Method**: Mock Textual widgets (RadioSet, Input, etc.) with spec enforcement. Override `type(screen).app` via property to inject mock FilterWizardApp. Call screen handler methods directly. Covers all validation paths, state updates, and navigation transitions.
+
+**Deferred**: Full `compose()`/`on_mount` coverage (requires Textual pilot harness for widget mount/layout testing). Core calculation and event logic is fully tested.
 
 ---
 
@@ -216,6 +229,65 @@ Tests verify proper frequency and impedance scaling:
 Lowpass:  C = g / (2π * f * Z0),   L = g * Z0 / (2π * f)
 Highpass: C = 1 / (g * 2π * f * Z0), L = Z0 / (g * 2π * f)
 ```
+
+---
+
+## Testing CLI Subcommands
+
+### Namespace Builder Pattern
+
+CLI subcommands are tested by constructing `argparse.Namespace` objects directly, bypassing Click:
+
+```python
+# From test_cli_coverage_gaps.py
+from filter_lib.cli.lowpass_cmd import _lp_args, lowpass_cmd_impl
+
+def test_lowpass_cli_butterworth():
+    """Test lowpass CLI command with Namespace builder."""
+    args = _lp_args(
+        filter_type="butterworth",
+        topology="pi",
+        frequency="10MHz",
+        components=5,
+        impedance=50.0,
+    )
+    result = lowpass_cmd_impl(args)
+    assert result["order"] == 5
+```
+
+**Builders** (`_lp_args`, `_hp_args`, `_bp_args`) available in `filter_lib/cli/cli_helpers.py`. Each returns a properly configured Namespace with all required fields and defaults.
+
+### Direct setup_parser() Invocation
+
+Parser setup can also be tested directly:
+
+```python
+def test_lowpass_parser_setup():
+    """Verify lowpass subcommand parser configuration."""
+    parser = argparse.ArgumentParser()
+    lowpass_cmd.setup_parser(parser)
+    # Verify parser has expected arguments
+    args = parser.parse_args([...])
+    assert args.filter_type is not None
+```
+
+---
+
+## Coverage Reports
+
+### Terminal Summary
+
+```bash
+uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
+```
+
+### JSON Report (for CI/analysis)
+
+```bash
+uv run pytest tests/ --cov=filter_lib --cov-report=json:/tmp/rf-cov.json
+```
+
+Produces JSON with per-module coverage percentages for programmatic analysis.
 
 ---
 

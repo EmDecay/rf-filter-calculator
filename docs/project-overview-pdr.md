@@ -21,8 +21,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 1.4+ (Production ready with toroid recommendations)
-- 826 comprehensive tests
+**Version**: 1.4+ (Production ready with toroid recommendations & coverage pass)
+- 1046 comprehensive tests (94% coverage)
 - Full CLI and interactive modes with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
@@ -30,6 +30,9 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Code quality enforced via ruff linting
 - Graph enhancements (GH-7): dB threshold tables + zoomed plots
 - Toroid inductor recommendations (GH-6): 43-core iron-powder T-series database; top-3 per inductor with turns, AWG, wire length, DCR, DC-Q upper bound; `--no-toroids` / `--toroid-compact` flags
+- Comprehensive coverage: CLI subcommands, wizard screens (68-82% via Mock pattern), input validation error paths
+- Filter-type alias canonicalization & Chebyshev even-order constraint enforcement
+- Bandpass true -3 dB edges via quadratic formula
 
 ---
 
@@ -226,8 +229,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - No silent failures
 
 **NFR-2.4.2: Testing**
-- 826 tests covering all filter types (includes 93 toroid tests)
-- >90% code coverage
+- 1046 tests covering all filter types (includes 93 toroid tests, 220 new coverage tests)
+- 94% code coverage
 - Automated GitHub Actions CI (lint → format → test on push/PR)
 
 #### 2.5 Maintainability
@@ -477,9 +480,9 @@ Status: ✓ Measured ~200ms on reference machine
 #### 7.1 Quality Metrics
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
-| Test Coverage | >90% | 95%+ | ✓ Met |
-| Test Count | >300 | 826 | ✓ Met |
-| Documentation Files | >6 | 8+ | ✓ Met |
+| Test Coverage | >90% | 94% | ✓ Met |
+| Test Count | >300 | 1046 | ✓ Exceeded |
+| Documentation Files | >6 | 13 | ✓ Exceeded |
 | Code Issues | 0 critical | 0 | ✓ Met |
 | Response Time | <500ms | ~200ms | ✓ Met |
 
@@ -508,6 +511,7 @@ Status: ✓ Measured ~200ms on reference machine
 | 1.1 | Jan 30 2026 | Removed inductor E-series recommendations; capacitor-only E-series matching |
 | 1.2 | Feb 3-8 2026 | Wizard refactoring (modularized calculation/formatting); strategy pattern LP/HP base modules; navigation mixin + radio helpers; ruff linting (py310); GitHub Actions CI; 556 tests; 67 files reformatted |
 | 1.2+ | Apr 2 2026 | Documentation sync (updated PDR, success metrics, code standards, architecture notes) |
+| 1.4+ | Apr 24 2026 | Coverage pass: 826→1046 tests (94% coverage); CLI/wizard/validation full testing; filter-type alias canonicalization; bandpass true -3dB edges; Chebyshev even-order constraint |
 
 ---
 
@@ -522,7 +526,7 @@ Status: ✓ Measured ~200ms on reference machine
 
 ## Document Control
 
-**Last Updated**: April 2, 2026
+**Last Updated**: April 24, 2026
 **Author**: Matt N3AR
 **Status**: Active (Production)
 **Next Review**: Q2 2026

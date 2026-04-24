@@ -21,6 +21,7 @@ uv run pytest tests/ -v             # all tests
 uv run pytest tests/test_lowpass_calculations.py -v   # single file
 uv run pytest tests/ -k "test_butterworth"            # by name pattern
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing  # with coverage
+uv run pytest tests/ --cov=filter_lib --cov-report=json:/tmp/rf-cov.json  # JSON for gap analysis
 
 # Linting
 uv run ruff check .                 # lint
@@ -52,8 +53,10 @@ Full module map: `docs/codebase-summary.md`.
 ### Key design patterns
 
 - **LP/HP duality**: Lowpass and highpass use the same base calculation functions with different formulas injected (LP: `C=g/(Z*ω)`, `L=g*Z/ω`; HP: inverse). Topology (Pi/T) controls shunt vs series placement.
+- **Filter-type alias canonicalization**: `shared/cli_aliases.py::FILTER_TYPE_ALIASES` is the single source of truth (`bw/b`→butterworth, `ch/c`→chebyshev, `bs`→bessel). Any new dispatch code must consult it rather than re-implement — see `shared/transfer_response_dispatch.py::_canonicalize_filter_type`.
 - **Filter results**: All calculation functions return dicts with `capacitors`, `inductors`, `order`, `topology`, etc. Bandpass results have additional coupling fields (`c_tank`, `c_coupling`, `qe_in`, `qe_out`).
-- **Chebyshev constraints**: Bandpass only supports odd resonator counts (3,5,7,9) for equal terminations. Ripple limited to 0.1, 0.5, 1.0 dB in wizard mode.
+- **Bandpass -3 dB edges**: True edges come from solving `(f²-f0²)/(BW·f) = ±1`, not `f0 ± bw/2`. Source of truth: `bandpass.calculations.compute_bandpass_3db_edges` (uses `f_low = f0²/f_high` to dodge catastrophic cancellation for wide BW).
+- **Chebyshev constraints**: LP, HP, and BP all require odd order (3/5/7/9) for equal source/load terminations — enforced in `shared/lp_hp_base_calculations.py` and `cli/bandpass_cmd.py`. Ripple limited to 0.1, 0.5, 1.0 dB in wizard mode.
 - **Toroid recommendations**: Opt-in via `--toroid` flag (see `cli/toroid_flags.py`); selection ranks cores by fit, computes turns from A_L, checks wire OD against window area.
 
 ## Ruff config
@@ -63,3 +66,15 @@ Target: py310, line-length 100, rules: E/F/I/UP/B. Ignores: E501 (formatter hand
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`): lint → format check → pytest with coverage. Runs on push/PR to main, Python 3.13, ubuntu-latest.
+
+## Testing wizard screens
+
+Wizard Textual screens are testable without a running app: mock widgets with `Mock(spec=RadioSet)`, override `type(screen).app` via `property`, then call the screen method directly. Pattern lives in `tests/test_wizard_screens_regressions.py`.
+
+## Testing CLI subcommands
+
+CLI tests build `argparse.Namespace` directly via `_lp_args()/_hp_args()/_bp_args()` helpers in `tests/test_cli_and_helpers.py` — pass overrides as kwargs to exercise validation branches without re-parsing argv. To exercise `setup_parser()` wiring, instantiate a plain `argparse.ArgumentParser()` and call `setup_parser(parser)` then `parser.parse_args([...])`.
+
+## Patching lazy imports
+
+`wizard/interactive.py::run_wizard` imports `FilterWizardApp` lazily inside the function body. To mock it, patch at the definition site: `patch("filter_lib.wizard.app.FilterWizardApp")` — not at `filter_lib.wizard.interactive.FilterWizardApp` (the name doesn't exist until the function runs).
