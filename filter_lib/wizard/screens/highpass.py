@@ -37,8 +37,8 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             with Vertical(classes="form-section"):
                 yield Static("Topology", classes="form-section-title")
                 with RadioSet(id="topology"):
-                    yield RadioButton("T (L-C-L) - Series C first", value=True, id="t")
-                    yield RadioButton("Pi (C-L-C) - Shunt L first", id="pi")
+                    yield RadioButton("T (C-L-C) - Series C first", value=True, id="t")
+                    yield RadioButton("Pi (L-C-L) - Shunt L first", id="pi")
 
             with Vertical(classes="form-section"):
                 yield Static("Parameters", classes="form-section-title")
@@ -160,6 +160,15 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
         # Get filter type and topology
         filter_type = get_selected_radio(self, "filter-type")
         topology = get_selected_radio(self, "topology")
+
+        # Chebyshev LP/HP requires odd order for equal source/load terminations
+        if filter_type == "chebyshev" and order % 2 == 0:
+            self.notify(
+                "Chebyshev highpass requires odd order (3, 5, 7, or 9)",
+                severity="warning",
+            )
+            order_input.focus()
+            return
 
         # Get ripple for Chebyshev
         ripple = None

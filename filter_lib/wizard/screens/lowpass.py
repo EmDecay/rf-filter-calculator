@@ -160,6 +160,15 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
         filter_type = get_selected_radio(self, "filter-type")
         topology = get_selected_radio(self, "topology")
 
+        # Chebyshev LP/HP requires odd order for equal source/load terminations
+        if filter_type == "chebyshev" and order % 2 == 0:
+            self.notify(
+                "Chebyshev lowpass requires odd order (3, 5, 7, or 9)",
+                severity="warning",
+            )
+            order_input.focus()
+            return
+
         # Get ripple for Chebyshev
         ripple = None
         if filter_type == "chebyshev":

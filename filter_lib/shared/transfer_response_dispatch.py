@@ -5,7 +5,29 @@ Eliminates duplicated closure pattern across LP/HP display and wizard modules.
 
 from collections.abc import Callable
 
+from .cli_aliases import FILTER_TYPE_ALIASES
 from .transfer_functions import magnitude_to_db
+
+_CANONICAL_LP_HP_TYPES = ("butterworth", "chebyshev", "bessel")
+_CANONICAL_BP_TYPES = ("butterworth", "chebyshev", "bessel")
+
+
+def _canonicalize_filter_type(filter_type: str, valid: tuple[str, ...]) -> str:
+    """Normalize an LP/HP/BP filter type string to its canonical form.
+
+    Accepts canonical names and every CLI alias (bw/b → butterworth,
+    ch/c → chebyshev, bs → bessel). Raises ValueError for None or unknown.
+    """
+    if filter_type is None:
+        raise ValueError("Filter type must be provided, got None")
+    ft = filter_type.lower()
+    canonical = FILTER_TYPE_ALIASES.get(ft, ft)
+    if canonical not in valid:
+        raise ValueError(
+            f"Unknown filter type '{filter_type}'; expected one of "
+            f"{', '.join(valid)} (or an alias: bw, ch, bs, b, c)"
+        )
+    return canonical
 
 
 def make_lp_response_db(
@@ -14,15 +36,14 @@ def make_lp_response_db(
     """Return f(freq_hz) -> dB for a lowpass filter."""
     from ..lowpass.transfer import bessel_response, butterworth_response, chebyshev_response
 
-    ft = filter_type.lower()
+    ft = _canonicalize_filter_type(filter_type, _CANONICAL_LP_HP_TYPES)
 
     def response_db(f: float) -> float:
-        if ft in ("butterworth", "bw"):
+        if ft == "butterworth":
             return magnitude_to_db(butterworth_response(f, cutoff_hz, order))
-        elif ft in ("chebyshev", "ch"):
+        if ft == "chebyshev":
             return magnitude_to_db(chebyshev_response(f, cutoff_hz, order, ripple_db))
-        else:
-            return magnitude_to_db(bessel_response(f, cutoff_hz, order))
+        return magnitude_to_db(bessel_response(f, cutoff_hz, order))
 
     return response_db
 
@@ -33,15 +54,14 @@ def make_hp_response_db(
     """Return f(freq_hz) -> dB for a highpass filter."""
     from ..highpass.transfer import bessel_response, butterworth_response, chebyshev_response
 
-    ft = filter_type.lower()
+    ft = _canonicalize_filter_type(filter_type, _CANONICAL_LP_HP_TYPES)
 
     def response_db(f: float) -> float:
-        if ft in ("butterworth", "bw"):
+        if ft == "butterworth":
             return magnitude_to_db(butterworth_response(f, cutoff_hz, order))
-        elif ft in ("chebyshev", "ch"):
+        if ft == "chebyshev":
             return magnitude_to_db(chebyshev_response(f, cutoff_hz, order, ripple_db))
-        else:
-            return magnitude_to_db(bessel_response(f, cutoff_hz, order))
+        return magnitude_to_db(bessel_response(f, cutoff_hz, order))
 
     return response_db
 
@@ -52,7 +72,9 @@ def make_bp_response_db(
     """Return f(freq_hz) -> dB for a bandpass filter."""
     from ..bandpass.transfer import magnitude_db
 
+    ft = _canonicalize_filter_type(filter_type, _CANONICAL_BP_TYPES)
+
     def response_db(f: float) -> float:
-        return magnitude_db(f, f0, bw, n_resonators, filter_type, ripple_db)
+        return magnitude_db(f, f0, bw, n_resonators, ft, ripple_db)
 
     return response_db

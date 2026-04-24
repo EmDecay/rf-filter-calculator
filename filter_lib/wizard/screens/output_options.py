@@ -110,9 +110,9 @@ class OutputOptionsScreen(Screen):
         """Save options and navigate to results screen."""
         state: FilterState = self.app.filter_state
 
-        # Get E-series selection
+        # Get E-series selection (may be "none" to disable matching)
         eseries = get_selected_radio(self, "eseries")
-        state.eseries = eseries if eseries != "none" else "E24"
+        state.eseries = eseries or "E24"
 
         # Get output format
         state.output_format = get_selected_radio(self, "format")

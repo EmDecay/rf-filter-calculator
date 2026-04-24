@@ -29,13 +29,26 @@ def format_lp_hp_table(result: dict, state: FilterState, category: str) -> list[
     lines.append(f"Order:               {result['order']}")
     lines.append("=" * 50)
 
+    # HP swaps which component type is series vs shunt, so the schematic labels
+    # and n_series/n_shunt arguments must flip relative to LP. Use explicit
+    # membership rather than startswith to avoid silent mis-detection.
+    is_highpass = category.strip().lower() in ("high pass", "highpass", "hp")
     n_caps = len(result["capacitors"])
     n_inds = len(result["inductors"])
+    series_label = "C" if is_highpass else "L"
+    shunt_label = "L" if is_highpass else "C"
+
     lines.append("\nTopology:")
     if topology == "pi":
-        lines.append(format_pi_topology_diagram(n_caps, n_inds))
+        # Pi: shunt elements are odd positions, series are even
+        n_shunt = n_inds if is_highpass else n_caps
+        n_series = n_caps if is_highpass else n_inds
+        lines.append(format_pi_topology_diagram(n_shunt, n_series, series_label, shunt_label))
     else:
-        lines.append(format_t_topology_diagram(n_inds, n_caps))
+        # T: series elements are odd positions, shunt are even
+        n_series = n_caps if is_highpass else n_inds
+        n_shunt = n_inds if is_highpass else n_caps
+        lines.append(format_t_topology_diagram(n_series, n_shunt, series_label, shunt_label))
 
     lines.append(_format_component_table(result, state.raw_units))
     return lines

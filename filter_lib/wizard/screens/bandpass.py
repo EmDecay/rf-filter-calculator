@@ -32,6 +32,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                         "Butterworth - Maximally flat passband", value=True, id="butterworth"
                     )
                     yield RadioButton("Chebyshev - Sharper cutoff, passband ripple", id="chebyshev")
+                    yield RadioButton("Bessel - Best transient response", id="bessel")
 
             # Coupling
             with Vertical(classes="form-section"):
