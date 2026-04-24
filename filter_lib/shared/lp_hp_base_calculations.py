@@ -23,6 +23,16 @@ def _validate_topology(topology: str) -> None:
         raise ValueError(f"Topology must be 'pi' or 't', got '{topology}'")
 
 
+def _validate_lp_hp_inputs(cutoff_hz: float, impedance: float, num_components: int) -> None:
+    """Validate shared LP/HP numeric inputs."""
+    if cutoff_hz <= 0:
+        raise ValueError("Cutoff frequency must be positive")
+    if impedance <= 0:
+        raise ValueError("Impedance must be positive")
+    if not 2 <= num_components <= 9:
+        raise ValueError("Number of components must be between 2 and 9")
+
+
 def _calculate_butterworth_base(
     cutoff_hz: float,
     impedance: float,
@@ -47,6 +57,7 @@ def _calculate_butterworth_base(
         Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
     """
     _validate_topology(topology)
+    _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
     n = num_components
     omega = 2 * math.pi * cutoff_hz
 
@@ -105,7 +116,16 @@ def _calculate_chebyshev_base(
         Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
     """
     _validate_topology(topology)
+    _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
     n = num_components
+    # Even-order Chebyshev designs cannot meet equal source/load terminations
+    # (ripple does not return to 0 dB at DC for LP / at infinity for HP),
+    # which this library assumes. Match bandpass behavior by restricting to odd.
+    if n % 2 == 0:
+        raise ValueError(
+            "Chebyshev LP/HP requires odd order for equal source/load terminations "
+            "(use 3, 5, 7, or 9)"
+        )
     omega = 2 * math.pi * cutoff_hz
 
     # Get g-values from shared calculator
@@ -161,6 +181,7 @@ def _calculate_bessel_base(
         Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
     """
     _validate_topology(topology)
+    _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
     n = num_components
     if n not in BESSEL_G_VALUES:
         raise ValueError(f"Bessel filter supports 2-9 components, got {n}")
