@@ -5,7 +5,7 @@ Supports Butterworth, Chebyshev, and Bessel filter types.
 """
 
 from ..shared.constants import CHEBYSHEV_G_VALUES
-from .calculations import calculate_bandpass_filter
+from .calculations import calculate_bandpass_filter, compute_bandpass_3db_edges
 from .display import display_results
 from .g_values import (
     calculate_butterworth_g_values,
@@ -23,6 +23,7 @@ from .transfer import (
 
 __all__ = [
     "calculate_bandpass_filter",
+    "compute_bandpass_3db_edges",
     "calculate_butterworth_g_values",
     "get_chebyshev_g_values",
     "get_bessel_g_values",

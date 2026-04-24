@@ -119,6 +119,29 @@ def calculate_min_q(f0: float, bw: float, safety_factor: float = 2.0) -> float:
     return (f0 / bw) * safety_factor
 
 
+def compute_bandpass_3db_edges(f0: float, bw: float) -> tuple[float, float]:
+    """Return the exact -3 dB edges of the narrowband bandpass transfer function.
+
+    The transfer function uses the frequency deviation delta = (f^2 - f0^2) / (BW*f);
+    |H|^2 hits 0.5 when delta = ±1, which solves two quadratics in f.
+
+    Upper: f^2 - BW*f - f0^2 = 0 → f = (BW + sqrt(BW^2 + 4*f0^2)) / 2
+    Lower: f^2 + BW*f - f0^2 = 0 → f = (-BW + sqrt(BW^2 + 4*f0^2)) / 2
+
+    These edges satisfy f_high - f_low = BW and f0 = sqrt(f_low * f_high)
+    (geometric centering), which differs from the arithmetic shortcut f0 ± BW/2
+    for wider fractional bandwidths.
+    """
+    if f0 <= 0 or bw <= 0:
+        raise ValueError("f0 and bw must be positive")
+    disc = math.sqrt(bw * bw + 4.0 * f0 * f0)
+    f_high = (bw + disc) / 2.0
+    # Use the geometric invariant f_low * f_high = f0^2 to avoid catastrophic
+    # cancellation in (-bw + disc) when bw >> 2*f0.
+    f_low = (f0 * f0) / f_high
+    return f_low, f_high
+
+
 def _validate_inputs(
     f0: float, bw: float, z0: float, n_resonators: int, filter_type: str, coupling: str
 ) -> None:
@@ -207,10 +230,12 @@ def calculate_bandpass_filter(
             f"Reduce bandwidth or use fewer resonators."
         )
 
+    f_low, f_high = compute_bandpass_3db_edges(f0, bw)
+
     return {
         "f0": f0,
-        "f_low": f0 - bw / 2,
-        "f_high": f0 + bw / 2,
+        "f_low": f_low,
+        "f_high": f_high,
         "bw": bw,
         "fbw": fbw,
         "z0": z0,

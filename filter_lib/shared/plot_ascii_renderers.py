@@ -265,9 +265,20 @@ def render_bandpass_plot(
 
     lines.append("     +" + "\u2500" * width)
 
-    # Frequency labels for bandpass
-    f_low = f_low_hz if f_low_hz is not None else f0 - bw / 2
-    f_high = f_high_hz if f_high_hz is not None else f0 + bw / 2
+    # Frequency labels for bandpass — use explicit edges when supplied,
+    # otherwise compute the exact quadratic -3 dB edges. For degenerate
+    # inputs (f0=0 or bw=0) the quadratic is undefined, so fall back to the
+    # arithmetic approximation just to keep the renderer crash-free.
+    if f_low_hz is not None and f_high_hz is not None:
+        f_low, f_high = f_low_hz, f_high_hz
+    elif f0 > 0 and bw > 0:
+        from ..bandpass.calculations import compute_bandpass_3db_edges
+
+        f_low, f_high = compute_bandpass_3db_edges(f0, bw)
+    else:
+        # Degenerate (f0<=0 or bw<=0): fall back to arithmetic so the renderer
+        # stays crash-free for pathological test inputs.
+        f_low, f_high = f0 - bw / 2, f0 + bw / 2
     label_parts = [
         f"     {_format_freq_compact(f_min):>8}",
         f"{_format_freq_compact(f_low):>10}",

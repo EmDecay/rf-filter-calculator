@@ -137,7 +137,7 @@ def run(args: Namespace) -> None:
     filter_type = resolve_filter_type(filter_type)
     coupling = resolve_coupling(coupling)
 
-    f0, bw, f_low, f_high = _validate_frequencies(args)
+    f0, bw = _validate_frequencies(args)
     z0 = parse_impedance(args.impedance)
 
     if args.q_safety <= 0:
@@ -155,8 +155,6 @@ def run(args: Namespace) -> None:
         ripple_db=args.ripple if filter_type == "chebyshev" else DEFAULT_RIPPLE_DB,
         q_safety=args.q_safety,
     )
-    result["f_low"] = f_low
-    result["f_high"] = f_high
 
     for w in result.get("warnings", []):
         print(f"Warning: {w}", file=sys.stderr)
@@ -174,8 +172,12 @@ def run(args: Namespace) -> None:
     )
 
 
-def _validate_frequencies(args: Namespace) -> tuple[float, float, float, float]:
-    """Validate and compute f0, bw from input method."""
+def _validate_frequencies(args: Namespace) -> tuple[float, float]:
+    """Validate and compute f0, bw from input method.
+
+    Returns f0 (geometric center) and bw (passband width). The true -3 dB
+    edges are computed downstream by compute_bandpass_3db_edges.
+    """
     has_center_bw = args.frequency and args.bandwidth
     has_low_high = args.f_low and args.f_high
 
@@ -187,8 +189,6 @@ def _validate_frequencies(args: Namespace) -> tuple[float, float, float, float]:
     if has_center_bw:
         f0 = parse_frequency(args.frequency)
         bw = parse_frequency(args.bandwidth)
-        f_low = f0 - bw / 2
-        f_high = f0 + bw / 2
     else:
         f_low = parse_frequency(args.f_low)
         f_high = parse_frequency(args.f_high)
@@ -197,7 +197,7 @@ def _validate_frequencies(args: Namespace) -> tuple[float, float, float, float]:
         f0 = math.sqrt(f_low * f_high)
         bw = f_high - f_low
 
-    return f0, bw, f_low, f_high
+    return f0, bw
 
 
 def _run_verification() -> None:
