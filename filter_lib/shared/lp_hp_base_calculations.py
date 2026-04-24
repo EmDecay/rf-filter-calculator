@@ -24,11 +24,11 @@ def _validate_topology(topology: str) -> None:
 
 
 def _validate_lp_hp_inputs(cutoff_hz: float, impedance: float, num_components: int) -> None:
-    """Validate shared LP/HP numeric inputs."""
-    if cutoff_hz <= 0:
-        raise ValueError("Cutoff frequency must be positive")
-    if impedance <= 0:
-        raise ValueError("Impedance must be positive")
+    """Validate shared LP/HP numeric inputs. Rejects NaN and inf explicitly."""
+    if not math.isfinite(cutoff_hz) or cutoff_hz <= 0:
+        raise ValueError("Cutoff frequency must be positive and finite")
+    if not math.isfinite(impedance) or impedance <= 0:
+        raise ValueError("Impedance must be positive and finite")
     if not 2 <= num_components <= 9:
         raise ValueError("Number of components must be between 2 and 9")
 
@@ -117,6 +117,8 @@ def _calculate_chebyshev_base(
     """
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
+    if not math.isfinite(ripple_db) or ripple_db <= 0:
+        raise ValueError("ripple_db must be positive and finite for Chebyshev")
     n = num_components
     # Even-order Chebyshev designs cannot meet equal source/load terminations
     # (ripple does not return to 0 dB at DC for LP / at infinity for HP),

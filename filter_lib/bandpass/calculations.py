@@ -132,8 +132,10 @@ def compute_bandpass_3db_edges(f0: float, bw: float) -> tuple[float, float]:
     (geometric centering), which differs from the arithmetic shortcut f0 ± BW/2
     for wider fractional bandwidths.
     """
-    if f0 <= 0 or bw <= 0:
-        raise ValueError("f0 and bw must be positive")
+    if not math.isfinite(f0) or f0 <= 0:
+        raise ValueError("f0 must be positive and finite")
+    if not math.isfinite(bw) or bw <= 0:
+        raise ValueError("bw must be positive and finite")
     disc = math.sqrt(bw * bw + 4.0 * f0 * f0)
     f_high = (bw + disc) / 2.0
     # Use the geometric invariant f_low * f_high = f0^2 to avoid catastrophic
@@ -145,15 +147,19 @@ def compute_bandpass_3db_edges(f0: float, bw: float) -> tuple[float, float]:
 def _validate_inputs(
     f0: float, bw: float, z0: float, n_resonators: int, filter_type: str, coupling: str
 ) -> None:
-    """Validate input parameters for bandpass filter calculation."""
-    if f0 <= 0:
-        raise ValueError("Center frequency must be positive")
-    if bw <= 0:
-        raise ValueError("Bandwidth must be positive")
+    """Validate input parameters for bandpass filter calculation.
+
+    Rejects NaN and inf explicitly — the ``<= 0`` checks would otherwise let
+    NaN slip past and produce downstream garbage component values.
+    """
+    if not math.isfinite(f0) or f0 <= 0:
+        raise ValueError("Center frequency must be positive and finite")
+    if not math.isfinite(bw) or bw <= 0:
+        raise ValueError("Bandwidth must be positive and finite")
     if bw >= f0:
         raise ValueError("Bandwidth must be less than center frequency")
-    if z0 <= 0:
-        raise ValueError("Impedance must be positive")
+    if not math.isfinite(z0) or z0 <= 0:
+        raise ValueError("Impedance must be positive and finite")
     if not 2 <= n_resonators <= 9:
         raise ValueError("Number of resonators must be between 2 and 9")
     if filter_type not in ("butterworth", "chebyshev", "bessel"):
@@ -203,6 +209,10 @@ def calculate_bandpass_filter(
         ValueError: If invalid parameters provided
     """
     _validate_inputs(f0, bw, z0, n_resonators, filter_type, coupling)
+    if not math.isfinite(q_safety) or q_safety <= 0:
+        raise ValueError("q_safety must be positive and finite")
+    if filter_type == "chebyshev" and (not math.isfinite(ripple_db) or ripple_db <= 0):
+        raise ValueError("ripple_db must be positive and finite for Chebyshev")
 
     fbw = bw / f0
     warnings = _get_fbw_warnings(fbw, coupling)
@@ -210,9 +220,20 @@ def calculate_bandpass_filter(
     # Get prototype g-values
     g_values = get_g_values(filter_type, n_resonators, ripple_db)
 
+    # Cohn synthesis treats fbw as the prototype passband-edge fractional BW
+    # (|delta| = 1). For Butterworth and Bessel that is also the -3 dB BW, so no
+    # rescaling is needed. For Chebyshev, |delta| = 1 is the ripple edge, which
+    # is narrower than the -3 dB BW — scale fbw down by delta_3dB so the
+    # synthesized filter's *true* -3 dB BW equals the user-supplied ``bw``.
+    fbw_synth = fbw
+    if filter_type == "chebyshev":
+        from .transfer import chebyshev_3db_deviation
+
+        fbw_synth = fbw / chebyshev_3db_deviation(n_resonators, ripple_db)
+
     # Calculate coupling and external Q
-    k_values = calculate_coupling_coefficients(g_values, fbw)
-    qe_in, qe_out = calculate_external_q(g_values, fbw)
+    k_values = calculate_coupling_coefficients(g_values, fbw_synth)
+    qe_in, qe_out = calculate_external_q(g_values, fbw_synth)
 
     # Calculate resonator components
     L_resonant, C_resonant = calculate_resonator_components(f0, z0)

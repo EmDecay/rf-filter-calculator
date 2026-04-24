@@ -20,6 +20,26 @@ def chebyshev_polynomial(n: int, x: float) -> float:
     return math.cosh(n * math.acosh(abs(x)))
 
 
+def chebyshev_3db_deviation(order: int, ripple_db: float) -> float:
+    """Normalized frequency deviation at which a Chebyshev Type I response is -3 dB.
+
+    Chebyshev passband ends at |delta| = 1 with attenuation = ripple_db, NOT at
+    -3 dB. The -3 dB point lies outside the ripple passband at:
+
+        delta_3dB = cosh(acosh(1/eps) / n),   eps = sqrt(10^(ripple/10) - 1)
+
+    For Butterworth and Bessel responses this scale is effectively 1 (their
+    prototypes are already normalized so delta=1 lies at -3 dB).
+
+    Raises:
+        ValueError: If ripple_db <= 0 (ambiguous: no ripple, no eps).
+    """
+    if ripple_db <= 0:
+        raise ValueError("ripple_db must be positive for Chebyshev")
+    eps = math.sqrt(10 ** (ripple_db / 10) - 1)
+    return math.cosh(math.acosh(1.0 / eps) / order)
+
+
 def _bandpass_deviation(f: float, f0: float, bw: float) -> float:
     """Calculate normalized frequency deviation for bandpass.
 
@@ -44,11 +64,18 @@ def magnitude_butterworth(f: float, f0: float, bw: float, order: int) -> float:
 def magnitude_chebyshev(f: float, f0: float, bw: float, order: int, ripple_db: float) -> float:
     """Return |H(f)| for Chebyshev Type I bandpass filter.
 
+    ``bw`` is the user-facing -3 dB bandwidth. Internally the normalized
+    deviation is scaled by the Chebyshev 3-dB-point so that ``delta = ±1`` in
+    user units maps onto the Chebyshev polynomial's -3 dB point, not the
+    ripple edge.
+
     eps = sqrt(10^(ripple/10) - 1)
-    |H(f)| = 1 / sqrt(1 + eps^2 * Cn^2(delta))
+    scale = cosh(acosh(1/eps)/n)                   # >= 1 for ripple > 0
+    |H(f)| = 1 / sqrt(1 + eps^2 * Cn^2(delta * scale))
     """
     eps = math.sqrt(10 ** (ripple_db / 10) - 1)
-    delta = _bandpass_deviation(f, f0, bw)
+    scale = chebyshev_3db_deviation(order, ripple_db)
+    delta = _bandpass_deviation(f, f0, bw) * scale
     cn = chebyshev_polynomial(order, delta)
     return 1.0 / math.sqrt(1.0 + eps * eps * cn * cn)
 
@@ -110,6 +137,8 @@ def frequency_sweep(
     Returns:
         List of (frequency_hz, magnitude_db) tuples
     """
+    if points < 2:
+        raise ValueError("points must be >= 2 for a log sweep")
     if decades is None:
         # Show 10x BW on each side of f0, converted to log scale
         span = 10 * bw
@@ -141,6 +170,8 @@ def generate_frequency_points(f0: float, bw: float, points: int = 101) -> list[f
     Returns:
         List of frequencies in Hz
     """
+    if points < 2:
+        raise ValueError("points must be >= 2 for a log sweep")
     span = 10 * bw
     decades = math.log10((f0 + span) / f0)
     decades = max(0.1, min(1.0, decades))

@@ -46,10 +46,12 @@ def generate_frequency_points(
     Returns:
         List of frequencies in Hz
     """
-    if f0 <= 0:
-        raise ValueError("Cutoff frequency must be positive")
+    if not math.isfinite(f0) or f0 <= 0:
+        raise ValueError("Cutoff frequency must be positive and finite")
 
     if num_points is not None:
+        if num_points < 2:
+            raise ValueError("num_points must be >= 2 for a log sweep")
         # Legacy mode: fixed 2-decade span from 0.1*f0 to 10*f0
         points = []
         for i in range(num_points):

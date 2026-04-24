@@ -86,9 +86,18 @@ def _format_component_table(result: dict, raw: bool) -> str:
 
 
 def format_eseries_recs(
-    components: list, prefix: str, name: str, eseries: str, formatter: Callable
+    components: list,
+    prefix: str,
+    name: str,
+    eseries: str,
+    formatter: Callable,
+    parallel_mode: str = "additive",
 ) -> list[str]:
-    """Format E-series recommendations for components."""
+    """Format E-series recommendations for components.
+
+    parallel_mode must match the component physics: ``additive`` for capacitors
+    (C_par = C1 + C2) and ``harmonic`` for inductors (L_par = L1*L2/(L1+L2)).
+    """
     from filter_lib.shared.display_helpers import format_eseries_match
 
     lines = []
@@ -98,7 +107,7 @@ def format_eseries_recs(
     lines.append("")
     for i, val in enumerate(components):
         lines.append(f"{prefix}{i + 1} Calculated: {formatter(val)}")
-        for line in format_eseries_match(val, eseries, formatter):
+        for line in format_eseries_match(val, eseries, formatter, parallel_mode=parallel_mode):
             lines.append(line)
     return lines
 

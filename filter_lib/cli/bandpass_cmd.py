@@ -201,26 +201,30 @@ def _validate_frequencies(args: Namespace) -> tuple[float, float]:
 
 
 def _run_verification() -> None:
-    """Run self-verification tests."""
+    """Run self-verification tests. Uses explicit checks so ``python -O`` still runs them."""
     from ..bandpass.calculations import calculate_resonator_components
     from ..bandpass.g_values import (
         calculate_butterworth_g_values,
         get_chebyshev_g_values,
     )
 
+    def _check(condition: bool, msg: str) -> None:
+        if not condition:
+            raise RuntimeError(f"Verification failed: {msg}")
+
     print("Running verification tests...")
 
     # Test g-value calculations
     g3 = calculate_butterworth_g_values(3)
-    assert len(g3) == 3, f"Expected 3 g-values, got {len(g3)}"
-    assert abs(g3[0] - 1.0) < 0.01, f"g1 should be ~1.0, got {g3[0]}"
+    _check(len(g3) == 3, f"Expected 3 g-values, got {len(g3)}")
+    _check(abs(g3[0] - 1.0) < 0.01, f"g1 should be ~1.0, got {g3[0]}")
 
     # Test Chebyshev
     gc3 = get_chebyshev_g_values(3, 0.5)
-    assert len(gc3) == 3, "Expected 3 Chebyshev g-values"
+    _check(len(gc3) == 3, "Expected 3 Chebyshev g-values")
 
     # Test resonator components
     L, C = calculate_resonator_components(10e6, 50)
-    assert L > 0 and C > 0, "L and C must be positive"
+    _check(L > 0 and C > 0, "L and C must be positive")
 
     print("Verification passed")

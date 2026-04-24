@@ -152,7 +152,12 @@ def calculate_highpass(state: FilterState) -> list[str]:
     if state.eseries != "none" and not state.raw_units:
         lines.extend(
             format_eseries_recs(
-                result["inductors"], "L", "Inductor", state.eseries, format_inductance
+                result["inductors"],
+                "L",
+                "Inductor",
+                state.eseries,
+                format_inductance,
+                parallel_mode="harmonic",
             )
         )
 

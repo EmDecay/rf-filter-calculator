@@ -53,7 +53,27 @@ class ResultsScreen(Screen):
         """Start calculation when screen mounts."""
         # Hide export section initially
         self.query_one("#export-section").display = False
+        # Honour the export format the user picked on the Output Options screen.
+        self._preselect_export_format()
         self.run_worker(self._calculate, exclusive=True, thread=True)
+
+    def _preselect_export_format(self) -> None:
+        """Pre-select the export-format radio that matches state.export_format.
+
+        Setting ``value=True`` on the target RadioButton prompts the parent
+        RadioSet to clear the other buttons automatically via its
+        Changed-event handling.
+        """
+        state: FilterState = self.app.filter_state
+        fmt = getattr(state, "export_format", None)
+        target_id = {"json": "export-json", "csv": "export-csv"}.get(fmt, "export-txt")
+        try:
+            radio_set = self.query_one("#export-format", RadioSet)
+            for button in radio_set.query(RadioButton):
+                button.value = button.id == target_id
+        except (AttributeError, LookupError):
+            # Widget not mounted yet — safe to skip; default radio value stands.
+            pass
 
     def _calculate(self) -> str:
         """Perform filter calculation and generate output text."""

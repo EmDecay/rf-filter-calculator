@@ -39,7 +39,12 @@ def _butterworth_response_base(
             return 0.0
         ratio = cutoff_hz / freq_hz  # Inverted for HPF
 
-    h_squared = 1.0 / (1.0 + ratio ** (2 * order))
+    # For |ratio| >> 1, ratio**(2n) may overflow double precision. The limit
+    # of 1/sqrt(1 + ratio^(2n)) as that term overflows is 0, so clamp.
+    try:
+        h_squared = 1.0 / (1.0 + ratio ** (2 * order))
+    except OverflowError:
+        return 0.0
     return math.sqrt(h_squared)
 
 
