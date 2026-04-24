@@ -70,14 +70,12 @@ class TestMakeLpResponseDb:
         assert result == pytest.approx(expected, rel=1e-9)
 
     def test_butterworth_alias_b(self):
-        """Butterworth alias 'b' works (case-insensitive)."""
+        """Butterworth alias 'b' routes to Butterworth, matching CLI semantics."""
         cutoff_hz = 10e6
         order = 5
         test_freq = 5e6
         response_fn = make_lp_response_db("b", cutoff_hz, order)
-        # 'b' is not in the explicit list, defaults to Bessel
-        # So this will call Bessel, not Butterworth
-        expected = magnitude_to_db(lp_bessel_response(test_freq, cutoff_hz, order))
+        expected = magnitude_to_db(lp_butterworth_response(test_freq, cutoff_hz, order))
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
 
@@ -114,14 +112,13 @@ class TestMakeLpResponseDb:
         assert result == pytest.approx(expected, rel=1e-9)
 
     def test_chebyshev_alias_c(self):
-        """Chebyshev alias 'c' works (case-insensitive)."""
+        """Chebyshev alias 'c' routes to Chebyshev, matching CLI semantics."""
         cutoff_hz = 10e6
         order = 5
         ripple_db = 0.5
         test_freq = 5e6
         response_fn = make_lp_response_db("c", cutoff_hz, order, ripple_db)
-        # 'c' is not explicitly matched, defaults to Bessel
-        expected = magnitude_to_db(lp_bessel_response(test_freq, cutoff_hz, order))
+        expected = magnitude_to_db(lp_chebyshev_response(test_freq, cutoff_hz, order, ripple_db))
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
 
@@ -147,25 +144,24 @@ class TestMakeLpResponseDb:
         assert result == pytest.approx(expected, rel=1e-9)
 
     def test_bessel_alias_bs(self):
-        """Bessel alias 'bs' works."""
+        """Bessel alias 'bs' routes to Bessel."""
         cutoff_hz = 10e6
         order = 5
         test_freq = 5e6
         response_fn = make_lp_response_db("bs", cutoff_hz, order)
-        # 'bs' is not explicitly matched, defaults to Bessel
         expected = magnitude_to_db(lp_bessel_response(test_freq, cutoff_hz, order))
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
 
-    def test_unknown_filter_type_defaults_to_bessel(self):
-        """Unknown filter type defaults to Bessel."""
-        cutoff_hz = 10e6
-        order = 5
-        test_freq = 5e6
-        response_fn = make_lp_response_db("unknown", cutoff_hz, order)
-        expected = magnitude_to_db(lp_bessel_response(test_freq, cutoff_hz, order))
-        result = response_fn(test_freq)
-        assert result == pytest.approx(expected, rel=1e-9)
+    def test_unknown_filter_type_raises(self):
+        """Unknown filter type raises ValueError instead of silently picking Bessel."""
+        with pytest.raises(ValueError, match="Unknown filter type"):
+            make_lp_response_db("unknown", 10e6, 5)
+
+    def test_none_filter_type_raises(self):
+        """None filter type raises ValueError, not AttributeError."""
+        with pytest.raises(ValueError, match="must be provided"):
+            make_lp_response_db(None, 10e6, 5)  # type: ignore[arg-type]
 
     def test_ripple_parameter_passed_to_response(self):
         """Ripple parameter affects Chebyshev response."""
@@ -298,15 +294,15 @@ class TestMakeHpResponseDb:
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
 
-    def test_unknown_filter_type_defaults_to_bessel(self):
-        """Unknown filter type defaults to Bessel."""
-        cutoff_hz = 10e6
-        order = 5
-        test_freq = 20e6
-        response_fn = make_hp_response_db("unknown", cutoff_hz, order)
-        expected = magnitude_to_db(hp_bessel_response(test_freq, cutoff_hz, order))
-        result = response_fn(test_freq)
-        assert result == pytest.approx(expected, rel=1e-9)
+    def test_unknown_filter_type_raises(self):
+        """Unknown filter type raises ValueError instead of silently picking Bessel."""
+        with pytest.raises(ValueError, match="Unknown filter type"):
+            make_hp_response_db("unknown", 10e6, 5)
+
+    def test_none_filter_type_raises(self):
+        """None filter type raises ValueError, not AttributeError."""
+        with pytest.raises(ValueError, match="must be provided"):
+            make_hp_response_db(None, 10e6, 5)  # type: ignore[arg-type]
 
     def test_ripple_parameter_passed_to_response(self):
         """Ripple parameter affects Chebyshev response."""
@@ -377,6 +373,26 @@ class TestMakeBpResponseDb:
         expected = bp_magnitude_db(test_freq, f0, bw, n_resonators, filter_type, 0.5)
         result = response_fn(test_freq)
         assert result == pytest.approx(expected, rel=1e-9)
+
+    def test_unknown_filter_type_raises(self):
+        """Unknown bandpass filter type raises ValueError upfront."""
+        with pytest.raises(ValueError, match="Unknown filter type"):
+            make_bp_response_db(1e6, 100e3, 3, "unknown")
+
+    def test_none_filter_type_raises(self):
+        """None bandpass filter type raises ValueError, not AttributeError."""
+        with pytest.raises(ValueError, match="must be provided"):
+            make_bp_response_db(1e6, 100e3, 3, None)  # type: ignore[arg-type]
+
+    def test_alias_routing_bw_to_butterworth(self):
+        """Bandpass 'bw' alias routes to Butterworth via canonicalization."""
+        f0 = 1e6
+        bw = 100e3
+        n = 3
+        test_freq = 950e3
+        alias_fn = make_bp_response_db(f0, bw, n, "bw")
+        canonical_fn = make_bp_response_db(f0, bw, n, "butterworth")
+        assert alias_fn(test_freq) == pytest.approx(canonical_fn(test_freq))
 
     def test_chebyshev_response_accuracy(self):
         """Chebyshev response matches direct calculation."""

@@ -131,11 +131,19 @@ class TestChebychevLowpass:
             assert len(inds) > 0
 
     def test_order_range(self):
-        """Test all valid Chebyshev orders."""
-        for order in range(2, 10):
+        """Test all valid Chebyshev orders (odd only for equal terminations)."""
+        for order in (3, 5, 7, 9):
             caps, inds, n = lp.calculate_chebyshev(10e6, 50, 0.5, order, topology="pi")
             assert n == order
             assert len(caps) + len(inds) == order
+
+    def test_even_order_rejected(self):
+        """Even-order Chebyshev is rejected for equal source/load terminations."""
+        import pytest
+
+        for order in (2, 4, 6, 8):
+            with pytest.raises(ValueError, match="odd order"):
+                lp.calculate_chebyshev(10e6, 50, 0.5, order, topology="pi")
 
     def test_impedance_scaling(self):
         """Test impedance scaling for Chebyshev."""
@@ -171,10 +179,10 @@ class TestBesselLowpass:
 
     def test_invalid_order_raises(self):
         """Test that invalid order raises ValueError."""
-        with pytest.raises(ValueError, match="Bessel filter supports"):
+        with pytest.raises(ValueError, match="between 2 and 9"):
             lp.calculate_bessel(10e6, 50, 1, topology="pi")
 
-        with pytest.raises(ValueError, match="Bessel filter supports"):
+        with pytest.raises(ValueError, match="between 2 and 9"):
             lp.calculate_bessel(10e6, 50, 10, topology="pi")
 
     def test_frequency_scaling(self):
@@ -213,16 +221,24 @@ class TestLowpassEdgeCases:
         with pytest.raises(ValueError, match="Topology must be"):
             lp.calculate_butterworth(10e6, 50, 3, topology="x")
 
-    def test_negative_impedance_does_not_validate(self):
-        """Test that negative impedance produces unusual results.
+    def test_negative_impedance_rejected(self):
+        """Negative impedance is rejected with a clear ValueError."""
+        with pytest.raises(ValueError, match="Impedance must be positive"):
+            lp.calculate_butterworth(10e6, -50, 2, topology="pi")
 
-        Note: Current implementation doesn't validate impedance.
-        This test documents the behavior rather than enforcing validation.
-        """
-        # Negative impedance would produce mathematically invalid results
-        caps, inds, _ = lp.calculate_butterworth(10e6, -50, 2, topology="pi")
-        # With negative impedance, values will be negative
-        assert any(c < 0 for c in caps) or any(i < 0 for i in inds)
+    def test_non_positive_cutoff_rejected(self):
+        """Zero or negative cutoff is rejected."""
+        with pytest.raises(ValueError, match="Cutoff frequency must be positive"):
+            lp.calculate_butterworth(0, 50, 2, topology="pi")
+        with pytest.raises(ValueError, match="Cutoff frequency must be positive"):
+            lp.calculate_butterworth(-1e6, 50, 2, topology="pi")
+
+    def test_component_count_out_of_range_rejected(self):
+        """Component counts outside 2-9 are rejected."""
+        with pytest.raises(ValueError, match="between 2 and 9"):
+            lp.calculate_butterworth(10e6, 50, 1, topology="pi")
+        with pytest.raises(ValueError, match="between 2 and 9"):
+            lp.calculate_butterworth(10e6, 50, 10, topology="pi")
 
     def test_very_small_frequency(self):
         """Test very small frequency produces very large components."""

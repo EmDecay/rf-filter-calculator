@@ -5,6 +5,9 @@ Tests verify coupled resonator calculations for bandpass filter design.
 
 import math
 
+import pytest
+
+from filter_lib.bandpass import calculate_bandpass_filter, compute_bandpass_3db_edges
 from filter_lib.bandpass.calculations import (
     calculate_coupling_capacitors,
     calculate_coupling_coefficients,
@@ -12,6 +15,7 @@ from filter_lib.bandpass.calculations import (
     calculate_resonator_components,
     calculate_tank_capacitors,
 )
+from filter_lib.bandpass.transfer import magnitude_db
 
 
 class TestCouplingCoefficients:
@@ -331,3 +335,71 @@ class TestBandpassEdgeCases:
         # Should produce reasonable component values
         assert 1e-9 < ind < 1e-6  # nH to µH range
         assert 1e-12 < c < 1e-9  # pF to nF range
+
+
+class TestBandpass3dBEdges:
+    """compute_bandpass_3db_edges must return true -3 dB corner frequencies."""
+
+    @pytest.mark.parametrize(
+        "f0, bw",
+        [
+            (1.0e6, 400e3),  # 40% fractional BW — arithmetic approx fails here
+            (14.175e6, 350e3),  # narrow, typical HF bandpass
+            (100e6, 10e6),  # 10% fractional BW
+            (1e9, 20e6),  # very narrow
+        ],
+    )
+    def test_edges_hit_minus_3db_on_butterworth(self, f0, bw):
+        f_low, f_high = compute_bandpass_3db_edges(f0, bw)
+        # Both edges should be at exactly -3.0103 dB (10*log10(0.5))
+        target_db = 10.0 * math.log10(0.5)
+        low_db = magnitude_db(f_low, f0, bw, 3, "butterworth")
+        high_db = magnitude_db(f_high, f0, bw, 3, "butterworth")
+        assert low_db == pytest.approx(target_db, abs=1e-9)
+        assert high_db == pytest.approx(target_db, abs=1e-9)
+
+    @pytest.mark.parametrize("f0, bw", [(1e6, 400e3), (14.175e6, 350e3), (100e6, 10e6)])
+    def test_width_equals_bw(self, f0, bw):
+        f_low, f_high = compute_bandpass_3db_edges(f0, bw)
+        assert f_high - f_low == pytest.approx(bw, rel=1e-12)
+
+    @pytest.mark.parametrize("f0, bw", [(1e6, 400e3), (14.175e6, 350e3), (100e6, 10e6)])
+    def test_geometric_center(self, f0, bw):
+        """f0 is the geometric mean of the -3 dB edges."""
+        f_low, f_high = compute_bandpass_3db_edges(f0, bw)
+        assert math.sqrt(f_low * f_high) == pytest.approx(f0, rel=1e-12)
+
+    def test_rejects_non_positive_inputs(self):
+        with pytest.raises(ValueError):
+            compute_bandpass_3db_edges(0, 100e3)
+        with pytest.raises(ValueError):
+            compute_bandpass_3db_edges(1e6, 0)
+        with pytest.raises(ValueError):
+            compute_bandpass_3db_edges(1e6, -1)
+
+    def test_no_catastrophic_cancellation_for_extreme_bw(self):
+        """f_low must remain accurate even when bw >> 2*f0."""
+        f0 = 1.0
+        bw = 1e20  # Pathological: bw orders of magnitude larger than f0
+        f_low, f_high = compute_bandpass_3db_edges(f0, bw)
+        # Geometric invariant must hold exactly
+        assert math.sqrt(f_low * f_high) == pytest.approx(f0, rel=1e-12)
+        # f_low must be strictly positive, not crushed to 0 by cancellation
+        assert f_low > 0
+
+    def test_result_dict_uses_true_edges(self):
+        """calculate_bandpass_filter propagates the correct -3 dB edges in the result."""
+        result = calculate_bandpass_filter(
+            f0=1e6,
+            bw=400e3,
+            z0=50,
+            n_resonators=3,
+            filter_type="butterworth",
+            coupling="top",
+        )
+        expected_low, expected_high = compute_bandpass_3db_edges(1e6, 400e3)
+        assert result["f_low"] == pytest.approx(expected_low, rel=1e-12)
+        assert result["f_high"] == pytest.approx(expected_high, rel=1e-12)
+        # Sanity: arithmetic shortcut would be 800 kHz / 1.2 MHz — these are not that
+        assert abs(result["f_low"] - 800e3) > 10e3
+        assert abs(result["f_high"] - 1.2e6) > 10e3

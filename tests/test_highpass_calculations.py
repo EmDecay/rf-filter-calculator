@@ -131,11 +131,19 @@ class TestChebychevHighpass:
         assert inds_01 != inds_10
 
     def test_order_range(self):
-        """Test all valid Chebyshev orders."""
-        for order in range(2, 10):
+        """Test all valid Chebyshev orders (odd only for equal terminations)."""
+        for order in (3, 5, 7, 9):
             inds, caps, n = hp.calculate_chebyshev(10e6, 50, 0.5, order, topology="t")
             assert n == order
             assert len(inds) + len(caps) == order
+
+    def test_even_order_rejected(self):
+        """Even-order Chebyshev is rejected for equal source/load terminations."""
+        import pytest
+
+        for order in (2, 4, 6, 8):
+            with pytest.raises(ValueError, match="odd order"):
+                hp.calculate_chebyshev(10e6, 50, 0.5, order, topology="t")
 
     def test_impedance_scaling(self):
         """Test impedance scaling for Chebyshev HPF."""
@@ -171,10 +179,10 @@ class TestBesselHighpass:
 
     def test_invalid_order_raises(self):
         """Test that invalid order raises ValueError."""
-        with pytest.raises(ValueError, match="Bessel filter supports"):
+        with pytest.raises(ValueError, match="between 2 and 9"):
             hp.calculate_bessel(10e6, 50, 1, topology="t")
 
-        with pytest.raises(ValueError, match="Bessel filter supports"):
+        with pytest.raises(ValueError, match="between 2 and 9"):
             hp.calculate_bessel(10e6, 50, 10, topology="t")
 
     def test_frequency_scaling(self):
