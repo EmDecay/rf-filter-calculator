@@ -694,6 +694,10 @@ Instead of `f₀ ± BW/2`, true -3 dB edges are computed by solving `(f² - f₀
 
 **Impact**: High-accuracy edge detection for wide-band designs (BW > 30% of f₀).
 
+### Chebyshev Bandpass 3 dB Semantics
+
+For Chebyshev BP, user `bw` is true -3 dB BW via `chebyshev_3db_deviation()` in `bandpass/transfer.py`.
+
 ## Topology Design Patterns
 
 ### Filter Topologies
@@ -790,10 +794,6 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 3. **Test** (pytest --cov=filter_lib) - All tests with coverage
 
 **Test Metrics** (as of Apr 24, 2026):
-- Total: 1046 tests across 27 test modules (820→1046, +220 tests)
-- Coverage: 94% of filter_lib/ (78%→94%, +16%)
-- Runtime: ~0.5s on CI runner
-- Python: 3.10, 3.11, 3.12, 3.13 (tested on ubuntu-latest)
-- New test coverage: CLI main/subcommand wiring, wizard screen navigation via Mock pattern, HP transfer dispatch, input validation error paths
+- Total: 1086 tests (94% coverage, ~0.5s runtime)
 
 See [code-standards.md](./code-standards.md) for linting rules and [testing.md](./testing.md) for test coverage details.

@@ -29,6 +29,10 @@ uv run ruff format --check .        # format check
 uv run ruff format .                # auto-format
 ```
 
+## Reports
+
+`plans/` is gitignored — session reports written to `plans/reports/` are local-only and won't show up in `git status`.
+
 ## Architecture
 
 Python 3.10+ CLI tool for calculating LC filter component values. Entry point is `filter_lib.cli:main` (registered as `filter-calc` script). No arguments launches a Textual TUI wizard.
@@ -56,12 +60,17 @@ Full module map: `docs/codebase-summary.md`.
 - **Filter-type alias canonicalization**: `shared/cli_aliases.py::FILTER_TYPE_ALIASES` is the single source of truth (`bw/b`→butterworth, `ch/c`→chebyshev, `bs`→bessel). Any new dispatch code must consult it rather than re-implement — see `shared/transfer_response_dispatch.py::_canonicalize_filter_type`.
 - **Filter results**: All calculation functions return dicts with `capacitors`, `inductors`, `order`, `topology`, etc. Bandpass results have additional coupling fields (`c_tank`, `c_coupling`, `qe_in`, `qe_out`).
 - **Bandpass -3 dB edges**: True edges come from solving `(f²-f0²)/(BW·f) = ±1`, not `f0 ± bw/2`. Source of truth: `bandpass.calculations.compute_bandpass_3db_edges` (uses `f_low = f0²/f_high` to dodge catastrophic cancellation for wide BW).
+- **Chebyshev BP 3 dB semantics**: `bw` is the user's true -3 dB BW in both synthesis and plotting. For Chebyshev only, fbw is scaled down by `delta_3dB = cosh(acosh(1/ε)/n)` in `calculate_bandpass_filter`, and `magnitude_chebyshev` scales its deviation up by the same factor. Butterworth/Bessel prototypes already land at -3 dB when delta=1, so no scaling. Source of truth: `bandpass/transfer.py::chebyshev_3db_deviation`.
 - **Chebyshev constraints**: LP, HP, and BP all require odd order (3/5/7/9) for equal source/load terminations — enforced in `shared/lp_hp_base_calculations.py` and `cli/bandpass_cmd.py`. Ripple limited to 0.1, 0.5, 1.0 dB in wizard mode.
 - **Toroid recommendations**: Opt-in via `--toroid` flag (see `cli/toroid_flags.py`); selection ranks cores by fit, computes turns from A_L, checks wire OD against window area.
 
 ## Ruff config
 
 Target: py310, line-length 100, rules: E/F/I/UP/B. Ignores: E501 (formatter handles), B905 (zip without strict=). Tests ignore E501.
+
+## Validation convention
+
+Public float parameters reject NaN and inf alongside non-positive: `if not math.isfinite(x) or x <= 0: raise ValueError("X must be positive and finite")`. Keep the "must be positive" substring so existing regex tests match. Applies to cutoff/freq/BW/impedance/q_safety/ripple_db.
 
 ## CI
 

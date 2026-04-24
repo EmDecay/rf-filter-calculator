@@ -2,13 +2,13 @@
 
 **Last Updated**: April 24, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1046 tests, 94% coverage).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1086 tests, 94% coverage).
 
 ## Project Statistics
 
 - **Total Files**: 95+ files
 - **Total Lines of Code**: ~8,400 LOC (2,200+ core lib + 6,100+ tests + ~350 CLI entry)
-- **Test Coverage**: 1046 tests, 94% coverage (~0.5s runtime)
+- **Test Coverage**: 1086 tests, 94% coverage (~0.5s runtime)
 - **Documentation**: 13 files (~2,500+ LOC)
 - **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
 
@@ -61,7 +61,7 @@ rf-filter-calculator/
 - `display.py` - Output formatting
 - `formatters.py` - Component value formatting
 - `g_values.py` - Normalized component value tables
-- `transfer.py` - Frequency response transfer function
+- `transfer.py` - Frequency response transfer function; includes `chebyshev_3db_deviation()` helper for true -3dB BW semantics in Chebyshev BP (Apr 2026)
 - `__init__.py` - Module exports
 
 ### Wizard Module (`filter_lib/wizard/`)
@@ -201,6 +201,7 @@ Provides cross-cutting utilities:
 - `test_transfer_and_shared_edges.py` - **NEW (Apr 2026)** HP transfer dispatch, E-series edges, toroid validation (24 tests)
 - `test_wizard_screens_coverage.py` - **NEW (Apr 2026)** Screen navigation via Mock pattern (91 tests)
 - `test_wizard_event_handlers_and_final_edges.py` - **NEW (Apr 2026)** Input handlers, filter type changes, csv export (29 tests)
+- `test_codex_review_fixes.py` - **NEW (Apr 24 2026)** Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation, export format preselect (40 tests)
 - `conftest.py` - Shared pytest fixtures and configuration
 
 ## Development Workflow

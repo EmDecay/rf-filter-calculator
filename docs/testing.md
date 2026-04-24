@@ -62,9 +62,10 @@ uv sync --group dev
 | `test_transfer_and_shared_edges.py` | 24 | HP transfer alias dispatch, E-series edge cases, toroid validation (Apr 2026) |
 | `test_wizard_screens_coverage.py` | 91 | FilterScreenNavigationMixin, screen navigation, validation via Mock pattern (Apr 2026) |
 | `test_wizard_event_handlers_and_final_edges.py` | 29 | Input.Submitted handlers, _on_filter_type_changed, csv export, wizard entry (Apr 2026) |
+| `test_codex_review_fixes.py` | 40 | Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation (Apr 24, 2026) |
 | `conftest.py` | - | Shared pytest fixtures and configuration |
 
-**Total: 1046 tests** (94% coverage)
+**Total: 1086 tests** (94% coverage)
 
 **New Modules** (tested and integrated):
 - `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations

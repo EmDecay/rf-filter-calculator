@@ -22,7 +22,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 ### Current Status
 **Version**: 1.4+ (Production ready with toroid recommendations & coverage pass)
-- 1046 comprehensive tests (94% coverage)
+- 1086 comprehensive tests (94% coverage)
 - Full CLI and interactive modes with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible

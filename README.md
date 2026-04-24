@@ -231,7 +231,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** 1046 tests (94% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, and toroid recommendations. See [docs/testing.md](docs/testing.md) for details.
+**Test suite:** 1086 tests (94% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, and toroid recommendations. See [docs/testing.md](docs/testing.md) for details.
 
 ### Linting
 

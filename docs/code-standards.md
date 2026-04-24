@@ -536,9 +536,27 @@ def action_back(self) -> None:
 - Example: "Based on Matthaei/Young/Jones normalized g-values"
 - Link to filter theory docs where applicable
 
-## Recent Refactoring Principles
+## Input Validation Convention
 
-Based on commit history:
+**Policy**: Public float parameters reject NaN, infinity, and non-positive values.
+
+**Standard pattern** (all public float params):
+```python
+if not math.isfinite(x) or x <= 0:
+    raise ValueError("X must be positive and finite")
+```
+
+**Note**: Keep "must be positive" substring in error messages for regex test compatibility.
+
+**Applies to**: `cutoff_hz`, `impedance`, `num_points`, `f0`, `bw`, `z0`, `q_safety`, `ripple_db` across modules:
+- `shared/lp_hp_base_calculations.py`
+- `shared/lp_hp_base_transfer_functions.py`
+- `bandpass/calculations.py`, `bandpass/transfer.py`
+- `shared/transfer_functions.py`
+
+**Also**: `frequency_sweep()` and `generate_frequency_points()` reject `points < 2` ("points must be >= 2 for a log sweep").
+
+## Recent Refactoring Principles
 
 1. **Centralize display logic** - Move common formatting to `display_common.py`
 2. **Reduce branching** - Simplify topology handling in display modules

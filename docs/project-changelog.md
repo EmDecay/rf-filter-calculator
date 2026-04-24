@@ -1,5 +1,20 @@
 # Project Changelog
 
+## 2026-04-24 (Follow-up) — Chebyshev BP 3dB Semantics & Wizard Corrections
+
+Fixes to core filter semantics and wizard display logic, with comprehensive regression testing.
+
+**Key Fixes**:
+1. **Chebyshev BP 3dB semantics** — User-supplied `bw` is now true -3dB BW (not ripple-edge BW). New `chebyshev_3db_deviation(order, ripple_db)` helper in `bandpass/transfer.py` computes scaling factor `delta_3dB = cosh(acosh(1/ε)/n)`. Synthesis divides `fbw` by this factor; magnitude plot scales `delta` up by same factor. Butterworth/Bessel unaffected (already land at -3dB).
+2. **Wizard HP inductor parallel math** — `format_eseries_recs` now takes `parallel_mode` parameter (`"additive"` for caps, `"harmonic"` for inductors). Wizard now correctly passes `parallel_mode="harmonic"` for HP/LP/BP inductor combos. Was using additive math (incorrect) before.
+3. **NaN/infinity validation hardening** — Public float parameters across `lp_hp_base_calculations.py`, `bandpass/calculations.py`, `bandpass/transfer.py`, `transfer_functions.py` now reject NaN/inf with: `if not math.isfinite(x) or x <= 0: raise ValueError("X must be positive and finite")`. Kept "must be positive" substring for regex test compatibility. Also: `frequency_sweep` and `generate_frequency_points` reject `points < 2`.
+4. **Wizard export format preselect** — `ResultsScreen` now calls `_preselect_export_format()` on mount to honor user's Output Options export format choice (json/csv/txt).
+5. **Regression test suite** — New `test_codex_review_fixes.py` (426 LOC, 40 tests) covering Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation, export format preselect.
+
+**Test Stats**: 1086 tests (+40), 94% coverage.
+
+---
+
 ## 2026-04-24 — Coverage Pass + Bandpass / Validation Hardening
 
 Coverage expansion: 826 → 1046 tests (+220, ~27% growth), 78% → 94% coverage. Four new test modules (189 tests) + expanded existing modules covering CLI coverage gaps, transfer function dispatch, wizard screen navigation, input validation, and event handlers.
