@@ -6,13 +6,12 @@ Orchestrates output formatting, topology diagrams, and E-series matching.
 from typing import Any
 
 from ..shared.formatting import format_capacitance, format_frequency, format_inductance
-from ..shared.plotting import export_csv as plot_export_csv
-from ..shared.plotting import export_json as plot_export_json
 from ..shared.plotting import (
     find_db_thresholds,
     format_threshold_table,
     render_bandpass_plot_pair,
 )
+from ..shared.response_export import export_response_csv, export_response_json, response_meta
 from ..shared.toroid_display import (
     format_recommendation_block,
     format_recommendation_block_compact,
@@ -59,19 +58,12 @@ def display_results(
     # Handle plot data export (simulated from the synthesized circuit)
     if plot_data:
         sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
+        freqs = [f for f, _ in sweep]
+        response_db = [db for _, db in sweep]
         if plot_data == "json":
-            print(
-                plot_export_json(
-                    sweep,
-                    result["f0"],
-                    result["bw"],
-                    result["filter_type"],
-                    result["n_resonators"],
-                    result.get("ripple_db"),
-                )
-            )
+            print(export_response_json(freqs, response_db, response_meta("bandpass", result)))
         else:
-            print(plot_export_csv(sweep))
+            print(export_response_csv(freqs, response_db))
         return
 
     if output_format == "json":

@@ -1,5 +1,23 @@
 # Project Changelog
 
+## 2026-06-12 — Unified Response-Export Schema + Wizard Plot Export
+
+**BREAKING (clean break, user-decided)**: `--plot-data json|csv` now emits one unified schema for LP/HP/BP from `shared/response_export.py` (the three divergent implementations in `shared/transfer_functions.py`, `bandpass/transfer.py`, and `shared/plot_data_export.py` are deleted).
+
+Old → new JSON key mapping (what `--plot-data json` actually emitted before):
+- LP/HP: top-level `filter_type`/`cutoff_hz`/`order`/`ripple_db` → nested `filter` block: `category`, `response_type`, `order`, `cutoff_hz`, `topology`, `ripple_db` (Chebyshev only). `data` unchanged.
+- BP: previously a flat object — `filter_type` → `filter.response_type`; `f0_hz` → `filter.f0_hz`; `bandwidth_hz` → `filter.bw_hz`; `order` → `filter.order`; `data` unchanged. `filter.category` and `filter.coupling` are new keys. (None ripple was already omitted.)
+- CSV: header `frequency_hz,magnitude_db` unchanged; magnitudes stay 2-decimal; BP frequencies change from raw float repr (`14175000.0`) to `%.6g` (`1.4175e+07`), matching LP/HP.
+- Library API: the separate `filter_lib.bandpass.export_response_json/csv` functions (nested `{"filter": {type, response, n_resonators}, "frequency_response": [{freq_hz}]}` shape, `freq_hz` CSV header — never wired to the CLI) are deleted; use `filter_lib.shared.response_export`.
+
+**New**:
+- Wizard Save now honors the Output Options "Export Plot Data" choice: a second `{category}-{timestamp}-response.{json|csv}` file is written next to the component file (LP/HP from the analytic response; BP from the netlist-simulated sweep). Save notifications show absolute paths for every file written.
+- Single `chebyshev_polynomial` implementation (cos/cosh magnitude form, numerically stable outside the passband) in `shared/transfer_functions.py`; the bandpass duplicate is deleted, equivalence-tested against the classic recurrence.
+
+**Test Stats**: 1206 tests passing.
+
+---
+
 ## 2.0.0 — 2026-06-12 — Breaking CLI Cleanup + Chebyshev G-Value Unification
 
 One coordinated breaking release so the CLI surface changes land once.

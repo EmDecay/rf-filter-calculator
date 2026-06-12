@@ -7,18 +7,7 @@ lowpass-prototype frequency transformation.
 import math
 
 from ..shared.lp_hp_base_transfer_functions import lowpass_bessel_response
-from ..shared.transfer_functions import magnitude_to_db
-
-
-def chebyshev_polynomial(n: int, x: float) -> float:
-    """Evaluate a magnitude-form Chebyshev polynomial Cn(x).
-
-    |x| <= 1: Cn(x) = cos(n * arccos(x))
-    |x| > 1:  Cn(x) = cosh(n * arccosh(|x|))
-    """
-    if abs(x) <= 1:
-        return math.cos(n * math.acos(x))
-    return math.cosh(n * math.acosh(abs(x)))
+from ..shared.transfer_functions import chebyshev_polynomial, magnitude_to_db
 
 
 def chebyshev_3db_deviation(order: int, ripple_db: float) -> float:
@@ -233,48 +222,3 @@ def frequency_response(result: dict, freqs: list[float]) -> list[float]:
     ripple_db = result.get("ripple_db", 0.5)
 
     return [magnitude_db(f, f0, bw, order, filter_type, ripple_db) for f in freqs]
-
-
-def export_response_json(freqs: list[float], response_db: list[float], result: dict) -> str:
-    """Export frequency response data as JSON.
-
-    Args:
-        freqs: Frequency points in Hz
-        response_db: Response magnitude in dB
-        result: Filter result dict for metadata
-
-    Returns:
-        JSON string
-    """
-    import json
-
-    data = {
-        "filter": {
-            "type": "bandpass",
-            "response": result["filter_type"],
-            "coupling": result["coupling"],
-            "f0_hz": result["f0"],
-            "bw_hz": result["bw"],
-            "n_resonators": result["n_resonators"],
-            "ripple_db": result.get("ripple_db"),
-        },
-        "frequency_response": [
-            {"freq_hz": f, "magnitude_db": db} for f, db in zip(freqs, response_db)
-        ],
-    }
-    return json.dumps(data, indent=2)
-
-
-def export_response_csv(freqs: list[float], response_db: list[float]) -> str:
-    """Export frequency response data as CSV.
-
-    Args:
-        freqs: Frequency points in Hz
-        response_db: Response magnitude in dB
-
-    Returns:
-        CSV string
-    """
-    lines = ["freq_hz,magnitude_db"]
-    lines.extend(f"{f:.6g},{db:.3f}" for f, db in zip(freqs, response_db))
-    return "\n".join(lines)

@@ -155,7 +155,8 @@ class TestDisplay:
     def test_display_plot_data_json(self, sample_result, capsys):
         display_results(sample_result, plot_data="json")
         data = json.loads(capsys.readouterr().out)
-        assert "filter_type" in data
+        assert data["filter"]["category"] == "bandpass"
+        assert data["data"]
 
     def test_display_plot_data_csv(self, sample_result, capsys):
         display_results(sample_result, plot_data="csv")

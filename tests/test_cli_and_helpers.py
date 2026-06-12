@@ -18,11 +18,10 @@ from filter_lib.shared.formatting import (
 from filter_lib.shared.plotting import (
     _find_3db_frequency,
     _format_freq_compact,
-    export_csv,
-    export_json,
     render_ascii_plot,
     render_bandpass_plot,
 )
+from filter_lib.shared.response_export import export_response_json
 from filter_lib.shared.transfer_functions import generate_frequency_points
 
 # --- cli_helpers ---
@@ -50,27 +49,22 @@ class TestCliHelpers:
 
     def test_export_plot_data_json(self, capsys):
         args = Namespace(plot_data="json")
-        exported = export_plot_data(
-            args,
-            [1e6],
-            [-3.0],
-            {"type": "test"},
-            lambda f, r, res: '{"test": true}',
-            lambda f, r: "csv",
-        )
+        meta = {"category": "lowpass", "response_type": "butterworth", "order": 3}
+        exported = export_plot_data(args, [1e6], [-3.0], meta)
         assert exported is True
-        assert "test" in capsys.readouterr().out
+        out = json.loads(capsys.readouterr().out)
+        assert out["filter"]["category"] == "lowpass"
+        assert out["data"] == [{"frequency_hz": 1e6, "magnitude_db": -3.0}]
 
     def test_export_plot_data_csv(self, capsys):
         args = Namespace(plot_data="csv")
-        exported = export_plot_data(
-            args, [1e6], [-3.0], {}, lambda f, r, res: "json", lambda f, r: "freq,db\n1000000,-3.0"
-        )
+        exported = export_plot_data(args, [1e6], [-3.0], {})
         assert exported is True
+        assert capsys.readouterr().out.startswith("frequency_hz,magnitude_db")
 
     def test_export_plot_data_none(self):
         args = Namespace(plot_data=None)
-        assert export_plot_data(args, [], [], {}, None, None) is False
+        assert export_plot_data(args, [], [], {}) is False
 
 
 # --- plotting ---
@@ -137,18 +131,17 @@ class TestPlotting:
         assert len(pts) == 11
 
     def test_export_json_plotting(self):
-        sweep = [(10e6, -3.0), (20e6, -10.0)]
-        s = export_json(sweep, 15e6, 5e6, "butterworth", 5)
+        meta = {
+            "category": "bandpass",
+            "response_type": "butterworth",
+            "order": 5,
+            "f0_hz": 15e6,
+            "bw_hz": 5e6,
+        }
+        s = export_response_json([10e6, 20e6], [-3.0, -10.0], meta)
         data = json.loads(s)
-        assert data["filter_type"] == "butterworth"
-        assert data["f0_hz"] == 15e6
-
-    def test_export_csv_plotting(self):
-        sweep = [(10e6, -3.01), (20e6, -10.52)]
-        csv_str = export_csv(sweep)
-        lines = csv_str.split("\n")
-        assert lines[0] == "frequency_hz,magnitude_db"
-        assert len(lines) == 3
+        assert data["filter"]["response_type"] == "butterworth"
+        assert data["filter"]["f0_hz"] == 15e6
 
 
 # --- formatting ---

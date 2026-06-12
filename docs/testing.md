@@ -73,7 +73,7 @@ uv sync --group dev
 - `filter_lib/shared/plot_ascii_renderers.py` - ASCII plot rendering with db_floor
 - `filter_lib/shared/plot_zoom_pairs.py` - Zoomed passband plot pairs
 - `filter_lib/shared/plot_threshold_analysis.py` - dB threshold detection
-- `filter_lib/shared/plot_data_export.py` - JSON/CSV export
+- `filter_lib/shared/response_export.py` - unified JSON/CSV response export
 - `filter_lib/shared/transfer_response_dispatch.py` - Response function factory
 - `filter_lib/wizard/filter_type_calculators.py` - Wizard calculation logic
 - `filter_lib/wizard/formatting_helpers.py` - Wizard formatting utilities

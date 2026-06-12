@@ -21,11 +21,10 @@ from filter_lib.shared.formatting import format_capacitance, format_frequency, f
 from filter_lib.shared.plotting import (
     _find_3db_frequency,
     _format_freq_compact,
-    export_csv,
-    export_json,
     render_ascii_plot,
     render_bandpass_plot,
 )
+from filter_lib.shared.response_export import export_response_csv, export_response_json
 
 
 class TestFormatFreqCompact:
@@ -300,87 +299,92 @@ class TestRenderBandpassPlotEdgeCases:
         assert isinstance(result, str)
 
 
+_BP_META = {
+    "category": "bandpass",
+    "response_type": "butterworth",
+    "order": 3,
+    "f0_hz": 1e6,
+    "bw_hz": 100e3,
+}
+
+
 class TestExportJsonEdgeCases:
-    """Edge case tests for export_json."""
+    """Edge case tests for export_response_json."""
 
     def test_empty_sweep_data(self):
         """Empty sweep data produces valid JSON."""
-        result = export_json([], 1e6, 100e3, "butterworth", 3)
+        result = export_response_json([], [], _BP_META)
         data = json.loads(result)
         assert data["data"] == []
 
     def test_single_point_json(self):
         """Single point exports correctly."""
-        sweep_data = [(1e6, -3.0)]
-        result = export_json(sweep_data, 1e6, 100e3, "butterworth", 3)
+        result = export_response_json([1e6], [-3.0], _BP_META)
         data = json.loads(result)
         assert len(data["data"]) == 1
         assert data["data"][0]["frequency_hz"] == 1e6
 
     def test_extreme_frequencies_in_json(self):
         """Extreme frequencies export correctly."""
-        sweep_data = [(1, -50), (10e9, -50)]
-        result = export_json(sweep_data, 1e6, 100e3, "butterworth", 3)
+        result = export_response_json([1, 10e9], [-50, -50], _BP_META)
         data = json.loads(result)
         assert data["data"][0]["frequency_hz"] == 1
         assert data["data"][1]["frequency_hz"] == 10e9
 
     def test_extreme_db_values(self):
         """Extreme dB values export correctly."""
-        sweep_data = [(1e6, 0), (2e6, -150.5)]
-        result = export_json(sweep_data, 1e6, 100e3, "butterworth", 3)
+        result = export_response_json([1e6, 2e6], [0, -150.5], _BP_META)
         data = json.loads(result)
         assert data["data"][0]["magnitude_db"] == 0
         assert data["data"][1]["magnitude_db"] == -150.5
 
     def test_ripple_none_not_in_output(self):
         """None ripple not included in JSON."""
-        result = export_json([], 1e6, 100e3, "butterworth", 3, ripple_db=None)
+        result = export_response_json([], [], {**_BP_META, "ripple_db": None})
         data = json.loads(result)
-        assert "ripple_db" not in data
+        assert "ripple_db" not in data["filter"]
 
     def test_ripple_value_in_output(self):
         """Non-None ripple included in JSON."""
-        result = export_json([], 1e6, 100e3, "chebyshev", 3, ripple_db=0.5)
+        meta = {**_BP_META, "response_type": "chebyshev", "ripple_db": 0.5}
+        result = export_response_json([], [], meta)
         data = json.loads(result)
-        assert data["ripple_db"] == 0.5
+        assert data["filter"]["ripple_db"] == 0.5
 
     def test_rounding_precision(self):
         """dB values rounded to 2 decimals."""
-        sweep_data = [(1e6, -3.14159265)]
-        result = export_json(sweep_data, 1e6, 100e3, "butterworth", 3)
+        result = export_response_json([1e6], [-3.14159265], _BP_META)
         data = json.loads(result)
         assert data["data"][0]["magnitude_db"] == -3.14
 
 
 class TestExportCsvEdgeCases:
-    """Edge case tests for export_csv."""
+    """Edge case tests for export_response_csv."""
 
     def test_empty_sweep_csv(self):
         """Empty sweep produces header only."""
-        result = export_csv([])
+        result = export_response_csv([], [])
         lines = result.strip().split("\n")
         assert len(lines) == 1
         assert lines[0] == "frequency_hz,magnitude_db"
 
     def test_single_point_csv(self):
         """Single point exports correctly."""
-        result = export_csv([(1e6, -3.0)])
+        result = export_response_csv([1e6], [-3.0])
         lines = result.strip().split("\n")
         assert len(lines) == 2
-        assert "1000000" in lines[1]
+        assert lines[1] == "1e+06,-3.00"
 
     def test_extreme_values_csv(self):
         """Extreme values format correctly."""
-        sweep_data = [(1, -100), (10e9, 0)]
-        result = export_csv(sweep_data)
+        result = export_response_csv([1, 10e9], [-100, 0])
         lines = result.strip().split("\n")
-        assert "1," in lines[1]
-        assert "10000000000" in lines[2]
+        assert lines[1] == "1,-100.00"
+        assert lines[2] == "1e+10,0.00"
 
     def test_csv_decimal_precision(self):
         """dB values have 2 decimal places."""
-        result = export_csv([(1e6, -3.14159)])
+        result = export_response_csv([1e6], [-3.14159])
         lines = result.strip().split("\n")
         assert "-3.14" in lines[1]
 

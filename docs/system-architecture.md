@@ -506,7 +506,7 @@ def bessel_response(normalized_freq):
 | `plot_ascii_renderers.py` | ASCII plot rendering with configurable `db_floor` parameter for detail zooming |
 | `plot_zoom_pairs.py` | Zoomed passband plot pairs: full-range + 0 to -6dB detail view side-by-side |
 | `plot_threshold_analysis.py` | dB crossing detection and summary table formatting (-3, -10, -20 dB) |
-| `plot_data_export.py` | JSON/CSV data export utilities |
+| `response_export.py` | Unified JSON/CSV response export (single schema) |
 | `transfer_response_dispatch.py` | Shared factory for response-function closures (LP/HP/BP) |
 
 **Key Features** (GH-7):

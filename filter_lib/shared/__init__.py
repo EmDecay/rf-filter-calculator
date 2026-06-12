@@ -41,12 +41,11 @@ from .formatting import format_capacitance, format_frequency, format_impedance, 
 from .netlist_builders import build_bandpass_top_c_netlist, build_hp_netlist, build_lp_netlist
 from .netlist_simulation import find_3db_edges, passband_ripple_db, solve_s21
 from .parsing import parse_frequency, parse_impedance
+from .response_export import export_response_csv, export_response_json, response_meta
 from .transfer_functions import (
     BESSEL_COEFFS,
     BESSEL_SCALE,
     chebyshev_polynomial,
-    export_response_csv,
-    export_response_json,
     generate_frequency_points,
     magnitude_to_db,
 )
@@ -117,6 +116,8 @@ __all__ = [
     "generate_frequency_points",
     "chebyshev_polynomial",
     "magnitude_to_db",
+    # Response export (unified schema)
     "export_response_json",
     "export_response_csv",
+    "response_meta",
 ]

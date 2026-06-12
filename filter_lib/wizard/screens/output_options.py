@@ -52,8 +52,14 @@ class OutputOptionsScreen(Screen):
                 yield Static("Export Plot Data", classes="form-section-title")
                 with RadioSet(id="export"):
                     yield RadioButton("No export", value=True, id="no-export")
-                    yield RadioButton("JSON file", id="export-json")
-                    yield RadioButton("CSV file", id="export-csv")
+                    yield RadioButton(
+                        "JSON file - frequency response saved alongside results on Save",
+                        id="export-json",
+                    )
+                    yield RadioButton(
+                        "CSV file - frequency response saved alongside results on Save",
+                        id="export-csv",
+                    )
 
             # Buttons
             with Horizontal(classes="button-row"):

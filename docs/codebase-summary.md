@@ -115,7 +115,7 @@ Provides cross-cutting utilities:
 | `plot_ascii_renderers.py` | **NEW (Apr 2026)** - ASCII plot rendering with configurable `db_floor` |
 | `plot_zoom_pairs.py` | **NEW (Apr 2026)** - Zoomed passband plot pairs (full + zoomed side-by-side) |
 | `plot_threshold_analysis.py` | **NEW (Apr 2026)** - dB crossing detection + summary table formatting |
-| `plot_data_export.py` | **NEW (Apr 2026)** - JSON/CSV data export functions |
+| `response_export.py` | Unified JSON/CSV response export (single schema, Jun 2026) |
 | `transfer_response_dispatch.py` | **NEW (Apr 2026)** - Shared factory for response-function closures |
 | `topology_diagrams.py` | ASCII circuit topology diagrams |
 | `toroid_core_data.json` | **NEW (Apr 2026)** - Vendored 43-core iron-powder T-series database |
@@ -290,7 +290,7 @@ All code files respect 200-line limit for optimal context:
      - `plot_ascii_renderers.py` (276 LOC) — plot rendering with configurable `db_floor` for zooming
      - `plot_zoom_pairs.py` (133 LOC) — zoomed passband plot pairs (full + zoomed side-by-side)
      - `plot_threshold_analysis.py` (148 LOC) — dB crossing detection for -3, -10, -20 dB levels
-     - `plot_data_export.py` (54 LOC) — JSON/CSV export functions
+     - response-data export now lives in `shared/response_export.py` (unified schema)
      - `transfer_response_dispatch.py` (58 LOC) — shared factory for response-fn closures
    - **Features**:
      - dB Threshold Summary Table: Shows frequencies at -3, -10, -20 dB with direction indicators

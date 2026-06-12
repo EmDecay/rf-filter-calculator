@@ -1,6 +1,5 @@
 """Shared transfer function utilities for frequency response calculations."""
 
-import json
 import math
 
 # Bessel polynomial coefficients for orders 2-9
@@ -66,16 +65,18 @@ def generate_frequency_points(
 
 
 def chebyshev_polynomial(n: int, x: float) -> float:
-    """Calculate Chebyshev polynomial Tn(x) using recurrence."""
-    if n == 0:
-        return 1.0
-    if n == 1:
-        return x
-    t_prev2, t_prev1 = 1.0, x
-    for _ in range(2, n + 1):
-        t_curr = 2 * x * t_prev1 - t_prev2
-        t_prev2, t_prev1 = t_prev1, t_curr
-    return t_prev1
+    """Evaluate a magnitude-form Chebyshev polynomial Cn(x).
+
+    |x| <= 1: Cn(x) = cos(n * arccos(x))
+    |x| > 1:  Cn(x) = cosh(n * arccosh(|x|))
+
+    Equals Tn(x) for x >= 0 and |Tn(x)| for x < -1; response functions only
+    use Cn squared, so the magnitude form is interchangeable with the
+    recurrence while staying numerically stable far outside the passband.
+    """
+    if abs(x) <= 1:
+        return math.cos(n * math.acos(x))
+    return math.cosh(n * math.acosh(abs(x)))
 
 
 def magnitude_to_db(magnitude: float) -> float:
@@ -83,26 +84,3 @@ def magnitude_to_db(magnitude: float) -> float:
     if magnitude <= 0:
         return -120.0
     return max(20 * math.log10(magnitude), -120.0)
-
-
-def export_response_json(freqs: list[float], response_db: list[float], filter_info: dict) -> str:
-    """Export frequency response as JSON."""
-    output = {
-        "filter_type": filter_info.get("filter_type", "unknown"),
-        "cutoff_hz": filter_info.get("cutoff_hz") or filter_info.get("freq_hz", 0),
-        "order": filter_info.get("order", 0),
-        "data": [
-            {"frequency_hz": f, "magnitude_db": round(db, 2)} for f, db in zip(freqs, response_db)
-        ],
-    }
-    if filter_info.get("ripple") is not None:
-        output["ripple_db"] = filter_info["ripple"]
-    return json.dumps(output, indent=2)
-
-
-def export_response_csv(freqs: list[float], response_db: list[float]) -> str:
-    """Export frequency response as CSV."""
-    lines = ["frequency_hz,magnitude_db"]
-    for f, db in zip(freqs, response_db):
-        lines.append(f"{f:.6g},{db:.2f}")
-    return "\n".join(lines)

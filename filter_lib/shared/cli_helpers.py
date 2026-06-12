@@ -5,7 +5,6 @@ Provides common argument definitions, validation, and output handling.
 
 import sys
 from argparse import ArgumentParser, Namespace
-from collections.abc import Callable
 from typing import NoReturn
 
 from .cli_aliases import (
@@ -173,28 +172,26 @@ def export_plot_data(
     args: Namespace,
     freqs: list[float],
     response_db: list[float],
-    result: dict,
-    export_json_fn: Callable,
-    export_csv_fn: Callable,
+    meta: dict,
 ) -> bool:
-    """Export plot data if requested.
+    """Print frequency-response data in the unified export schema if requested.
 
     Args:
         args: Parsed arguments with plot_data attribute
         freqs: Frequency points
         response_db: Response in dB
-        result: Filter result dict (for JSON metadata)
-        export_json_fn: Function to export JSON
-        export_csv_fn: Function to export CSV
+        meta: Export metadata (see shared.response_export.response_meta)
 
     Returns:
         True if data was exported, False otherwise
     """
+    from .response_export import export_response_csv, export_response_json
+
     if not args.plot_data:
         return False
 
     if args.plot_data == "json":
-        print(export_json_fn(freqs, response_db, result))
+        print(export_response_json(freqs, response_db, meta))
     else:
-        print(export_csv_fn(freqs, response_db))
+        print(export_response_csv(freqs, response_db))
     return True

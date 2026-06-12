@@ -7,8 +7,6 @@ from ..lowpass import (
     calculate_butterworth,
     calculate_chebyshev,
     display_results,
-    export_response_csv,
-    export_response_json,
     frequency_response,
     generate_frequency_points,
 )
@@ -29,6 +27,7 @@ from ..shared.cli_helpers import (
     validate_filter_args,
 )
 from ..shared.parsing import parse_frequency, parse_impedance
+from ..shared.response_export import response_meta
 from .toroid_flags import add_toroid_flags
 
 
@@ -111,7 +110,7 @@ def run(args: Namespace) -> None:
     if args.plot_data:
         freqs = generate_frequency_points(freq_hz)
         response = frequency_response(filter_type, freqs, freq_hz, order, ripple_db)
-        export_plot_data(args, freqs, response, result, export_response_json, export_response_csv)
+        export_plot_data(args, freqs, response, response_meta("lowpass", result))
         return
 
     display_results(

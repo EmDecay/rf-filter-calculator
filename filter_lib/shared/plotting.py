@@ -4,7 +4,8 @@ All implementation lives in:
 - plot_ascii_renderers.py — render functions + freq formatting
 - plot_zoom_pairs.py — zoomed passband plot pairs + zoom helpers
 - plot_threshold_analysis.py — dB crossing detection + summary tables
-- plot_data_export.py — JSON/CSV export
+
+Response-data export lives in response_export.py (unified schema).
 """
 
 from .plot_ascii_renderers import (  # noqa: F401
@@ -12,7 +13,6 @@ from .plot_ascii_renderers import (  # noqa: F401
     render_ascii_plot,
     render_bandpass_plot,
 )
-from .plot_data_export import export_csv, export_json  # noqa: F401
 from .plot_threshold_analysis import (  # noqa: F401
     _find_3db_frequency,
     find_db_thresholds,
