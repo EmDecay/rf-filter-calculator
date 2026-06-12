@@ -163,6 +163,12 @@ class TestFormatting:
     def test_format_capacitance_pf(self):
         assert "pF" in format_capacitance(100e-12)
 
+    def test_format_capacitance_ff(self):
+        assert format_capacitance(1e-15) == "1.00 fF"
+
+    def test_format_capacitance_sub_ff(self):
+        assert format_capacitance(0.1e-15) == "1.00e-16 F"
+
     def test_format_capacitance_nf(self):
         assert "nF" in format_capacitance(10e-9)
 

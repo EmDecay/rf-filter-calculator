@@ -518,6 +518,7 @@ class TestFormatComponentValueEdgeCases:
         """Very small value (femtofarad)."""
         result = format_component_value("C1", 1e-15, format_capacitance, raw=False)
         assert "C1" in result
+        assert "fF" in result
 
     def test_very_large_value(self):
         """Very large value (farads)."""
@@ -531,12 +532,17 @@ class TestFormattingFunctionsEdgeCases:
     def test_format_capacitance_zero(self):
         """Zero capacitance."""
         result = format_capacitance(0)
-        assert "pF" in result  # Should use smallest unit
+        assert result == "0.00e+00 F"
 
     def test_format_capacitance_femtofarad(self):
         """Femtofarad range."""
         result = format_capacitance(1e-15)
-        assert "pF" in result
+        assert result == "1.00 fF"
+
+    def test_format_capacitance_below_femtofarad(self):
+        """Sub-femtofarad values use scientific notation."""
+        result = format_capacitance(0.5e-15)
+        assert result == "5.00e-16 F"
 
     def test_format_capacitance_millifarad(self):
         """Millifarad range."""
