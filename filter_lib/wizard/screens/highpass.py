@@ -23,6 +23,7 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("High-Pass Filter Design", classes="header")
+        yield Static("Enter: next · ↑/↓: choose · Esc: back", classes="nav-hint")
         with VerticalScroll(classes="content"):
             with Vertical(classes="form-section"):
                 yield Static("Response Type", classes="form-section-title")
@@ -47,13 +48,13 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                     placeholder="10MHz",
                     id="frequency",
                 )
-                yield Static("Impedance (Ω):")
+                yield Static("Impedance (e.g., 50, 50ohm, 1k):")
                 yield Input(
                     value="50",
+                    placeholder="50 or 50ohm",
                     id="impedance",
-                    validators=[Number(minimum=1, maximum=10000)],
                 )
-                yield Static("Order (2-9 components):")
+                yield Static("Order (2-9 components):", id="order-label")
                 yield Input(
                     value="3",
                     id="order",
@@ -80,9 +81,14 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
 
     @on(RadioSet.Changed, "#filter-type")
     def _on_filter_type_changed(self, event: RadioSet.Changed) -> None:
-        """Show/hide ripple section based on filter type."""
-        ripple_section = self.query_one("#ripple-section")
-        ripple_section.display = event.pressed.id == "chebyshev"
+        """Show/hide ripple section and odd-order hint based on filter type."""
+        is_chebyshev = event.pressed.id == "chebyshev"
+        self.query_one("#ripple-section").display = is_chebyshev
+        order_label = self.query_one("#order-label", Static)
+        if is_chebyshev:
+            order_label.update("Order (Chebyshev: odd only — 3, 5, 7, 9):")
+        else:
+            order_label.update("Order (2-9 components):")
 
     @on(Input.Submitted, "#frequency")
     def _on_frequency_submitted(self, event: Input.Submitted) -> None:
@@ -120,7 +126,7 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
 
     def _calculate(self) -> None:
         """Validate inputs and proceed to output options."""
-        from filter_lib.shared.parsing import parse_frequency
+        from filter_lib.shared.parsing import parse_frequency, parse_impedance
 
         # Get values
         freq_input = self.query_one("#frequency", Input)
@@ -137,11 +143,9 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             freq_input.focus()
             return
 
-        # Validate impedance
+        # Validate impedance (same suffixed forms as the CLI: 50, 50ohm, 1k)
         try:
-            impedance = float(impedance_input.value)
-            if impedance <= 0:
-                raise ValueError("must be positive")
+            impedance = parse_impedance(impedance_input.value.strip() or "50")
         except ValueError as e:
             self.notify(f"Invalid impedance: {e}", severity="error")
             impedance_input.focus()

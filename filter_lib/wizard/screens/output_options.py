@@ -19,6 +19,7 @@ class OutputOptionsScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("Output Options", classes="header")
+        yield Static("Enter: next · ↑/↓: choose · Esc: back", classes="nav-hint")
         with VerticalScroll(classes="content"):
             # E-Series Selection
             with Vertical(classes="form-section"):

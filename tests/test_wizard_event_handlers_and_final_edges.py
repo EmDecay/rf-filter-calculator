@@ -120,23 +120,27 @@ class TestLowpassHighpassEventHandlers:
     def test_filter_type_changed_shows_ripple_for_chebyshev(self, cls):
         screen = cls()
         ripple_section = Mock()
-        _install_query_one(screen, {"#ripple-section": ripple_section})
+        order_label = Mock()
+        _install_query_one(screen, {"#ripple-section": ripple_section, "#order-label": order_label})
         event = Mock()
         event.pressed = Mock()
         event.pressed.id = "chebyshev"
         screen._on_filter_type_changed(event)
         assert ripple_section.display is True
+        assert "odd" in order_label.update.call_args[0][0]
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_filter_type_changed_hides_ripple_for_non_chebyshev(self, cls):
         screen = cls()
         ripple_section = Mock()
-        _install_query_one(screen, {"#ripple-section": ripple_section})
+        order_label = Mock()
+        _install_query_one(screen, {"#ripple-section": ripple_section, "#order-label": order_label})
         event = Mock()
         event.pressed = Mock()
         event.pressed.id = "butterworth"
         screen._on_filter_type_changed(event)
         assert ripple_section.display is False
+        assert "odd" not in order_label.update.call_args[0][0]
 
 
 # ---------------------------------------------------------------------------
@@ -210,22 +214,30 @@ class TestBandpassEventHandlers:
     def test_filter_type_changed_shows_ripple_for_chebyshev(self):
         screen = BandpassScreen()
         ripple_section = Mock()
-        _install_query_one(screen, {"#ripple-section": ripple_section})
+        resonators_label = Mock()
+        _install_query_one(
+            screen, {"#ripple-section": ripple_section, "#resonators-label": resonators_label}
+        )
         event = Mock()
         event.pressed = Mock()
         event.pressed.id = "chebyshev"
         screen._on_filter_type_changed(event)
         assert ripple_section.display is True
+        assert "odd" in resonators_label.update.call_args[0][0]
 
     def test_filter_type_changed_hides_ripple_for_bessel(self):
         screen = BandpassScreen()
         ripple_section = Mock()
-        _install_query_one(screen, {"#ripple-section": ripple_section})
+        resonators_label = Mock()
+        _install_query_one(
+            screen, {"#ripple-section": ripple_section, "#resonators-label": resonators_label}
+        )
         event = Mock()
         event.pressed = Mock()
         event.pressed.id = "bessel"
         screen._on_filter_type_changed(event)
         assert ripple_section.display is False
+        assert "odd" not in resonators_label.update.call_args[0][0]
 
 
 # ---------------------------------------------------------------------------

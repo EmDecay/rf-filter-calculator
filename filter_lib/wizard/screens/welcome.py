@@ -16,6 +16,7 @@ class WelcomeScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("RF Filter Calculator", classes="header")
+        yield Static("Enter: select · ↑/↓: choose · Esc: quit", classes="nav-hint")
         with VerticalScroll(classes="content"):
             yield Static("Select Filter Type", classes="welcome-title")
             yield Static("Design LC filters for RF applications", classes="welcome-subtitle")

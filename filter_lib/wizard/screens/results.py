@@ -27,6 +27,7 @@ class ResultsScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("Filter Results", classes="header")
+        yield Static("Enter: select · ↑/↓: choose · Esc: back · Q: quit", classes="nav-hint")
         with Container(classes="content"):
             with VerticalScroll(classes="results-container"):
                 yield Static("Calculating...", id="results-text", classes="results-text")
@@ -84,6 +85,11 @@ class ResultsScreen(Screen):
         """Handle worker state changes."""
         if event.state.name == "SUCCESS":
             self._result_text = event.worker.result
+            self.query_one("#results-text", Static).update(self._result_text)
+        elif event.state.name == "ERROR":
+            # calculate_and_format catches calculation errors itself; this
+            # surfaces anything unexpected instead of hanging on "Calculating..."
+            self._result_text = f"Calculation failed: {event.worker.error}\n\nPress Esc to go back."
             self.query_one("#results-text", Static).update(self._result_text)
 
     def action_back(self) -> None:

@@ -89,6 +89,16 @@ class TestParseImpedance:
         assert parse_impedance("50\u03a9") == 50.0  # Uppercase omega
         assert parse_impedance("75\u03c9") == 75.0  # Lowercase omega
 
+    def test_bare_k_suffix(self):
+        """Bare k means kilohms."""
+        assert parse_impedance("1k") == 1000.0
+        assert parse_impedance("4.7K") == 4700.0
+
+    def test_bare_m_suffix_means_mega(self):
+        """Bare m/M means megohms (mega, not milli \u2014 matches frequency parsing)."""
+        assert parse_impedance("1M") == 1e6
+        assert parse_impedance("2.2m") == 2.2e6
+
     def test_no_suffix_assumes_ohm(self):
         """Parse impedance without suffix as ohms."""
         assert parse_impedance("50") == 50.0

@@ -24,6 +24,8 @@ class FilterState:
     # Output options
     eseries: str = "E24"
     output_format: str = "table"
+    # Wizard shows the plot by default — deliberate divergence from the CLI's
+    # opt-in --plot; the guided flow is the showcase experience.
     show_plot: bool = True
     export_format: str | None = None
     raw_units: bool = False

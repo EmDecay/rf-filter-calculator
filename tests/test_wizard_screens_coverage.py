@@ -251,6 +251,21 @@ class TestLowpassScreenValidation:
         assert any("Invalid impedance" in msg for _sev, msg in notes)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
+    def test_suffixed_impedance_accepted(self, cls):
+        """Wizard accepts the same suffixed impedance forms as the CLI."""
+        screen, state, _notes, pushed, _ = _lp_hp_mock_screen(cls, impedance_value="50ohm")
+        screen._calculate()
+        assert pushed
+        assert state.impedance == 50.0
+
+    @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
+    def test_kilo_impedance_accepted(self, cls):
+        screen, state, _notes, pushed, _ = _lp_hp_mock_screen(cls, impedance_value="1k")
+        screen._calculate()
+        assert pushed
+        assert state.impedance == 1000.0
+
+    @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_order_out_of_range_notifies(self, cls):
         screen, _state, notes, pushed, _ = _lp_hp_mock_screen(cls, order_value="1")
         screen._calculate()
@@ -543,7 +558,7 @@ class TestBandpassButtonsAndReset:
         assert widgets["#frequency"].value == ""
         assert widgets["#bandwidth"].value == ""
         assert widgets["#impedance"].value == "50"
-        assert widgets["#resonators"].value == "5"
+        assert widgets["#resonators"].value == "3"
         assert widgets["#ripple"].value == "0.5"
         widgets["#frequency"].focus.assert_called()
 
@@ -825,6 +840,19 @@ class TestResultsScreenWorkerHook:
         event.worker.result = "should-not-be-used"
         screen.on_worker_state_changed(event)
         assert screen._result_text == ""
+
+    def test_worker_error_shows_failure_instead_of_hanging(self):
+        screen = ResultsScreen()
+        static_mock = Mock()
+        screen.query_one = lambda *_a, **_k: static_mock  # type: ignore[assignment]
+        event = Mock()
+        event.state = SimpleNamespace(name="ERROR")
+        event.worker = Mock()
+        event.worker.error = RuntimeError("solver exploded")
+        screen.on_worker_state_changed(event)
+        text = static_mock.update.call_args[0][0]
+        assert "solver exploded" in text
+        assert "Esc" in text
 
 
 class TestResultsScreenActions:

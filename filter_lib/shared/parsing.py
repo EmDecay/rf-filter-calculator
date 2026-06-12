@@ -44,10 +44,10 @@ def parse_frequency(freq_str: str) -> float:
 
 
 def parse_impedance(z_str: str) -> float:
-    """Parse impedance string with unit suffix (ohm, kohm, Mohm, Ω).
+    """Parse impedance string with unit suffix (ohm, kohm, Mohm, Ω, bare k/M).
 
     Args:
-        z_str: Impedance string (e.g., "50ohm", "1kohm", "50Ω")
+        z_str: Impedance string (e.g., "50ohm", "1kohm", "1k", "50Ω")
 
     Returns:
         Impedance in Ohms
@@ -61,7 +61,9 @@ def parse_impedance(z_str: str) -> float:
         z_str = z_str.replace(omega_char, "ohm")
     z_str = z_str.lower().replace("omega", "ohm")
 
-    multipliers = {"mohm": 1e6, "kohm": 1e3, "ohm": 1}
+    # Longest suffixes first so "kohm" wins over "ohm" and "k". Bare "m"
+    # means Mohm (mega, not milli) — same convention as frequency parsing.
+    multipliers = {"mohm": 1e6, "kohm": 1e3, "ohm": 1, "m": 1e6, "k": 1e3}
 
     for suffix, mult in multipliers.items():
         if z_str.endswith(suffix):
