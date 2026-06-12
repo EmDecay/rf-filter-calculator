@@ -240,6 +240,14 @@ class TestBandpassTopCAcceptance:
         assert bw_meas == pytest.approx(f0 * fbw, rel=0.03)
         assert f0_meas == pytest.approx(f0, rel=0.005)
 
+    def test_chebyshev_arbitrary_ripple(self):
+        """Formula-based g-values: a ripple between former table entries simulates true."""
+        f0, fbw = 10e6, 0.05
+        result = calculate_bandpass_filter(f0, f0 * fbw, 50, 3, "chebyshev", "top", ripple_db=0.25)
+        bw_meas, f0_meas = _measure_top_c(result, f0, fbw)
+        assert bw_meas == pytest.approx(f0 * fbw, rel=0.03)
+        assert f0_meas == pytest.approx(f0, rel=0.005)
+
     def test_bessel_asymmetric_prototype_has_distinct_end_caps(self):
         """Bessel g-values are asymmetric, so Qe_in != Qe_out and Ce_in != Ce_out."""
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 4, "bessel", "top")

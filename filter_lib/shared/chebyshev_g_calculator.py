@@ -10,11 +10,12 @@ import math
 
 # Conversion factor from dB to nepers for Chebyshev ripple calculation.
 # Derivation: dB = 20 * log10(x), nepers = ln(x)
-# Therefore: nepers = dB / (20 * log10(e)) = dB / 8.686
-# The factor 17.37 = 2 * 8.686 accounts for the power ratio (squared amplitude)
-# used in the epsilon calculation: epsilon = sqrt(10^(ripple_dB/10) - 1)
+# Therefore: nepers = dB / (20 * log10(e)) = dB * ln(10) / 20
+# The factor 40/ln(10) = 2 * 20/ln(10) ≈ 17.3718 accounts for the power ratio
+# (squared amplitude) used in the epsilon calculation:
+# epsilon = sqrt(10^(ripple_dB/10) - 1)
 # Reference: Matthaei, Young, Jones "Microwave Filters" Ch. 4
-CHEBYSHEV_DB_TO_NEPER_FACTOR = 17.37
+CHEBYSHEV_DB_TO_NEPER_FACTOR = 40 / math.log(10)
 
 
 def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:

@@ -5,10 +5,48 @@ Tests verify mathematical correctness of Chebyshev coefficient calculations.
 
 import math
 
+import pytest
+
 from filter_lib.shared.chebyshev_g_calculator import (
     CHEBYSHEV_DB_TO_NEPER_FACTOR,
     calculate_chebyshev_g_values,
 )
+
+# Published Zverev/Matthaei prototype values (rounded to 5 decimals), kept as
+# reference fixtures to pin the calculator against the literature.
+PUBLISHED_G_VALUES: dict[float, dict[int, list[float]]] = {
+    0.1: {
+        3: [1.03159, 1.14740, 1.03159],
+        5: [1.14684, 1.37121, 1.97503, 1.37121, 1.14684],
+        7: [1.18120, 1.42280, 2.09669, 1.57339, 2.09669, 1.42280, 1.18120],
+        9: [1.19570, 1.44260, 2.13457, 1.61671, 2.20539, 1.61671, 2.13457, 1.44260, 1.19570],
+    },
+    0.5: {
+        3: [1.59633, 1.09668, 1.59633],
+        5: [1.70582, 1.22961, 2.54088, 1.22961, 1.70582],
+        7: [1.73734, 1.25822, 2.63834, 1.34431, 2.63834, 1.25822, 1.73734],
+        9: [1.75049, 1.26902, 2.66783, 1.36730, 2.72396, 1.36730, 2.66783, 1.26902, 1.75049],
+    },
+    1.0: {
+        3: [2.02367, 0.99408, 2.02367],
+        5: [2.13496, 1.09108, 3.00101, 1.09108, 2.13496],
+        7: [2.16664, 1.11148, 3.09373, 1.17349, 3.09373, 1.11148, 2.16664],
+        9: [2.17980, 1.11915, 3.12152, 1.18964, 3.17472, 1.18964, 3.12152, 1.11915, 2.17980],
+    },
+}
+
+
+class TestCalculatorMatchesPublishedTables:
+    """Calculator output must agree with the published prototype tables."""
+
+    @pytest.mark.parametrize("ripple_db", [0.1, 0.5, 1.0])
+    @pytest.mark.parametrize("n", [3, 5, 7, 9])
+    def test_agreement_with_published_values(self, ripple_db, n):
+        expected = PUBLISHED_G_VALUES[ripple_db][n]
+        computed = calculate_chebyshev_g_values(n, ripple_db)[1:]
+        for i, (got, want) in enumerate(zip(computed, expected), start=1):
+            # Published values are rounded to 5 decimals -> 1e-4 agreement
+            assert got == pytest.approx(want, abs=1e-4), f"g[{i}] mismatch at n={n}"
 
 
 class TestChebychevGValuesBasic:

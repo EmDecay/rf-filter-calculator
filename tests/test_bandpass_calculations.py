@@ -382,6 +382,18 @@ class TestBandpassEdgeCases:
         assert 1e-9 < ind < 1e-6  # nH to µH range
         assert 1e-12 < c < 1e-9  # pF to nF range
 
+    def test_chebyshev_arbitrary_ripple_synthesizes(self):
+        """Ripple values between former table entries produce a complete design."""
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=0.25)
+        assert result["ripple_db"] == 0.25
+        assert len(result["c_tank"]) == 3
+        assert all(c > 0 for c in result["c_tank"])
+        assert result["c_end_in"] > 0 and result["c_end_out"] > 0
+
+    def test_chebyshev_ripple_above_ceiling_rejected(self):
+        with pytest.raises(ValueError, match="at most 3.0 dB"):
+            calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=3.5)
+
 
 class TestBandpass3dBEdges:
     """compute_bandpass_3db_edges must return true -3 dB corner frequencies."""

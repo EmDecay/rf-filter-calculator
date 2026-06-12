@@ -43,9 +43,21 @@ class TestGValues:
         g = get_chebyshev_g_values(5, 0.5)
         assert len(g) == 5
 
-    def test_chebyshev_invalid_ripple(self):
+    def test_chebyshev_arbitrary_ripple(self):
+        """Any ripple in (0, 3.0] computes, not just former table entries."""
+        g = get_chebyshev_g_values(3, 0.2)
+        assert len(g) == 3
+        assert all(v > 0 for v in g)
+
+    def test_chebyshev_ripple_above_ceiling(self):
         with pytest.raises(ValueError, match="Ripple .* not supported"):
-            get_chebyshev_g_values(3, 0.2)
+            get_chebyshev_g_values(3, 3.5)
+
+    def test_chebyshev_nonpositive_ripple(self):
+        with pytest.raises(ValueError, match="must be positive"):
+            get_chebyshev_g_values(3, 0.0)
+        with pytest.raises(ValueError, match="must be positive"):
+            get_chebyshev_g_values(3, float("nan"))
 
     def test_chebyshev_even_order(self):
         with pytest.raises(ValueError, match="odd resonator count"):

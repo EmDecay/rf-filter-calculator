@@ -235,7 +235,7 @@ def calculate_bandpass_filter(
         n_resonators: Number of resonators (2-9)
         filter_type: 'butterworth', 'chebyshev', or 'bessel'
         coupling: 'top' (series capacitive coupling; the only supported kind)
-        ripple_db: Chebyshev ripple (0.1, 0.5, or 1.0 dB)
+        ripple_db: Chebyshev passband ripple in dB, in (0, 3.0]
         q_safety: Q safety factor multiplier
 
     Returns:
@@ -247,8 +247,11 @@ def calculate_bandpass_filter(
     _validate_inputs(f0, bw, z0, n_resonators, filter_type, coupling)
     if not math.isfinite(q_safety) or q_safety <= 0:
         raise ValueError("q_safety must be positive and finite")
-    if filter_type == "chebyshev" and (not math.isfinite(ripple_db) or ripple_db <= 0):
-        raise ValueError("ripple_db must be positive and finite for Chebyshev")
+    if filter_type == "chebyshev":
+        if not math.isfinite(ripple_db) or ripple_db <= 0:
+            raise ValueError("ripple_db must be positive and finite for Chebyshev")
+        if ripple_db > 3.0:
+            raise ValueError("ripple_db must be at most 3.0 dB for Chebyshev")
 
     fbw = bw / f0
     warnings = _get_fbw_warnings(fbw)
