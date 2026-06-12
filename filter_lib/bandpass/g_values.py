@@ -10,7 +10,8 @@ References:
 
 import math
 
-from ..shared.constants import BESSEL_G_VALUES, CHEBYSHEV_G_VALUES
+from ..shared.chebyshev_g_calculator import calculate_chebyshev_g_values
+from ..shared.constants import BESSEL_G_VALUES
 
 
 def calculate_butterworth_g_values(n: int) -> list[float]:
@@ -28,28 +29,31 @@ def calculate_butterworth_g_values(n: int) -> list[float]:
 
 
 def get_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
-    """Get Chebyshev prototype g-values from lookup table.
+    """Calculate Chebyshev prototype g-values for an arbitrary ripple.
 
     Note: Chebyshev with equal terminations requires ODD resonator counts.
 
     Args:
-        n: Number of resonators (3, 5, 7, or 9 - odd only)
-        ripple_db: Passband ripple (0.1, 0.5, or 1.0 dB)
+        n: Number of resonators (odd only)
+        ripple_db: Passband ripple in dB, in (0, 3.0]
 
     Returns:
         List of g-values [g1, g2, ..., gn]
 
     Raises:
-        ValueError: If n or ripple_db not in table
+        ValueError: If n is even or ripple_db is outside (0, 3.0]
     """
-    if ripple_db not in CHEBYSHEV_G_VALUES:
-        raise ValueError(f"Ripple {ripple_db} dB not supported. Use 0.1, 0.5, or 1.0")
-    if n not in CHEBYSHEV_G_VALUES[ripple_db]:
+    if not math.isfinite(ripple_db) or ripple_db <= 0:
+        raise ValueError("ripple_db must be positive and finite")
+    if ripple_db > 3.0:
+        raise ValueError(f"Ripple {ripple_db} dB not supported. Must be at most 3.0 dB")
+    if n < 1 or n % 2 == 0:
         raise ValueError(
-            f"Chebyshev requires odd resonator count (3, 5, 7, 9) for equal terminations. "
+            f"Chebyshev requires an odd resonator count for equal terminations. "
             f"Got {n}. Use Butterworth for even counts."
         )
-    return CHEBYSHEV_G_VALUES[ripple_db][n].copy()
+    # The calculator returns [0.0, g1, ..., gn]; strip the unused g[0].
+    return calculate_chebyshev_g_values(n, ripple_db)[1:]
 
 
 def get_bessel_g_values(n: int) -> list[float]:

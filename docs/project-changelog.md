@@ -1,5 +1,61 @@
 # Project Changelog
 
+## 2026-06-12 — Capacitors-Only E-Series Matching
+
+**BREAKING**: E-series matching now applies to capacitors only. Inductor standard-match
+data has been removed from JSON and CSV export surfaces, including wizard exports;
+text table output now directs inductors to be wound to value using the toroid
+recommendations.
+
+Also in this consolidation: LP/HP rendering (CLI and wizard) now goes through one shared
+module. The wizard component table consequently adopts the CLI's primary-component-first
+column order — lowpass T and highpass Pi tables now list Inductors in the left column
+(previously the wizard always showed Capacitors first). Internal export surfaces deleted:
+`filter_lib.shared.filter_result`, `filter_lib.wizard.validation`, `filter_lib.wizard.widgets`.
+
+---
+
+## 2026-06-12 — Unified Response-Export Schema + Wizard Plot Export
+
+**BREAKING (clean break, user-decided)**: `--plot-data json|csv` now emits one unified schema for LP/HP/BP from `shared/response_export.py` (the three divergent implementations in `shared/transfer_functions.py`, `bandpass/transfer.py`, and `shared/plot_data_export.py` are deleted).
+
+Old → new JSON key mapping (what `--plot-data json` actually emitted before):
+- LP/HP: top-level `filter_type`/`cutoff_hz`/`order`/`ripple_db` → nested `filter` block: `category`, `response_type`, `order`, `cutoff_hz`, `topology`, `ripple_db` (Chebyshev only). `data` unchanged.
+- BP: previously a flat object — `filter_type` → `filter.response_type`; `f0_hz` → `filter.f0_hz`; `bandwidth_hz` → `filter.bw_hz`; `order` → `filter.order`; `data` unchanged. `filter.category` and `filter.coupling` are new keys. (None ripple was already omitted.)
+- CSV: header `frequency_hz,magnitude_db` unchanged; magnitudes stay 2-decimal; BP frequencies change from raw float repr (`14175000.0`) to `%.6g` (`1.4175e+07`), matching LP/HP.
+- Library API: the separate `filter_lib.bandpass.export_response_json/csv` functions (nested `{"filter": {type, response, n_resonators}, "frequency_response": [{freq_hz}]}` shape, `freq_hz` CSV header — never wired to the CLI) are deleted; use `filter_lib.shared.response_export`.
+
+**New**:
+- Wizard Save now honors the Output Options "Export Plot Data" choice: a second `{category}-{timestamp}-response.{json|csv}` file is written next to the component file (LP/HP from the analytic response; BP from the netlist-simulated sweep). Save notifications show absolute paths for every file written.
+- Single `chebyshev_polynomial` implementation (cos/cosh magnitude form, numerically stable outside the passband) in `shared/transfer_functions.py`; the bandpass duplicate is deleted, equivalence-tested against the classic recurrence.
+
+**Test Stats**: 1206 tests passing.
+
+---
+
+## 2.0.0 — 2026-06-12 — Breaking CLI Cleanup + Chebyshev G-Value Unification
+
+One coordinated breaking release so the CLI surface changes land once.
+
+**BREAKING CHANGES**:
+1. **`-t` short flag removed** from all three subcommands. `--type` remains; new `-T` short flag for `--topology` on lowpass/highpass. Bandpass keeps `-c/--coupling` unchanged.
+2. **`--verify` removed** from `bandpass` — its three self-checks are covered by the unit test suite.
+3. **`CHEBYSHEV_G_VALUES` lookup table deleted** (`shared/constants.py`); `bandpass.get_chebyshev_g_values` now computes g-values via `shared/chebyshev_g_calculator` for **arbitrary ripple in (0, 3.0]** (was limited to 0.1/0.5/1.0 dB). The `filter_lib.bandpass.CHEBYSHEV_G_VALUES` re-export is gone.
+4. **Default resonator count is 3** (was 2) so the default works with Chebyshev (odd order required).
+5. **Toroid table output defaults to top-1 core per inductor** (was top-3). New `--toroid-full` flag restores top-3 in table output; JSON/CSV always carry top-3.
+6. **Missing required args now exit 2 with a usage line** (argparse error including a working example) instead of `Error: ...` with exit 1.
+7. **Supplying `-r/--ripple` with butterworth/bessel warns on stderr** ("ripple is only used by Chebyshev; ignoring") and proceeds. Bandpass ripple is range-validated: `0 < r <= 3.0`.
+
+**New**:
+- `wizard` (alias `w`) registered as an explicit subcommand (no-arg invocation still launches it).
+- `--version` on the root parser (reads package metadata).
+- Exact dB→neper constant `40/ln(10)` in the Chebyshev calculator (was hardcoded 17.37); g-values now match published tables to <1e-4.
+- Help text: frequency flags explain the k/M/G suffixes ("m is MHz, not milli"); bandpass `-b` documents true −3 dB bandwidth semantics; epilog examples all execute as written.
+
+**Test Stats**: 1201 tests passing.
+
+---
+
 ## 2026-04-24 (Follow-up) — Chebyshev BP 3dB Semantics & Wizard Corrections
 
 Fixes to core filter semantics and wizard display logic, with comprehensive regression testing.

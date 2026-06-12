@@ -166,16 +166,18 @@ values, and the bandpass plot labels, remain the exact edge frequencies you ente
 | `-q, --quiet` | - | Minimal output |
 | `--format` | table | Output format: `table`, `json`, `csv` |
 | `--plot` | - | Show ASCII frequency response |
-| `--plot-data` | - | Export response data |
+| `--plot-data` | - | Export response data (json or csv) |
 | `--explain` | - | Explain filter characteristics |
-| `--verify` | - | Run self-verification tests |
+| `--no-toroids` | - | Suppress toroid recommendations |
+| `--toroid-compact` | - | Compact 1-line-per-rec toroid output (text only) |
+| `--toroid-full` | - | Show top-3 toroids in table (default top-1) |
+| `--version` | - | Print version and exit |
 
-### Coupling Topologies
+### Bandpass Coupling Topologies
 
 | Type | Aliases | Description |
 |------|---------|-------------|
-| `top` | `t` | Top-coupled (series coupling capacitors between resonators) |
-| `shunt` | `s` | Shunt-coupled (parallel coupling capacitors to ground) |
+| `top` | `t` | Top-coupled series capacitors (Ce_in/Ce_out, Cs12/Cs23) — the only supported kind |
 
 ### Examples
 
@@ -520,34 +522,39 @@ uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 
 ## Toroid Winding Recommendations
 
-For every inductor produced by the calculator, the tool auto-shows the top 3 iron-powder T-series toroid cores that fit the design frequency and the target inductance. For each rec you see: core name + colour, integer turn count + AWG, actual L after N rounding (plus signed error %), A_L-tolerance-derived L range, bare-copper wire length + DC resistance, DC-based Q upper bound, and core dimensions.
+For every inductor produced by the calculator, the tool **auto-shows** toroid recommendations for iron-powder T-series cores. Default text output shows the top-1 core (highest accuracy). Use `--toroid-full` to show top-3; JSON and CSV always include top-3. For each recommendation you see: core name + colour, integer turn count + AWG, actual L after N rounding (plus signed error %), A_L-tolerance-derived L range, bare-copper wire length + DC resistance, DC-based Q upper bound, and core dimensions.
 
-### Default (full) output
+### Default text output (top-1 core)
 
 ```
 Toroid Winding Recommendations (Iron-Powder T-Series)
 -------------------------------------------------------
 (Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)
 
-  L1 target: 1.46 µH  (design freq 10 MHz)
-  ──────────────────────────────────────────────
+  L1 target: 1.29 µH  (design freq 10 MHz)
+  ────────────────────────────────────────────────────────────
   1. T68-2  (Red/Clear, mix 2, 95 ppm/°C)
-       Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
-       L range (A_L ±5%): 1.22 µH – 1.35 µH
-       Wire: 294 mm of AWG 20 (0.812 mm)   DCR: 9.5 mΩ
-       Q (DC est, upper bound): 8,450 @ 10 MHz
-       Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
-  ...
+     Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
+     L range (A_L ±5%): 1.22 µH – 1.35 µH
+     Wire: 294 mm of AWG 20 (0.812 mm)   DCR: 9.5 mΩ
+     Q (DC est, upper bound): 8,450 @ 10 MHz
+     Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
 ```
+
+### Full output: show top-3 (`--toroid-full`)
+
+Use `--toroid-full` to show top-3 cores in table format (JSON and CSV always include top-3 regardless).
 
 ### Compact output (`--toroid-compact`)
 
 ```
-  L1 target: 1.46 µH @ 10 MHz
+  L1 target: 1.29 µH @ 10 MHz
   1. T68-2    N=15 AWG20 L=1.283µH (-0.40%) R=10mΩ Q≈8,450
   2. T50-6    N=18 AWG22 L=1.296µH (+0.65%) R=15mΩ Q≈5,463
   3. T37-2    N=18 AWG24 L=1.296µH (+0.65%) R=18mΩ Q≈4,629
 ```
+
+Use `--toroid-compact` to show all three cores in condensed text format (ignored for JSON/CSV).
 
 ### Disable toroid output (`--no-toroids`)
 

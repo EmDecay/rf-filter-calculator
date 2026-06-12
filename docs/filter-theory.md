@@ -93,23 +93,23 @@ IN ──┤            │            ├── OUT
 - T: capacitors at odd (series) positions, inductors at even (shunt)
 - Pi: inductors at odd (shunt) positions, capacitors at even (series)
 
-### Bandpass (Coupled Resonator)
+### Bandpass (Coupled Resonator, Top-C Series Coupling)
 
 ```
-           Cs12           Cs23
-IN ────┬────┤├────┬────┤├────┬──── OUT
-       │          │          │
-    ┌──┴──┐    ┌──┴──┐    ┌──┴──┐
-    Cp1  L1    Cp2  L2    Cp3  L3
-    └──┬──┘    └──┬──┘    └──┬──┘
-       │          │          │
-      GND        GND        GND
+       Ce_in     Cs12           Cs23      Ce_out
+IN ──┤├──┬──────┤├──────┬──────┤├──────┬──┤├── OUT
+        │              │              │
+     ┌──┴──┐        ┌──┴──┐        ┌──┴──┐
+     Cp1  L1        Cp2  L2        Cp3  L3
+     └──┬──┘        └──┬──┘        └──┬──┘
+        │              │              │
+       GND            GND            GND
 ```
 
 - LC tank circuits tuned to center frequency
-- Coupling capacitors determine bandwidth
-- Top-coupled: series capacitors between resonators
-- Shunt-coupled: parallel capacitors to ground
+- **Top-coupled series capacitors only**: Cs12, Cs23 couple adjacent resonators; Ce_in/Ce_out couple to ports
+- Fractional BW support ≤10% (simulation-validated tolerance ±3% magnitude, ±0.5% f₀)
+- External Q realized by series end-coupling capacitors (Ce)
 
 ---
 
@@ -211,7 +211,7 @@ But require:
 
 ---
 
-## External Q (Bandpass)
+## External Q & End-Coupling Capacitors (Bandpass)
 
 For coupled-resonator bandpass filters, external Q determines coupling to source/load:
 
@@ -219,7 +219,15 @@ For coupled-resonator bandpass filters, external Q determines coupling to source
 Q_ext = f₀ / BW × g_value
 ```
 
-The calculator displays Q_ext values for input and output matching networks.
+**Realization by Series End-Coupling**: The end resonators see a series capacitor (Ce_in or Ce_out) at their port. This capacitor acts as an impedance transformer, stepping up the termination resistance seen by the tank from Z₀ to a parallel equivalent Rp = Qe·ω₀·L. The transformation is governed by:
+
+```
+Rp = Z₀·(1 + q²)   where  q = 1/(ω₀·Z₀·Ce)
+```
+
+The designer solves for Ce such that the tank sees the target Rp, thus realizing the desired external Q. A small series-equivalent capacitance ΔC (derived from q) is then subtracted from the tank capacitor to keep the resonant frequency on-target. This approach is mathematically exact and avoids the insertion loss and component count of prior coupling networks.
+
+The calculator displays Q_ext values indicating the external Q realized by the end-coupling capacitors.
 
 ## Iron-Powder Toroids in LC Filters
 

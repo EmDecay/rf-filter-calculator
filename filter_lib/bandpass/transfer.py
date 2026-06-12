@@ -7,17 +7,7 @@ lowpass-prototype frequency transformation.
 import math
 
 from ..shared.lp_hp_base_transfer_functions import lowpass_bessel_response
-
-
-def chebyshev_polynomial(n: int, x: float) -> float:
-    """Evaluate a magnitude-form Chebyshev polynomial Cn(x).
-
-    |x| <= 1: Cn(x) = cos(n * arccos(x))
-    |x| > 1:  Cn(x) = cosh(n * arccosh(|x|))
-    """
-    if abs(x) <= 1:
-        return math.cos(n * math.acos(x))
-    return math.cosh(n * math.acosh(abs(x)))
+from ..shared.transfer_functions import chebyshev_polynomial, magnitude_to_db
 
 
 def chebyshev_3db_deviation(order: int, ripple_db: float) -> float:
@@ -96,7 +86,7 @@ def magnitude_db(
 ) -> float:
     """Return magnitude in dB for any supported filter type.
 
-    Clamps minimum to -100 dB to avoid log(0) issues.
+    Floored at -120 dB (shared convention with LP/HP responses).
     """
     if filter_type == "butterworth":
         mag = magnitude_butterworth(f, f0, bw, order)
@@ -107,9 +97,7 @@ def magnitude_db(
     else:
         raise ValueError(f"Unknown filter type: {filter_type}")
 
-    if mag < 1e-5:
-        return -100.0
-    return 20.0 * math.log10(mag)
+    return magnitude_to_db(mag)
 
 
 def frequency_sweep(
@@ -159,6 +147,38 @@ def frequency_sweep(
     return result
 
 
+def netlist_frequency_sweep(
+    result: dict, decades: float | None = None, points: int = 61
+) -> list[tuple[float, float]]:
+    """Simulated (frequency, magnitude_db) pairs for the as-synthesized circuit.
+
+    Unlike ``frequency_sweep`` (idealized symmetric prototype), this builds
+    the exact prescribed network from the result dict's component values and
+    solves it by nodal analysis, so the plotted response matches what a built
+    filter measures — including the skew real Top-C circuits show at wider
+    fractional bandwidths. Same adaptive log x-range as ``frequency_sweep``.
+    """
+    from ..shared.netlist_builders import build_bandpass_top_c_netlist
+    from ..shared.netlist_simulation import solve_s21
+
+    f0, bw = result["f0"], result["bw"]
+    if points < 2:
+        raise ValueError("points must be >= 2 for a log sweep")
+    if decades is None:
+        span = 10 * bw
+        decades = math.log10((f0 + span) / f0)
+        decades = max(0.1, min(1.0, decades))
+
+    log_start = math.log10(f0 / (10**decades))
+    log_end = math.log10(f0 * (10**decades))
+    freqs = [10 ** (log_start + (log_end - log_start) * i / (points - 1)) for i in range(points)]
+
+    n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
+    z0 = result["z0"]
+    mags = solve_s21(n_nodes, branches, z0, z0, in_node, out_node, freqs)
+    return [(f, magnitude_to_db(m)) for f, m in zip(freqs, mags)]
+
+
 def generate_frequency_points(f0: float, bw: float, points: int = 101) -> list[float]:
     """Generate frequency points for bandpass response plotting.
 
@@ -202,48 +222,3 @@ def frequency_response(result: dict, freqs: list[float]) -> list[float]:
     ripple_db = result.get("ripple_db", 0.5)
 
     return [magnitude_db(f, f0, bw, order, filter_type, ripple_db) for f in freqs]
-
-
-def export_response_json(freqs: list[float], response_db: list[float], result: dict) -> str:
-    """Export frequency response data as JSON.
-
-    Args:
-        freqs: Frequency points in Hz
-        response_db: Response magnitude in dB
-        result: Filter result dict for metadata
-
-    Returns:
-        JSON string
-    """
-    import json
-
-    data = {
-        "filter": {
-            "type": "bandpass",
-            "response": result["filter_type"],
-            "coupling": result["coupling"],
-            "f0_hz": result["f0"],
-            "bw_hz": result["bw"],
-            "n_resonators": result["n_resonators"],
-            "ripple_db": result.get("ripple_db"),
-        },
-        "frequency_response": [
-            {"freq_hz": f, "magnitude_db": db} for f, db in zip(freqs, response_db)
-        ],
-    }
-    return json.dumps(data, indent=2)
-
-
-def export_response_csv(freqs: list[float], response_db: list[float]) -> str:
-    """Export frequency response data as CSV.
-
-    Args:
-        freqs: Frequency points in Hz
-        response_db: Response magnitude in dB
-
-    Returns:
-        CSV string
-    """
-    lines = ["freq_hz,magnitude_db"]
-    lines.extend(f"{f:.6g},{db:.3f}" for f, db in zip(freqs, response_db))
-    return "\n".join(lines)

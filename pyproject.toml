@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rf-filter-calculator"
-version = "1.0.0"
+version = "2.0.0"
 description = "Command-line tool for calculating LC filter component values for RF engineers and amateur radio operators"
 readme = "README.md"
 license = {text = "GPL-3.0"}

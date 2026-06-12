@@ -5,8 +5,7 @@
 - #3 LOW: Butterworth transfer function no longer OverflowErrors on extreme ratios.
 - #4 MEDIUM: Sweep generators reject points/num_points < 2 with a clear ValueError.
 - #5 MEDIUM: LP/HP/BP validators reject NaN/inf explicitly.
-- #6 LOW: ``filter-calc bp --verify`` works under ``python -O`` (no asserts).
-- #7 LOW: ResultsScreen pre-selects export format from state.
+- #6 LOW: ResultsScreen pre-selects export format from state.
 """
 
 from __future__ import annotations
@@ -26,7 +25,6 @@ from filter_lib.bandpass.transfer import (
 from filter_lib.bandpass.transfer import (
     generate_frequency_points as bp_generate_frequency_points,
 )
-from filter_lib.cli.bandpass_cmd import _run_verification
 from filter_lib.shared.lp_hp_base_transfer_functions import (
     highpass_butterworth_response,
     lowpass_butterworth_response,
@@ -137,33 +135,33 @@ class TestChebyshev3dBBandwidthSemantics:
 # ---------------------------------------------------------------------------
 
 
-class TestWizardFormatEseriesRecsParallelMode:
-    def test_format_eseries_recs_accepts_parallel_mode(self):
-        """format_eseries_recs threads parallel_mode through to match_component."""
-        from filter_lib.shared.formatting import format_inductance
-        from filter_lib.wizard.formatting_helpers import format_eseries_recs
+class TestWizardFormatEseriesRecsPolicy:
+    def test_wizard_hp_output_caps_only_policy(self):
+        """Wizard HP output matches capacitors and directs inductors to winding."""
+        from filter_lib.wizard.filter_type_calculators import calculate_highpass
+        from filter_lib.wizard.state import FilterState
 
-        # Harmonic mode for inductors — routes through harmonic combo search.
-        lines_harmonic = format_eseries_recs(
-            [2.5e-6, 1.0e-6], "L", "Inductor", "E24", format_inductance, parallel_mode="harmonic"
+        state = FilterState(
+            category="highpass",
+            filter_type="butterworth",
+            topology="t",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            eseries="E24",
+            show_plot=False,
         )
-        assert any("Inductor" in line for line in lines_harmonic)
+        output = "\n".join(calculate_highpass(state))
+        assert "Standard Capacitor Recommendations" in output
+        assert "wind to value" in output
+        assert "Standard Inductor Recommendations" not in output
 
-        # Additive mode for caps remains the default.
-        lines_additive = format_eseries_recs(
-            [100e-12, 150e-12], "C", "Capacitor", "E24", format_inductance
-        )
-        assert any("Capacitor" in line for line in lines_additive)
+    def test_hp_calculator_matches_capacitors_only(self):
+        """The wizard HP calculation path uses capacitor E-series matching."""
+        from filter_lib.highpass.display import HP_WIZARD_MATCH
 
-    def test_hp_calculator_passes_harmonic_for_inductors(self):
-        """The wizard HP calculation path requests harmonic parallel matching."""
-        import inspect
-
-        from filter_lib.wizard import filter_type_calculators
-
-        src = inspect.getsource(filter_type_calculators.calculate_highpass)
-        # Crude but effective: the src must now mention harmonic in the E-series block
-        assert 'parallel_mode="harmonic"' in src
+        assert HP_WIZARD_MATCH.component_key == "capacitors"
+        assert HP_WIZARD_MATCH.parallel_mode == "additive"
 
 
 # ---------------------------------------------------------------------------
@@ -344,33 +342,7 @@ class TestValidatorsRejectNanInf:
 
 
 # ---------------------------------------------------------------------------
-# #6 --verify uses real checks, not asserts
-# ---------------------------------------------------------------------------
-
-
-class TestVerifyCommandUsesRealChecks:
-    def test_verify_runs_to_success(self, capsys):
-        """_run_verification completes cleanly."""
-        _run_verification()
-        assert "Verification passed" in capsys.readouterr().out
-
-    def test_verify_contains_no_assert_statements(self):
-        """Belt-and-suspenders: source of _run_verification has no bare `assert`."""
-        import inspect
-
-        from filter_lib.cli import bandpass_cmd
-
-        src = inspect.getsource(bandpass_cmd._run_verification)
-        # Strip comments/docstrings crudely; look for an assert-keyword line.
-        for line in src.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("#") or stripped.startswith('"""'):
-                continue
-            assert not stripped.startswith("assert "), f"found assert: {line!r}"
-
-
-# ---------------------------------------------------------------------------
-# #7 ResultsScreen pre-selects export format from state
+# #6 ResultsScreen pre-selects export format from state
 # ---------------------------------------------------------------------------
 
 

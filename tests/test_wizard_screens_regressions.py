@@ -166,7 +166,7 @@ def test_highpass_wizard_rejects_even_chebyshev():
     screen, state, notifications, pushed = _make_lp_hp_screen_with_inputs(
         HighpassScreen, order=4, filter_type="chebyshev"
     )
-    screen._calculate()
+    screen._validate_and_continue()
 
     assert pushed == [], "navigation should be blocked for even Chebyshev"
     assert any("odd order" in msg for _sev, msg in notifications)
@@ -178,7 +178,7 @@ def test_lowpass_wizard_rejects_even_chebyshev():
     screen, state, notifications, pushed = _make_lp_hp_screen_with_inputs(
         LowpassScreen, order=4, filter_type="chebyshev"
     )
-    screen._calculate()
+    screen._validate_and_continue()
 
     assert pushed == [], "navigation should be blocked for even Chebyshev"
     assert any("odd order" in msg for _sev, msg in notifications)
@@ -190,6 +190,74 @@ def test_highpass_wizard_allows_odd_chebyshev():
     screen, state, notifications, pushed = _make_lp_hp_screen_with_inputs(
         HighpassScreen, order=5, filter_type="chebyshev"
     )
-    screen._calculate()
+    screen._validate_and_continue()
 
     assert pushed, "odd Chebyshev should advance past validation"
+
+
+# ---------------------------------------------------------------------------
+# Bandpass wizard coupling: only Top-C exists (shunt-C removed)
+# ---------------------------------------------------------------------------
+
+
+def _make_bandpass_screen_with_coupling(coupling: str):
+    """Build a BandpassScreen with stubbed Input / RadioSet queries."""
+    from filter_lib.wizard.screens.bandpass import BandpassScreen
+
+    screen = BandpassScreen()
+    state = FilterState()
+    app = Mock()
+    app.filter_state = state
+    notifications: list[tuple[str, str]] = []
+
+    def _input(value: str) -> Mock:
+        inp = Mock()
+        inp.value = value
+        inp.placeholder = ""
+        inp.focus = Mock()
+        return inp
+
+    def _radio_set(selected_id: str) -> Mock:
+        rs = Mock(spec=RadioSet)
+        btn = Mock()
+        btn.id = selected_id
+        rs.pressed_button = btn
+        rs.focus = Mock()
+        return rs
+
+    widget_map: dict[str, Mock] = {
+        "#frequency": _input("14.175MHz"),
+        "#bandwidth": _input("350kHz"),
+        "#impedance": _input("50"),
+        "#resonators": _input("3"),
+        "#ripple": _input("0.5"),
+        "#filter-type": _radio_set("butterworth"),
+        "#coupling": _radio_set(coupling),
+    }
+
+    def fake_query_one(selector: str, widget_type=None):
+        return widget_map[selector]
+
+    screen.query_one = fake_query_one  # type: ignore[assignment]
+    type(screen).app = property(lambda _self: app)  # type: ignore[misc]
+    screen.notify = lambda msg, severity="information": notifications.append((severity, msg))  # type: ignore[assignment]
+
+    pushed: list = []
+    app.push_screen = pushed.append
+
+    return screen, state, notifications, pushed, widget_map
+
+
+def test_bandpass_wizard_offers_no_shunt_option():
+    """Shunt-C was removed; the screen must not offer it."""
+    source = inspect.getsource(bandpass_screen_mod)
+    assert 'id="shunt"' not in source
+    assert "Shunt-C" not in source
+
+
+def test_bandpass_wizard_allows_top_coupling():
+    screen, state, notifications, pushed, _widgets = _make_bandpass_screen_with_coupling("top")
+    screen._validate_and_continue()
+
+    assert pushed, "Top-C should advance past validation"
+    assert state.topology == "top"

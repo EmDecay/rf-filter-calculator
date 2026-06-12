@@ -17,9 +17,13 @@ def format_frequency(freq_hz: float) -> str:
 
 
 def format_capacitance(value_farads: float) -> str:
-    """Format capacitance with appropriate unit (mF, µF, nF, pF)."""
+    """Format capacitance with appropriate unit (mF, µF, nF, pF, fF)."""
+    if abs(value_farads) < 1e-15:
+        return f"{value_farads:.2e} F"
     return _format_with_units(
-        value_farads, [(1e-3, "mF"), (1e-6, "µF"), (1e-9, "nF"), (1e-12, "pF")], ".2f"
+        value_farads,
+        [(1e-3, "mF"), (1e-6, "µF"), (1e-9, "nF"), (1e-12, "pF"), (1e-15, "fF")],
+        ".2f",
     )
 
 

@@ -33,6 +33,15 @@ def _validate_lp_hp_inputs(cutoff_hz: float, impedance: float, num_components: i
         raise ValueError("Number of components must be between 2 and 9")
 
 
+def _component_kind(position_1based: int, topology: str, is_lowpass: bool) -> str:
+    """Return component kind for a physical ladder position."""
+    # LP Pi and HP T both start with a capacitor at odd positions; LP T and HP Pi
+    # both start with an inductor. Even positions alternate to the opposite kind.
+    starts_with_cap = (topology == "pi") if is_lowpass else (topology == "t")
+    is_odd_position = position_1based % 2 == 1
+    return "cap" if starts_with_cap == is_odd_position else "ind"
+
+
 def _calculate_butterworth_base(
     cutoff_hz: float,
     impedance: float,
@@ -54,7 +63,8 @@ def _calculate_butterworth_base(
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
-        Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
+        Tuple of (capacitors, inductors, order). The HP public wrappers reorder
+        the lists for display; this base function never swaps them.
     """
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
@@ -71,21 +81,10 @@ def _calculate_butterworth_base(
         cap_value = cap_formula(g, impedance, omega)
         ind_value = ind_formula(g, impedance, omega)
 
-        # Determine component placement based on filter type and topology
-        if is_lowpass:
-            # LP: Pi topology = odd positions are caps, even are inductors
-            #     T topology = odd positions are inductors, even are caps
-            if (topology == "pi") == (i % 2 == 1):
-                capacitors.append(cap_value)
-            else:
-                inductors.append(ind_value)
+        if _component_kind(i, topology, is_lowpass) == "cap":
+            capacitors.append(cap_value)
         else:
-            # HP: T topology = odd positions are caps (series), even are inductors (shunt)
-            #     Pi topology = odd positions are inductors (shunt), even are caps (series)
-            if (topology == "t") == (i % 2 == 1):
-                capacitors.append(cap_value)
-            else:
-                inductors.append(ind_value)
+            inductors.append(ind_value)
 
     return capacitors, inductors, n
 
@@ -113,7 +112,8 @@ def _calculate_chebyshev_base(
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
-        Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
+        Tuple of (capacitors, inductors, order). The HP public wrappers reorder
+        the lists for display; this base function never swaps them.
     """
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
@@ -140,21 +140,10 @@ def _calculate_chebyshev_base(
         cap_value = cap_formula(g[i], impedance, omega)
         ind_value = ind_formula(g[i], impedance, omega)
 
-        # Determine component placement based on filter type and topology
-        if is_lowpass:
-            # LP: Pi topology = odd positions are caps, even are inductors
-            #     T topology = odd positions are inductors, even are caps
-            if (topology == "pi") == (i % 2 == 1):
-                capacitors.append(cap_value)
-            else:
-                inductors.append(ind_value)
+        if _component_kind(i, topology, is_lowpass) == "cap":
+            capacitors.append(cap_value)
         else:
-            # HP: T topology = odd positions are caps (series), even are inductors (shunt)
-            #     Pi topology = odd positions are inductors (shunt), even are caps (series)
-            if (topology == "t") == (i % 2 == 1):
-                capacitors.append(cap_value)
-            else:
-                inductors.append(ind_value)
+            inductors.append(ind_value)
 
     return capacitors, inductors, n
 
@@ -180,7 +169,8 @@ def _calculate_bessel_base(
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
-        Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
+        Tuple of (capacitors, inductors, order). The HP public wrappers reorder
+        the lists for display; this base function never swaps them.
     """
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
@@ -194,27 +184,14 @@ def _calculate_bessel_base(
     capacitors = []
     inductors = []
 
-    # 0-indexed loop; physical position = i+1
-    for i in range(n):
-        g = g_values[i]
+    for position, g in enumerate(g_values, start=1):
         cap_value = cap_formula(g, impedance, omega)
         ind_value = ind_formula(g, impedance, omega)
 
-        # Determine component placement based on filter type and topology
-        if is_lowpass:
-            # LP Pi: even-idx (pos 1,3,5) = cap; odd-idx (pos 2,4,6) = ind
-            # LP T:  even-idx (pos 1,3,5) = ind; odd-idx (pos 2,4,6) = cap
-            if (topology == "pi") == (i % 2 == 0):
-                capacitors.append(cap_value)
-            else:
-                inductors.append(ind_value)
+        if _component_kind(position, topology, is_lowpass) == "cap":
+            capacitors.append(cap_value)
         else:
-            # HP T: even-idx(pos 1,3,5)=cap(series); odd-idx(pos 2,4,6)=ind(shunt)
-            # HP Pi: even-idx(pos 1,3,5)=ind(shunt); odd-idx(pos 2,4,6)=cap(series)
-            if (topology == "t") == (i % 2 == 0):
-                capacitors.append(cap_value)
-            else:
-                inductors.append(ind_value)
+            inductors.append(ind_value)
 
     return capacitors, inductors, n
 

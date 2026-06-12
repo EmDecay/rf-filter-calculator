@@ -9,17 +9,19 @@ FILTER_TYPE_ALIASES: dict[str, str] = {
     "bs": "bessel",
 }
 
-# Coupling topology aliases
+# Coupling topology aliases. Only Top-C exists: capacitive bottom (shunt)
+# coupling cannot realize the designed response (simulation-verified), so it
+# was removed.
 COUPLING_ALIASES: dict[str, str] = {
     "t": "top",
-    "s": "shunt",
 }
 
 # Default parameter values
 DEFAULT_IMPEDANCE: str = "50"
 DEFAULT_RIPPLE_DB: float = 0.5
 DEFAULT_COMPONENTS: int = 3
-DEFAULT_RESONATORS: int = 2
+# 3 (not 2) so the default works with Chebyshev, which needs an odd count
+DEFAULT_RESONATORS: int = 3
 DEFAULT_Q_SAFETY: float = 2.0
 DEFAULT_ESERIES: str = "E24"
 
@@ -29,7 +31,7 @@ FILTER_EXPLANATIONS: dict[str, str] = {
 - Flattest possible passband response
 - No ripple in passband
 - Moderate rolloff steepness
-- Good for audio applications""",
+- Good general-purpose choice""",
     "chebyshev": """Chebyshev Filter (Equiripple)
 - Steeper rolloff than Butterworth for same order
 - Ripple in passband (specified in dB)
@@ -54,9 +56,10 @@ FILTER_EXPLANATIONS_HIGHPASS: dict[str, str] = {
 - Ripple in passband (specified in dB)
 - Better stopband attenuation
 - Supports Pi and T topologies""",
-    "bessel": """Bessel High-Pass Filter (Maximally Flat Delay)
-- Best pulse response (minimal overshoot)
-- Linear phase response
+    "bessel": """Bessel High-Pass Filter
+- Smooth monotonic rolloff
+- Note: the LP prototype's flat group delay is NOT preserved
+  through the high-pass transformation
 - Gentlest rolloff
 - Supports Pi and T topologies""",
 }
@@ -72,9 +75,9 @@ FILTER_EXPLANATIONS_BANDPASS: dict[str, str] = {
 - Ripple in passband (specified in dB)
 - Requires odd number of resonators
 - Better selectivity for same order""",
-    "bessel": """Bessel Bandpass Filter (Maximally Flat Delay)
+    "bessel": """Bessel Bandpass Filter
 - Best pulse response
-- Linear phase in passband
+- Approximately linear passband phase for narrow fractional bandwidths
 - Gentlest rolloff""",
 }
 

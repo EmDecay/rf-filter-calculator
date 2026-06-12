@@ -65,7 +65,7 @@ uv sync --group dev
 | `test_codex_review_fixes.py` | 40 | Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation (Apr 24, 2026) |
 | `conftest.py` | - | Shared pytest fixtures and configuration |
 
-**Total: 1086 tests** (94% coverage)
+**Total: 1211 tests** (94% coverage)
 
 **New Modules** (tested and integrated):
 - `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations
@@ -73,7 +73,7 @@ uv sync --group dev
 - `filter_lib/shared/plot_ascii_renderers.py` - ASCII plot rendering with db_floor
 - `filter_lib/shared/plot_zoom_pairs.py` - Zoomed passband plot pairs
 - `filter_lib/shared/plot_threshold_analysis.py` - dB threshold detection
-- `filter_lib/shared/plot_data_export.py` - JSON/CSV export
+- `filter_lib/shared/response_export.py` - unified JSON/CSV response export
 - `filter_lib/shared/transfer_response_dispatch.py` - Response function factory
 - `filter_lib/wizard/filter_type_calculators.py` - Wizard calculation logic
 - `filter_lib/wizard/formatting_helpers.py` - Wizard formatting utilities

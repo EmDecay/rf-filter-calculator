@@ -108,15 +108,22 @@ class TestESeriesEdges:
         # the call must succeed without error and route through the harmonic code.
         assert result is None or len(result) == 3
 
-    def test_find_parallel_combo_auto_detects_inductor_as_harmonic(self):
-        """For target > 1e-6 auto-mode chooses harmonic."""
-        result = find_parallel_combo(100e-6, "E24", mode="auto")
+    def test_find_parallel_combo_explicit_harmonic_for_large_inductor(self):
+        """Explicit harmonic mode works for large inductor values."""
+        result = find_parallel_combo(100e-6, "E24", mode="harmonic")
         assert result is None or len(result) == 3
 
-    def test_find_parallel_combo_auto_detects_capacitor_as_additive(self):
-        """For target < 1e-6 auto-mode chooses additive."""
-        result = find_parallel_combo(47e-12, "E24", mode="auto")
+    def test_find_parallel_combo_explicit_additive_for_small_capacitor(self):
+        """Explicit additive mode works for small capacitor values."""
+        result = find_parallel_combo(47e-12, "E24", mode="additive")
         assert result is None or len(result) == 3
+
+    def test_find_parallel_combo_rejects_missing_mode(self):
+        """Mode is required; the magnitude-based auto inference was removed."""
+        import pytest
+
+        with pytest.raises(ValueError, match="additive"):
+            find_parallel_combo(47e-12, "E24")
 
     def test_match_component_returns_single_when_parallel_gives_no_improvement(self):
         """When the parallel branch finds nothing, the returned match has parallel=None."""

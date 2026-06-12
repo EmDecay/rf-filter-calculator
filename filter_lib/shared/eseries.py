@@ -7,6 +7,7 @@ import math
 from dataclasses import dataclass
 
 # E-series normalized values (1.0-10.0 range), geometric progression
+# fmt: off
 E_SERIES: dict[str, list[float]] = {
     "E12": [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2],
     "E24": [
@@ -36,104 +37,21 @@ E_SERIES: dict[str, list[float]] = {
         9.1,
     ],
     "E96": [
-        1.00,
-        1.02,
-        1.05,
-        1.07,
-        1.10,
-        1.13,
-        1.15,
-        1.18,
-        1.21,
-        1.24,
-        1.27,
-        1.30,
-        1.33,
-        1.37,
-        1.40,
-        1.43,
-        1.47,
-        1.50,
-        1.54,
-        1.58,
-        1.62,
-        1.65,
-        1.69,
-        1.74,
-        1.78,
-        1.82,
-        1.87,
-        1.91,
-        1.96,
-        2.00,
-        2.05,
-        2.10,
-        2.15,
-        2.21,
-        2.26,
-        2.32,
-        2.37,
-        2.43,
-        2.49,
-        2.55,
-        2.61,
-        2.67,
-        2.74,
-        2.80,
-        2.87,
-        2.94,
-        3.01,
-        3.09,
-        3.16,
-        3.24,
-        3.32,
-        3.40,
-        3.48,
-        3.57,
-        3.65,
-        3.74,
-        3.83,
-        3.92,
-        4.02,
-        4.12,
-        4.22,
-        4.32,
-        4.42,
-        4.53,
-        4.64,
-        4.75,
-        4.87,
-        4.99,
-        5.11,
-        5.23,
-        5.36,
-        5.49,
-        5.62,
-        5.76,
-        5.90,
-        6.04,
-        6.19,
-        6.34,
-        6.49,
-        6.65,
-        6.81,
-        6.98,
-        7.15,
-        7.32,
-        7.50,
-        7.68,
-        7.87,
-        8.06,
-        8.25,
-        8.45,
-        8.66,
-        8.87,
-        9.09,
-        9.31,
-        9.53,
-        9.76,
+        1.00, 1.02, 1.05, 1.07, 1.10, 1.13, 1.15, 1.18,
+        1.21, 1.24, 1.27, 1.30, 1.33, 1.37, 1.40, 1.43,
+        1.47, 1.50, 1.54, 1.58, 1.62, 1.65, 1.69, 1.74,
+        1.78, 1.82, 1.87, 1.91, 1.96, 2.00, 2.05, 2.10,
+        2.15, 2.21, 2.26, 2.32, 2.37, 2.43, 2.49, 2.55,
+        2.61, 2.67, 2.74, 2.80, 2.87, 2.94, 3.01, 3.09,
+        3.16, 3.24, 3.32, 3.40, 3.48, 3.57, 3.65, 3.74,
+        3.83, 3.92, 4.02, 4.12, 4.22, 4.32, 4.42, 4.53,
+        4.64, 4.75, 4.87, 4.99, 5.11, 5.23, 5.36, 5.49,
+        5.62, 5.76, 5.90, 6.04, 6.19, 6.34, 6.49, 6.65,
+        6.81, 6.98, 7.15, 7.32, 7.50, 7.68, 7.87, 8.06,
+        8.25, 8.45, 8.66, 8.87, 9.09, 9.31, 9.53, 9.76,
     ],
 }
+# fmt: on
 
 
 @dataclass
@@ -203,7 +121,7 @@ def find_closest_single(target: float, series: str = "E24") -> tuple[float, floa
 
 
 def find_parallel_combo(
-    target: float, series: str = "E24", mode: str = "auto", ratio_limit: float = 10.0
+    target: float, series: str = "E24", mode: str | None = None, ratio_limit: float = 10.0
 ) -> tuple[tuple[float, float], float, float] | None:
     """Find parallel combination closest to target.
 
@@ -211,8 +129,9 @@ def find_parallel_combo(
         target: Target component value
         series: E-series name (E12, E24, E96)
         mode: 'additive' for capacitors (C_par = C1 + C2),
-              'harmonic' for resistors/inductors (R_par = R1*R2/(R1+R2)),
-              'auto' to auto-detect based on value magnitude
+              'harmonic' for resistors/inductors (R_par = R1*R2/(R1+R2)).
+              Required — the physics of the combination depends on the
+              component kind, which cannot be inferred from the value alone.
         ratio_limit: Maximum ratio between component values
 
     Returns:
@@ -221,10 +140,8 @@ def find_parallel_combo(
     if series not in E_SERIES:
         raise ValueError(f"Unknown series '{series}'. Use E12, E24, or E96.")
 
-    # Auto-detect mode: small values (< 1e-6) are likely capacitors (additive)
-    # larger values are likely inductors/resistors (harmonic)
-    if mode == "auto":
-        mode = "additive" if target < 1e-6 else "harmonic"
+    if mode not in ("additive", "harmonic"):
+        raise ValueError(f"Mode is required: use 'additive' or 'harmonic' (got {mode!r}).")
 
     _, decade = _normalize(target)
     # Build candidate values spanning relevant decades
@@ -272,15 +189,15 @@ def find_parallel_combo(
 
 
 def match_component(
-    target: float, series: str = "E24", parallel_mode: str = "auto", ratio_limit: float = 10.0
+    target: float, series: str = "E24", parallel_mode: str | None = None, ratio_limit: float = 10.0
 ) -> ESeriesMatch:
     """Find best E-series match with optional parallel combination.
 
     Args:
         target: Target component value
         series: E-series name (E12, E24, E96)
-        parallel_mode: 'additive' for capacitors, 'harmonic' for resistors/inductors,
-                       'auto' to auto-detect
+        parallel_mode: 'additive' for capacitors, 'harmonic' for resistors/inductors.
+                       Required — see find_parallel_combo.
         ratio_limit: Maximum ratio between parallel component values
 
     Returns:

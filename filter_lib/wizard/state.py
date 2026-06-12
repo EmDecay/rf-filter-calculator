@@ -10,7 +10,7 @@ class FilterState:
     # Filter selection
     category: str = ""  # lowpass, highpass, bandpass
     filter_type: str = "butterworth"
-    topology: str = "pi"  # pi, t for lowpass/highpass; top, shunt for bandpass
+    topology: str = "pi"  # pi, t for lowpass/highpass; top for bandpass
 
     # Frequency parameters
     frequency_hz: float = 0.0  # cutoff for LP/HP, center for BP
@@ -24,6 +24,8 @@ class FilterState:
     # Output options
     eseries: str = "E24"
     output_format: str = "table"
+    # Wizard shows the plot by default — deliberate divergence from the CLI's
+    # opt-in --plot; the guided flow is the showcase experience.
     show_plot: bool = True
     export_format: str | None = None
     raw_units: bool = False

@@ -23,6 +23,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("Band-Pass Filter Design", classes="header")
+        yield Static("Enter: next · ↑/↓: choose · Esc: back", classes="nav-hint")
         with VerticalScroll(classes="content"):
             # Response Type
             with Vertical(classes="form-section"):
@@ -39,9 +40,8 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                 yield Static("Coupling Topology", classes="form-section-title")
                 with RadioSet(id="coupling"):
                     yield RadioButton(
-                        "Top-C (Series) - Better for wider bandwidth", value=True, id="top"
+                        "Top-C (Series) - capacitively coupled resonators", value=True, id="top"
                     )
-                    yield RadioButton("Shunt-C (Parallel) - Better for narrow < 10%", id="shunt")
 
             # Frequency Parameters
             with Vertical(classes="form-section"):
@@ -61,15 +61,15 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
             # Other Parameters
             with Vertical(classes="form-section"):
                 yield Static("Parameters", classes="form-section-title")
-                yield Static("Impedance (Ω):")
+                yield Static("Impedance (e.g., 50, 50ohm, 1k):")
                 yield Input(
                     value="50",
+                    placeholder="50 or 50ohm",
                     id="impedance",
-                    validators=[Number(minimum=1, maximum=10000)],
                 )
-                yield Static("Resonators (2-9):")
+                yield Static("Resonators (2-9):", id="resonators-label")
                 yield Input(
-                    value="5",
+                    value="3",
                     id="resonators",
                     validators=[Number(minimum=2, maximum=9)],
                 )
@@ -83,7 +83,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
 
             # Buttons
             with Horizontal(classes="button-row"):
-                yield Button("Next", id="calculate-btn", variant="primary")
+                yield Button("Next", id="next-btn", variant="primary")
                 yield Button("Reset", id="reset-btn")
 
         yield Footer()
@@ -95,9 +95,14 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
 
     @on(RadioSet.Changed, "#filter-type")
     def _on_filter_type_changed(self, event: RadioSet.Changed) -> None:
-        """Show/hide ripple section based on filter type."""
-        ripple_section = self.query_one("#ripple-section")
-        ripple_section.display = event.pressed.id == "chebyshev"
+        """Show/hide ripple section and odd-count hint based on filter type."""
+        is_chebyshev = event.pressed.id == "chebyshev"
+        self.query_one("#ripple-section").display = is_chebyshev
+        resonators_label = self.query_one("#resonators-label", Static)
+        if is_chebyshev:
+            resonators_label.update("Resonators (Chebyshev: odd only — 3, 5, 7, 9):")
+        else:
+            resonators_label.update("Resonators (2-9):")
 
     @on(Input.Submitted, "#frequency")
     def _on_frequency_submitted(self, event: Input.Submitted) -> None:
@@ -120,12 +125,12 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         if self.query_one("#ripple-section").display:
             self.query_one("#ripple", Input).focus()
         else:
-            self.query_one("#calculate-btn", Button).focus()
+            self.query_one("#next-btn", Button).focus()
 
     @on(Input.Submitted, "#ripple")
     def _on_ripple_submitted(self, event: Input.Submitted) -> None:
         """Auto-advance to calculate button after ripple entry."""
-        self.query_one("#calculate-btn", Button).focus()
+        self.query_one("#next-btn", Button).focus()
 
     def action_back(self) -> None:
         """Go back to welcome screen."""
@@ -158,14 +163,14 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == "calculate-btn":
-            self._calculate()
+        if event.button.id == "next-btn":
+            self._validate_and_continue()
         elif event.button.id == "reset-btn":
             self._reset_form()
 
-    def _calculate(self) -> None:
+    def _validate_and_continue(self) -> None:
         """Validate inputs and proceed to output options."""
-        from filter_lib.shared.parsing import parse_frequency
+        from filter_lib.shared.parsing import parse_frequency, parse_impedance
 
         # Get input widgets
         freq_input = self.query_one("#frequency", Input)
@@ -192,11 +197,9 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
             bw_input.focus()
             return
 
-        # Validate impedance
+        # Validate impedance (same suffixed forms as the CLI: 50, 50ohm, 1k)
         try:
-            impedance = float(impedance_input.value)
-            if impedance <= 0:
-                raise ValueError("must be positive")
+            impedance = parse_impedance(impedance_input.value.strip() or "50")
         except ValueError as e:
             self.notify(f"Invalid impedance: {e}", severity="error")
             impedance_input.focus()
@@ -229,6 +232,8 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                 ripple = float(ripple_input.value)
                 if ripple <= 0:
                     raise ValueError("must be positive")
+                if ripple > 3.0:
+                    raise ValueError("must be <= 3.0 dB")
             except ValueError as e:
                 self.notify(f"Invalid ripple: {e}", severity="error")
                 ripple_input.focus()
@@ -238,7 +243,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         state: FilterState = self.app.filter_state
         state.category = "bandpass"
         state.filter_type = filter_type
-        state.topology = coupling  # top or shunt
+        state.topology = coupling  # top
         state.frequency_hz = f0
         state.bandwidth_hz = bw
         state.impedance = impedance
@@ -255,7 +260,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         self.query_one("#frequency", Input).value = ""
         self.query_one("#bandwidth", Input).value = ""
         self.query_one("#impedance", Input).value = "50"
-        self.query_one("#resonators", Input).value = "5"
+        self.query_one("#resonators", Input).value = "3"
         self.query_one("#ripple", Input).value = "0.5"
         self.query_one("#fbw-display", Static).update("")
         self.query_one("#frequency", Input).focus()

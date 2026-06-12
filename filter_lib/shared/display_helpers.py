@@ -12,7 +12,7 @@ def format_eseries_match(
     value: float,
     series: str,
     unit_formatter: Callable[[float], str],
-    parallel_mode: str = "additive",
+    parallel_mode: str | None = None,
 ) -> list[str]:
     """Format E-series match for display.
 
@@ -20,7 +20,8 @@ def format_eseries_match(
         value: Component value to match
         series: E-series name (E12, E24, E96)
         unit_formatter: Function to format value with units (e.g., format_capacitance)
-        parallel_mode: Parallel matching mode ('additive' recommended)
+        parallel_mode: 'additive' for capacitors, 'harmonic' for inductors/resistors.
+                       Required — must match the component physics.
 
     Returns:
         List of formatted lines showing nearest standard and parallel match
@@ -34,7 +35,9 @@ def format_eseries_match(
     if match.parallel and match.parallel_error_pct is not None:
         if abs(match.parallel_error_pct) < abs(match.single_error_pct):
             p1, p2 = match.parallel
-            p1_fmt = unit_formatter(p1).split()[0]
+            # Both values keep full units: a pair can span decades
+            # (e.g. "910 pF || 8.2 nF"), so a bare first number is ambiguous.
+            p1_fmt = unit_formatter(p1)
             p2_fmt = unit_formatter(p2)
             err_sign = "+" if match.parallel_error_pct > 0 else ""
             lines.append(

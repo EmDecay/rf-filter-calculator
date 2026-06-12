@@ -8,10 +8,13 @@ import pytest
 from filter_lib.bandpass import transfer as bp_transfer
 from filter_lib.highpass import transfer as hp_transfer
 from filter_lib.lowpass import transfer as lp_transfer
-from filter_lib.shared.transfer_functions import (
-    chebyshev_polynomial,
+from filter_lib.shared.response_export import (
     export_response_csv,
     export_response_json,
+    response_meta,
+)
+from filter_lib.shared.transfer_functions import (
+    chebyshev_polynomial,
     generate_frequency_points,
     magnitude_to_db,
 )
@@ -36,12 +39,45 @@ class TestSharedTransferFunctions:
             generate_frequency_points(-1)
 
     def test_chebyshev_polynomial_base_cases(self):
-        assert chebyshev_polynomial(0, 0.5) == 1.0
-        assert chebyshev_polynomial(1, 0.5) == 0.5
+        assert chebyshev_polynomial(0, 0.5) == pytest.approx(1.0)
+        assert chebyshev_polynomial(1, 0.5) == pytest.approx(0.5)
 
     def test_chebyshev_polynomial_recurrence(self):
         # T2(x) = 2x^2 - 1
         assert chebyshev_polynomial(2, 0.5) == pytest.approx(2 * 0.25 - 1)
+
+    def test_chebyshev_polynomial_matches_recurrence_form(self):
+        """cos/cosh magnitude form equals the classic Tn recurrence on x >= 0."""
+
+        def recurrence_tn(n: int, x: float) -> float:
+            if n == 0:
+                return 1.0
+            if n == 1:
+                return x
+            t_prev2, t_prev1 = 1.0, x
+            for _ in range(2, n + 1):
+                t_prev2, t_prev1 = t_prev1, 2 * x * t_prev1 - t_prev2
+            return t_prev1
+
+        for n in range(2, 10):
+            for i in range(0, 31):
+                x = i / 10  # 0.0 .. 3.0
+                assert chebyshev_polynomial(n, x) == pytest.approx(
+                    recurrence_tn(n, x), rel=1e-9, abs=1e-9
+                ), f"mismatch at n={n}, x={x}"
+            # exact signed agreement inside [-1, 0]
+            for i in range(0, 11):
+                x = -i / 10
+                assert chebyshev_polynomial(n, x) == pytest.approx(
+                    recurrence_tn(n, x), rel=1e-9, abs=1e-9
+                ), f"mismatch at n={n}, x={x}"
+            # below -1 the magnitude form drops the sign; squares must agree
+            # (response functions only ever use Cn squared)
+            for i in range(11, 31):
+                x = -i / 10
+                assert chebyshev_polynomial(n, x) ** 2 == pytest.approx(
+                    recurrence_tn(n, x) ** 2, rel=1e-9
+                ), f"square mismatch at n={n}, x={x}"
 
     def test_magnitude_to_db_unity(self):
         assert magnitude_to_db(1.0) == pytest.approx(0.0)
@@ -52,12 +88,41 @@ class TestSharedTransferFunctions:
     def test_magnitude_to_db_half(self):
         assert magnitude_to_db(0.5) == pytest.approx(20 * math.log10(0.5))
 
-    def test_export_response_json(self):
-        info = {"filter_type": "butterworth", "freq_hz": 10e6, "order": 3}
-        result = export_response_json([1e6, 10e6], [-0.1, -3.0], info)
-        data = json.loads(result)
-        assert data["filter_type"] == "butterworth"
-        assert len(data["data"]) == 2
+    def test_export_response_json_unified_schema_lowpass(self):
+        """Golden test: LP/HP exports carry the unified filter block + data."""
+        result = {
+            "filter_type": "butterworth",
+            "freq_hz": 10e6,
+            "order": 3,
+            "ripple": None,
+            "topology": "pi",
+        }
+        s = export_response_json([1e6, 10e6], [-0.1, -3.0], response_meta("lowpass", result))
+        data = json.loads(s)
+        assert data["filter"] == {
+            "category": "lowpass",
+            "response_type": "butterworth",
+            "order": 3,
+            "cutoff_hz": 10e6,
+            "topology": "pi",
+        }
+        assert data["data"] == [
+            {"frequency_hz": 1e6, "magnitude_db": -0.1},
+            {"frequency_hz": 10e6, "magnitude_db": -3.0},
+        ]
+
+    def test_export_response_json_includes_ripple_for_chebyshev(self):
+        result = {
+            "filter_type": "chebyshev",
+            "freq_hz": 10e6,
+            "order": 5,
+            "ripple": 0.5,
+            "topology": "t",
+        }
+        s = export_response_json([1e6], [-0.5], response_meta("highpass", result))
+        data = json.loads(s)
+        assert data["filter"]["category"] == "highpass"
+        assert data["filter"]["ripple_db"] == 0.5
 
     def test_export_response_csv(self):
         result = export_response_csv([1e6, 10e6], [-0.1, -3.0])
@@ -214,8 +279,9 @@ class TestBandpassTransfer:
             bp_transfer.magnitude_db(14e6, 14e6, 1e6, 3, "invalid")
 
     def test_magnitude_db_floor(self):
+        """Deep-stopband response floors at -120 dB, same as LP/HP."""
         db = bp_transfer.magnitude_db(100e6, 14e6, 1e6, 5, "butterworth")
-        assert db >= -100.0
+        assert db == -120.0
 
     def test_frequency_sweep_defaults(self):
         result = bp_transfer.frequency_sweep(14e6, 1e6, 3, "butterworth")
@@ -244,6 +310,7 @@ class TestBandpassTransfer:
         assert resp[1] > resp[0]  # Peak at center
 
     def test_export_response_json_bandpass(self):
+        """Golden test: bandpass exports carry the unified filter block + data."""
         result = {
             "filter_type": "butterworth",
             "coupling": "top",
@@ -252,13 +319,84 @@ class TestBandpassTransfer:
             "n_resonators": 3,
             "ripple_db": None,
         }
-        s = bp_transfer.export_response_json([13e6, 14e6], [-3.0, 0.0], result)
+        s = export_response_json([13e6, 14e6], [-3.0, 0.0], response_meta("bandpass", result))
         data = json.loads(s)
-        assert data["filter"]["type"] == "bandpass"
-        assert data["filter"]["coupling"] == "top"
+        assert data["filter"] == {
+            "category": "bandpass",
+            "response_type": "butterworth",
+            "order": 3,
+            "f0_hz": 14e6,
+            "bw_hz": 1e6,
+            "coupling": "top",
+        }
+        assert data["data"][0] == {"frequency_hz": 13e6, "magnitude_db": -3.0}
 
     def test_export_response_csv_bandpass(self):
-        csv_str = bp_transfer.export_response_csv([13e6, 14e6], [-3.0, 0.0])
+        csv_str = export_response_csv([13e6, 14e6], [-3.0, 0.0])
         lines = csv_str.split("\n")
-        assert lines[0] == "freq_hz,magnitude_db"
+        assert lines[0] == "frequency_hz,magnitude_db"
         assert len(lines) == 3
+
+
+class TestNetlistSweep:
+    """Netlist-true bandpass response (simulated from synthesized values)."""
+
+    @staticmethod
+    def _result(fbw, n=3, ftype="butterworth"):
+        from filter_lib.bandpass.calculations import calculate_bandpass_filter
+
+        f0 = 10e6
+        return calculate_bandpass_filter(f0, f0 * fbw, 50, n, ftype, "top")
+
+    def test_peak_near_unity_at_center(self):
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+        result = self._result(0.05)
+        sweep = netlist_frequency_sweep(result, points=201)
+        peak_db = max(db for _, db in sweep)
+        assert peak_db == pytest.approx(0.0, abs=0.1)
+
+    def test_3db_crossings_match_printed_cutoffs(self):
+        """The -3 dB points of the simulated response agree with f_low/f_high."""
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+        result = self._result(0.10)
+        sweep = netlist_frequency_sweep(result, decades=0.15, points=2001)
+        peak = max(db for _, db in sweep)
+        above = [f for f, db in sweep if db >= peak - 3.0103]
+        f_lo_meas, f_hi_meas = above[0], above[-1]
+        assert f_lo_meas == pytest.approx(result["f_low"], rel=0.03)
+        assert f_hi_meas == pytest.approx(result["f_high"], rel=0.03)
+
+    def test_netlist_diverges_from_prototype_at_wide_fbw(self):
+        """At 20% FBW the real circuit skews away from the symmetric prototype.
+
+        This is why plots are simulated rather than computed from the
+        prototype: reverting would silently show users an idealized shape
+        their built filter cannot reproduce.
+        """
+        from filter_lib.bandpass.transfer import frequency_sweep, netlist_frequency_sweep
+
+        result = self._result(0.20)
+        netlist = netlist_frequency_sweep(result, points=201)
+        prototype = frequency_sweep(
+            result["f0"], result["bw"], result["n_resonators"], result["filter_type"], points=201
+        )
+        deltas = [abs(a - b) for (_, a), (_, b) in zip(netlist, prototype)]
+        assert max(deltas) > 1.0
+
+    def test_netlist_response_factory_matches_sweep(self):
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+        from filter_lib.shared.transfer_response_dispatch import make_bp_netlist_response_db
+
+        result = self._result(0.05)
+        response_db = make_bp_netlist_response_db(result)
+        sweep = netlist_frequency_sweep(result, points=21)
+        for f, db in sweep[::5]:
+            assert response_db(f) == pytest.approx(db, abs=1e-9)
+
+    def test_netlist_sweep_rejects_too_few_points(self):
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+        with pytest.raises(ValueError, match="points"):
+            netlist_frequency_sweep(self._result(0.05), points=1)

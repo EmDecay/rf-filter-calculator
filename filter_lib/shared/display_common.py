@@ -13,7 +13,7 @@ from .toroid_display import CSV_TOROID_HEADER, build_json_recommendations, csv_c
 from .toroid_selection import recommend_cores
 
 
-def _build_standard_match(value: float, eseries: str, unit_key: str, parallel_mode: str) -> dict:
+def build_standard_match(value: float, eseries: str, unit_key: str, parallel_mode: str) -> dict:
     """Build JSON-serializable E-series match data."""
     match = match_component(value, eseries, parallel_mode=parallel_mode)
 
@@ -49,8 +49,8 @@ def _json_component(
     attach `toroid_recommendations` sourced via recommend_cores.
     """
     component = {"name": name, unit_key: value}
-    if eseries:
-        component["standard_match"] = _build_standard_match(value, eseries, unit_key, parallel_mode)
+    if eseries and unit_key == "value_farads":
+        component["standard_match"] = build_standard_match(value, eseries, unit_key, parallel_mode)
     if toroid_freq_hz is not None and unit_key == "value_henries":
         recs = recommend_cores(value, toroid_freq_hz)
         component["toroid_recommendations"] = build_json_recommendations(recs)
@@ -187,7 +187,10 @@ def format_csv_result(
             formatted = formatter(v)
             val, unit = split_value_unit(formatted)
             row = [f"{prefix}{i + 1}", val, unit]
-            row.extend(_csv_match_fields(v, formatter, eseries, parallel_mode))
+            if prefix == "C":
+                row.extend(_csv_match_fields(v, formatter, eseries, parallel_mode))
+            elif eseries:
+                row.extend([""] * 6)
             if emit_toroids:
                 if prefix == "L":
                     recs = recommend_cores(v, toroid_freq_hz)
@@ -228,8 +231,8 @@ def format_quiet_result(
     return "\n".join(lines)
 
 
-def print_header(result: dict, topology: str, filter_category: str) -> None:
-    """Print common filter header information.
+def format_header(result: dict, topology: str, filter_category: str) -> str:
+    """Format common filter header information.
 
     Args:
         result: Filter result dictionary
@@ -238,21 +241,28 @@ def print_header(result: dict, topology: str, filter_category: str) -> None:
     """
     from .formatting import format_frequency
 
+    lines = []
     title = f"{result['filter_type'].title()} {topology} {filter_category} Filter"
-    print(f"\n{title}")
-    print("=" * 50)
-    print(f"Cutoff Frequency:    {format_frequency(result['freq_hz'])}")
-    print(f"Impedance Z0:        {result['impedance']:.4g} Ohm")
+    lines.append(f"\n{title}")
+    lines.append("=" * 50)
+    lines.append(f"Cutoff Frequency:    {format_frequency(result['freq_hz'])}")
+    lines.append(f"Impedance Z0:        {result['impedance']:.4g} Ohm")
     if result.get("ripple") is not None:
-        print(f"Ripple:              {result['ripple']} dB")
-    print(f"Order:               {result['order']}")
-    print("=" * 50)
+        lines.append(f"Ripple:              {result['ripple']} dB")
+    lines.append(f"Order:               {result['order']}")
+    lines.append("=" * 50)
+    return "\n".join(lines)
 
 
-def print_component_table(
+def print_header(result: dict, topology: str, filter_category: str) -> None:
+    """Print common filter header information."""
+    print(format_header(result, topology, filter_category))
+
+
+def format_component_table(
     result: dict, raw: bool = False, primary_component: str = "capacitors"
-) -> None:
-    """Print component values in a formatted table.
+) -> str:
+    """Format component values in a table.
 
     Args:
         result: Filter result dictionary
@@ -278,11 +288,13 @@ def print_component_table(
 
     max_rows = max(len(left_vals), len(right_vals))
 
-    print(f"\n{'Component Values':^50}")
     horiz = "\u2500" * col_width
-    print(f"\u250c{horiz}\u252c{horiz}\u2510")
-    print(f"\u2502{left_label:^{col_width}}\u2502{right_label:^{col_width}}\u2502")
-    print(f"\u251c{horiz}\u253c{horiz}\u2524")
+    lines = [
+        f"\n{'Component Values':^50}",
+        f"\u250c{horiz}\u252c{horiz}\u2510",
+        f"\u2502{left_label:^{col_width}}\u2502{right_label:^{col_width}}\u2502",
+        f"\u251c{horiz}\u253c{horiz}\u2524",
+    ]
 
     for i in range(max_rows):
         if i < len(left_vals):
@@ -303,6 +315,18 @@ def print_component_table(
             )
         else:
             right_str = ""
-        print(f"\u2502 {left_str:<{col_width - 2}} \u2502 {right_str:<{col_width - 2}} \u2502")
+        lines.append(
+            f"\u2502 {left_str:<{col_width - 2}} \u2502 {right_str:<{col_width - 2}} \u2502"
+        )
 
-    print(f"\u2514{horiz}\u2534{horiz}\u2518")
+    lines.append(f"\u2514{horiz}\u2534{horiz}\u2518")
+    if result["inductors"]:
+        lines.append("Inductors: wind to value (see toroid recommendations)")
+    return "\n".join(lines)
+
+
+def print_component_table(
+    result: dict, raw: bool = False, primary_component: str = "capacitors"
+) -> None:
+    """Print component values in a formatted table."""
+    print(format_component_table(result, raw, primary_component))

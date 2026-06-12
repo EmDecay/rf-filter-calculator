@@ -2,10 +2,11 @@
 
 import argparse
 import sys
+from importlib.metadata import version
 
-from . import bandpass_cmd, highpass_cmd, lowpass_cmd
+from . import bandpass_cmd, highpass_cmd, lowpass_cmd, wizard_cmd
 
-__all__ = ["lowpass_cmd", "highpass_cmd", "bandpass_cmd", "main"]
+__all__ = ["lowpass_cmd", "highpass_cmd", "bandpass_cmd", "wizard_cmd", "main"]
 
 
 def main():
@@ -16,19 +17,26 @@ def main():
   lowpass (lp)   LC low-pass filter (Pi or T topology)
   highpass (hp)  LC high-pass filter (Pi or T topology)
   bandpass (bp)  Coupled resonator bandpass filter
+  wizard (w)     Interactive wizard (TUI)
 
 Run with no arguments to start the interactive wizard.
 
 Examples:
   %(prog)s                              # Start interactive wizard
+  %(prog)s wizard
   %(prog)s lowpass butterworth pi 10MHz -n 5
-  %(prog)s lp bw 10MHz --topology t
-  %(prog)s lp bw 10MHz --topology pi --format json
+  %(prog)s lp bw t 10MHz
+  %(prog)s lp bw pi 10MHz --format json
   %(prog)s highpass bw t 10MHz -n 5
-  %(prog)s hp ch 10MHz --topology pi -r 0.5
+  %(prog)s hp ch -T pi -f 10MHz -r 0.5
   %(prog)s bandpass bw top -f 14.2MHz -b 500kHz
-  %(prog)s bp ch shunt --fl 14MHz --fh 14.35MHz -n 7""",
+  %(prog)s bp ch top --fl 14MHz --fh 14.35MHz -n 7""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {version('rf-filter-calculator')}",
     )
 
     subparsers = parser.add_subparsers(dest="command")
@@ -50,6 +58,10 @@ Examples:
     )
     bandpass_cmd.setup_parser(bp_parser)
     bp_parser.set_defaults(func=bandpass_cmd.run)
+
+    wizard_parser = subparsers.add_parser("wizard", aliases=["w"], help="Interactive wizard (TUI)")
+    wizard_cmd.setup_parser(wizard_parser)
+    wizard_parser.set_defaults(func=wizard_cmd.run)
 
     args = parser.parse_args()
 

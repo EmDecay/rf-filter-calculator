@@ -13,24 +13,16 @@ separated from the Textual UI rendering logic.
 import json
 from unittest.mock import Mock
 
-import pytest
-
 from filter_lib.wizard.calculation_handler import calculate_and_format
 from filter_lib.wizard.filter_type_calculators import (
     calculate_bandpass,
     calculate_highpass,
     calculate_lowpass,
 )
-from filter_lib.wizard.formatting_helpers import (
-    _format_component_table,
-    format_bandpass_table,
-    format_eseries_recs,
-    format_lp_hp_table,
-)
+from filter_lib.wizard.formatting_helpers import format_bandpass_table
 from filter_lib.wizard.radio_button_helpers import get_selected_radio
 from filter_lib.wizard.screens.results import ResultsScreen
 from filter_lib.wizard.state import FilterState
-from filter_lib.wizard.validation import validate_order, validate_ripple
 
 # ============================================================================
 # Tests for filter_type_calculators.py
@@ -394,7 +386,7 @@ class TestCalculateHighpass:
         assert "{" in lines[0]
 
     def test_highpass_json_with_eseries(self):
-        """Test highpass JSON includes standard match fields."""
+        """Highpass JSON matches capacitors and omits inductor match fields."""
         state = FilterState(
             category="highpass",
             filter_type="butterworth",
@@ -413,11 +405,13 @@ class TestCalculateHighpass:
 
         data = json.loads(lines[0])
         first_cap = data["components"]["capacitors"][0]
+        first_ind = data["components"]["inductors"][0]
         assert "standard_match" in first_cap
         assert first_cap["standard_match"]["series"] == "E24"
+        assert "standard_match" not in first_ind
 
     def test_highpass_csv_with_eseries(self):
-        """Test highpass CSV includes standard match columns."""
+        """Highpass CSV keeps match columns empty for inductors."""
         state = FilterState(
             category="highpass",
             filter_type="butterworth",
@@ -433,12 +427,19 @@ class TestCalculateHighpass:
         )
 
         lines = calculate_highpass(state)
-        header = lines[0].splitlines()[0]
+        csv_lines = lines[0].splitlines()
+        header = csv_lines[0]
         assert "NearestStdValue" in header
         assert "Eseries" in header
+        first_ind_row = csv_lines[1].split(",")
+        cap_row = csv_lines[-1].split(",")
+        assert first_ind_row[0] == "L1"
+        assert first_ind_row[3:9] == [""] * 6
+        assert cap_row[0] == "C1"
+        assert cap_row[3] != ""
 
     def test_highpass_with_eseries(self):
-        """Test highpass with E-series recommendations for inductors."""
+        """Test highpass with capacitor-only E-series recommendations."""
         state = FilterState(
             category="highpass",
             filter_type="butterworth",
@@ -456,7 +457,9 @@ class TestCalculateHighpass:
         lines = calculate_highpass(state)
 
         output = "\n".join(lines)
-        assert "E24" in output or "Inductor" in output
+        assert "E24 Standard Capacitor Recommendations" in output
+        assert "Standard Inductor Recommendations" not in output
+        assert "Inductors: wind to value (see toroid recommendations)" in output
 
     def test_highpass_with_plot(self):
         """Test highpass with frequency response plot."""
@@ -525,7 +528,7 @@ class TestCalculateBandpass:
             impedance=50.0,
             order=3,  # Chebyshev requires odd resonator count
             ripple_db=0.5,
-            topology="shunt",
+            topology="top",
             output_format="table",
             quiet=False,
             raw_units=False,
@@ -696,152 +699,59 @@ class TestCalculateBandpass:
 # ============================================================================
 
 
-class TestFormatLpHpTable:
-    """Tests for lowpass/highpass table formatting."""
+class TestWizardLpHpRendering:
+    """The wizard renders LP/HP through the shared display module."""
 
-    def test_format_pi_topology_lowpass(self, lowpass_result):
-        """Test formatting Pi topology lowpass filter."""
-        state = FilterState(raw_units=False)
+    @staticmethod
+    def _state(**overrides) -> FilterState:
+        defaults = dict(
+            category="lowpass",
+            filter_type="butterworth",
+            topology="pi",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            eseries="none",
+            show_plot=False,
+        )
+        defaults.update(overrides)
+        return FilterState(**defaults)
 
-        lines = format_lp_hp_table(lowpass_result, state, "Low Pass")
+    def test_lowpass_pi_table_renders(self):
+        from filter_lib.wizard.filter_type_calculators import calculate_lowpass
 
+        lines = calculate_lowpass(self._state())
         output = "\n".join(lines)
         assert "Butterworth" in output
-        assert "PI Low Pass" in output
-        assert "10" in output  # Frequency should be formatted
-        assert "MHz" in output or "M" in output
-        assert "50" in output  # Impedance
-        assert "Order:" in output
-        assert "5" in output
+        assert "Low Pass" in output
+        assert "Component Values" in output
         assert "Topology:" in output
-        assert "Component Values" in output
 
-    def test_format_t_topology_lowpass(self, lowpass_t_result):
-        """Test formatting T topology lowpass filter."""
-        state = FilterState(raw_units=False)
+    def test_lowpass_t_table_lists_inductors_first(self):
+        """T topology is series-L first: inductors are the primary (left) column."""
+        from filter_lib.wizard.filter_type_calculators import calculate_lowpass
 
-        lines = format_lp_hp_table(lowpass_t_result, state, "Low Pass")
-
+        lines = calculate_lowpass(self._state(topology="t"))
         output = "\n".join(lines)
-        assert "T Low Pass" in output
-        assert "Butterworth" in output
+        assert output.index("Inductors") < output.index("Capacitors")
 
-    def test_format_with_ripple(self, highpass_result):
-        """Test formatting includes ripple for Chebyshev."""
-        state = FilterState(raw_units=False)
+    def test_highpass_pi_table_lists_inductors_first(self):
+        """HP Pi is shunt-L first: inductors are the primary (left) column."""
+        from filter_lib.wizard.filter_type_calculators import calculate_highpass
 
-        lines = format_lp_hp_table(highpass_result, state, "High Pass")
-
+        lines = calculate_highpass(self._state(category="highpass", topology="pi"))
         output = "\n".join(lines)
-        assert "Chebyshev" in output
-        assert "Ripple:" in output
-        assert "0.5 dB" in output
+        assert output.index("Inductors") < output.index("Capacitors")
 
-    def test_format_raw_units(self, lowpass_result):
-        """Test formatting with raw units enabled."""
-        state = FilterState(raw_units=True)
+    def test_highpass_eseries_matches_capacitors_only(self):
+        """HP wizard output recommends standard capacitors; inductors get wound."""
+        from filter_lib.wizard.filter_type_calculators import calculate_highpass
 
-        lines = format_lp_hp_table(lowpass_result, state, "Low Pass")
-
+        lines = calculate_highpass(self._state(category="highpass", topology="t", eseries="E24"))
         output = "\n".join(lines)
-        # Raw units should show scientific notation
-        assert "e-" in output or "E-" in output
-
-    def test_format_nice_units(self, lowpass_result):
-        """Test formatting with human-readable units."""
-        state = FilterState(raw_units=False)
-
-        lines = format_lp_hp_table(lowpass_result, state, "Low Pass")
-
-        output = "\n".join(lines)
-        # Should use nice units like pF, nF, µH
-        assert "F" in output or "H" in output
-        # Should not use raw scientific notation for all values
-        assert output.count("e-") < output.count("C") + output.count("L")
-
-
-class TestFormatComponentTable:
-    """Tests for component table formatting helper."""
-
-    def test_format_component_table_raw(self, lowpass_result):
-        """Test component table with raw units."""
-        output = _format_component_table(lowpass_result, raw=True)
-
-        assert "Component Values" in output
-        assert "Capacitors" in output
-        assert "Inductors" in output
-        assert "C1:" in output
-        assert "L1:" in output
-        assert "e-" in output or "E-" in output  # Scientific notation
-        # Box drawing characters
-        assert "\u2502" in output  # Vertical line
-
-    def test_format_component_table_nice(self, lowpass_result):
-        """Test component table with formatted units."""
-        output = _format_component_table(lowpass_result, raw=False)
-
-        assert "Component Values" in output
-        assert "C1:" in output
-        assert "L1:" in output
-        # Should have formatted units
-        assert "F" in output or "H" in output
-
-    def test_format_unequal_components(self, highpass_result):
-        """Test formatting with different numbers of caps and inductors."""
-        # Highpass T has 2 caps, 1 inductor
-        output = _format_component_table(highpass_result, raw=False)
-
-        assert "C1:" in output
-        assert "C2:" in output
-        assert "L1:" in output
-        # Table should handle unequal rows
-        assert output.count("C") >= 2
-
-
-class TestFormatEseriesRecs:
-    """Tests for E-series recommendations formatting."""
-
-    def test_format_eseries_capacitors(self):
-        """Test E-series recommendations for capacitors."""
-        from filter_lib.shared.formatting import format_capacitance
-
-        components = [100e-12, 220e-12, 470e-12]  # 100pF, 220pF, 470pF
-
-        lines = format_eseries_recs(components, "C", "Capacitor", "E12", format_capacitance)
-
-        output = "\n".join(lines)
-        assert "E12" in output
-        assert "Capacitor" in output
-        assert "Recommendations" in output
-        assert "C1" in output
-        assert "C2" in output
-        assert "C3" in output
-        assert "Calculated:" in output
-
-    def test_format_eseries_inductors(self):
-        """Test E-series recommendations for inductors."""
-        from filter_lib.shared.formatting import format_inductance
-
-        components = [1e-6, 2.2e-6]  # 1µH, 2.2µH
-
-        lines = format_eseries_recs(components, "L", "Inductor", "E24", format_inductance)
-
-        output = "\n".join(lines)
-        assert "E24" in output
-        assert "Inductor" in output
-        assert "L1" in output
-        assert "L2" in output
-
-    def test_format_eseries_empty_list(self):
-        """Test E-series formatting with empty component list."""
-        from filter_lib.shared.formatting import format_capacitance
-
-        lines = format_eseries_recs([], "C", "Capacitor", "E12", format_capacitance)
-
-        # Should still have header
-        assert len(lines) > 0
-        output = "\n".join(lines)
-        assert "E12" in output
+        assert "Standard Capacitor Recommendations" in output
+        assert "Standard Inductor Recommendations" not in output
+        assert "wind to value" in output
 
 
 class TestFormatBandpassTable:
@@ -868,15 +778,15 @@ class TestFormatBandpassTable:
         assert "Coupling Capacitors" in output
         assert "External Q" in output
 
-    def test_format_bandpass_shunt_coupling(self):
-        """Test formatting bandpass with shunt-C coupling."""
+    def test_format_bandpass_is_top_c_only(self):
+        """Bandpass formatting always renders Top-C (shunt-C was removed)."""
         result = {
             "filter_type": "butterworth",
             "f0": 10e6,
             "bw": 500e3,
             "z0": 50.0,
             "n_resonators": 3,
-            "coupling": "shunt",
+            "coupling": "top",
             "fbw": 0.05,
             "L_resonant": 1e-6,
             "c_tank": [100e-12, 100e-12, 100e-12],
@@ -893,7 +803,8 @@ class TestFormatBandpassTable:
         lines = format_bandpass_table(result, state)
 
         output = "\n".join(lines)
-        assert "Shunt-C Coupled" in output
+        assert "Top-C Coupled" in output
+        assert "Shunt" not in output
 
     def test_format_bandpass_with_warnings(self):
         """Test formatting bandpass with warnings."""
@@ -1178,109 +1089,3 @@ class TestGetSelectedRadio:
         get_selected_radio(mock_screen, "filter_type")
 
         assert mock_screen.query_one.called
-
-
-# ============================================================================
-# Tests for validation.py
-# ============================================================================
-
-
-class TestValidateOrder:
-    """Tests for validate_order function."""
-
-    def test_validate_order_valid_minimum(self):
-        """Test minimum valid order value."""
-        result = validate_order("2")
-        assert result == 2
-
-    def test_validate_order_valid_maximum(self):
-        """Test maximum valid order value."""
-        result = validate_order("9")
-        assert result == 9
-
-    def test_validate_order_valid_middle(self):
-        """Test middle range order values."""
-        assert validate_order("3") == 3
-        assert validate_order("5") == 5
-        assert validate_order("7") == 7
-
-    def test_validate_order_too_small(self):
-        """Test order below minimum raises error."""
-        with pytest.raises(ValueError, match="Order must be 2-9"):
-            validate_order("1")
-
-    def test_validate_order_too_large(self):
-        """Test order above maximum raises error."""
-        with pytest.raises(ValueError, match="Order must be 2-9"):
-            validate_order("10")
-
-    def test_validate_order_zero(self):
-        """Test zero order raises error."""
-        with pytest.raises(ValueError, match="Order must be 2-9"):
-            validate_order("0")
-
-    def test_validate_order_negative(self):
-        """Test negative order raises error."""
-        with pytest.raises(ValueError, match="Order must be 2-9"):
-            validate_order("-1")
-
-    def test_validate_order_invalid_string(self):
-        """Test non-numeric string raises error."""
-        with pytest.raises(ValueError):
-            validate_order("abc")
-
-    def test_validate_order_float_string(self):
-        """Test float string gets converted to int."""
-        # Python int() will fail on float strings like "3.5"
-        with pytest.raises(ValueError):
-            validate_order("3.5")
-
-
-class TestValidateRipple:
-    """Tests for validate_ripple function."""
-
-    def test_validate_ripple_valid_small(self):
-        """Test small valid ripple value."""
-        result = validate_ripple("0.1")
-        assert result == 0.1
-
-    def test_validate_ripple_valid_typical(self):
-        """Test typical ripple values."""
-        assert validate_ripple("0.5") == 0.5
-        assert validate_ripple("1.0") == 1.0
-        assert validate_ripple("2.0") == 2.0
-
-    def test_validate_ripple_valid_maximum(self):
-        """Test maximum recommended ripple."""
-        result = validate_ripple("3.0")
-        assert result == 3.0
-
-    def test_validate_ripple_zero(self):
-        """Test zero ripple raises error."""
-        with pytest.raises(ValueError, match="Ripple must be positive"):
-            validate_ripple("0")
-
-    def test_validate_ripple_negative(self):
-        """Test negative ripple raises error."""
-        with pytest.raises(ValueError, match="Ripple must be positive"):
-            validate_ripple("-0.5")
-
-    def test_validate_ripple_too_large(self):
-        """Test ripple above 3.0 dB raises error."""
-        with pytest.raises(ValueError, match="Ripple typically should be <= 3.0 dB"):
-            validate_ripple("3.1")
-
-    def test_validate_ripple_way_too_large(self):
-        """Test very large ripple raises error."""
-        with pytest.raises(ValueError, match="Ripple typically should be <= 3.0 dB"):
-            validate_ripple("10.0")
-
-    def test_validate_ripple_invalid_string(self):
-        """Test non-numeric string raises error."""
-        with pytest.raises(ValueError):
-            validate_ripple("abc")
-
-    def test_validate_ripple_very_small(self):
-        """Test very small positive ripple is valid."""
-        result = validate_ripple("0.01")
-        assert result == 0.01

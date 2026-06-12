@@ -1,6 +1,6 @@
 """Tests for topology diagram formatting functions."""
 
-from filter_lib.bandpass.diagrams import format_shunt_c_diagram, format_top_c_diagram
+from filter_lib.bandpass.diagrams import format_top_c_diagram
 from filter_lib.shared.topology_diagrams import (
     format_pi_topology_diagram,
     format_t_topology_diagram,
@@ -109,39 +109,5 @@ class TestTopCDiagram:
     def test_returns_string(self):
         """Test that function returns a string."""
         result = format_top_c_diagram(3)
-        assert isinstance(result, str)
-        assert "\n" in result
-
-
-class TestShuntCDiagram:
-    """Tests for Shunt-C bandpass diagram formatting."""
-
-    def test_3_resonators(self):
-        """Test 3-resonator Shunt-C diagram."""
-        result = format_shunt_c_diagram(3)
-        assert "IN" in result
-        assert "OUT" in result
-        # Tank components
-        assert "Cp1" in result
-        assert "L1" in result
-        assert "Cp2" in result
-        assert "L2" in result
-        assert "Cp3" in result
-        assert "L3" in result
-        # Coupling capacitors
-        assert "Cs12" in result
-        assert "Cs23" in result
-        assert "GND" in result
-
-    def test_4_resonators(self):
-        """Test 4-resonator Shunt-C diagram."""
-        result = format_shunt_c_diagram(4)
-        assert "Cp4" in result
-        assert "L4" in result
-        assert "Cs34" in result
-
-    def test_returns_string(self):
-        """Test that function returns a string."""
-        result = format_shunt_c_diagram(3)
         assert isinstance(result, str)
         assert "\n" in result

@@ -2,13 +2,13 @@
 
 **Last Updated**: April 24, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1086 tests, 94% coverage).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1211 tests, 94% coverage).
 
 ## Project Statistics
 
 - **Total Files**: 95+ files
 - **Total Lines of Code**: ~8,400 LOC (2,200+ core lib + 6,100+ tests + ~350 CLI entry)
-- **Test Coverage**: 1086 tests, 94% coverage (~0.5s runtime)
+- **Test Coverage**: 1211 tests, 94% coverage (~0.5s runtime)
 - **Documentation**: 13 files (~2,500+ LOC)
 - **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
 
@@ -77,7 +77,6 @@ rf-filter-calculator/
 - `screen_navigation_mixin.py` (46 LOC) - Screen navigation mixin (Feb 2026)
 - `radio_button_helpers.py` (19 LOC) - Radio button widget utilities (Feb 2026)
 - `filter_type_calculators.py` (261 LOC) - Calculation logic for LP/HP/BP (Apr 2026, expanded)
-- `validation.py` (39 LOC) - Input validators (frequency, impedance, order, ripple)
 - `styles.tcss` (192 LOC) - Textual CSS styling for all screens
 
 **Screens** (`screens/` directory):
@@ -88,9 +87,6 @@ rf-filter-calculator/
 - `output_options.py` (146 LOC) - Output format, E-series, export settings
 - `results.py` (175 LOC) - Results display with async worker for calculations
 - `__init__.py` - Screen exports
-
-**Widgets** (`widgets/` directory):
-- `__init__.py` - Placeholder for custom Textual widgets (future extensions)
 
 **Key Design Pattern**: Each screen is independent, receives/updates shared FilterState. Results screen uses background worker thread to prevent UI blocking during calculations.
 
@@ -108,22 +104,24 @@ Provides cross-cutting utilities:
 | `display_common.py` | Shared display formatting functions |
 | `display_helpers.py` | E-series matching and formatting helpers |
 | `eseries.py` | E12/E24/E96 standard component values |
-| `filter_result.py` | Result data structure wrapper |
 | `formatting.py` | Number formatting for user display |
 | `parsing.py` | Input validation and normalization |
 | `plotting.py` | **Facade** — re-exports plotting functions for backward compat |
 | `plot_ascii_renderers.py` | **NEW (Apr 2026)** - ASCII plot rendering with configurable `db_floor` |
 | `plot_zoom_pairs.py` | **NEW (Apr 2026)** - Zoomed passband plot pairs (full + zoomed side-by-side) |
 | `plot_threshold_analysis.py` | **NEW (Apr 2026)** - dB crossing detection + summary table formatting |
-| `plot_data_export.py` | **NEW (Apr 2026)** - JSON/CSV data export functions |
-| `transfer_response_dispatch.py` | **NEW (Apr 2026)** - Shared factory for response-function closures |
+| `response_export.py` | Unified JSON/CSV response export (single schema for LP/HP/BP) |
+| `transfer_response_dispatch.py` | Shared factory for response-function closures |
 | `topology_diagrams.py` | ASCII circuit topology diagrams |
-| `toroid_core_data.json` | **NEW (Apr 2026)** - Vendored 43-core iron-powder T-series database |
-| `toroid_core_data.py` | **NEW (Apr 2026)** - `ToroidCore` dataclass + lookup helpers |
-| `toroid_inductance.py` | **NEW (Apr 2026)** - L↔N math, rounding, tolerance range, `solve_winding` |
-| `toroid_wire.py` | **NEW (Apr 2026)** - AWG, Pythagorean wire length, DCR, `MechanicalFit` |
-| `toroid_selection.py` | **NEW (Apr 2026)** - Freq-range gate + ranking → top-3 `ToroidRecommendation` |
-| `toroid_display.py` | **NEW (Apr 2026)** - Full/compact text, JSON builder, CSV columns |
+| `netlist_simulation.py` | Bandpass SPICE netlist sweep and simulation-validated response |
+| `netlist_builders.py` | SPICE circuit netlist construction from filter synthesis |
+| `lp_hp_display.py` | Unified LP/HP table renderer (CLI and wizard) |
+| `toroid_core_data.json` | Vendored 43-core iron-powder T-series database |
+| `toroid_core_data.py` | `ToroidCore` dataclass + lookup helpers |
+| `toroid_inductance.py` | L↔N math, rounding, tolerance range, `solve_winding` |
+| `toroid_wire.py` | AWG, Pythagorean wire length, DCR, `MechanicalFit` |
+| `toroid_selection.py` | Freq-range gate + ranking → top-3 `ToroidRecommendation` |
+| `toroid_display.py` | Full/compact text, JSON builder, CSV columns |
 | `transfer_functions.py` | Transfer function calculations |
 
 ## Filter Types Supported
@@ -141,11 +139,12 @@ Provides cross-cutting utilities:
 - **Topologies reversed** vs lowpass: Pi has shunt L, T has series C
 - **Calculations**: `filter_lib/highpass/calculations.py`
 
-### Bandpass (Coupled Resonator)
-- **Response types**: Butterworth, Chebyshev (even-only), Bessel
-- **Coupling types**: Top-coupled (series) or Shunt-coupled (parallel)
+### Bandpass (Coupled Resonator, Top-C Series Coupling Only)
+- **Response types**: Butterworth, Chebyshev, Bessel
+- **Coupling**: Top-coupled series capacitors only (Ce_in/Ce_out for external Q, Cs12/Cs23 inter-resonator). Shunt coupling removed (simulation showed non-realizable passband).
 - **Resonators**: 2-9 tanks
-- **Design method**: Normalized g-values per Matthaei/Young/Jones
+- **Design method**: Normalized g-values per Matthaei/Young/Jones; external Q realized by end-coupling capacitors
+- **Validation**: SPICE netlist sweep for ≤10% fractional BW (simulation-proven tolerance ±3% magnitude, ±0.5% f₀)
 - **Calculations**: `filter_lib/bandpass/calculations.py`
 
 ## Output Formats
@@ -290,7 +289,7 @@ All code files respect 200-line limit for optimal context:
      - `plot_ascii_renderers.py` (276 LOC) — plot rendering with configurable `db_floor` for zooming
      - `plot_zoom_pairs.py` (133 LOC) — zoomed passband plot pairs (full + zoomed side-by-side)
      - `plot_threshold_analysis.py` (148 LOC) — dB crossing detection for -3, -10, -20 dB levels
-     - `plot_data_export.py` (54 LOC) — JSON/CSV export functions
+     - response-data export now lives in `shared/response_export.py` (unified schema)
      - `transfer_response_dispatch.py` (58 LOC) — shared factory for response-fn closures
    - **Features**:
      - dB Threshold Summary Table: Shows frequencies at -3, -10, -20 dB with direction indicators

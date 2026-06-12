@@ -158,6 +158,12 @@ LoadingIndicator {
     margin-bottom: 1;
 }
 
+/* One-line key-navigation hint under each screen header */
+.nav-hint {
+    text-align: center;
+    color: $muted;
+}
+
 /* Welcome screen */
 .welcome-title {
     text-align: center;

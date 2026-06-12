@@ -297,7 +297,7 @@ Reduce duplication via centralized shared functions:
 - `plot_ascii_renderers.py` - ASCII plot rendering with configurable `db_floor`
 - `plot_zoom_pairs.py` - Zoomed passband plot pairs (full + detail)
 - `plot_threshold_analysis.py` - dB crossing detection and summary tables
-- `plot_data_export.py` - JSON/CSV export utilities
+- `response_export.py` - unified JSON/CSV response export (single schema)
 - `transfer_response_dispatch.py` - Response function factory for LP/HP/BP
 - `plotting.py` - Facade re-exporting all plot functions
 

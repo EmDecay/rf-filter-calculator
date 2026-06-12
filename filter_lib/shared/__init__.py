@@ -28,6 +28,7 @@ from .cli_helpers import (
 )
 from .constants import BESSEL_G_VALUES
 from .display_common import (
+    build_standard_match,
     format_csv_result,
     format_json_result,
     format_quiet_result,
@@ -36,15 +37,15 @@ from .display_common import (
 )
 from .display_helpers import format_component_value, format_eseries_match, split_value_unit
 from .eseries import ESeriesMatch, find_closest_single, match_component
-from .filter_result import FilterResult
 from .formatting import format_capacitance, format_frequency, format_impedance, format_inductance
+from .netlist_builders import build_bandpass_top_c_netlist, build_hp_netlist, build_lp_netlist
+from .netlist_simulation import find_3db_edges, passband_ripple_db, solve_s21
 from .parsing import parse_frequency, parse_impedance
+from .response_export import export_response_csv, export_response_json, response_meta
 from .transfer_functions import (
     BESSEL_COEFFS,
     BESSEL_SCALE,
     chebyshev_polynomial,
-    export_response_csv,
-    export_response_json,
     generate_frequency_points,
     magnitude_to_db,
 )
@@ -67,8 +68,6 @@ __all__ = [
     "CHEBYSHEV_DB_TO_NEPER_FACTOR",
     # Chebyshev calculator
     "calculate_chebyshev_g_values",
-    # Filter result dataclass
-    "FilterResult",
     # CLI aliases
     "FILTER_TYPE_ALIASES",
     "COUPLING_ALIASES",
@@ -97,17 +96,27 @@ __all__ = [
     "format_component_value",
     "split_value_unit",
     # Display common
+    "build_standard_match",
     "format_json_result",
     "format_csv_result",
     "format_quiet_result",
     "print_header",
     "print_component_table",
+    # Netlist simulation
+    "solve_s21",
+    "find_3db_edges",
+    "passband_ripple_db",
+    "build_lp_netlist",
+    "build_hp_netlist",
+    "build_bandpass_top_c_netlist",
     # Transfer functions
     "BESSEL_COEFFS",
     "BESSEL_SCALE",
     "generate_frequency_points",
     "chebyshev_polynomial",
     "magnitude_to_db",
+    # Response export (unified schema)
     "export_response_json",
     "export_response_csv",
+    "response_meta",
 ]

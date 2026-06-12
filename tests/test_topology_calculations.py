@@ -8,7 +8,6 @@ import pytest
 from filter_lib.highpass import calculations as hp
 from filter_lib.lowpass import calculations as lp
 from filter_lib.shared.display_common import format_json_result
-from filter_lib.shared.filter_result import FilterResult
 
 
 class TestLowpassTTopology:
@@ -158,20 +157,35 @@ class TestTopologyFormulas:
         assert abs(caps[0] - expected_c1) < 1e-15
 
 
-class TestFilterResultTopology:
-    """Test FilterResult topology field."""
+class TestResultDictTopology:
+    """Test plain result-dict topology field."""
 
-    def test_topology_in_to_dict(self):
-        """FilterResult.to_dict() includes topology."""
-        r = FilterResult("butterworth", 10e6, 50, 3, [1e-10], [1e-6], topology="pi")
-        d = r.to_dict()
-        assert d["topology"] == "pi"
+    def test_topology_in_result_dict(self):
+        """Result dicts carry topology when provided."""
+        result = {
+            "filter_type": "butterworth",
+            "freq_hz": 10e6,
+            "impedance": 50,
+            "order": 3,
+            "capacitors": [1e-10],
+            "inductors": [1e-6],
+            "ripple": None,
+            "topology": "pi",
+        }
+        assert result["topology"] == "pi"
 
-    def test_topology_none_omitted(self):
-        """FilterResult.to_dict() omits topology when None."""
-        r = FilterResult("butterworth", 10e6, 50, 3, [1e-10], [1e-6])
-        d = r.to_dict()
-        assert "topology" not in d
+    def test_topology_absent_when_omitted(self):
+        """Result dicts omit topology when not supplied."""
+        result = {
+            "filter_type": "butterworth",
+            "freq_hz": 10e6,
+            "impedance": 50,
+            "order": 3,
+            "capacitors": [1e-10],
+            "inductors": [1e-6],
+            "ripple": None,
+        }
+        assert "topology" not in result
 
 
 class TestTopologyJsonOutput:

@@ -5,7 +5,6 @@
 - Results screen CSV save branch.
 - E-series tight-ratio fallthroughs.
 - recommend_cores iteration where every candidate winding is None.
-- Widget package import for __init__ coverage.
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ from filter_lib.wizard.screens.results import ResultsScreen
 from filter_lib.wizard.state import FilterState
 
 # ---------------------------------------------------------------------------
-# interactive.run_wizard + wizard.widgets coverage
+# interactive.run_wizard coverage
 # ---------------------------------------------------------------------------
 
 
@@ -36,13 +35,6 @@ class TestRunWizardEntryPoint:
             interactive.run_wizard()
         MockApp.assert_called_once_with()
         MockApp.return_value.run.assert_called_once_with()
-
-
-def test_wizard_widgets_package_imports():
-    """filter_lib.wizard.widgets must be importable and expose __all__."""
-    import filter_lib.wizard.widgets as widgets_pkg
-
-    assert widgets_pkg.__all__ == []
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +56,7 @@ def _lp_hp_widgets(ripple_visible: bool = False):
         "#order": order,
         "#ripple": ripple,
         "#ripple-section": ripple_section,
-        "#calculate-btn": btn,
+        "#next-btn": btn,
     }
 
 
@@ -106,7 +98,7 @@ class TestLowpassHighpassEventHandlers:
         widgets = _lp_hp_widgets(ripple_visible=False)
         _install_query_one(screen, widgets)
         screen._on_order_submitted(Mock())
-        widgets["#calculate-btn"].focus.assert_called_once()
+        widgets["#next-btn"].focus.assert_called_once()
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_ripple_submitted_focuses_button(self, cls):
@@ -114,29 +106,33 @@ class TestLowpassHighpassEventHandlers:
         widgets = _lp_hp_widgets()
         _install_query_one(screen, widgets)
         screen._on_ripple_submitted(Mock())
-        widgets["#calculate-btn"].focus.assert_called_once()
+        widgets["#next-btn"].focus.assert_called_once()
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_filter_type_changed_shows_ripple_for_chebyshev(self, cls):
         screen = cls()
         ripple_section = Mock()
-        _install_query_one(screen, {"#ripple-section": ripple_section})
+        order_label = Mock()
+        _install_query_one(screen, {"#ripple-section": ripple_section, "#order-label": order_label})
         event = Mock()
         event.pressed = Mock()
         event.pressed.id = "chebyshev"
         screen._on_filter_type_changed(event)
         assert ripple_section.display is True
+        assert "odd" in order_label.update.call_args[0][0]
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_filter_type_changed_hides_ripple_for_non_chebyshev(self, cls):
         screen = cls()
         ripple_section = Mock()
-        _install_query_one(screen, {"#ripple-section": ripple_section})
+        order_label = Mock()
+        _install_query_one(screen, {"#ripple-section": ripple_section, "#order-label": order_label})
         event = Mock()
         event.pressed = Mock()
         event.pressed.id = "butterworth"
         screen._on_filter_type_changed(event)
         assert ripple_section.display is False
+        assert "odd" not in order_label.update.call_args[0][0]
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +156,7 @@ def _bp_handler_widgets(ripple_visible: bool = False):
         "#resonators": reson,
         "#ripple": ripple,
         "#ripple-section": ripple_section,
-        "#calculate-btn": btn,
+        "#next-btn": btn,
     }
 
 
@@ -198,34 +194,42 @@ class TestBandpassEventHandlers:
         widgets = _bp_handler_widgets(ripple_visible=False)
         _install_query_one(screen, widgets)
         screen._on_resonators_submitted(Mock())
-        widgets["#calculate-btn"].focus.assert_called_once()
+        widgets["#next-btn"].focus.assert_called_once()
 
     def test_ripple_submitted_focuses_button(self):
         screen = BandpassScreen()
         widgets = _bp_handler_widgets()
         _install_query_one(screen, widgets)
         screen._on_ripple_submitted(Mock())
-        widgets["#calculate-btn"].focus.assert_called_once()
+        widgets["#next-btn"].focus.assert_called_once()
 
     def test_filter_type_changed_shows_ripple_for_chebyshev(self):
         screen = BandpassScreen()
         ripple_section = Mock()
-        _install_query_one(screen, {"#ripple-section": ripple_section})
+        resonators_label = Mock()
+        _install_query_one(
+            screen, {"#ripple-section": ripple_section, "#resonators-label": resonators_label}
+        )
         event = Mock()
         event.pressed = Mock()
         event.pressed.id = "chebyshev"
         screen._on_filter_type_changed(event)
         assert ripple_section.display is True
+        assert "odd" in resonators_label.update.call_args[0][0]
 
     def test_filter_type_changed_hides_ripple_for_bessel(self):
         screen = BandpassScreen()
         ripple_section = Mock()
-        _install_query_one(screen, {"#ripple-section": ripple_section})
+        resonators_label = Mock()
+        _install_query_one(
+            screen, {"#ripple-section": ripple_section, "#resonators-label": resonators_label}
+        )
         event = Mock()
         event.pressed = Mock()
         event.pressed.id = "bessel"
         screen._on_filter_type_changed(event)
         assert ripple_section.display is False
+        assert "odd" not in resonators_label.update.call_args[0][0]
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +276,130 @@ class TestResultsScreenSaveCsv:
         # The CSV should at minimum contain a header that references components
         content = csv_files[0].read_text()
         assert content  # non-empty
+
+
+# ---------------------------------------------------------------------------
+# ResultsScreen: response-data file rides along when plot export was selected
+# ---------------------------------------------------------------------------
+
+
+class TestResultsScreenResponseExport:
+    @staticmethod
+    def _lp_state() -> FilterState:
+        state = FilterState()
+        state.category = "lowpass"
+        state.eseries = "E24"
+        state.result = {
+            "filter_type": "butterworth",
+            "freq_hz": 10e6,
+            "impedance": 50.0,
+            "order": 3,
+            "capacitors": [1e-10, 1e-10],
+            "inductors": [1e-6],
+            "ripple": None,
+            "topology": "pi",
+        }
+        return state
+
+    @staticmethod
+    def _make_screen(state, tmp_path, monkeypatch, format_id="export-json"):
+        screen = ResultsScreen()
+        screen._result_text = "component results"
+        app = Mock()
+        app.filter_state = state
+        type(screen).app = property(lambda _self: app)  # type: ignore[misc]
+
+        export_format = Mock(spec=RadioSet)
+        btn = Mock()
+        btn.id = format_id
+        export_format.pressed_button = btn
+        widgets = {"#export-format": export_format, "#export-section": Mock()}
+        screen.query_one = lambda selector, *_a, **_k: widgets[selector]  # type: ignore[assignment]
+        screen.notify = Mock()  # type: ignore[assignment]
+        monkeypatch.chdir(tmp_path)
+        return screen
+
+    def test_save_writes_response_file_when_export_selected(self, tmp_path, monkeypatch):
+        import json as _json
+
+        state = self._lp_state()
+        state.export_format = "json"
+        screen = self._make_screen(state, tmp_path, monkeypatch)
+
+        screen._save_export()
+
+        response_files = list(tmp_path.glob("lowpass-*-response.json"))
+        assert len(response_files) == 1
+        data = _json.loads(response_files[0].read_text())
+        assert data["filter"]["category"] == "lowpass"
+        assert data["data"]
+        # component file written too
+        assert len(list(tmp_path.glob("lowpass-*.json"))) == 2
+
+    def test_save_writes_single_file_without_export(self, tmp_path, monkeypatch):
+        state = self._lp_state()
+        state.export_format = None
+        screen = self._make_screen(state, tmp_path, monkeypatch)
+
+        screen._save_export()
+
+        assert len(list(tmp_path.glob("lowpass-*"))) == 1
+        assert not list(tmp_path.glob("*-response.*"))
+
+    def test_notification_lists_both_absolute_paths(self, tmp_path, monkeypatch):
+        import os as _os
+
+        state = self._lp_state()
+        state.export_format = "csv"
+        screen = self._make_screen(state, tmp_path, monkeypatch)
+
+        screen._save_export()
+
+        message = screen.notify.call_args[0][0]
+        assert message.startswith("Saved to ")
+        paths = message.removeprefix("Saved to ").split(" and ")
+        assert len(paths) == 2
+        assert all(_os.path.isabs(p) for p in paths)
+        assert paths[1].endswith("-response.csv")
+
+    def test_save_with_empty_result_skips_response_but_saves_component(self, tmp_path, monkeypatch):
+        """A failed calculation leaves state.result empty; component file still saves."""
+        state = self._lp_state()
+        state.export_format = "json"
+        state.result = {}
+        screen = self._make_screen(state, tmp_path, monkeypatch, format_id="export-txt")
+
+        screen._save_export()
+
+        assert len(list(tmp_path.glob("lowpass-*.txt"))) == 1
+        assert not list(tmp_path.glob("*-response.*"))
+        warnings = [c for c in screen.notify.call_args_list if "skipping" in c[0][0]]
+        assert warnings
+
+    def test_bandpass_response_export_uses_simulated_sweep(self, tmp_path, monkeypatch):
+        from filter_lib.bandpass.calculations import calculate_bandpass_filter
+
+        state = FilterState()
+        state.category = "bandpass"
+        state.eseries = "E24"
+        state.export_format = "csv"
+        state.result = calculate_bandpass_filter(
+            f0=14.175e6,
+            bw=350e3,
+            z0=50.0,
+            n_resonators=3,
+            filter_type="butterworth",
+            coupling="top",
+        )
+        screen = self._make_screen(state, tmp_path, monkeypatch, format_id="export-txt")
+
+        screen._save_export()
+
+        response_files = list(tmp_path.glob("bandpass-*-response.csv"))
+        assert len(response_files) == 1
+        content = response_files[0].read_text()
+        assert content.startswith("frequency_hz,magnitude_db")
+        assert len(content.splitlines()) > 10
 
 
 # ---------------------------------------------------------------------------

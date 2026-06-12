@@ -7,13 +7,10 @@ from ..lowpass import (
     calculate_butterworth,
     calculate_chebyshev,
     display_results,
-    export_response_csv,
-    export_response_json,
     frequency_response,
     generate_frequency_points,
 )
 from ..shared.cli_aliases import (
-    DEFAULT_RIPPLE_DB,
     FILTER_EXPLANATIONS,
     resolve_filter_type,
 )
@@ -25,9 +22,12 @@ from ..shared.cli_helpers import (
     add_plot_args,
     export_plot_data,
     get_filter_type_arg,
+    resolve_ripple_arg,
+    usage_error,
     validate_filter_args,
 )
 from ..shared.parsing import parse_frequency, parse_impedance
+from ..shared.response_export import response_meta
 from .toroid_flags import add_toroid_flags
 
 
@@ -39,6 +39,9 @@ def setup_parser(parser: ArgumentParser) -> None:
     add_eseries_args(parser)
     add_plot_args(parser)
     add_toroid_flags(parser)
+    # Make the subparser reachable from run() so missing-argument problems
+    # exit with a usage line (argparse error) instead of a raw traceback.
+    parser.set_defaults(_parser=parser)
 
 
 def run(args: Namespace) -> None:
@@ -48,22 +51,30 @@ def run(args: Namespace) -> None:
 
     if args.explain:
         if not filter_type:
-            raise ValueError("Filter type required for --explain")
+            usage_error(
+                args, "filter type required for --explain (try: filter-calc lp bw --explain)"
+            )
         resolved = resolve_filter_type(filter_type)
         print(FILTER_EXPLANATIONS[resolved])
         return
 
     if not filter_type:
-        raise ValueError("Filter type required (butterworth/chebyshev/bessel)")
+        usage_error(
+            args,
+            "filter type required: butterworth/chebyshev/bessel (try: filter-calc lp bw pi 10MHz)",
+        )
     if not freq_input:
-        raise ValueError("Frequency required")
+        usage_error(args, "frequency required (try: filter-calc lp bw pi 10MHz)")
 
     # Resolve topology from positional or flag
     topology = getattr(args, "topology_pos", None) or getattr(args, "topology_flag", None)
     if not topology:
-        raise ValueError("Topology required (pi or t). Use --topology or positional arg.")
+        usage_error(
+            args, "topology required: pi or t, positional or -T (try: filter-calc lp bw pi 10MHz)"
+        )
 
     filter_type = resolve_filter_type(filter_type)
+    ripple_db = resolve_ripple_arg(args, filter_type)
     freq_hz = parse_frequency(freq_input)
     impedance = parse_impedance(args.impedance)
 
@@ -75,12 +86,12 @@ def run(args: Namespace) -> None:
         )
         ripple = None
     elif filter_type == "chebyshev":
-        if args.ripple <= 0:
+        if ripple_db <= 0:
             raise ValueError("Ripple must be positive")
         caps, inds, order = calculate_chebyshev(
-            freq_hz, impedance, args.ripple, args.components, topology=topology
+            freq_hz, impedance, ripple_db, args.components, topology=topology
         )
-        ripple = args.ripple
+        ripple = ripple_db
     else:  # bessel
         caps, inds, order = calculate_bessel(freq_hz, impedance, args.components, topology=topology)
         ripple = None
@@ -98,9 +109,8 @@ def run(args: Namespace) -> None:
 
     if args.plot_data:
         freqs = generate_frequency_points(freq_hz)
-        r = args.ripple if filter_type == "chebyshev" else DEFAULT_RIPPLE_DB
-        response = frequency_response(filter_type, freqs, freq_hz, order, r)
-        export_plot_data(args, freqs, response, result, export_response_json, export_response_csv)
+        response = frequency_response(filter_type, freqs, freq_hz, order, ripple_db)
+        export_plot_data(args, freqs, response, response_meta("lowpass", result))
         return
 
     display_results(
@@ -113,4 +123,5 @@ def run(args: Namespace) -> None:
         show_plot=args.plot,
         include_toroids=not args.no_toroids,
         toroid_compact=args.toroid_compact,
+        toroid_full=args.toroid_full,
     )

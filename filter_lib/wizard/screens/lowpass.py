@@ -23,6 +23,7 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("Low-Pass Filter Design", classes="header")
+        yield Static("Enter: next · ↑/↓: choose · Esc: back", classes="nav-hint")
         with VerticalScroll(classes="content"):
             with Vertical(classes="form-section"):
                 yield Static("Response Type", classes="form-section-title")
@@ -46,13 +47,13 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
                     placeholder="10MHz",
                     id="frequency",
                 )
-                yield Static("Impedance (Ω):")
+                yield Static("Impedance (e.g., 50, 50ohm, 1k):")
                 yield Input(
                     value="50",
+                    placeholder="50 or 50ohm",
                     id="impedance",
-                    validators=[Number(minimum=1, maximum=10000)],
                 )
-                yield Static("Order (2-9 components):")
+                yield Static("Order (2-9 components):", id="order-label")
                 yield Input(
                     value="3",
                     id="order",
@@ -67,7 +68,7 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
                     )
 
             with Horizontal(classes="button-row"):
-                yield Button("Next", id="calculate-btn", variant="primary")
+                yield Button("Next", id="next-btn", variant="primary")
                 yield Button("Reset", id="reset-btn")
 
         yield Footer()
@@ -79,9 +80,14 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
 
     @on(RadioSet.Changed, "#filter-type")
     def _on_filter_type_changed(self, event: RadioSet.Changed) -> None:
-        """Show/hide ripple section based on filter type."""
-        ripple_section = self.query_one("#ripple-section")
-        ripple_section.display = event.pressed.id == "chebyshev"
+        """Show/hide ripple section and odd-order hint based on filter type."""
+        is_chebyshev = event.pressed.id == "chebyshev"
+        self.query_one("#ripple-section").display = is_chebyshev
+        order_label = self.query_one("#order-label", Static)
+        if is_chebyshev:
+            order_label.update("Order (Chebyshev: odd only — 3, 5, 7, 9):")
+        else:
+            order_label.update("Order (2-9 components):")
 
     @on(Input.Submitted, "#frequency")
     def _on_frequency_submitted(self, event: Input.Submitted) -> None:
@@ -99,12 +105,12 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
         if self.query_one("#ripple-section").display:
             self.query_one("#ripple", Input).focus()
         else:
-            self.query_one("#calculate-btn", Button).focus()
+            self.query_one("#next-btn", Button).focus()
 
     @on(Input.Submitted, "#ripple")
     def _on_ripple_submitted(self, event: Input.Submitted) -> None:
         """Auto-advance to calculate button after ripple entry."""
-        self.query_one("#calculate-btn", Button).focus()
+        self.query_one("#next-btn", Button).focus()
 
     def action_back(self) -> None:
         """Go back to welcome screen."""
@@ -112,14 +118,14 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == "calculate-btn":
-            self._calculate()
+        if event.button.id == "next-btn":
+            self._validate_and_continue()
         elif event.button.id == "reset-btn":
             self._reset_form()
 
-    def _calculate(self) -> None:
+    def _validate_and_continue(self) -> None:
         """Validate inputs and proceed to output options."""
-        from filter_lib.shared.parsing import parse_frequency
+        from filter_lib.shared.parsing import parse_frequency, parse_impedance
 
         # Get values
         freq_input = self.query_one("#frequency", Input)
@@ -136,11 +142,9 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
             freq_input.focus()
             return
 
-        # Validate impedance
+        # Validate impedance (same suffixed forms as the CLI: 50, 50ohm, 1k)
         try:
-            impedance = float(impedance_input.value)
-            if impedance <= 0:
-                raise ValueError("must be positive")
+            impedance = parse_impedance(impedance_input.value.strip() or "50")
         except ValueError as e:
             self.notify(f"Invalid impedance: {e}", severity="error")
             impedance_input.focus()
@@ -176,6 +180,8 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
                 ripple = float(ripple_input.value)
                 if ripple <= 0:
                     raise ValueError("must be positive")
+                if ripple > 3.0:
+                    raise ValueError("must be <= 3.0 dB")
             except ValueError as e:
                 self.notify(f"Invalid ripple: {e}", severity="error")
                 ripple_input.focus()

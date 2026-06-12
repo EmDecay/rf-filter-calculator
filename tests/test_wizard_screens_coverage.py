@@ -213,7 +213,7 @@ def _lp_hp_mock_screen(
         "#filter-type": _radio_set(filter_type),
         "#topology": _radio_set(topology),
         "#ripple-section": ripple_section,
-        "#calculate-btn": Mock(spec=Button),
+        "#next-btn": Mock(spec=Button),
     }
 
     def fake_query_one(selector: str, widget_type=None):
@@ -231,7 +231,7 @@ class TestLowpassScreenValidation:
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_invalid_frequency_notifies_and_blocks(self, cls):
         screen, _state, notes, pushed, widgets = _lp_hp_mock_screen(cls, freq_value="notafreq")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid frequency" in msg for _sev, msg in notes)
         widgets["#frequency"].focus.assert_called()
@@ -239,28 +239,43 @@ class TestLowpassScreenValidation:
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_non_numeric_impedance_notifies(self, cls):
         screen, _state, notes, pushed, _ = _lp_hp_mock_screen(cls, impedance_value="abc")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid impedance" in msg for _sev, msg in notes)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_zero_impedance_notifies(self, cls):
         screen, _state, notes, pushed, _ = _lp_hp_mock_screen(cls, impedance_value="0")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid impedance" in msg for _sev, msg in notes)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
+    def test_suffixed_impedance_accepted(self, cls):
+        """Wizard accepts the same suffixed impedance forms as the CLI."""
+        screen, state, _notes, pushed, _ = _lp_hp_mock_screen(cls, impedance_value="50ohm")
+        screen._validate_and_continue()
+        assert pushed
+        assert state.impedance == 50.0
+
+    @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
+    def test_kilo_impedance_accepted(self, cls):
+        screen, state, _notes, pushed, _ = _lp_hp_mock_screen(cls, impedance_value="1k")
+        screen._validate_and_continue()
+        assert pushed
+        assert state.impedance == 1000.0
+
+    @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_order_out_of_range_notifies(self, cls):
         screen, _state, notes, pushed, _ = _lp_hp_mock_screen(cls, order_value="1")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid order" in msg for _sev, msg in notes)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_non_integer_order_notifies(self, cls):
         screen, _state, notes, pushed, _ = _lp_hp_mock_screen(cls, order_value="xyz")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid order" in msg for _sev, msg in notes)
 
@@ -269,7 +284,7 @@ class TestLowpassScreenValidation:
         screen, _state, notes, pushed, _ = _lp_hp_mock_screen(
             cls, filter_type="chebyshev", order_value="3", ripple_value="-0.1"
         )
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid ripple" in msg for _sev, msg in notes)
 
@@ -278,14 +293,23 @@ class TestLowpassScreenValidation:
         screen, _state, notes, pushed, _ = _lp_hp_mock_screen(
             cls, filter_type="chebyshev", order_value="3", ripple_value="nope"
         )
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid ripple" in msg for _sev, msg in notes)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
+    def test_chebyshev_ripple_above_max_notifies(self, cls):
+        screen, _state, notes, pushed, _ = _lp_hp_mock_screen(
+            cls, filter_type="chebyshev", order_value="3", ripple_value="3.1"
+        )
+        screen._validate_and_continue()
+        assert pushed == []
+        assert any("Invalid ripple" in msg and "<= 3.0 dB" in msg for _sev, msg in notes)
+
+    @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_butterworth_happy_path_advances(self, cls):
         screen, state, _notes, pushed, _ = _lp_hp_mock_screen(cls, filter_type="butterworth")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed, "butterworth happy path should navigate"
         assert state.filter_type == "butterworth"
         assert state.frequency_hz > 0
@@ -295,7 +319,7 @@ class TestLowpassScreenValidation:
         """Empty freq + a valid placeholder should parse the placeholder."""
         screen, state, _notes, pushed, widgets = _lp_hp_mock_screen(cls, freq_value="")
         widgets["#frequency"].placeholder = "5MHz"
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed, "placeholder fallback should allow navigation"
         assert state.frequency_hz == 5e6
 
@@ -310,11 +334,11 @@ class TestLowpassButtonDispatch:
         return _lp_hp_mock_screen(cls)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
-    def test_calculate_button_triggers_calculate(self, cls):
+    def test_next_button_triggers_validation(self, cls):
         screen, _state, _notes, pushed, _ = self._make(cls)
         event = Mock()
         event.button = Mock()
-        event.button.id = "calculate-btn"
+        event.button.id = "next-btn"
         screen.on_button_pressed(event)
         assert pushed  # happy path
 
@@ -398,7 +422,7 @@ def _bp_mock_screen(
         "#coupling": _radio_set(coupling),
         "#ripple-section": ripple_section,
         "#fbw-display": fbw_display,
-        "#calculate-btn": Mock(spec=Button),
+        "#next-btn": Mock(spec=Button),
     }
 
     def fake_query_one(selector: str, widget_type=None):
@@ -415,7 +439,7 @@ def _bp_mock_screen(
 class TestBandpassScreenValidation:
     def test_happy_path_butterworth(self):
         screen, state, _notes, pushed, _ = _bp_mock_screen()
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed
         assert state.filter_type == "butterworth"
         assert state.frequency_hz == 14.175e6
@@ -423,31 +447,31 @@ class TestBandpassScreenValidation:
 
     def test_invalid_center_frequency(self):
         screen, _state, notes, pushed, _ = _bp_mock_screen(freq_value="junk")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("center frequency" in msg for _sev, msg in notes)
 
     def test_invalid_bandwidth(self):
         screen, _state, notes, pushed, _ = _bp_mock_screen(bw_value="junk")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("bandwidth" in msg.lower() for _sev, msg in notes)
 
     def test_zero_impedance(self):
         screen, _state, notes, pushed, _ = _bp_mock_screen(impedance_value="0")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("impedance" in msg.lower() for _sev, msg in notes)
 
     def test_out_of_range_resonators(self):
         screen, _state, notes, pushed, _ = _bp_mock_screen(resonators_value="1")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("resonators" in msg.lower() for _sev, msg in notes)
 
     def test_non_integer_resonators(self):
         screen, _state, notes, pushed, _ = _bp_mock_screen(resonators_value="xxx")
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("resonators" in msg.lower() for _sev, msg in notes)
 
@@ -455,7 +479,7 @@ class TestBandpassScreenValidation:
         screen, _state, notes, pushed, _ = _bp_mock_screen(
             filter_type="chebyshev", resonators_value="4"
         )
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("odd number of resonators" in msg for _sev, msg in notes)
 
@@ -463,29 +487,37 @@ class TestBandpassScreenValidation:
         screen, _state, notes, pushed, _ = _bp_mock_screen(
             filter_type="chebyshev", resonators_value="3", ripple_value="-0.1"
         )
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid ripple" in msg for _sev, msg in notes)
+
+    def test_chebyshev_ripple_above_max_notifies(self):
+        screen, _state, notes, pushed, _ = _bp_mock_screen(
+            filter_type="chebyshev", resonators_value="3", ripple_value="3.1"
+        )
+        screen._validate_and_continue()
+        assert pushed == []
+        assert any("Invalid ripple" in msg and "<= 3.0 dB" in msg for _sev, msg in notes)
 
     def test_chebyshev_happy_path(self):
         screen, state, _notes, pushed, _ = _bp_mock_screen(
             filter_type="chebyshev", resonators_value="3", ripple_value="0.1"
         )
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed
         assert state.ripple_db == 0.1
 
     def test_empty_freq_uses_placeholder(self):
         screen, state, _notes, pushed, widgets = _bp_mock_screen(freq_value="")
         widgets["#frequency"].placeholder = "14MHz"
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed
         assert state.frequency_hz == 14e6
 
     def test_empty_bandwidth_uses_placeholder(self):
         screen, state, _notes, pushed, widgets = _bp_mock_screen(bw_value="")
         widgets["#bandwidth"].placeholder = "1MHz"
-        screen._calculate()
+        screen._validate_and_continue()
         assert pushed
         assert state.bandwidth_hz == 1e6
 
@@ -530,7 +562,7 @@ class TestBandpassButtonsAndReset:
         screen, _state, _notes, pushed, _ = _bp_mock_screen()
         event = Mock()
         event.button = Mock()
-        event.button.id = "calculate-btn"
+        event.button.id = "next-btn"
         screen.on_button_pressed(event)
         assert pushed
 
@@ -543,7 +575,7 @@ class TestBandpassButtonsAndReset:
         assert widgets["#frequency"].value == ""
         assert widgets["#bandwidth"].value == ""
         assert widgets["#impedance"].value == "50"
-        assert widgets["#resonators"].value == "5"
+        assert widgets["#resonators"].value == "3"
         assert widgets["#ripple"].value == "0.5"
         widgets["#frequency"].focus.assert_called()
 
@@ -825,6 +857,19 @@ class TestResultsScreenWorkerHook:
         event.worker.result = "should-not-be-used"
         screen.on_worker_state_changed(event)
         assert screen._result_text == ""
+
+    def test_worker_error_shows_failure_instead_of_hanging(self):
+        screen = ResultsScreen()
+        static_mock = Mock()
+        screen.query_one = lambda *_a, **_k: static_mock  # type: ignore[assignment]
+        event = Mock()
+        event.state = SimpleNamespace(name="ERROR")
+        event.worker = Mock()
+        event.worker.error = RuntimeError("solver exploded")
+        screen.on_worker_state_changed(event)
+        text = static_mock.update.call_args[0][0]
+        assert "solver exploded" in text
+        assert "Esc" in text
 
 
 class TestResultsScreenActions:

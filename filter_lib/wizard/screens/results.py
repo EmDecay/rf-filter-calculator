@@ -27,6 +27,7 @@ class ResultsScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("Filter Results", classes="header")
+        yield Static("Enter: select · ↑/↓: choose · Esc: back · Q: quit", classes="nav-hint")
         with Container(classes="content"):
             with VerticalScroll(classes="results-container"):
                 yield Static("Calculating...", id="results-text", classes="results-text")
@@ -85,6 +86,11 @@ class ResultsScreen(Screen):
         if event.state.name == "SUCCESS":
             self._result_text = event.worker.result
             self.query_one("#results-text", Static).update(self._result_text)
+        elif event.state.name == "ERROR":
+            # calculate_and_format catches calculation errors itself; this
+            # surfaces anything unexpected instead of hanging on "Calculating..."
+            self._result_text = f"Calculation failed: {event.worker.error}\n\nPress Esc to go back."
+            self.query_one("#results-text", Static).update(self._result_text)
 
     def action_back(self) -> None:
         """Go back to output options."""
@@ -130,7 +136,12 @@ class ResultsScreen(Screen):
         self.query_one("#export-section").display = False
 
     def _save_export(self) -> None:
-        """Save the results to a file in selected format."""
+        """Save the results file, plus a response-data file when selected.
+
+        The component file format comes from this screen's radio selection;
+        a second ``…-response.{ext}`` file is written when the user picked a
+        plot-data export format on the Output Options screen.
+        """
         state: FilterState = self.app.filter_state
 
         # Get selected format
@@ -151,16 +162,76 @@ class ResultsScreen(Screen):
             filename = f"{category}-{timestamp}.csv"
             content = self._get_csv_export(state)
 
-        # Save to current directory
-        filepath = os.path.join(os.getcwd(), filename)
-        try:
-            with open(filepath, "w") as f:
-                f.write(content)
-            self.notify(f"Saved to {filename}", severity="information")
-        except OSError as e:
-            self.notify(f"Error saving: {e}", severity="error")
+        # (path, content) pairs; the response file rides along when selected
+        files = [(os.path.join(os.getcwd(), filename), content)]
+        if state.export_format in ("json", "csv"):
+            # A calculation error leaves state.result empty — still save the
+            # component file, just skip the response data.
+            if state.result:
+                response_name = f"{category}-{timestamp}-response.{state.export_format}"
+                files.append(
+                    (
+                        os.path.join(os.getcwd(), response_name),
+                        self._get_response_export(state, state.export_format),
+                    )
+                )
+            else:
+                self.notify("No calculation result; skipping response export", severity="warning")
+
+        saved: list[str] = []
+        for filepath, file_content in files:
+            try:
+                with open(filepath, "w") as f:
+                    f.write(file_content)
+                saved.append(filepath)
+            except OSError as e:
+                self.notify(f"Error saving {filepath}: {e}", severity="error")
+
+        if saved:
+            self.notify(f"Saved to {' and '.join(saved)}", severity="information")
 
         self._hide_export_options()
+
+    def _get_response_export(self, state: FilterState, fmt: str) -> str:
+        """Generate frequency-response data in the unified export schema."""
+        from filter_lib.shared.response_export import (
+            export_response_csv,
+            export_response_json,
+            response_meta,
+        )
+
+        if state.category == "bandpass":
+            from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+            sweep = netlist_frequency_sweep(state.result)
+            freqs = [f for f, _ in sweep]
+            response_db = [db for _, db in sweep]
+        else:
+            if state.category == "lowpass":
+                from filter_lib.lowpass.transfer import (
+                    frequency_response,
+                    generate_frequency_points,
+                )
+            else:
+                from filter_lib.highpass.transfer import (
+                    frequency_response,
+                    generate_frequency_points,
+                )
+
+            result = state.result
+            freqs = generate_frequency_points(result["freq_hz"])
+            response_db = frequency_response(
+                result["filter_type"],
+                freqs,
+                result["freq_hz"],
+                result["order"],
+                result.get("ripple") or 0.5,
+            )
+
+        meta = response_meta(state.category, state.result)
+        if fmt == "json":
+            return export_response_json(freqs, response_db, meta)
+        return export_response_csv(freqs, response_db)
 
     def _get_json_export(self, state: FilterState) -> str:
         """Get JSON export using existing formatters."""

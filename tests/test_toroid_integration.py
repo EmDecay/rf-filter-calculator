@@ -73,6 +73,36 @@ def test_lp_table_includes_toroid_block(lp_result, capsys):
     assert "Q (DC est, upper bound)" in out
 
 
+def test_lp_table_defaults_to_single_core_per_inductor(lp_result, capsys):
+    lp_display(lp_result, output_format="table", show_plot=False, show_match=False)
+    out = capsys.readouterr().out
+    assert "  1. " in out
+    assert "  2. " not in out
+
+
+def test_lp_table_toroid_full_shows_multiple_cores(lp_result, capsys):
+    lp_display(
+        lp_result, output_format="table", show_plot=False, show_match=False, toroid_full=True
+    )
+    out = capsys.readouterr().out
+    assert "  1. " in out
+    assert "  2. " in out
+
+
+def test_bp_table_defaults_to_single_core(bp_result, capsys):
+    bp_display(bp_result, output_format="table", show_plot=False, eseries=None)
+    out = capsys.readouterr().out
+    assert "  1. " in out
+    assert "  2. " not in out
+
+
+def test_bp_table_toroid_full_shows_multiple_cores(bp_result, capsys):
+    bp_display(bp_result, output_format="table", show_plot=False, eseries=None, toroid_full=True)
+    out = capsys.readouterr().out
+    assert "  1. " in out
+    assert "  2. " in out
+
+
 def test_lp_table_compact_single_line_per_rec(lp_result, capsys):
     lp_display(lp_result, output_format="table", show_match=False, toroid_compact=True)
     out = capsys.readouterr().out

@@ -9,6 +9,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from ..shared.display_common import build_standard_match
 from ..shared.display_helpers import format_eseries_match as _shared_format_eseries
 from ..shared.eseries import match_component
 from ..shared.formatting import format_capacitance, format_inductance
@@ -20,7 +21,7 @@ from ..shared.toroid_display import (
 from ..shared.toroid_selection import recommend_cores
 
 # Type alias for filter result dict
-FilterResult = dict[str, Any]
+BandpassResult = dict[str, Any]
 
 
 def format_eseries_match(
@@ -41,32 +42,8 @@ def format_eseries_match(
     return _shared_format_eseries(value, series, unit_formatter, parallel_mode="additive")
 
 
-def _build_standard_match(
-    value: float, eseries: str, unit_key: str, parallel_mode: str
-) -> dict[str, Any]:
-    """Build JSON-serializable E-series match data."""
-    match = match_component(value, eseries, parallel_mode=parallel_mode)
-
-    standard: dict[str, Any] = {
-        "series": eseries,
-        "nearest": {
-            unit_key: match.single_value,
-            "error_pct": match.single_error_pct,
-        },
-    }
-
-    if match.parallel and match.parallel_value is not None and match.parallel_error_pct is not None:
-        standard["parallel"] = {
-            "components": [{unit_key: match.parallel[0]}, {unit_key: match.parallel[1]}],
-            unit_key: match.parallel_value,
-            "error_pct": match.parallel_error_pct,
-        }
-
-    return standard
-
-
 def format_json(
-    result: FilterResult,
+    result: BandpassResult,
     eseries: str | None = None,
     include_toroids: bool = True,
 ) -> str:
@@ -111,6 +88,19 @@ def format_json(
         },
         "external_q": {"input": result["qe_in"], "output": result["qe_out"]},
     }
+    # Top-C results carry series end-coupling capacitors that realize the
+    # external Q. JSON schema: components.end_coupling_capacitors is a list of
+    # {"name": "Ce_in"|"Ce_out", "value_farads": float, "standard_match": {...}}
+    # present whenever the synthesis emits end caps.
+    if result.get("c_end_in") is not None and result.get("c_end_out") is not None:
+        output["components"]["end_coupling_capacitors"] = [
+            _bandpass_json_component(
+                "Ce_in", result["c_end_in"], "value_farads", eseries, "additive"
+            ),
+            _bandpass_json_component(
+                "Ce_out", result["c_end_out"], "value_farads", eseries, "additive"
+            ),
+        ]
     if result.get("ripple_db") is not None:
         output["ripple_db"] = result["ripple_db"]
     if include_toroids:
@@ -124,8 +114,8 @@ def _bandpass_json_component(
 ) -> dict[str, Any]:
     """Build one JSON component entry for bandpass export."""
     component: dict[str, Any] = {"name": name, unit_key: value}
-    if eseries:
-        component["standard_match"] = _build_standard_match(value, eseries, unit_key, parallel_mode)
+    if eseries and unit_key == "value_farads":
+        component["standard_match"] = build_standard_match(value, eseries, unit_key, parallel_mode)
     return component
 
 
@@ -159,7 +149,7 @@ def _csv_match_fields(
 
 
 def format_csv(
-    result: FilterResult,
+    result: BandpassResult,
     eseries: str | None = None,
     include_toroids: bool = True,
 ) -> str:
@@ -209,7 +199,8 @@ def format_csv(
         formatted = format_inductance(result["L_resonant"])
         val, unit = formatted.rsplit(" ", 1)
         row = [f"L{i + 1}", val, unit]
-        row.extend(_csv_match_fields(result["L_resonant"], format_inductance, eseries, "harmonic"))
+        if eseries:
+            row.extend([""] * 6)
         if include_toroids:
             row.extend(toroid_cols)
         writer.writerow(row)
@@ -221,10 +212,25 @@ def format_csv(
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
+    for name, value in _end_cap_items(result):
+        formatted = format_capacitance(value)
+        val, unit = formatted.rsplit(" ", 1)
+        row = [name, val, unit]
+        row.extend(_csv_match_fields(value, format_capacitance, eseries, "additive"))
+        if include_toroids:
+            row.extend([""] * n_toroid_cols)
+        writer.writerow(row)
     return output.getvalue()
 
 
-def format_quiet(result: FilterResult, raw: bool = False) -> str:
+def _end_cap_items(result: BandpassResult) -> list[tuple[str, float]]:
+    """End-coupling capacitors as (name, value) pairs; empty when absent."""
+    if result.get("c_end_in") is None or result.get("c_end_out") is None:
+        return []
+    return [("Ce_in", result["c_end_in"]), ("Ce_out", result["c_end_out"])]
+
+
+def format_quiet(result: BandpassResult, raw: bool = False) -> str:
     """Format results as minimal text (values only).
 
     Args:
@@ -250,4 +256,9 @@ def format_quiet(result: FilterResult, raw: bool = False) -> str:
             lines.append(f"Cs{i + 1}{i + 2}: {v:.6e} F")
         else:
             lines.append(f"Cs{i + 1}{i + 2}: {format_capacitance(v)}")
+    for name, value in _end_cap_items(result):
+        if raw:
+            lines.append(f"{name}: {value:.6e} F")
+        else:
+            lines.append(f"{name}: {format_capacitance(value)}")
     return "\n".join(lines)
