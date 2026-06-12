@@ -38,6 +38,8 @@ from .display_helpers import format_component_value, format_eseries_match, split
 from .eseries import ESeriesMatch, find_closest_single, match_component
 from .filter_result import FilterResult
 from .formatting import format_capacitance, format_frequency, format_impedance, format_inductance
+from .netlist_builders import build_bandpass_top_c_netlist, build_hp_netlist, build_lp_netlist
+from .netlist_simulation import find_3db_edges, passband_ripple_db, solve_s21
 from .parsing import parse_frequency, parse_impedance
 from .transfer_functions import (
     BESSEL_COEFFS,
@@ -102,6 +104,13 @@ __all__ = [
     "format_quiet_result",
     "print_header",
     "print_component_table",
+    # Netlist simulation
+    "solve_s21",
+    "find_3db_edges",
+    "passband_ripple_db",
+    "build_lp_netlist",
+    "build_hp_netlist",
+    "build_bandpass_top_c_netlist",
     # Transfer functions
     "BESSEL_COEFFS",
     "BESSEL_SCALE",
