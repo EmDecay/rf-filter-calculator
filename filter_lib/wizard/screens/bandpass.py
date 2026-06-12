@@ -237,7 +237,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         state: FilterState = self.app.filter_state
         state.category = "bandpass"
         state.filter_type = filter_type
-        state.topology = coupling  # top or shunt
+        state.topology = coupling  # top
         state.frequency_hz = f0
         state.bandwidth_hz = bw
         state.impedance = impedance

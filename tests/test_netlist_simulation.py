@@ -1,8 +1,8 @@
 """Simulation-gated acceptance tests: build the prescribed circuits, measure them.
 
 The solver itself is validated against analytic references; LP/HP designs are
-then locked in as regression (their math is known-good), and the bandpass
-Top-C as-prescribed circuit is a strict xfail until end coupling is realized.
+locked in as regression (their math is known-good), and the bandpass Top-C
+acceptance matrix gates the synthesized response against the design spec.
 """
 
 import math
