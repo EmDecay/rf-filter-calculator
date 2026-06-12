@@ -181,6 +181,8 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                 ripple = float(ripple_input.value)
                 if ripple <= 0:
                     raise ValueError("must be positive")
+                if ripple > 3.0:
+                    raise ValueError("must be <= 3.0 dB")
             except ValueError as e:
                 self.notify(f"Invalid ripple: {e}", severity="error")
                 ripple_input.focus()

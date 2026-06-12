@@ -298,6 +298,15 @@ class TestLowpassScreenValidation:
         assert any("Invalid ripple" in msg for _sev, msg in notes)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
+    def test_chebyshev_ripple_above_max_notifies(self, cls):
+        screen, _state, notes, pushed, _ = _lp_hp_mock_screen(
+            cls, filter_type="chebyshev", order_value="3", ripple_value="3.1"
+        )
+        screen._validate_and_continue()
+        assert pushed == []
+        assert any("Invalid ripple" in msg and "<= 3.0 dB" in msg for _sev, msg in notes)
+
+    @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_butterworth_happy_path_advances(self, cls):
         screen, state, _notes, pushed, _ = _lp_hp_mock_screen(cls, filter_type="butterworth")
         screen._validate_and_continue()
@@ -481,6 +490,14 @@ class TestBandpassScreenValidation:
         screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid ripple" in msg for _sev, msg in notes)
+
+    def test_chebyshev_ripple_above_max_notifies(self):
+        screen, _state, notes, pushed, _ = _bp_mock_screen(
+            filter_type="chebyshev", resonators_value="3", ripple_value="3.1"
+        )
+        screen._validate_and_continue()
+        assert pushed == []
+        assert any("Invalid ripple" in msg and "<= 3.0 dB" in msg for _sev, msg in notes)
 
     def test_chebyshev_happy_path(self):
         screen, state, _notes, pushed, _ = _bp_mock_screen(

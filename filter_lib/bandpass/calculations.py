@@ -15,7 +15,7 @@ from typing import Any
 from .g_values import get_g_values
 
 # Type alias for filter result dict
-FilterResult = dict[str, Any]
+BandpassResult = dict[str, Any]
 
 
 def calculate_coupling_coefficients(g_values: list[float], fbw: float) -> list[float]:
@@ -225,7 +225,7 @@ def calculate_bandpass_filter(
     coupling: str,
     ripple_db: float = 0.5,
     q_safety: float = 2.0,
-) -> FilterResult:
+) -> BandpassResult:
     """Calculate complete bandpass filter component values.
 
     Args:

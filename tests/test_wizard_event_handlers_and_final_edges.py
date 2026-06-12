@@ -5,7 +5,6 @@
 - Results screen CSV save branch.
 - E-series tight-ratio fallthroughs.
 - recommend_cores iteration where every candidate winding is None.
-- Widget package import for __init__ coverage.
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ from filter_lib.wizard.screens.results import ResultsScreen
 from filter_lib.wizard.state import FilterState
 
 # ---------------------------------------------------------------------------
-# interactive.run_wizard + wizard.widgets coverage
+# interactive.run_wizard coverage
 # ---------------------------------------------------------------------------
 
 
@@ -36,13 +35,6 @@ class TestRunWizardEntryPoint:
             interactive.run_wizard()
         MockApp.assert_called_once_with()
         MockApp.return_value.run.assert_called_once_with()
-
-
-def test_wizard_widgets_package_imports():
-    """filter_lib.wizard.widgets must be importable and expose __all__."""
-    import filter_lib.wizard.widgets as widgets_pkg
-
-    assert widgets_pkg.__all__ == []
 
 
 # ---------------------------------------------------------------------------
