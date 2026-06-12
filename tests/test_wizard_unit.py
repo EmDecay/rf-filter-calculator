@@ -459,7 +459,7 @@ class TestCalculateHighpass:
         output = "\n".join(lines)
         assert "E24 Standard Capacitor Recommendations" in output
         assert "Standard Inductor Recommendations" not in output
-        assert "Inductors: wind to value (see toroid recommendations)" in output
+        assert "Inductors: wind to value" in output
 
     def test_highpass_with_plot(self):
         """Test highpass with frequency response plot."""

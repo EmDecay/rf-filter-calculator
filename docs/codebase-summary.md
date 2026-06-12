@@ -113,8 +113,8 @@ Provides cross-cutting utilities:
 | `response_export.py` | Unified JSON/CSV response export (single schema for LP/HP/BP) |
 | `transfer_response_dispatch.py` | Shared factory for response-function closures |
 | `topology_diagrams.py` | ASCII circuit topology diagrams |
-| `netlist_simulation.py` | Bandpass SPICE netlist sweep and simulation-validated response |
-| `netlist_builders.py` | SPICE circuit netlist construction from filter synthesis |
+| `netlist_simulation.py` | Pure-stdlib nodal-analysis solver and simulation-validated bandpass response |
+| `netlist_builders.py` | Internal circuit branch-list construction from filter synthesis |
 | `lp_hp_display.py` | Unified LP/HP table renderer (CLI and wizard) |
 | `toroid_core_data.json` | Vendored 43-core iron-powder T-series database |
 | `toroid_core_data.py` | `ToroidCore` dataclass + lookup helpers |
@@ -144,7 +144,7 @@ Provides cross-cutting utilities:
 - **Coupling**: Top-coupled series capacitors only (Ce_in/Ce_out for external Q, Cs12/Cs23 inter-resonator). Shunt coupling removed (simulation showed non-realizable passband).
 - **Resonators**: 2-9 tanks
 - **Design method**: Normalized g-values per Matthaei/Young/Jones; external Q realized by end-coupling capacitors
-- **Validation**: SPICE netlist sweep for ≤10% fractional BW (simulation-proven tolerance ±3% magnitude, ±0.5% f₀)
+- **Validation**: Built-in nodal-analysis netlist sweep for ≤10% fractional BW (simulation-proven tolerance ±3% magnitude, ±0.5% f₀)
 - **Calculations**: `filter_lib/bandpass/calculations.py`
 
 ## Output Formats

@@ -139,7 +139,12 @@ def render_results_lines(result: dict, options: LpHpRenderOptions) -> list[str]:
         format_header(result, topology=topology.upper(), filter_category=config.category),
         "\nTopology:",
         config.diagrams[topology].render(result),
-        format_component_table(result, raw=options.raw, primary_component=primary),
+        format_component_table(
+            result,
+            raw=options.raw,
+            primary_component=primary,
+            mention_toroids=options.include_toroids,
+        ),
     ]
 
     if options.show_match and not options.raw and options.eseries:

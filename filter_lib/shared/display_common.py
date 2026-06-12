@@ -260,7 +260,10 @@ def print_header(result: dict, topology: str, filter_category: str) -> None:
 
 
 def format_component_table(
-    result: dict, raw: bool = False, primary_component: str = "capacitors"
+    result: dict,
+    raw: bool = False,
+    primary_component: str = "capacitors",
+    mention_toroids: bool = True,
 ) -> str:
     """Format component values in a table.
 
@@ -321,7 +324,8 @@ def format_component_table(
 
     lines.append(f"\u2514{horiz}\u2534{horiz}\u2518")
     if result["inductors"]:
-        lines.append("Inductors: wind to value (see toroid recommendations)")
+        note = " (see toroid recommendations)" if mention_toroids else ""
+        lines.append(f"Inductors: wind to value{note}")
     return "\n".join(lines)
 
 

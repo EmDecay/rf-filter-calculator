@@ -114,6 +114,8 @@ def test_lp_table_no_toroids_omits_block(lp_result, capsys):
     lp_display(lp_result, output_format="table", show_match=False, include_toroids=False)
     out = capsys.readouterr().out
     assert "Toroid Winding Recommendations" not in out
+    assert "see toroid recommendations" not in out
+    assert "Inductors: wind to value" in out
 
 
 def test_lp_json_has_toroid_recommendations(lp_result, capsys):
@@ -253,6 +255,14 @@ def test_bp_csv_no_toroids_drops_columns(bp_result, capsys):
     out = capsys.readouterr().out
     header = next(_csv.reader(io.StringIO(out)))
     assert not any(col.startswith("Toroid") for col in header)
+
+
+def test_bp_table_no_toroids_omits_dangling_note(bp_result, capsys):
+    bp_display(bp_result, output_format="table", eseries=None, include_toroids=False)
+    out = capsys.readouterr().out
+    assert "Toroid Winding Recommendations" not in out
+    assert "see toroid recommendations" not in out
+    assert "Inductors: wind to value" in out
 
 
 def test_bp_compact_block(bp_result, capsys):

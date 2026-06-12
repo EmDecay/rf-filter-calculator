@@ -8,7 +8,7 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 - **Response Types**: Butterworth, Chebyshev (arbitrary 0–3 dB ripple), Bessel
 - **E-Series Matching**: Capacitors matched to E12/E24/E96 standard values with parallel combinations; inductors show design values with toroid recommendations
 - **End-Coupling Realization**: Bandpass external Q realized by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
-- **Netlist-Simulated Plots**: Bandpass frequency response generated from synthesized SPICE netlist (simulation-proven ≤10% FBW)
+- **Netlist-Simulated Plots**: Bandpass frequency response generated from the synthesized circuit netlist with the built-in nodal-analysis solver (simulation-proven ≤10% FBW)
 - **Toroid Recommendations**: Amidon T-series core suggestions on by default (top-1 in table, top-3 in JSON/CSV); 43-core database; `--no-toroids` to suppress, `--toroid-full` for top-3 in table
 - **ASCII Plots**: Visualize frequency response (LP/HP analytic, BP simulated)
 - **Multiple Outputs**: Table, JSON, CSV formats

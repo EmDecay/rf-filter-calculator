@@ -125,7 +125,7 @@ Topology:
 │                        │ L4: 506.77 nH          │
 │                        │ L5: 506.77 nH          │
 └────────────────────────┴────────────────────────┘
-Inductors: wind to value (see toroid recommendations)
+Inductors: wind to value
 
 E24 Standard Capacitor Recommendations
 ---------------------------------------------

@@ -92,7 +92,7 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
         lines.append(f"\u2502 {cap_str:<22} \u2502 {ind_str:<22} \u2502")
 
     lines.append(f"\u2514{h24}\u2534{h24}\u2518")
-    lines.append("Inductors: wind to value (see toroid recommendations)")
+    lines.append("Inductors: wind to value")
 
     lines.append(f"\n\u250c{h24}\u2510")
     lines.append(f"\u2502{'Coupling Capacitors':^24}\u2502")

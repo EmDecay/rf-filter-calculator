@@ -117,7 +117,7 @@ def _print_table_output(
     print(f"  (Q safety factor: {result['q_safety']})")
 
     _print_topology(result)
-    _print_component_tables(result, raw)
+    _print_component_tables(result, raw, mention_toroids=include_toroids)
     _print_external_q(result)
 
     if eseries and not raw:
@@ -157,7 +157,7 @@ def _print_topology(result: BandpassResult) -> None:
     print_top_c_diagram(result["n_resonators"])
 
 
-def _print_component_tables(result: BandpassResult, raw: bool) -> None:
+def _print_component_tables(result: BandpassResult, raw: bool, mention_toroids: bool) -> None:
     """Print component value tables."""
     n = result["n_resonators"]
 
@@ -176,7 +176,8 @@ def _print_component_tables(result: BandpassResult, raw: bool) -> None:
         print(f"│ {cap_str:<22} │ {ind_str:<22} │")
 
     print(f"└{'─' * 24}┴{'─' * 24}┘")
-    print("Inductors: wind to value (see toroid recommendations)")
+    note = " (see toroid recommendations)" if mention_toroids else ""
+    print(f"Inductors: wind to value{note}")
 
     print(f"\n┌{'─' * 24}┐")
     print(f"│{'Coupling Capacitors':^24}│")
