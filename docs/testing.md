@@ -36,36 +36,41 @@ uv sync --group dev
 
 | Test File | Tests | Description |
 |-----------|-------|-------------|
-| `test_cli_and_helpers.py` | 50 | CLI commands, plotting, and formatting helpers |
-| `test_transfer_functions.py` | 49 | Frequency response (shared + LPF/HPF/BPF) |
+| `test_wizard_screens_coverage.py` | 102 | FilterScreenNavigationMixin, screen navigation, validation via Mock pattern |
+| `test_cli_and_helpers.py` | 97 | CLI commands, plotting, and formatting helpers (includes `_lp_args`/`_hp_args`/`_bp_args` Namespace builders) |
+| `test_plotting_edge_cases.py` | 81 | ASCII plot edge cases |
+| `test_plot_zoomed.py` | 68 | Zoomed passband plot computation and rendering |
+| `test_netlist_simulation.py` | 68 | AC nodal-analysis solver, netlist builders, bandpass simulation acceptance matrix |
+| `test_plot_threshold_analysis.py` | 63 | dB threshold detection and summary tables |
+| `test_transfer_functions.py` | 56 | Frequency response (shared + LPF/HPF/BPF) |
+| `test_cli_coverage_gaps.py` | 52 | CLI main(), setup_parser wiring, CLI helpers, validation error paths |
+| `test_transfer_response_dispatch.py` | 51 | Response function factory |
+| `test_bandpass_modules.py` | 50 | Bandpass g-values, formatters, display, diagrams |
 | `test_display_modules.py` | 49 | Output formatting (JSON/CSV/table/topology) |
-| `test_bandpass_modules.py` | 39 | Bandpass g-values, formatters, display, diagrams |
-| `test_eseries_matching.py` | 35 | E12/E24/E96 component matching |
-| `test_bandpass_calculations.py` | 26 | Coupled resonator calculations |
-| `test_lowpass_calculations.py` | 24 | Pi/T topology lowpass calculations |
-| `test_highpass_calculations.py` | 20 | Pi/T topology highpass calculations |
+| `test_wizard_unit.py` | 47 | Wizard module unit tests |
+| `test_bandpass_calculations.py` | 47 | Coupled resonator calculations, end-coupling, -3 dB edges |
+| `test_eseries_matching.py` | 40 | E12/E24/E96 component matching (capacitors only) |
+| `test_codex_review_fixes.py` | 38 | Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation |
+| `test_wizard_event_handlers_and_final_edges.py` | 33 | Input.Submitted handlers, _on_filter_type_changed, csv export, wizard entry |
+| `test_lowpass_calculations.py` | 27 | Pi/T topology lowpass calculations |
+| `test_chebyshev_calculator.py` | 27 | Chebyshev g-value computation |
+| `test_transfer_and_shared_edges.py` | 25 | HP transfer alias dispatch, E-series edge cases, toroid validation |
+| `test_toroid_integration.py` | 24 | End-to-end LP/HP/BP × flag matrix |
+| `test_lp_hp_display_golden.py` | 24 | Golden snapshots of LP/HP rendered table, JSON, and CSV output |
+| `test_highpass_calculations.py` | 21 | Pi/T topology highpass calculations |
+| `test_toroid_inductance.py` | 20 | L↔N math + T68-2 unit-mismatch regression |
+| `test_parsing_validation.py` | 20 | Input parsing and validation |
 | `test_topology_calculations.py` | 19 | Pi/T topology formulas and component counts |
-| `test_parsing_validation.py` | 18 | Input parsing and validation |
-| `test_chebyshev_calculator.py` | 15 | Chebyshev g-value computation |
-| `test_wizard_unit.py` | 40+ | Wizard module unit tests (Feb 2026) |
-| `test_plotting_edge_cases.py` | 15+ | ASCII plot edge cases (Feb 2026) |
-| `test_plot_threshold_analysis.py` | 41 | dB threshold detection and summary tables (Apr 2026) |
-| `test_plot_zoomed.py` | 68 | Zoomed passband plot computation and rendering (Apr 2026) |
-| `test_transfer_response_dispatch.py` | 26 | Response function factory (Apr 2026) |
-| `test_toroid_core_data.py` | 12 | Iron-powder T-series core database (Apr 2026) |
-| `test_toroid_inductance.py` | 16 | L↔N math + T68-2 unit-mismatch regression (Apr 2026) |
-| `test_toroid_wire.py` | 16 | AWG, wire length, DCR, mechanical fit (Apr 2026) |
-| `test_toroid_selection.py` | 12 | Freq-range gate + ranking algorithm (Apr 2026) |
-| `test_toroid_display.py` | 12 | Full/compact text, JSON, CSV formatters (Apr 2026) |
-| `test_toroid_integration.py` | 19 | End-to-end LP/HP/BP × flag matrix (Apr 2026) |
-| `test_cli_coverage_gaps.py` | 45 | CLI main(), setup_parser wiring, CLI helpers, validation error paths (Apr 2026) |
-| `test_transfer_and_shared_edges.py` | 24 | HP transfer alias dispatch, E-series edge cases, toroid validation (Apr 2026) |
-| `test_wizard_screens_coverage.py` | 91 | FilterScreenNavigationMixin, screen navigation, validation via Mock pattern (Apr 2026) |
-| `test_wizard_event_handlers_and_final_edges.py` | 29 | Input.Submitted handlers, _on_filter_type_changed, csv export, wizard entry (Apr 2026) |
-| `test_codex_review_fixes.py` | 40 | Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation (Apr 24, 2026) |
+| `test_toroid_wire.py` | 18 | AWG, wire length, DCR, mechanical fit |
+| `test_toroid_selection.py` | 12 | Freq-range gate + ranking algorithm |
+| `test_toroid_display.py` | 12 | Full/compact text, JSON, CSV formatters |
+| `test_toroid_core_data.py` | 12 | Iron-powder T-series core database |
+| `test_wizard_topology_diagrams.py` | 11 | Wizard topology diagram rendering |
+| `test_wizard_screens_regressions.py` | 11 | Wizard screen regressions via Mock pattern |
+| `test_wizard_state.py` | 2 | FilterState dataclass |
 | `conftest.py` | - | Shared pytest fixtures and configuration |
 
-**Total: 1211 tests** (94% coverage)
+**Total: 1227 tests** (94% coverage)
 
 **New Modules** (tested and integrated):
 - `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations
@@ -85,6 +90,9 @@ uv sync --group dev
 - `filter_lib/shared/toroid_display.py` - Full/compact text, JSON, CSV formatters (Apr 2026)
 - `filter_lib/cli/toroid_flags.py` - Shared `--no-toroids` / `--toroid-compact` flags (Apr 2026)
 - `filter_lib/wizard/radio_button_helpers.py` - Radio button utilities
+- `filter_lib/shared/netlist_simulation.py` - Stdlib AC nodal-analysis solver (Jun 2026)
+- `filter_lib/shared/netlist_builders.py` - Component synthesis for simulation (Jun 2026)
+- `filter_lib/shared/lp_hp_display.py` - Single LP/HP table renderer for CLI and wizard (Jun 2026)
 
 ---
 
@@ -130,10 +138,10 @@ def test_zero_frequency_raises():
 ```
 
 **Validated Inputs:**
-- Frequency: Must be positive (> 0), supports suffixes (MHz, kHz, M, k, G)
-- Impedance: Must be positive (> 0)
+- Frequency: Must be positive and finite (NaN/inf rejected), supports suffixes (MHz, kHz, M, k, G)
+- Impedance: Must be positive and finite (> 0)
 - Component count: Must be 2-9
-- Chebyshev ripple: Must be positive
+- Chebyshev ripple: Must be positive and finite; wizard and bandpass CLI additionally cap ripple at 3.0 dB (LP/HP CLI enforces only > 0)
 
 ### Display Tests
 
@@ -145,7 +153,7 @@ Verify output formatting for all export formats.
 - Ripple included for Chebyshev filters
 
 **CSV Output**
-- Header row: `Component,Value,Unit`
+- Header row starts `Component,Value,Unit,...` followed by E-series match columns (`NearestStdValue`, `ParallelStdValues`, ...) and toroid columns (`ToroidCore`, `ToroidTurns`, ...)
 - Proper component ordering (capacitors first for lowpass)
 - Engineering notation units (pF, nF, µH)
 
@@ -163,31 +171,32 @@ Verify output formatting for all export formats.
 |--------|-------------|
 | `filter_lib/lowpass/calculations.py` | Lowpass component formulas |
 | `filter_lib/highpass/calculations.py` | Highpass component formulas |
+| `filter_lib/bandpass/calculations.py` | Coupled-resonator and end-coupling formulas |
 | `filter_lib/shared/chebyshev_g_calculator.py` | Chebyshev g-value math |
 | `filter_lib/shared/constants.py` | Butterworth/Bessel constants |
 | `filter_lib/shared/parsing.py` | Input parsing/validation |
+| `filter_lib/shared/transfer_functions.py` | Transfer function entry points |
 
 ### Partially Covered Modules
 
 | Module | Coverage | Notes |
 |--------|----------|-------|
-| `filter_lib/shared/display_common.py` | 93% | Core formatting tested |
-| `filter_lib/shared/eseries.py` | 91% | Matching algorithms tested |
-| `filter_lib/bandpass/calculations.py` | 44% | Core formulas tested |
-| `filter_lib/shared/lp_hp_base_calculations.py` | 85%+ | Strategy logic tested (Feb 2026) |
-| `filter_lib/shared/lp_hp_base_transfer_functions.py` | 80%+ | Transfer functions tested (Feb 2026) |
+| `filter_lib/shared/display_common.py` | 99% | Core formatting tested |
+| `filter_lib/shared/eseries.py` | 98% | Matching algorithms tested |
+| `filter_lib/shared/lp_hp_base_calculations.py` | 99% | Strategy logic tested |
+| `filter_lib/shared/lp_hp_base_transfer_functions.py` | 98% | Transfer functions tested |
 
 ### Wizard Screen Coverage (Mock-Based Testing)
 
 | Module | Coverage | Testing Method |
 |--------|----------|-----------------|
-| `filter_lib/wizard/screens/lowpass.py` | 75% | Mock(spec=RadioSet/Input/...); `type(screen).app = property(...)` pattern |
-| `filter_lib/wizard/screens/highpass.py` | 73% | Mock pattern + state injection |
-| `filter_lib/wizard/screens/bandpass.py` | 68% | Mock pattern + validation error paths |
-| `filter_lib/wizard/screens/welcome.py` | 82% | Mock pattern + category selection |
-| `filter_lib/wizard/screens/output_options.py` | 79% | Mock pattern + option transitions |
-| `filter_lib/wizard/screens/results.py` | 71% | Mock pattern + async worker testing |
-| `filter_lib/wizard/app.py` | 100% | Screen stack, filter_state access |
+| `filter_lib/wizard/screens/lowpass.py` | 78% | Mock(spec=RadioSet/Input/...); `type(screen).app = property(...)` pattern |
+| `filter_lib/wizard/screens/highpass.py` | 78% | Mock pattern + state injection |
+| `filter_lib/wizard/screens/bandpass.py` | 80% | Mock pattern + validation error paths |
+| `filter_lib/wizard/screens/welcome.py` | 76% | Mock pattern + category selection |
+| `filter_lib/wizard/screens/output_options.py` | 67% | Mock pattern + option transitions |
+| `filter_lib/wizard/screens/results.py` | 85% | Mock pattern + async worker testing |
+| `filter_lib/wizard/app.py` | 57% | Screen stack, filter_state access (compose/on_mount uncovered) |
 
 **Coverage Method**: Mock Textual widgets (RadioSet, Input, etc.) with spec enforcement. Override `type(screen).app` via property to inject mock FilterWizardApp. Call screen handler methods directly. Covers all validation paths, state updates, and navigation transitions.
 
@@ -237,26 +246,19 @@ Highpass: C = 1 / (g * 2π * f * Z0), L = Z0 / (g * 2π * f)
 
 ### Namespace Builder Pattern
 
-CLI subcommands are tested by constructing `argparse.Namespace` objects directly, bypassing Click:
+CLI subcommands are tested by constructing `argparse.Namespace` objects directly, without re-parsing argv:
 
 ```python
-# From test_cli_coverage_gaps.py
-from filter_lib.cli.lowpass_cmd import _lp_args, lowpass_cmd_impl
+# From tests/test_cli_and_helpers.py
+from filter_lib.cli.lowpass_cmd import run as lowpass_run
 
 def test_lowpass_cli_butterworth():
     """Test lowpass CLI command with Namespace builder."""
-    args = _lp_args(
-        filter_type="butterworth",
-        topology="pi",
-        frequency="10MHz",
-        components=5,
-        impedance=50.0,
-    )
-    result = lowpass_cmd_impl(args)
-    assert result["order"] == 5
+    args = _lp_args(filter_type="butterworth", components=5)
+    lowpass_run(args)  # prints the result table
 ```
 
-**Builders** (`_lp_args`, `_hp_args`, `_bp_args`) available in `filter_lib/cli/cli_helpers.py`. Each returns a properly configured Namespace with all required fields and defaults.
+**Builders** (`_lp_args`, `_hp_args`, `_bp_args`) are helper functions in `tests/test_cli_and_helpers.py`. Each returns a properly configured Namespace with all required fields and defaults; pass overrides as kwargs to exercise validation branches.
 
 ### Direct setup_parser() Invocation
 

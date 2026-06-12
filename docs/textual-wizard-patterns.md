@@ -2,6 +2,8 @@
 
 This guide explains the two primary ways to build multi-step wizards in Textual: using a `ContentSwitcher` for in-place transitions or `push_screen` for a modal/layered approach.
 
+> **Note**: This project's wizard (`filter_lib/wizard/`) uses the **Screen + `push_screen`** approach — each step (welcome → filter config → output options → results) is an independent `Screen` subclass sharing a centralized `FilterState` on the App. The ContentSwitcher discussion below is general Textual guidance kept for reference.
+
 ## 1. ContentSwitcher (In-Place Transitions)
 
 Use `ContentSwitcher` when you want a static layout (like a wizard container with a title and "Next/Back" buttons) where only the middle form content changes.

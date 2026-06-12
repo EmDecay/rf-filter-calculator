@@ -5,11 +5,11 @@
 ### Lowpass Filter (Pi/T Topology)
 
 ```bash
-# 5th-order Butterworth at 10 MHz
-uv run filter-calc lowpass butterworth 10MHz -n 5
+# 5th-order Butterworth Pi at 10 MHz
+uv run filter-calc lowpass butterworth pi 10MHz -n 5
 
 # Short form
-uv run filter-calc lp bw 10MHz -n 5
+uv run filter-calc lp bw pi 10MHz -n 5
 ```
 
 ### Highpass Filter (Pi/T Topology)

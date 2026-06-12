@@ -33,9 +33,9 @@ Edge cases, limitations, and important considerations.
 
 ### Ripple Value
 
-- **Must be in range** 0 < r ≤ 3.0 dB
+- **Supported range**: 0 < r ≤ 3.0 dB (arbitrary values within the range; formula-based calculation)
 - Higher ripple = steeper rolloff but more passband variation
-- CLI and wizard both accept arbitrary values in this range (formula-based calculation)
+- **Enforcement asymmetry**: the wizard (all filter types) and the bandpass CLI reject ripple > 3.0 dB; the lowpass/highpass CLI currently validates only ripple > 0, so values above 3.0 dB are accepted without warning even though they are outside the supported range
 
 ### Bandpass Resonator Count
 
@@ -78,10 +78,8 @@ When using `--fl` and `--fh`, those exact values are preserved in output, JSON m
 
 ### Parallel Combination Mode
 
-- **Capacitors**: Uses additive mode (C_total = C1 + C2)
-- **Inductors**: Uses harmonic mode (L_total = L1×L2/(L1+L2))
-
-The mode is auto-detected based on component value magnitude.
+- **Capacitors only**: parallel combinations use additive mode (C_total = C1 + C2)
+- **Inductors are not E-series matched** — they are shown as raw design values with toroid winding recommendations instead
 
 ### Ratio Limit
 

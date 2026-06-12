@@ -1,16 +1,15 @@
 # Codebase Summary
 
-**Last Updated**: April 24, 2026
+**Last Updated**: June 12, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1211 tests, 94% coverage).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1227 tests, 94% coverage).
 
 ## Project Statistics
 
-- **Total Files**: 95+ files
-- **Total Lines of Code**: ~8,400 LOC (2,200+ core lib + 6,100+ tests + ~350 CLI entry)
-- **Test Coverage**: 1211 tests, 94% coverage (~0.5s runtime)
-- **Documentation**: 13 files (~2,500+ LOC)
-- **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
+- **Total Lines of Code**: ~20,700 LOC (~7,950 core lib + ~12,700 tests)
+- **Test Coverage**: 1227 tests, 94% coverage (~3s runtime)
+- **Documentation**: 14 files (~4,600 LOC)
+- **Core Library**: 66 modules in filter_lib/, organized by filter type + shared utilities
 
 ## Architecture Overview
 
@@ -18,7 +17,7 @@ The project uses a **modular architecture** organized by filter type and functio
 
 ```
 rf-filter-calculator/
-├── filter-calc.py          # Main CLI entry point (333 lines)
+├── filter-calc.py          # Thin shim (15 lines) → filter_lib.cli:main
 ├── filter_lib/             # Core library
 │   ├── cli/                # Command handlers (4 subcommands)
 │   ├── lowpass/            # Pi/T topology calculations
@@ -31,9 +30,10 @@ rf-filter-calculator/
 
 ## Core Components
 
-### Main Entry Point (`filter-calc.py`)
-- Command parsing and routing
-- Default wizard invocation
+### Main Entry Point (`filter_lib/cli/__init__.py:main`)
+- Registered as the `filter-calc` script in pyproject.toml; `filter-calc.py` at the repo root is a 15-line shim that calls the same `main()`
+- Command parsing and routing (argparse subcommands)
+- Default wizard invocation when run with no arguments
 - Error handling and user feedback
 
 ### CLI Module (`filter_lib/cli/`)
@@ -68,24 +68,23 @@ rf-filter-calculator/
 **Architecture**: Textual TUI (Terminal User Interface) with modular screen-based navigation
 
 **Core Infrastructure**:
-- `app.py` (47 LOC) - FilterWizardApp (Textual App, manages screen stack)
-- `state.py` (33 LOC) - FilterState dataclass (centralized mutable state shared across screens)
+- `app.py` (49 LOC) - FilterWizardApp (Textual App, manages screen stack)
+- `state.py` (36 LOC) - FilterState dataclass (centralized mutable state shared across screens)
 - `interactive.py` (15 LOC) - Entry point, exports `run_wizard()` function
-- `calculation_handler.py` (35 LOC) - Calculation orchestration, reduced from 355 LOC via extraction
-- `filter_type_calculators.py` (185 LOC) - Calculation logic for LP/HP/BP (Feb 2026)
-- `formatting_helpers.py` (155 LOC) - Wizard-specific formatting helpers (Feb 2026)
-- `screen_navigation_mixin.py` (46 LOC) - Screen navigation mixin (Feb 2026)
-- `radio_button_helpers.py` (19 LOC) - Radio button widget utilities (Feb 2026)
-- `filter_type_calculators.py` (261 LOC) - Calculation logic for LP/HP/BP (Apr 2026, expanded)
-- `styles.tcss` (192 LOC) - Textual CSS styling for all screens
+- `calculation_handler.py` (34 LOC) - Calculation orchestration, reduced from 355 LOC via extraction
+- `filter_type_calculators.py` (202 LOC) - Calculation logic for LP/HP/BP
+- `formatting_helpers.py` (115 LOC) - Wizard-specific formatting helpers
+- `filter_screen_navigation_mixin.py` (43 LOC) - Screen navigation mixin
+- `radio_button_helpers.py` (20 LOC) - Radio button widget utilities
+- `styles.tcss` (197 LOC) - Textual CSS styling for all screens
 
 **Screens** (`screens/` directory):
-- `welcome.py` (56 LOC) - Filter category selection (lowpass/highpass/bandpass)
-- `lowpass.py` (229 LOC) - Lowpass filter parameters form
-- `highpass.py` (228 LOC) - Highpass filter parameters form
-- `bandpass.py` (292 LOC) - Bandpass filter parameters form
+- `welcome.py` (58 LOC) - Filter category selection (lowpass/highpass/bandpass)
+- `lowpass.py` (215 LOC) - Lowpass filter parameters form
+- `highpass.py` (216 LOC) - Highpass filter parameters form
+- `bandpass.py` (270 LOC) - Bandpass filter parameters form
 - `output_options.py` (146 LOC) - Output format, E-series, export settings
-- `results.py` (175 LOC) - Results display with async worker for calculations
+- `results.py` (279 LOC) - Results display with async worker for calculations
 - `__init__.py` - Screen exports
 
 **Key Design Pattern**: Each screen is independent, receives/updates shared FilterState. Results screen uses background worker thread to prevent UI blocking during calculations.
@@ -163,44 +162,45 @@ Provides cross-cutting utilities:
 - E24: 24 values per decade (±5% tolerance) - default
 - E96: 96 values per decade (±1% tolerance)
 
-**Matching Strategies**:
+**Matching Strategies** (capacitors only — inductors are shown raw, to be wound to value):
 1. **Single value**: Nearest E-series standard
-2. **Parallel combination**: Two values in parallel for better accuracy
-   - Capacitors: C_total = C1 + C2 (series addition)
-   - Inductors: L_total = L1×L2/(L1+L2) (harmonic mean)
+2. **Parallel combination**: Two standard capacitors in parallel for better accuracy (C_total = C1 + C2)
 
 ## Test Coverage
 
-**Test Files** (1046 tests total, 94% coverage):
-- `test_bandpass_calculations.py` - Coupled resonator design tests
-- `test_bandpass_modules.py` - Bandpass display and formatting
+**Test Files** (1227 tests total across 32 modules, 94% coverage — see `docs/testing.md` for per-file counts):
+- `test_bandpass_calculations.py` - Coupled resonator design, end-coupling, -3 dB edges
+- `test_bandpass_modules.py` - Bandpass g-values, display, and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
-- `test_cli_and_helpers.py` - CLI parsing and option handling
+- `test_cli_and_helpers.py` - CLI parsing and option handling (Namespace builder helpers)
+- `test_cli_coverage_gaps.py` - CLI main(), setup_parser, validation error paths
+- `test_codex_review_fixes.py` - Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation
 - `test_display_modules.py` - Display formatting (table, JSON, CSV)
-- `test_eseries_matching.py` - Component matching algorithms
+- `test_eseries_matching.py` - Component matching algorithms (capacitors only)
 - `test_highpass_calculations.py` - Highpass filter calculations
 - `test_lowpass_calculations.py` - Lowpass filter calculations
+- `test_lp_hp_display_golden.py` - Golden snapshots of LP/HP table, JSON, CSV output
+- `test_netlist_simulation.py` - AC nodal-analysis solver + bandpass simulation acceptance matrix
 - `test_parsing_validation.py` - Input validation and parsing
+- `test_plot_threshold_analysis.py` - dB threshold detection and table formatting
+- `test_plot_zoomed.py` - Zoomed passband plot and zoom range computation
+- `test_plotting_edge_cases.py` - ASCII plot rendering edge cases
 - `test_topology_calculations.py` - Topology-specific calculations
-- `test_transfer_functions.py` - Transfer function accuracy (49+ tests)
+- `test_toroid_core_data.py` - Iron-powder core database
+- `test_toroid_display.py` - Text/JSON/CSV formatters
+- `test_toroid_inductance.py` - L↔N math + T68-2 regression
+- `test_toroid_integration.py` - End-to-end LP/HP/BP × flags
+- `test_toroid_selection.py` - Ranking algorithm
+- `test_toroid_wire.py` - AWG, wire length, DCR, fit
+- `test_transfer_and_shared_edges.py` - HP transfer dispatch, E-series edges, toroid validation
+- `test_transfer_functions.py` - Transfer function accuracy
+- `test_transfer_response_dispatch.py` - Response function factory
+- `test_wizard_event_handlers_and_final_edges.py` - Input handlers, filter type changes, csv export
+- `test_wizard_screens_coverage.py` - Screen navigation via Mock pattern
+- `test_wizard_screens_regressions.py` - Wizard screen regressions via Mock pattern
 - `test_wizard_state.py` - FilterState dataclass validation
 - `test_wizard_topology_diagrams.py` - Wizard topology diagram rendering
-- `test_wizard_unit.py` - Wizard module unit tests (Feb 2026)
-- `test_plotting_edge_cases.py` - ASCII plot rendering edge cases (Feb 2026)
-- `test_plot_threshold_analysis.py` - dB threshold detection and table formatting (Apr 2026, 41 tests)
-- `test_plot_zoomed.py` - Zoomed passband plot and zoom range computation (Apr 2026, 42 tests)
-- `test_transfer_response_dispatch.py` - Response function factory (Apr 2026, 26 tests)
-- `test_toroid_core_data.py` - Iron-powder core database (Apr 2026, 12 tests)
-- `test_toroid_inductance.py` - L↔N math + T68-2 regression (Apr 2026, 16 tests)
-- `test_toroid_wire.py` - AWG, wire length, DCR, fit (Apr 2026, 16 tests)
-- `test_toroid_selection.py` - Ranking algorithm (Apr 2026, 12 tests)
-- `test_toroid_display.py` - Text/JSON/CSV formatters (Apr 2026, 12 tests)
-- `test_toroid_integration.py` - End-to-end LP/HP/BP × flags (Apr 2026, 19 tests)
-- `test_cli_coverage_gaps.py` - **NEW (Apr 2026)** CLI main(), setup_parser, validation error paths (45 tests)
-- `test_transfer_and_shared_edges.py` - **NEW (Apr 2026)** HP transfer dispatch, E-series edges, toroid validation (24 tests)
-- `test_wizard_screens_coverage.py` - **NEW (Apr 2026)** Screen navigation via Mock pattern (91 tests)
-- `test_wizard_event_handlers_and_final_edges.py` - **NEW (Apr 2026)** Input handlers, filter type changes, csv export (29 tests)
-- `test_codex_review_fixes.py` - **NEW (Apr 24 2026)** Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation, export format preselect (40 tests)
+- `test_wizard_unit.py` - Wizard module unit tests
 - `conftest.py` - Shared pytest fixtures and configuration
 
 ## Development Workflow
@@ -225,10 +225,9 @@ uv run filter-calc lp bw pi 10MHz -n 5  # CLI command
 
 ## Key Design Patterns
 
-1. **Result Dictionary Pattern**: All calculations return dict with keys:
-   - `filter_type`, `freq_hz`, `impedance`, `order`, `ripple`
-   - `capacitors`, `inductors` (lists of float values in Farads/Henries)
-   - `topology` (Pi/T for LP/HP, top/shunt for BP)
+1. **Calculation Return Shapes**:
+   - LP/HP: calculation functions return a tuple `(capacitors, inductors, order)` (lists of float values in Farads/Henries); display layers combine it with frequency/impedance/topology metadata
+   - Bandpass: `calculate_bandpass_filter()` returns a dict with `f0`, `f_low`/`f_high`, `bw`, `fbw`, `z0`, `n_resonators`, `g_values`, `qe_in`/`qe_out`, `L_resonant`/`C_resonant`, `c_coupling`, `c_tank`, `c_end_in`/`c_end_out`, `q_min`, `warnings`
 
 2. **Primary Component Concept**: Identifies which component type should show E-series recommendations:
    - Lowpass Pi: Capacitors (shunt positions)
@@ -247,42 +246,53 @@ uv run filter-calc lp bw pi 10MHz -n 5  # CLI command
 ## Dependencies
 
 **Runtime** (via `uv`):
-- Click: CLI framework
-- Rich: Terminal formatting and interactive UI
+- Textual: TUI framework for the interactive wizard (CLI itself is stdlib argparse)
 
 **Development** (dev group):
 - pytest: Testing framework
 - pytest-cov: Coverage reporting
+- ruff: Linting and formatting
 
 ## File Size Management
 
-All code files respect 200-line limit for optimal context:
-- Main entry: 333 lines (entry point exception)
-- CLI commands: 60-80 lines each
-- Calculation modules: 80-120 lines each
-- Display modules: 50-90 lines each
-- Shared utilities: 50-150 lines each
+Most code files stay near the 200-line guideline for optimal context:
+- Main entry shim: 15 lines (`filter-calc.py`)
+- CLI commands: ~100-220 lines each
+- Calculation modules: 70-330 lines (`bandpass/calculations.py` is the largest)
+- Display modules: 60-250 lines each
+- Shared utilities: 30-380 lines each (`lp_hp_base_calculations.py` is the largest)
 
 ## Documentation Files
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `README.md` (root) | 284 | Project overview and quick start |
-| `docs/README.md` | 50 | Documentation index |
-| `docs/quick-start.md` | 70 | 5-minute getting started |
-| `docs/user-guide.md` | 485 | Complete CLI and wizard reference |
-| `docs/filter-theory.md` | 214 | Educational background on filter types |
-| `docs/testing.md` | 283 | Test suite guide |
-| `docs/sample-output.md` | 325 | Example outputs and formats |
-| `docs/code-standards.md` | 355 | Code structure and patterns |
-| `docs/system-architecture.md` | 726 | Component architecture and layers |
-| `docs/project-overview-pdr.md` | 508 | PDR and functional requirements |
-| `docs/codebase-summary.md` | 238+ | Architecture overview (this file) |
-| `docs/tips-and-best-practices.md` | 207 | Design guidance |
-| `docs/caveats-and-known-issues.md` | 212 | Limitations and edge cases |
-| `docs/textual-wizard-patterns.md` | 69 | Textual TUI screen vs ContentSwitcher patterns |
+| `README.md` (root) | ~290 | Project overview and quick start |
+| `docs/README.md` | ~50 | Documentation index |
+| `docs/quick-start.md` | ~75 | 5-minute getting started |
+| `docs/user-guide.md` | ~570 | Complete CLI and wizard reference |
+| `docs/filter-theory.md` | ~240 | Educational background on filter types |
+| `docs/testing.md` | ~425 | Test suite guide |
+| `docs/sample-output.md` | ~385 | Example outputs and formats |
+| `docs/code-standards.md` | ~560 | Code structure and patterns |
+| `docs/system-architecture.md` | ~775 | Component architecture and layers |
+| `docs/project-overview-pdr.md` | ~535 | PDR and functional requirements |
+| `docs/codebase-summary.md` | ~345 | Architecture overview (this file) |
+| `docs/tips-and-best-practices.md` | ~200 | Design guidance |
+| `docs/caveats-and-known-issues.md` | ~225 | Limitations and edge cases |
+| `docs/project-changelog.md` | ~145 | Release and change history |
+| `docs/textual-wizard-patterns.md` | ~70 | Textual TUI screen vs ContentSwitcher patterns |
 
 ## Recent Major Changes
+
+0. **v2.0.0 Remediation Release** (Jun 2026):
+   - Bandpass external Q realized by series end-coupling capacitors (Ce_in/Ce_out); shunt-C coupling removed (simulation showed non-realizable passband)
+   - Bandpass plots and `--plot-data` are netlist-simulated from the synthesized circuit (`shared/netlist_simulation.py` + `netlist_builders.py`), with simulation-proven support capped at ≤10% fractional BW
+   - Chebyshev g-values computed by formula for arbitrary ripple in (0, 3.0] dB (`shared/chebyshev_g_calculator.py`)
+   - E-series matching now capacitors-only (inductors shown raw, to be wound)
+   - Unified `--plot-data` export schema for LP/HP/BP (`shared/response_export.py`)
+   - LP/HP display consolidated into single shared renderer (`shared/lp_hp_display.py`) with golden-snapshot tests
+   - Coordinated CLI cleanup (breaking changes) and wizard input parsing aligned with the CLI
+   - Test count: 1046 → 1227
 
 1. **Graph Enhancements: dB Threshold Table + Zoomed Passband** (Apr 2, 2026):
    - Split monolithic `plotting.py` (345 LOC) into 5 focused modules (facade pattern):
@@ -321,16 +331,15 @@ All code files respect 200-line limit for optimal context:
    - Screen-based architecture (welcome → params → output options → results)
    - Async calculation with worker thread to prevent UI blocking
    - Centralized FilterState for state management across screens
-   - Capacitor-only E-series matching (inductor E-series removed)
 
 5. **Package Management** (commit 4da4f68): Switched from pip/venv to uv
 6. **Bug Fixes** (Jan-Feb 2026): ASCII topology spacing, HPF capacitor formula, wizard defaults, E-series export
 
-**Quality Metrics** (as of Apr 24, 2026):
-- 1046 tests, 94% coverage
-- 67 files ruff-formatted
-- 8,400+ total LOC
+**Quality Metrics** (as of Jun 12, 2026):
+- 1227 tests, 94% coverage
+- ~20,700 total LOC
 - GitHub Actions CI enforcing lint → format → test on all PRs
 - Graph enhancements (GH-7) complete with threshold tables + zoomed plots
-- Wizard screens now 68-82% covered via Mock(spec=...) + property override pattern
-- CLI validation error paths fully tested (negative frequency/impedance/ripple rejection)
+- Wizard screens 67-85% covered via Mock(spec=...) + property override pattern
+- CLI validation error paths fully tested (negative/NaN/inf frequency, impedance, ripple rejection)
+- Bandpass synthesis validated by built-in netlist simulation (±3% BW, ±0.5% f₀ acceptance)

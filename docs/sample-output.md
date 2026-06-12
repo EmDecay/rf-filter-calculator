@@ -236,23 +236,39 @@ uv run filter-calc lp bw pi 10MHz -n 3 --format json
 
 ```json
 {
-  "capacitors": [
-    {"value": 196.732, "unit": "pF", "order": 1},
-    {"value": 636.621, "unit": "pF", "order": 2},
-    {"value": 196.732, "unit": "pF", "order": 3}
-  ],
-  "inductors": [
-    {"value": 1.29, "unit": "µH", "order": 1},
-    {"value": 1.29, "unit": "µH", "order": 2}
-  ],
-  "response_type": "Butterworth",
-  "filter_type": "lowpass",
-  "topology": "Pi",
-  "order": 5,
-  "impedance": 50,
-  "cutoff_frequency_hz": 10000000
+  "filter_type": "butterworth",
+  "cutoff_frequency_hz": 10000000.0,
+  "impedance_ohms": 50.0,
+  "order": 3,
+  "components": {
+    "capacitors": [
+      {
+        "name": "C1",
+        "value_farads": 3.1830988618379065e-10,
+        "standard_match": {
+          "series": "E24",
+          "nearest": {"value_farads": 3.3e-10, "error_pct": 3.67},
+          "parallel": {
+            "components": [{"value_farads": 4.7e-11}, {"value_farads": 2.7e-10}],
+            "value_farads": 3.17e-10,
+            "error_pct": -0.41
+          }
+        }
+      }
+    ],
+    "inductors": [
+      {
+        "name": "L1",
+        "value_henries": 1.59e-06,
+        "toroid_recommendations": ["... top-3 cores with turns, AWG, DCR, etc. ..."]
+      }
+    ]
+  },
+  "topology": "pi"
 }
 ```
+
+(Abridged — capacitor entries carry full `standard_match` data and inductor entries carry top-3 `toroid_recommendations` unless `--no-toroids` is given.)
 
 ---
 
@@ -263,13 +279,13 @@ uv run filter-calc lp bw pi 10MHz -n 3 --format csv
 ```
 
 ```
-component_type,order,calculated_value,unit
-capacitor,1,196.732,pF
-capacitor,2,636.621,pF
-capacitor,3,196.732,pF
-inductor,1,1.29,µH
-inductor,2,1.29,µH
+Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidQ_DC_Upper,ToroidTempCoeff_ppm
+C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,,,,,,,,,,
+C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,,,,,,,,,,
+L1,1.59,µH,,,,,,,T80-2,2,17,20,1.5895,-0.13,376.2,12.21,8178,95
 ```
+
+Capacitor rows carry E-series match columns; inductor rows carry the best-match toroid columns (one row per inductor).
 
 ---
 
@@ -283,25 +299,23 @@ uv run filter-calc lp bw pi 10MHz --plot-data json
 
 ```json
 {
-  "metadata": {
-    "response_type": "Butterworth",
-    "filter_type": "lowpass",
-    "order": 5,
-    "impedance": 50,
-    "cutoff_frequency_hz": 10000000,
-    "timestamp": "2026-06-12T10:45:22"
+  "filter": {
+    "category": "lowpass",
+    "response_type": "butterworth",
+    "order": 3,
+    "cutoff_hz": 10000000.0,
+    "topology": "pi"
   },
-  "frequency_response": [
-    {"frequency_hz": 1000000, "magnitude_db": -0.02},
-    {"frequency_hz": 2000000, "magnitude_db": -0.03},
-    {"frequency_hz": 5000000, "magnitude_db": -0.08},
-    {"frequency_hz": 10000000, "magnitude_db": -3.0},
-    {"frequency_hz": 20000000, "magnitude_db": -24.3},
-    {"frequency_hz": 50000000, "magnitude_db": -65.2},
-    {"frequency_hz": 100000000, "magnitude_db": -104.8}
+  "data": [
+    {"frequency_hz": 1000000.0, "magnitude_db": -0.0},
+    {"frequency_hz": 1096478.196143185, "magnitude_db": -0.0},
+    {"frequency_hz": 10000000.0, "magnitude_db": -3.01},
+    {"frequency_hz": 100000000.0, "magnitude_db": -60.0}
   ]
 }
 ```
+
+(Abridged — the `data` array contains the full log-spaced sweep. Bandpass exports use the same schema with bandpass-specific `filter` fields.)
 
 **CSV export:**
 
@@ -311,13 +325,11 @@ uv run filter-calc lp bw pi 10MHz --plot-data csv
 
 ```
 frequency_hz,magnitude_db
-1000000,-0.02
-2000000,-0.03
-5000000,-0.08
-10000000,-3.0
-20000000,-24.3
-50000000,-65.2
-100000000,-104.8
+1e+06,-0.00
+1.09648e+06,-0.00
+1.20226e+06,-0.00
+1.31826e+06,-0.00
+...
 ```
 
 ---
@@ -329,15 +341,11 @@ uv run filter-calc lp ch --explain
 ```
 
 ```
-Chebyshev filters offer a steeper roll-off than Butterworth in the transition band,
-at the cost of passband ripple. They are useful when you need tight attenuation in
-a narrow transition region and can tolerate some passband variation.
-
-Chebyshev filters are defined by their ripple specification (in dB). Ripple must be
-in the range 0 < ripple ≤ 3.0 dB. Common choices: 0.1 dB (tight), 0.5 dB (moderate),
-1.0 dB (loose). Higher ripple produces sharper roll-off but more passband variation.
-
-For equal source/load terminations, Chebyshev filters require odd order (3, 5, 7, 9).
+Chebyshev Filter (Equiripple)
+- Steeper rolloff than Butterworth for same order
+- Ripple in passband (specified in dB)
+- Better stopband attenuation
+- Good for RF applications requiring sharp cutoff
 ```
 
 ---

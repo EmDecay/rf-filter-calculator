@@ -128,7 +128,7 @@ uv run filter-calc bp <filter_type> <coupling> [options]
 | Argument | Description |
 |----------|-------------|
 | `filter_type` | `butterworth`, `chebyshev`, `bessel` (or aliases) |
-| `coupling` | Coupling topology: `top` (series) or `shunt` (parallel) |
+| `coupling` | Coupling topology: `top` (series capacitors; the only supported kind, alias `t`) |
 
 ### Frequency Specification
 
@@ -156,7 +156,7 @@ values, and the bandpass plot labels, remain the exact edge frequencies you ente
 | `-b, --bandwidth` | - | 3 dB bandwidth |
 | `--fl` | - | Lower cutoff frequency |
 | `--fh` | - | Upper cutoff frequency |
-| `-n, --resonators` | 2 | Number of resonators (2-9) |
+| `-n, --resonators` | 3 | Number of resonators (2-9) |
 | `-z, --impedance` | 50 | System impedance |
 | `-r, --ripple` | 0.5 | Chebyshev ripple in dB |
 | `--q-safety` | 2.0 | Q safety factor for component selection |
@@ -190,9 +190,6 @@ uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 
 # 5-resonator Chebyshev (odd count required)
 uv run filter-calc bp ch top -f 7.15MHz -b 200kHz -n 5 -r 0.5
-
-# Shunt-coupled topology
-uv run filter-calc bp bw shunt -f 21.2MHz -b 450kHz
 ```
 
 ---
@@ -279,9 +276,8 @@ Enter filter parameters with defaults shown as placeholders:
 │ Bandwidth: [1.0 MHz]        │
 │ ▌                           │ (input field)
 │                              │
-│ Topology: [Top-coupled]     │
-│ ❯ Top-coupled              │
-│   Shunt-coupled            │
+│ Coupling: [Top-C (Series)]  │
+│ ❯ Top-C (Series)           │
 │                              │
 │ Resonators: [3]             │
 │ ▌                           │ (input field)
@@ -322,6 +318,7 @@ Configure output format and display options:
 │   CSV file                  │
 │                              │
 │ Additional Options:          │
+│ ☑ Show frequency plot       │
 │ ☐ Raw units (Farads/Henries)│
 │ ☐ Quiet mode (minimal)      │
 │                              │
@@ -343,8 +340,8 @@ View calculated filter components:
 │ - Circuit topology diagram   │
 │ - Component table            │
 │ - E-series recommendations   │
-│                              │
-│ Show frequency plot? (y/n)   │
+│ - Frequency plot (if chosen  │
+│   on Output Options screen)  │
 │                              │
 │ [Esc] exit wizard            │
 └──────────────────────────────┘
@@ -429,12 +426,12 @@ Structured output for programmatic use:
 uv run filter-calc lp bw pi 10MHz --format csv
 ```
 
-Spreadsheet-compatible format:
+Spreadsheet-compatible format. The header includes E-series match and toroid columns:
 ```
-Component,Value,Unit
-C1,318.31,pF
-C2,318.31,pF
-L1,1.59,µH
+Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidQ_DC_Upper,ToroidTempCoeff_ppm
+C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,,,,,,,,,,
+C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,,,,,,,,,,
+L1,1.59,µH,,,,,,,T80-2,2,17,20,1.5895,-0.13,376.2,12.21,8178,95
 ```
 
 ---
@@ -455,12 +452,9 @@ The calculator automatically finds the nearest standard component values for cap
 ### Matching Modes
 
 - **Single value**: Closest E-series value
-- **Parallel combination**: Two values in parallel for better accuracy
+- **Parallel combination**: Two values in parallel for better accuracy (additive for capacitors: C_total = C1 + C2)
 
-For capacitors, parallel combination is additive (C_total = C1 + C2).
-For inductors, parallel combination is harmonic (L_total = L1*L2/(L1+L2)).
-
-**Note**: E-series matching recommendations are provided for capacitors. Inductor component selection is typically custom-wound or sourced by specification.
+**Note**: E-series matching recommendations are provided for capacitors only. Inductors are shown as raw design values — they are typically custom-wound (see toroid recommendations below).
 
 ### Example Output
 
@@ -522,7 +516,7 @@ uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 
 ## Toroid Winding Recommendations
 
-For every inductor produced by the calculator, the tool **auto-shows** toroid recommendations for iron-powder T-series cores. Default text output shows the top-1 core (highest accuracy). Use `--toroid-full` to show top-3; JSON and CSV always include top-3. For each recommendation you see: core name + colour, integer turn count + AWG, actual L after N rounding (plus signed error %), A_L-tolerance-derived L range, bare-copper wire length + DC resistance, DC-based Q upper bound, and core dimensions.
+For every inductor produced by the calculator, the tool **auto-shows** toroid recommendations for iron-powder T-series cores. Default text output shows the top-1 core (highest accuracy). Use `--toroid-full` to show top-3 in the table; JSON always includes top-3, and CSV carries the best match in each inductor row. For each recommendation you see: core name + colour, integer turn count + AWG, actual L after N rounding (plus signed error %), A_L-tolerance-derived L range, bare-copper wire length + DC resistance, DC-based Q upper bound, and core dimensions.
 
 ### Default text output (top-1 core)
 
@@ -543,7 +537,7 @@ Toroid Winding Recommendations (Iron-Powder T-Series)
 
 ### Full output: show top-3 (`--toroid-full`)
 
-Use `--toroid-full` to show top-3 cores in table format (JSON and CSV always include top-3 regardless).
+Use `--toroid-full` to show top-3 cores in table format (JSON always includes top-3 regardless; CSV carries the best match).
 
 ### Compact output (`--toroid-compact`)
 

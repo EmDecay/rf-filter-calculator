@@ -47,5 +47,5 @@ uv sync --group dev
 Run the tool:
 
 ```bash
-uv run filter-calc lowpass butterworth 10MHz
+uv run filter-calc lowpass butterworth pi 10MHz
 ```

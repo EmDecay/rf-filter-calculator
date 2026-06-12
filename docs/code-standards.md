@@ -1,13 +1,13 @@
 # Code Standards & Architecture Guidelines
 
-**Last Updated**: April 2, 2026
+**Last Updated**: June 12, 2026
 
 Standards and patterns for maintaining code quality in RF Filter Calculator.
 
 ## Naming Conventions
 
 ### Files & Modules
-- **Python files**: kebab-case with descriptive names
+- **Python files**: snake_case with descriptive names
   - `chebyshev_g_calculator.py` - describes function clearly
   - `display_common.py` - obvious purpose
   - `topology_diagrams.py` - explicit intent
@@ -74,7 +74,7 @@ def display_results(result: dict, raw: bool = False, ...) -> None:
 
 ### Import Organization
 1. Standard library imports
-2. Third-party imports (Click, Rich)
+2. Third-party imports (Textual, in wizard modules)
 3. Local relative imports (`..shared`, etc.)
 4. Blank line between groups
 
@@ -82,13 +82,12 @@ Example:
 ```python
 import json
 from io import StringIO
-from typing import Optional
 
-import click
-from rich.table import Table
+from textual.screen import Screen
+from textual.widgets import Input
 
-from ..shared.parsing import parse_frequency
 from ..shared.formatting import format_capacitance
+from ..shared.parsing import parse_frequency
 ```
 
 ## Code Quality & Linting Standards
@@ -139,20 +138,20 @@ uv run ruff format --check . # Check without changes
 - **Classes**: Document init parameters and key methods
 
 ```python
-def calculate_chebyshev_g_values(order: int, ripple_db: float) -> list:
+def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
     """Calculate normalized g-values for Chebyshev filter.
 
     Uses standard formulas from Matthaei/Young/Jones.
 
     Args:
-        order: Filter order (2-9, must be even for Chebyshev)
+        n: Filter order (3-9; equal terminations require odd order)
         ripple_db: Passband ripple in dB (typically 0.5 or 1.0)
 
     Returns:
         list of normalized g-values
 
     Raises:
-        ValueError: If order is odd or ripple is negative
+        ValueError: If ripple is not positive and finite
     """
 ```
 
@@ -165,9 +164,9 @@ def calculate_chebyshev_g_values(order: int, ripple_db: float) -> list:
 def format_frequency(freq_hz: float, decimals: int = 2) -> str:
     """Format frequency in Hz to human-readable form."""
 
-def find_eseries_match(value: float,
-                       series: str = 'E24',
-                       tolerance: Optional[float] = None) -> dict:
+def match_component(value: float,
+                    series: str = 'E24',
+                    parallel_mode: str | None = None) -> dict:
     """Find E-series component matches."""
 ```
 
@@ -213,21 +212,18 @@ L1 = Z0 / (2 * pi * fc)
 
 ## Patterns & Best Practices
 
-### Result Dictionary Pattern
-All calculation functions return a standard dictionary:
+### Calculation Return Shapes
+LP/HP calculation functions return a tuple; display layers assemble result dicts:
 
 ```python
-result = {
-    'filter_type': 'butterworth',           # str
-    'freq_hz': 10e6,                        # float
-    'impedance': 50.0,                      # float
-    'order': 5,                             # int
-    'topology': 'pi',                       # str: pi/t/top/shunt
-    'capacitors': [1e-10, 2e-10, ...],     # list[float] Farads
-    'inductors': [1e-6, ...],              # list[float] Henries
-    'ripple': 0.5,                          # float or None
-}
+capacitors, inductors, order = calculate_butterworth(
+    cutoff_hz=10e6, impedance=50.0, num_components=5, topology="pi"
+)
+# capacitors: list[float] in Farads, inductors: list[float] in Henries
 ```
+
+Bandpass returns a dict with synthesis and coupling fields (`f0`, `bw`, `fbw`,
+`g_values`, `qe_in`/`qe_out`, `c_tank`, `c_coupling`, `c_end_in`/`c_end_out`, ...).
 
 ### Primary Component Concept
 Functions identify which component type is "primary" (shown in E-series matching):
@@ -314,18 +310,17 @@ Reduce duplication via centralized shared functions:
 ```python
 def test_lowpass_pi_butterworth():
     """Test lowpass Pi topology Butterworth filter."""
-    result = calculate_lowpass_pi(
-        freq_hz=10e6,
+    capacitors, inductors, order = calculate_butterworth(
+        cutoff_hz=10e6,
         impedance=50,
-        order=3,
-        filter_type='butterworth'
+        num_components=5,
+        topology='pi',
     )
 
-    assert result['filter_type'] == 'butterworth'
-    assert result['topology'] == 'pi'
-    assert len(result['capacitors']) == 3
-    assert len(result['inductors']) == 2
-    assert all(c > 0 for c in result['capacitors'])
+    assert order == 5
+    assert len(capacitors) == 3
+    assert len(inductors) == 2
+    assert all(c > 0 for c in capacitors)
 ```
 
 ### Fixtures
@@ -371,7 +366,7 @@ def lowpass_result():
 - Check frequency > 0
 - Check impedance > 0
 - Check order in range [2, 9]
-- Check ripple >= 0 for Chebyshev
+- Check ripple > 0 for Chebyshev (bandpass additionally caps at 3.0 dB)
 
 ### Safe Data Handling
 - No shell command execution
@@ -385,17 +380,17 @@ See [system-architecture.md § Layer 4: Wizard Module](./system-architecture.md)
 
 ### Refactored Structure (Recent Simplification)
 
-**calculation_handler.py** (35 LOC after refactoring):
+**calculation_handler.py** (34 LOC after refactoring):
 - Minimal orchestration router
 - Delegates to type-specific calculators
 - Routes output formatting to helpers
 
-**filter_type_calculators.py** (185 LOC):
+**filter_type_calculators.py** (202 LOC):
 - Contains _calculate_lowpass, _calculate_highpass, _calculate_bandpass
 - Handles filter selection and parameter passing
 - Calls shared base calculation modules
 
-**formatting_helpers.py** (155 LOC):
+**formatting_helpers.py** (115 LOC):
 - Wizard-specific formatting logic
 - E-series matching display
 - Output format selection (table/json/csv)
@@ -446,7 +441,7 @@ class FilterState:
     # Filter selection
     category: str = ""                         # lowpass/highpass/bandpass
     filter_type: str = "butterworth"
-    topology: str = "pi"                       # pi, t for LP/HP; top, shunt for BP
+    topology: str = "pi"                       # pi, t for LP/HP; top for BP
 
     # Frequency parameters
     frequency_hz: float = 0.0                  # cutoff for LP/HP, center for BP
@@ -461,12 +456,12 @@ class FilterState:
     eseries: str = "E24"
     output_format: str = "table"
     show_plot: bool = True
-    export_format: Optional[str] = None
+    export_format: str | None = None
     raw_units: bool = False
     quiet: bool = False
 
     # Results (populated after calculation)
-    result: dict = {}
+    result: dict = field(default_factory=dict)
     output_text: str = ""
 ```
 

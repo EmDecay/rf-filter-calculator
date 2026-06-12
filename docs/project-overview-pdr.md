@@ -21,17 +21,20 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 1.4+ (Production ready with toroid recommendations & coverage pass)
-- 1086 comprehensive tests (94% coverage)
+**Version**: 2.0.0 (Production ready; accuracy remediation release)
+- 1227 comprehensive tests (94% coverage)
 - Full CLI and interactive modes with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
 - Automated CI/CD with GitHub Actions
 - Code quality enforced via ruff linting
+- Bandpass external Q realized by series end-coupling capacitors; shunt-C coupling removed
+- Bandpass plots netlist-simulated from the synthesized circuit (simulation-proven ≤10% fractional BW)
+- Chebyshev g-values computed by formula for arbitrary ripple; capacitors-only E-series matching
 - Graph enhancements (GH-7): dB threshold tables + zoomed plots
-- Toroid inductor recommendations (GH-6): 43-core iron-powder T-series database; top-3 per inductor with turns, AWG, wire length, DCR, DC-Q upper bound; `--no-toroids` / `--toroid-compact` flags
-- Comprehensive coverage: CLI subcommands, wizard screens (68-82% via Mock pattern), input validation error paths
-- Filter-type alias canonicalization & Chebyshev even-order constraint enforcement
+- Toroid inductor recommendations (GH-6): 43-core iron-powder T-series database; top-3 per inductor with turns, AWG, wire length, DCR, DC-Q upper bound; `--no-toroids` / `--toroid-compact` / `--toroid-full` flags
+- Comprehensive coverage: CLI subcommands, wizard screens (67-85% via Mock pattern), input validation error paths
+- Filter-type alias canonicalization & Chebyshev odd-order constraint enforcement
 - Bandpass true -3 dB edges via quadratic formula
 
 ---
@@ -64,13 +67,13 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 **FR-1.1.3: Bandpass Filters**
 - **Definition**: Coupled-resonator bandpass design
-- **Coupling Types**: Top-coupled (series), Shunt-coupled (parallel)
-- **Response Types**: Butterworth, Chebyshev (even-order), Bessel
+- **Coupling Types**: Top-coupled series capacitors only (Ce_in/Ce_out for external Q, Cs for inter-resonator coupling)
+- **Response Types**: Butterworth, Chebyshev (odd resonator counts only), Bessel
 - **Resonators**: 2-9 LC tanks
 - **Acceptance Criteria**:
   - ✓ Normalized g-values per Matthaei/Young/Jones standard
   - ✓ Coupling capacitor values calculated correctly
-  - ✓ Verification tests pass for self-consistency
+  - ✓ Netlist simulation acceptance: measured -3 dB BW within 3% of design, f₀ within 0.5% (≤10% fractional BW)
 
 #### 1.2 Response Type Support
 
@@ -216,8 +219,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Frequency format flexibility (10MHz = 10M = 10e6)
 
 **NFR-2.3.2: Documentation**
-- README with quick start (70 lines)
-- User guide with complete reference (379 lines)
+- README with quick start
+- User guide with complete reference
 - Examples with actual output
 - Theory background document
 
@@ -229,7 +232,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - No silent failures
 
 **NFR-2.4.2: Testing**
-- 1046 tests covering all filter types (includes 93 toroid tests, 220 new coverage tests)
+- 1227 tests covering all filter types
 - 94% code coverage
 - Automated GitHub Actions CI (lint → format → test on push/PR)
 
@@ -257,9 +260,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 **NFR-2.6.2: Dependencies**
 - Minimal external dependencies
-- Click (CLI framework)
-- Rich (terminal formatting)
-- Textual (TUI for interactive wizard)
+- Textual (TUI for interactive wizard) — the only runtime dependency
+- CLI built on stdlib argparse
 - No system dependencies beyond Python
 
 ---
@@ -292,10 +294,9 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 #### 3.3 Chebyshev-Specific Constraints
 
-**TC-3.3.1: Ripple Parameter**
-- Even-only order for shunt-terminated filters
-- Odd-order allowed for source/load terminated
-- Bandpass: Even-order only for Chebyshev (odd-order for others)
+**TC-3.3.1: Order and Ripple Constraints**
+- Chebyshev filters with equal source/load terminations require odd order (3, 5, 7, 9) — enforced for LP, HP, and BP
+- Ripple supported in (0, 3.0] dB via formula-based g-value computation (wizard and bandpass CLI enforce the 3.0 dB cap; LP/HP CLI validates only ripple > 0)
 
 #### 3.4 Bandpass-Specific Constraints
 
@@ -327,9 +328,9 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Rationale: DRY principle, consistent behavior across filters
 - Enables easy updates to all filters simultaneously
 
-**DD-4.1.3: Result Dictionary Pattern**
-- All calculations return dict with standard keys
-- Display functions take dict, return formatted string
+**DD-4.1.3: Calculation/Presentation Decoupling**
+- LP/HP calculations return `(capacitors, inductors, order)` tuples; bandpass returns a result dict with coupling fields
+- Display functions assemble result dicts and return formatted strings
 - Rationale: Decouples calculation from presentation
 - Enables flexible output format switching
 
@@ -404,7 +405,7 @@ Status: ✓ Verified for all E-series values
 **AC-5.2.2: Parallel Combination Matching**
 ```
 Test: Match 636.62 pF to E24 parallel
-Expected: 75 || 560 pF = 72.09 pF (within tolerance)
+Expected: 560 pF + 75 pF in parallel = 635 pF (-0.25% error)
 Status: ✓ Verified via exhaustive search
 ```
 
@@ -412,14 +413,14 @@ Status: ✓ Verified via exhaustive search
 
 **AC-5.3.1: JSON Format**
 ```
-Test: uv run filter-calc lp bw 10MHz --format json
+Test: uv run filter-calc lp bw pi 10MHz --format json
 Expected: Valid JSON, parseable by jq
 Status: ✓ Verified with Python json module
 ```
 
 **AC-5.3.2: CSV Format**
 ```
-Test: uv run filter-calc lp bw 10MHz --format csv
+Test: uv run filter-calc lp bw pi 10MHz --format csv
 Expected: Import into Excel without errors
 Status: ✓ Verified with LibreOffice Calc
 ```
@@ -481,8 +482,8 @@ Status: ✓ Measured ~200ms on reference machine
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
 | Test Coverage | >90% | 94% | ✓ Met |
-| Test Count | >300 | 1046 | ✓ Exceeded |
-| Documentation Files | >6 | 13 | ✓ Exceeded |
+| Test Count | >300 | 1227 | ✓ Exceeded |
+| Documentation Files | >6 | 14 | ✓ Exceeded |
 | Code Issues | 0 critical | 0 | ✓ Met |
 | Response Time | <500ms | ~200ms | ✓ Met |
 
@@ -511,7 +512,8 @@ Status: ✓ Measured ~200ms on reference machine
 | 1.1 | Jan 30 2026 | Removed inductor E-series recommendations; capacitor-only E-series matching |
 | 1.2 | Feb 3-8 2026 | Wizard refactoring (modularized calculation/formatting); strategy pattern LP/HP base modules; navigation mixin + radio helpers; ruff linting (py310); GitHub Actions CI; 556 tests; 67 files reformatted |
 | 1.2+ | Apr 2 2026 | Documentation sync (updated PDR, success metrics, code standards, architecture notes) |
-| 1.4+ | Apr 24 2026 | Coverage pass: 826→1046 tests (94% coverage); CLI/wizard/validation full testing; filter-type alias canonicalization; bandpass true -3dB edges; Chebyshev even-order constraint |
+| 1.4+ | Apr 24 2026 | Coverage pass: 826→1046 tests (94% coverage); CLI/wizard/validation full testing; filter-type alias canonicalization; bandpass true -3dB edges; Chebyshev odd-order constraint |
+| 2.0.0 | Jun 11-12 2026 | Accuracy remediation: bandpass series end-coupling (shunt-C removed); netlist-simulated bandpass plots; formula-based Chebyshev g-values for arbitrary ripple; capacitors-only E-series matching; unified --plot-data export schema; coordinated breaking CLI cleanup; 1046→1227 tests |
 
 ---
 
@@ -526,7 +528,7 @@ Status: ✓ Measured ~200ms on reference machine
 
 ## Document Control
 
-**Last Updated**: April 24, 2026
+**Last Updated**: June 12, 2026
 **Author**: Matt N3AR
 **Status**: Active (Production)
-**Next Review**: Q2 2026
+**Next Review**: Q3 2026

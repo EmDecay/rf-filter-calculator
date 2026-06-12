@@ -9,7 +9,7 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 - **E-Series Matching**: Capacitors matched to E12/E24/E96 standard values with parallel combinations; inductors show design values with toroid recommendations
 - **End-Coupling Realization**: Bandpass external Q realized by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
 - **Netlist-Simulated Plots**: Bandpass frequency response generated from the synthesized circuit netlist with the built-in nodal-analysis solver (simulation-proven ≤10% FBW)
-- **Toroid Recommendations**: Amidon T-series core suggestions on by default (top-1 in table, top-3 in JSON/CSV); 43-core database; `--no-toroids` to suppress, `--toroid-full` for top-3 in table
+- **Toroid Recommendations**: Amidon T-series core suggestions on by default (top-1 in table, top-3 in JSON, best match in CSV); 43-core database; `--no-toroids` to suppress, `--toroid-compact` for one-line recommendations, `--toroid-full` for top-3 in table
 - **ASCII Plots**: Visualize frequency response (LP/HP analytic, BP simulated)
 - **Multiple Outputs**: Table, JSON, CSV formats
 - **Interactive Wizard**: Guided TUI design mode with error surface
@@ -191,7 +191,7 @@ Default values shown as placeholders; press Enter with empty field to use defaul
 | `--explain` | Explain filter type characteristics |
 | `--no-toroids` | Suppress toroid recommendations in all output formats |
 | `--toroid-compact` | One-line-per-recommendation toroid text output (ignored for JSON/CSV) |
-| `--toroid-full` | Show top-3 toroid cores per inductor in table output (default top-1; JSON/CSV always top-3) |
+| `--toroid-full` | Show top-3 toroid cores per inductor in table output (default top-1; JSON always top-3, CSV best match) |
 | `--version` | Print version and exit |
 
 ## Filter Type Aliases
@@ -243,7 +243,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** 1211 tests (94% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, toroid recommendations, and netlist-simulated bandpass validation. See [docs/testing.md](docs/testing.md) for details.
+**Test suite:** 1227 tests (94% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, toroid recommendations, and netlist-simulated bandpass validation. See [docs/testing.md](docs/testing.md) for details.
 
 ### Linting
 

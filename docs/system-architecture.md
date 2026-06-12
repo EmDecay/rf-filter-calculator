@@ -1,6 +1,6 @@
 # System Architecture
 
-**Last Updated**: April 24, 2026
+**Last Updated**: June 12, 2026
 
 Detailed architecture design and component interactions for RF Filter Calculator.
 
@@ -10,8 +10,8 @@ Detailed architecture design and component interactions for RF Filter Calculator
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│          CLI Entry Point (filter-calc.py)           │
-│  - Argument parsing                                 │
+│      CLI Entry Point (filter_lib/cli:main)          │
+│  - Argument parsing (argparse)                      │
 │  - Command routing                                  │
 │  - Error handling                                   │
 └─────────────────────────────────────────────────────┘
@@ -44,19 +44,18 @@ Detailed architecture design and component interactions for RF Filter Calculator
 
 ### Layer 1: CLI Entry Point
 
-**File**: `filter-calc.py`
+**File**: `filter_lib/cli/__init__.py` (registered as the `filter-calc` script; `filter-calc.py` at the repo root is a 15-line shim)
 
 ```python
 # Responsibilities
-- Parse command-line arguments (Click framework)
+- Parse command-line arguments (stdlib argparse with subparsers)
 - Route to appropriate subcommand (lowpass/highpass/bandpass/wizard)
 - Invoke wizard if no arguments provided
 - Handle top-level exceptions
 ```
 
 **Key Functions**:
-- `main()` - Entry point, routes to subcommands
-- `cli` - Click group for subcommand registration
+- `main()` - Entry point; builds the ArgumentParser, registers each subcommand via its `setup_parser()`, and dispatches to its `run(args)`
 
 ### Layer 2: Subcommand Handlers
 
@@ -66,15 +65,18 @@ Each file handles one filter type:
 
 #### `lowpass_cmd.py`
 ```python
-@click.command('lowpass')  # Register as 'lowpass' subcommand
-def lowpass(filter_type, topology, frequency, ...):
+def setup_parser(parser):  # registers arguments on the 'lowpass' subparser
+    parser.add_argument("filter_type", ...)
+    ...
+
+def run(args):
     """Handle lowpass filter calculations and display."""
     # 1. Validate inputs using shared parsing
-    freq_hz = parse_frequency(frequency)
+    freq_hz = parse_frequency(args.frequency)
     # 2. Call calculation module
-    result = calculate_lowpass(freq_hz, topology, ...)
+    caps, inds, order = calculate_butterworth(freq_hz, impedance, n, topology)
     # 3. Route to appropriate display
-    display_results(result, format=output_format, ...)
+    display_results(...)
 ```
 
 **Pattern**: Input → Validate → Calculate → Display
@@ -98,43 +100,21 @@ Each filter type has three core modules:
 ```python
 # Core responsibility: Compute component values
 
-def calculate_lowpass_pi(freq_hz, impedance, order, filter_type, ripple):
-    """Calculate Pi topology lowpass filter values.
+def calculate_butterworth(cutoff_hz, impedance, num_components, topology):
+    """Calculate lowpass filter component values.
 
     Design Process:
-    1. Compute normalized g-values (butterworth/chebyshev/bessel tables)
+    1. Compute normalized g-values (Butterworth formula / Chebyshev
+       formula / Bessel tables)
     2. Denormalize for given frequency and impedance
-    3. Build result dictionary
-    4. Return for display and verification
+    3. Place each value as shunt or series per topology (Pi/T)
     """
-    g_values = get_normalized_values(order, filter_type, ripple)
-    capacitors = [denormalize_cap(g, Z0, fc) for g in g_caps]
-    inductors = [denormalize_ind(g, Z0, fc) for g in g_inds]
-    return {
-        'filter_type': filter_type,
-        'freq_hz': freq_hz,
-        'impedance': impedance,
-        'order': order,
-        'capacitors': capacitors,
-        'inductors': inductors,
-        'topology': 'pi',
-        'ripple': ripple,
-    }
+    return capacitors, inductors, order   # tuple, not a dict
 ```
 
-**Result Dictionary** (Standard across all filters):
-```python
-{
-    'filter_type': 'butterworth' | 'chebyshev' | 'bessel',
-    'freq_hz': float,                    # Frequency in Hz
-    'impedance': float,                  # Impedance in ohms
-    'order': int,                        # Filter order (2-9)
-    'capacitors': list[float],           # Values in Farads
-    'inductors': list[float],            # Values in Henries
-    'ripple': float | None,              # Chebyshev ripple in dB
-    'topology': 'pi' | 't' | 'top' | 'shunt',
-}
-```
+**Return Shapes**:
+- **LP/HP**: tuple `(capacitors, inductors, order)` — lists of float values in Farads/Henries. Display layers combine the tuple with frequency/impedance/topology metadata into a result dict for formatting.
+- **Bandpass**: `calculate_bandpass_filter()` returns a dict with `f0`, `f_low`/`f_high`, `bw`, `fbw`, `z0`, `n_resonators`, `g_values`, `qe_in`/`qe_out`, `L_resonant`/`C_resonant`, `c_coupling`, `c_tank`, `c_end_in`/`c_end_out`, `q_min`, and `warnings`.
 
 #### `transfer.py`
 ```python
@@ -245,7 +225,7 @@ class FilterWizardApp(App):
 class FilterState:
     category: str = ""              # lowpass, highpass, bandpass
     filter_type: str = "butterworth"  # butterworth, chebyshev, bessel
-    topology: str = "pi"            # pi, t (for LP/HP); top, shunt (BP)
+    topology: str = "pi"            # pi, t (for LP/HP); top (BP)
     frequency_hz: float = 0.0
     bandwidth_hz: float = 0.0       # bandpass only
     impedance: float = 50.0
@@ -271,7 +251,7 @@ Each screen extends `Screen` and uses Textual widgets:
 
 3. **BandpassScreen** - Bandpass-specific parameters
    - Input fields: center_frequency, bandwidth, impedance, resonators
-   - Select/Radio: topology (top/shunt), response type
+   - Select/Radio: response type (coupling is always top-C series)
    - Conditional ripple field
    - On submit: push output_options screen
 
@@ -288,7 +268,7 @@ Each screen extends `Screen` and uses Textual widgets:
    - On calculation complete: displays formatted output
    - Prompt for frequency response plot (Y/n)
 
-**`calculation_handler.py` - Calculation Orchestration** (35 LOC)
+**`calculation_handler.py` - Calculation Orchestration** (34 LOC)
 
 Router for orchestrating calculations (refactored):
 
@@ -304,10 +284,10 @@ def calculate_and_format(state: FilterState) -> str:
 ```
 
 **Calculation & Formatting (Extracted)**:
-- `filter_type_calculators.py` (185 LOC) - LP/HP/BP type-specific calculations
-- `formatting_helpers.py` (155 LOC) - Wizard output formatting
-- `filter_screen_navigation_mixin.py` (46 LOC) - Reusable screen navigation logic
-- `radio_button_helpers.py` (19 LOC) - Radio button widget utilities
+- `filter_type_calculators.py` (202 LOC) - LP/HP/BP type-specific calculations
+- `formatting_helpers.py` (115 LOC) - Wizard output formatting
+- `filter_screen_navigation_mixin.py` (43 LOC) - Reusable screen navigation logic
+- `radio_button_helpers.py` (20 LOC) - Radio button widget utilities
 
 Module responsibilities:
 - calculation_handler.py - Routing only
@@ -316,28 +296,15 @@ Module responsibilities:
 - filter_screen_navigation_mixin.py - Shared navigation behavior for screens
 - radio_button_helpers.py - Reusable radio button widget creation
 
-**`validation.py` - Input Validators**
+**Input validation** lives inside each parameter screen (`screens/lowpass.py`, `screens/highpass.py`, `screens/bandpass.py`): each screen validates its own fields (positive/finite frequency and impedance, order range, Chebyshev odd-order and ripple) via the shared parsing helpers before navigating forward.
 
-Reusable validators for user inputs:
-- `validate_frequency(hz)` - Must be positive
-- `validate_impedance(ohms)` - Must be positive
-- `validate_order(n, category)` - 2-9 range
-- `validate_ripple(db)` - Must be positive
-
-**`styles.tcss` - Textual CSS** (192 lines)
+**`styles.tcss` - Textual CSS** (197 lines)
 
 Styling rules for all screens:
 - Input field focus colors
 - Button highlighting
 - Scrollbar styling
 - Grid layouts
-
-**`widgets/` directory - Custom Widgets**
-
-Placeholder for future custom Textual widget extensions:
-- Can add custom Input subclasses for specialized validation
-- Can add composite widgets combining multiple Textual widgets
-- Currently minimal: future enhancement point for reusable UI components
 
 #### User Interaction Flow
 
@@ -405,9 +372,9 @@ Placeholder for future custom Textual widget extensions:
 
 **Location**: `filter_lib/shared/`
 
-**New Base Modules (LP/HP Strategy Pattern)**:
-- `lp_hp_base_calculations.py` (342 LOC) - Shared LP/HP calculation logic via strategy
-- `lp_hp_base_transfer_functions.py` (164 LOC) - Shared transfer function calculations
+**Base Modules (LP/HP Strategy Pattern)**:
+- `lp_hp_base_calculations.py` (377 LOC) - Shared LP/HP calculation logic via strategy
+- `lp_hp_base_transfer_functions.py` (167 LOC) - Shared transfer function calculations
 
 These modules implement the Strategy pattern to handle differences between LP and HP filters, reducing duplication in `lowpass/calculations.py` and `highpass/calculations.py`.
 
@@ -436,21 +403,20 @@ E12_VALUES = [10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82, ...]
 E24_VALUES = [10, 11, 12, 13, 15, 16, 18, 20, ...]
 E96_VALUES = [100, 102, 105, 107, 110, ...]
 
-def find_eseries_match(value_farads, series='E24'):
-    """Find nearest E-series value."""
-    # Algorithm: Find closest value, then find best parallel combo
+def match_component(value, series='E24'):       # eseries.py
+    """Find nearest single value and best parallel combo."""
 
-def format_eseries_match(value, series, format_func):
+def format_eseries_match(value, series, ...):   # display_helpers.py
     """Format recommendation output."""
 ```
 
 **Matching Algorithm**:
-1. Find single closest E-series value
-2. Find best parallel combination (two values)
+1. Find single closest E-series value (`find_closest_single`)
+2. Find best parallel combination of two standard values (`find_parallel_combo`)
 3. Return both with error percentages
 4. User chooses which to use
 
-**Note**: As of v1.1+, E-series matching applies to **capacitors only**. Inductor E-series recommendations were removed in anticipation of future component tolerance enhancements.
+**Note**: E-series matching applies to **capacitors only** (policy finalized in v2.0.0). Inductors are shown raw — the builder winds them to value on a toroid.
 
 #### Display Common (`display_common.py`)
 ```python
@@ -483,17 +449,20 @@ def print_t_topology_diagram(n_series, n_shunt, series_label='L', shunt_label='C
     # Example for lowpass T (L - C pattern)
 ```
 
-#### Transfer Functions (`transfer_functions.py`)
+#### Transfer Functions (`transfer_functions.py` + `lp_hp_base_transfer_functions.py`)
 ```python
-# Frequency response calculations
-def butterworth_response(normalized_freq):
-    """H(s) = 1 / (1 + s^n)^0.5"""
+# transfer_functions.py — shared response utilities
+def generate_frequency_points(...):
+    """Log-spaced sweep points around the cutoff."""
 
-def chebyshev_response(normalized_freq, ripple_db):
-    """H(s) using Chebyshev polynomial of first kind"""
+def chebyshev_polynomial(n, x):
+    """Chebyshev polynomial of the first kind."""
 
-def bessel_response(normalized_freq):
-    """H(s) using Bessel polynomial"""
+def magnitude_to_db(magnitude):
+    """Convert |H| to dB."""
+
+# lp_hp_base_transfer_functions.py — Butterworth/Chebyshev/Bessel
+# magnitude responses shared by LP and HP (ratio inverted for HPF)
 ```
 
 #### Plotting (Modular Structure - Apr 2026)
@@ -538,24 +507,28 @@ Frequency Response (dB)         Passband Detail (0 to -6 dB)
                                     └────────┴──────────────┘
 ```
 
+#### Netlist Simulation (`netlist_simulation.py` + `netlist_builders.py`)
+
+Pure-stdlib AC nodal-analysis solver used for bandpass response validation:
+- `netlist_builders.py` synthesizes the circuit branch list from the designed component values (tanks, series coupling caps, end-coupling caps, terminations)
+- `netlist_simulation.py` solves the complex nodal equations across a frequency sweep — no external SPICE dependency
+- Bandpass plots and `--plot-data` exports come from this simulation of the synthesized circuit, not idealized prototype responses
+- Simulation-proven support is capped at ≤10% fractional bandwidth (a warning is emitted above the threshold)
+
 #### Constants (`constants.py`)
 ```python
-# Physical constants and defaults
-DEFAULT_IMPEDANCE = 50  # Ohms
-DEFAULT_RIPPLE = 0.5    # dB
-MIN_ORDER = 2
-MAX_ORDER = 9
-SUPPORTED_RESPONSE_TYPES = ['butterworth', 'chebyshev', 'bessel']
+# Bessel filter lookup tables (Zverev / Matthaei-Young-Jones)
+BESSEL_G_VALUES: dict[int, list[float]]   # normalized element values, orders 2-9
 ```
 
 #### Chebyshev Calculator (`chebyshev_g_calculator.py`)
 ```python
 # Normalized g-values for Chebyshev filters
-def get_chebyshev_g_values(order, ripple_db):
-    """Lookup or calculate normalized g-values.
+def calculate_chebyshev_g_values(n, ripple_db):
+    """Compute normalized g-values by closed-form formula.
 
-    Based on tables in Matthaei/Young/Jones,
-    which define normalized prototype filters.
+    Supports arbitrary ripple in (0, 3.0] dB — no lookup tables.
+    Uses exact dB→neper conversion (40/ln(10)).
     """
 ```
 
@@ -580,7 +553,7 @@ Input Validation (parsing.py):
 Calculation (lowpass/calculations.py):
   1. Get normalized g-values for butterworth, n=5
   2. Denormalize to 10 MHz with 50Ω impedance
-  3. Return result dict with capacitors, inductors
+  3. Return (capacitors, inductors, order) tuple
 
            ↓
 
@@ -682,11 +655,11 @@ FILTER_TYPE_ALIASES = {
 
 **Error message**: "Chebyshev filters with equal source/load terminations require odd order (3, 5, 7, 9)"
 
-**Ripple range**: 0 < ripple ≤ 3.0 dB supported everywhere (CLI and wizard both accept arbitrary values; formula-based g-value calculation).
+**Ripple range**: Arbitrary ripple in (0, 3.0] dB is supported via formula-based g-value calculation. The wizard enforces the full range for all filter types, and the bandpass CLI enforces 0 < ripple ≤ 3.0 dB; the LP/HP CLI currently validates only ripple > 0 (no upper bound enforced).
 
 ### Bandpass True -3 dB Edges
 
-**Source of Truth**: `filter_lib/bandpass/calculations.py::compute_bandpass_3db_edges(f_low, f_high, bw, order, ripple_db, response_type)`
+**Source of Truth**: `filter_lib/bandpass/calculations.py::compute_bandpass_3db_edges(f0, bw)`
 
 Instead of `f₀ ± BW/2`, true -3 dB edges are computed by solving `(f² - f₀²)/(BW·f) = ±1` using the quadratic formula.
 
@@ -711,9 +684,10 @@ For Chebyshev BP, user `bw` is true -3 dB BW via `chebyshev_3db_deviation()` in 
 - Series capacitors (T) → primary component
 - Shunt inductors (Pi) → primary component
 
-**Bandpass**: Top-coupled (series) or shunt-coupled (parallel) resonators
-- Top-coupled: series coupling capacitors
-- Shunt-coupled: parallel coupling capacitors
+**Bandpass**: Top-coupled (series) resonators only
+- Series inter-resonator coupling capacitors (Cs12, Cs23, ...)
+- Series end-coupling capacitors (Ce_in/Ce_out) realize the external Q at each port (Rp = Qe·ω0·L)
+- Shunt-coupled topology was removed in v2.0.0 — netlist simulation showed it cannot realize the designed passband
 
 ## Error Handling
 
@@ -735,8 +709,9 @@ raise ValueError(f"Frequency must be positive, got {freq}")
 # RuntimeError: Unexpected condition
 raise RuntimeError(f"Failed to calculate g-values for order {n}")
 
-# Click.BadParameter: CLI argument error (automatic)
-# Handled by Click framework, shown to user
+# argparse errors (unknown flags, invalid choices) are reported by
+# the parser itself; CLI run() functions catch ValueError from the
+# shared validators and print a clean "Error: ..." message
 ```
 
 ## Performance Characteristics
@@ -783,9 +758,10 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 - Enforced on all pushes via GitHub Actions
 - 67 files reformatted (Feb 2026, commit cc4e9c1)
 
-**Testing**: 1046 tests, 94% coverage
+**Testing**: 1227 tests, 94% coverage
 - Unit tests for all calculation modules
 - Integration tests for CLI and wizard
+- Bandpass synthesis validated by built-in netlist simulation (acceptance: -3 dB BW within 3%, f₀ within 0.5%)
 - Coverage enforced via pytest-cov in CI
 
 **CI/CD Pipeline** (.github/workflows/ci.yml):
@@ -793,7 +769,7 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 2. **Format** (ruff format --check) - Code style compliance
 3. **Test** (pytest --cov=filter_lib) - All tests with coverage
 
-**Test Metrics** (as of Apr 24, 2026):
-- Total: 1211 tests (94% coverage, ~0.5s runtime)
+**Test Metrics** (as of Jun 12, 2026):
+- Total: 1227 tests (94% coverage, ~3s runtime)
 
 See [code-standards.md](./code-standards.md) for linting rules and [testing.md](./testing.md) for test coverage details.

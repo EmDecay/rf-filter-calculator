@@ -1,5 +1,15 @@
 # Project Changelog
 
+## 2026-06-12 — Validation Hardening + Test Strengthening
+
+- **`--version` fallback**: CLI falls back to `filter_lib.__version__` when distribution metadata is unavailable, so source-checkout runs don't fail during parser construction; `__version__` corrected to 2.0.0.
+- **Wizard ripple validation**: all three parameter screens reject non-finite (NaN/inf) Chebyshev ripple before storing it in filter state, with regression coverage.
+- **Test strengthening**: stronger assertions and added coverage across bandpass, E-series, CLI, and netlist-simulation tests; unreachable defensive guards removed from `eseries.py`, `lp_hp_base_transfer_functions.py`, and `plot_threshold_analysis.py`.
+
+**Test Stats**: 1227 tests passing, 94% coverage.
+
+---
+
 ## 2026-06-12 — Capacitors-Only E-Series Matching
 
 **BREAKING**: E-series matching now applies to capacitors only. Inductor standard-match
@@ -42,7 +52,7 @@ One coordinated breaking release so the CLI surface changes land once.
 2. **`--verify` removed** from `bandpass` — its three self-checks are covered by the unit test suite.
 3. **`CHEBYSHEV_G_VALUES` lookup table deleted** (`shared/constants.py`); `bandpass.get_chebyshev_g_values` now computes g-values via `shared/chebyshev_g_calculator` for **arbitrary ripple in (0, 3.0]** (was limited to 0.1/0.5/1.0 dB). The `filter_lib.bandpass.CHEBYSHEV_G_VALUES` re-export is gone.
 4. **Default resonator count is 3** (was 2) so the default works with Chebyshev (odd order required).
-5. **Toroid table output defaults to top-1 core per inductor** (was top-3). New `--toroid-full` flag restores top-3 in table output; JSON/CSV always carry top-3.
+5. **Toroid table output defaults to top-1 core per inductor** (was top-3). New `--toroid-full` flag restores top-3 in table output; JSON always carries top-3 (CSV rows carry the best match).
 6. **Missing required args now exit 2 with a usage line** (argparse error including a working example) instead of `Error: ...` with exit 1.
 7. **Supplying `-r/--ripple` with butterworth/bessel warns on stderr** ("ripple is only used by Chebyshev; ignoring") and proceeds. Bandpass ripple is range-validated: `0 < r <= 3.0`.
 

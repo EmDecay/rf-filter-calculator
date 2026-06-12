@@ -52,7 +52,7 @@ Get the most out of RF Filter Calculator.
 
 ### Parallel Combinations
 
-The calculator suggests parallel combinations that can achieve tighter tolerances than single components. For capacitors, values add directly. For inductors, the parallel formula applies.
+The calculator suggests parallel capacitor combinations that can achieve tighter tolerances than single components (values add directly). Inductors are not E-series matched — wind them to value using the toroid recommendations.
 
 Example: Need 196.73 pF
 - Single E24: 200 pF (+1.7% error)
@@ -72,15 +72,9 @@ Example: Need 196.73 pF
 - More precise control
 - Calculator computes geometric center
 
-### Coupling Topology Selection
+### Coupling Topology
 
-**Top-coupled (series)**: Default choice
-- More common in amateur applications
-- Easier to tune
-
-**Shunt-coupled (parallel)**:
-- Alternative for specific impedance requirements
-- May work better at certain frequency ranges
+**Top-coupled (series)** is the only supported coupling: series capacitors couple adjacent resonators, and series end-coupling capacitors (Ce_in/Ce_out) realize the external Q at the ports. (Shunt-coupled topology was removed in v2.0.0 — netlist simulation showed it cannot realize the designed passband.)
 
 ### Resonator Count
 
@@ -147,7 +141,7 @@ Best for:
 - Preserving full precision
 
 ```bash
-uv run filter-calc lp bw 10MHz --format json | jq '.components'
+uv run filter-calc lp bw pi 10MHz --format json | jq '.components'
 ```
 
 ### CSV
@@ -158,7 +152,7 @@ Best for:
 - Documentation
 
 ```bash
-uv run filter-calc lp bw 10MHz --format csv > bom.csv
+uv run filter-calc lp bw pi 10MHz --format csv > bom.csv
 ```
 
 ---
@@ -169,7 +163,7 @@ uv run filter-calc lp bw 10MHz --format csv > bom.csv
 
 1. Start with `--explain` to understand filter types
 2. Run with no arguments for the wizard if unfamiliar with designs
-3. Try different orders: `uv run filter-calc lp bw 10MHz -n 3` vs `-n 5`
+3. Try different orders: `uv run filter-calc lp bw pi 10MHz -n 3` vs `-n 5`
 4. Compare Butterworth vs Chebyshev at same order
 5. Use `--plot` to visualize response
 
@@ -189,7 +183,7 @@ uv run filter-calc bp bw top -f 14.175MHz -b 350kHz --plot-data json > response.
 #!/bin/bash
 for freq in 7.1 14.175 21.2 28.5; do
     echo "=== ${freq} MHz filter ==="
-    uv run filter-calc lp bw ${freq}MHz -n 5 --format json
+    uv run filter-calc lp bw pi ${freq}MHz -n 5 --format json
 done > all_designs.json
 ```
 
@@ -199,9 +193,9 @@ done > all_designs.json
 
 | Band | Center | Example Command |
 |------|--------|-----------------|
-| 160m | 1.9 MHz | `lp bw 1.9MHz -n 5` |
-| 80m | 3.75 MHz | `lp bw 3.75MHz -n 5` |
-| 40m | 7.15 MHz | `lp bw 7.15MHz -n 5` |
+| 160m | 1.9 MHz | `lp bw pi 1.9MHz -n 5` |
+| 80m | 3.75 MHz | `lp bw pi 3.75MHz -n 5` |
+| 40m | 7.15 MHz | `lp bw pi 7.15MHz -n 5` |
 | 20m | 14.175 MHz | `bp bw top -f 14.175MHz -b 350kHz` |
-| 15m | 21.2 MHz | `lp bw 21.2MHz -n 5` |
-| 10m | 28.5 MHz | `lp bw 28.5MHz -n 5` |
+| 15m | 21.2 MHz | `lp bw pi 21.2MHz -n 5` |
+| 10m | 28.5 MHz | `lp bw pi 28.5MHz -n 5` |
