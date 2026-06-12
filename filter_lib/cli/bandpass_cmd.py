@@ -31,8 +31,8 @@ def setup_parser(parser: ArgumentParser) -> None:
     parser.add_argument(
         "coupling_pos",
         nargs="?",
-        choices=["top", "shunt", "t", "s"],
-        help="Coupling topology (top=series, shunt=parallel)",
+        choices=["top", "t"],
+        help="Coupling topology (top=series capacitive coupling)",
     )
 
     parser.add_argument(
@@ -46,7 +46,7 @@ def setup_parser(parser: ArgumentParser) -> None:
         "-c",
         "--coupling",
         dest="coupling_flag",
-        choices=["top", "shunt", "t", "s"],
+        choices=["top", "t"],
         help="Coupling topology (alternative)",
     )
 
@@ -132,7 +132,7 @@ def run(args: Namespace) -> None:
     if not filter_type:
         raise ValueError("Filter type required (butterworth/chebyshev/bessel)")
     if not coupling:
-        raise ValueError("Coupling topology required (top/shunt)")
+        raise ValueError("Coupling topology required (top)")
 
     filter_type = resolve_filter_type(filter_type)
     coupling = resolve_coupling(coupling)

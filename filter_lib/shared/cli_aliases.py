@@ -9,10 +9,11 @@ FILTER_TYPE_ALIASES: dict[str, str] = {
     "bs": "bessel",
 }
 
-# Coupling topology aliases
+# Coupling topology aliases. Only Top-C exists: capacitive bottom (shunt)
+# coupling cannot realize the designed response (simulation-verified), so it
+# was removed.
 COUPLING_ALIASES: dict[str, str] = {
     "t": "top",
-    "s": "shunt",
 }
 
 # Default parameter values

@@ -587,7 +587,7 @@ class TestFormatEseriesMatchEdgeCases:
         """Zero value E-series matching."""
         # This might not be physically meaningful but should not crash
         try:
-            result = format_eseries_match(0, "E12", format_capacitance)
+            result = format_eseries_match(0, "E12", format_capacitance, parallel_mode="additive")
             assert isinstance(result, list)
         except (ValueError, ZeroDivisionError):
             # Acceptable to raise error for zero
@@ -595,20 +595,20 @@ class TestFormatEseriesMatchEdgeCases:
 
     def test_very_small_value_eseries(self):
         """Very small value E-series matching."""
-        result = format_eseries_match(1e-15, "E12", format_capacitance)
+        result = format_eseries_match(1e-15, "E12", format_capacitance, parallel_mode="additive")
         assert isinstance(result, list)
         assert len(result) > 0
 
     def test_very_large_value_eseries(self):
         """Very large value E-series matching."""
-        result = format_eseries_match(1.0, "E12", format_capacitance)
+        result = format_eseries_match(1.0, "E12", format_capacitance, parallel_mode="additive")
         assert isinstance(result, list)
         assert len(result) > 0
 
     def test_exact_match_zero_error(self):
         """Exact E-series match (0% error)."""
         # 100 pF is in E12 series
-        result = format_eseries_match(100e-12, "E12", format_capacitance)
+        result = format_eseries_match(100e-12, "E12", format_capacitance, parallel_mode="additive")
         assert isinstance(result, list)
         # Should show match info
 
@@ -621,3 +621,14 @@ class TestFormatEseriesMatchEdgeCases:
         """Parallel mode harmonic (for inductors)."""
         result = format_eseries_match(150e-9, "E12", format_inductance, parallel_mode="harmonic")
         assert isinstance(result, list)
+
+    def test_parallel_display_keeps_units_on_both_values(self):
+        """A decade-spanning pair must show units on each value, not just the second."""
+        # 2.9 nF in E12 matches best as 680 pF || 2.2 nF — a bare "680.00"
+        # would be misread as nF
+        result = format_eseries_match(2.9e-9, "E12", format_capacitance, parallel_mode="additive")
+        parallel_lines = [ln for ln in result if "||" in ln]
+        assert parallel_lines, "expected a parallel match line"
+        left, right = parallel_lines[0].split("||")
+        assert "pF" in left
+        assert "nF" in right

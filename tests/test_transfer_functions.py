@@ -214,8 +214,9 @@ class TestBandpassTransfer:
             bp_transfer.magnitude_db(14e6, 14e6, 1e6, 3, "invalid")
 
     def test_magnitude_db_floor(self):
+        """Deep-stopband response floors at -120 dB, same as LP/HP."""
         db = bp_transfer.magnitude_db(100e6, 14e6, 1e6, 5, "butterworth")
-        assert db >= -100.0
+        assert db == -120.0
 
     def test_frequency_sweep_defaults(self):
         result = bp_transfer.frequency_sweep(14e6, 1e6, 3, "butterworth")
@@ -262,3 +263,67 @@ class TestBandpassTransfer:
         lines = csv_str.split("\n")
         assert lines[0] == "freq_hz,magnitude_db"
         assert len(lines) == 3
+
+
+class TestNetlistSweep:
+    """Netlist-true bandpass response (simulated from synthesized values)."""
+
+    @staticmethod
+    def _result(fbw, n=3, ftype="butterworth"):
+        from filter_lib.bandpass.calculations import calculate_bandpass_filter
+
+        f0 = 10e6
+        return calculate_bandpass_filter(f0, f0 * fbw, 50, n, ftype, "top")
+
+    def test_peak_near_unity_at_center(self):
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+        result = self._result(0.05)
+        sweep = netlist_frequency_sweep(result, points=201)
+        peak_db = max(db for _, db in sweep)
+        assert peak_db == pytest.approx(0.0, abs=0.1)
+
+    def test_3db_crossings_match_printed_cutoffs(self):
+        """The -3 dB points of the simulated response agree with f_low/f_high."""
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+        result = self._result(0.10)
+        sweep = netlist_frequency_sweep(result, decades=0.15, points=2001)
+        peak = max(db for _, db in sweep)
+        above = [f for f, db in sweep if db >= peak - 3.0103]
+        f_lo_meas, f_hi_meas = above[0], above[-1]
+        assert f_lo_meas == pytest.approx(result["f_low"], rel=0.03)
+        assert f_hi_meas == pytest.approx(result["f_high"], rel=0.03)
+
+    def test_netlist_diverges_from_prototype_at_wide_fbw(self):
+        """At 20% FBW the real circuit skews away from the symmetric prototype.
+
+        This is why plots are simulated rather than computed from the
+        prototype: reverting would silently show users an idealized shape
+        their built filter cannot reproduce.
+        """
+        from filter_lib.bandpass.transfer import frequency_sweep, netlist_frequency_sweep
+
+        result = self._result(0.20)
+        netlist = netlist_frequency_sweep(result, points=201)
+        prototype = frequency_sweep(
+            result["f0"], result["bw"], result["n_resonators"], result["filter_type"], points=201
+        )
+        deltas = [abs(a - b) for (_, a), (_, b) in zip(netlist, prototype)]
+        assert max(deltas) > 1.0
+
+    def test_netlist_response_factory_matches_sweep(self):
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+        from filter_lib.shared.transfer_response_dispatch import make_bp_netlist_response_db
+
+        result = self._result(0.05)
+        response_db = make_bp_netlist_response_db(result)
+        sweep = netlist_frequency_sweep(result, points=21)
+        for f, db in sweep[::5]:
+            assert response_db(f) == pytest.approx(db, abs=1e-9)
+
+    def test_netlist_sweep_rejects_too_few_points(self):
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+        with pytest.raises(ValueError, match="points"):
+            netlist_frequency_sweep(self._result(0.05), points=1)

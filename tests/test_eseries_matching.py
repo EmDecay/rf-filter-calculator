@@ -174,27 +174,46 @@ class TestParallelCombinations:
             (v1, v2), par_val, error = result
             assert v1 + v2 == par_val
 
-    def test_auto_detect_mode_small_values(self):
-        """Test auto-detection picks additive for small values (capacitors)."""
-        # Small value (< 1e-6) should be treated as capacitor (additive)
-        result = find_parallel_combo(50e-12, "E24", mode="auto")
+    def test_explicit_additive_mode_small_capacitor(self):
+        """Explicit additive mode applies capacitor math regardless of magnitude."""
+        result = find_parallel_combo(50e-12, "E24", mode="additive")
 
-        # Should find a match
         if result:
             (v1, v2), par_val, error = result
             # Additive: C = C1 + C2
             assert abs(v1 + v2 - par_val) < 1e-24
 
-    def test_auto_detect_mode_large_values(self):
-        """Test auto-detection picks harmonic for large values (inductors)."""
-        # Large value (> 1e-6) should be treated as inductor (harmonic)
-        result = find_parallel_combo(1e-3, "E24", mode="auto")
+    def test_explicit_harmonic_mode_large_inductor(self):
+        """Explicit harmonic mode applies inductor math regardless of magnitude."""
+        result = find_parallel_combo(1e-3, "E24", mode="harmonic")
 
         if result:
             (v1, v2), par_val, error = result
             # Harmonic: L = L1*L2/(L1+L2)
             calc_par = (v1 * v2) / (v1 + v2)
             assert abs(calc_par - par_val) < 1e-15
+
+    def test_mode_is_required(self):
+        """Omitting mode raises: component physics cannot be inferred from value."""
+        with pytest.raises(ValueError, match="additive.*harmonic|harmonic.*additive"):
+            find_parallel_combo(50e-12, "E24")
+
+    def test_auto_mode_rejected(self):
+        """The former magnitude-based auto mode is no longer accepted."""
+        with pytest.raises(ValueError):
+            find_parallel_combo(50e-12, "E24", mode="auto")
+
+    def test_match_component_requires_parallel_mode(self):
+        """match_component also requires an explicit parallel mode."""
+        with pytest.raises(ValueError):
+            match_component(150e-12, "E24")
+
+    def test_explicit_additive_combo_for_microhenry_scale_value(self):
+        """A 3.2e-6 target with additive mode gets capacitor-style (sum) combos."""
+        result = find_parallel_combo(3.2e-6, "E24", "additive")
+        assert result is not None
+        (v1, v2), par_val, _ = result
+        assert abs(v1 + v2 - par_val) < 1e-18
 
     def test_parallel_ratio_limit(self):
         """Test ratio limit prevents extreme value differences."""
@@ -218,7 +237,7 @@ class TestComponentMatching:
 
     def test_match_component_returns_eseriesmatch(self):
         """Test that match_component returns ESeriesMatch object."""
-        result = match_component(150e-12, "E24")
+        result = match_component(150e-12, "E24", parallel_mode="additive")
 
         assert isinstance(result, ESeriesMatch)
         assert result.target == 150e-12
@@ -228,7 +247,7 @@ class TestComponentMatching:
     def test_eseriesmatch_fields(self):
         """Test ESeriesMatch data structure."""
         target = 138.8e-12
-        result = match_component(target, "E24")
+        result = match_component(target, "E24", parallel_mode="additive")
 
         # Must have single value
         assert result.single_value > 0
@@ -244,7 +263,7 @@ class TestComponentMatching:
         """Test case where parallel matches better than single."""
         # 138.8 pF might match better with parallel combination
         target = 138.8e-12
-        result = match_component(target, "E24")
+        result = match_component(target, "E24", parallel_mode="additive")
 
         if result.parallel:
             # Parallel should be better or equal
@@ -253,7 +272,7 @@ class TestComponentMatching:
     def test_matching_real_world_capacitor(self):
         """Test matching real-world capacitor value from lowpass filter."""
         # From lowpass Butterworth example: 138.8 pF
-        result = match_component(138.8e-12, "E24")
+        result = match_component(138.8e-12, "E24", parallel_mode="additive")
 
         assert result.single_value > 0
         # Should match within E24 tolerance
@@ -262,7 +281,7 @@ class TestComponentMatching:
     def test_matching_real_world_inductor(self):
         """Test matching real-world inductor value from lowpass filter."""
         # From lowpass Butterworth example: 1.457 µH
-        result = match_component(1.457e-6, "E24")
+        result = match_component(1.457e-6, "E24", parallel_mode="harmonic")
 
         assert result.single_value > 0
         # Should match within tolerance
@@ -273,14 +292,14 @@ class TestComponentMatching:
         target = 150e-12
 
         for series in ["E12", "E24", "E96"]:
-            result = match_component(target, series)
+            result = match_component(target, series, parallel_mode="additive")
             assert result.single_value > 0
             assert result.single_error_pct is not None
 
     def test_invalid_series_raises(self):
         """Test invalid series raises error."""
         with pytest.raises(ValueError):
-            match_component(150e-12, "E48")
+            match_component(150e-12, "E48", parallel_mode="additive")
 
 
 class TestMatchingPhysicalReality:
@@ -288,12 +307,12 @@ class TestMatchingPhysicalReality:
 
     def test_100pf_standard_capacitor(self):
         """Test matching 100 pF (very common)."""
-        result = match_component(100e-12, "E24")
+        result = match_component(100e-12, "E24", parallel_mode="additive")
         assert result.single_error_pct == 0.0  # Exact match
 
     def test_1uh_standard_inductor(self):
         """Test matching 1 µH (very common)."""
-        result = match_component(1e-6, "E24")
+        result = match_component(1e-6, "E24", parallel_mode="harmonic")
         # Should match either 1.0 or nearby value
         assert abs(result.single_error_pct) < 5
 
@@ -302,8 +321,8 @@ class TestMatchingPhysicalReality:
         target_pf = 150e-12
         target_nf = 150e-9
 
-        result_pf = match_component(target_pf, "E24")
-        result_nf = match_component(target_nf, "E24")
+        result_pf = match_component(target_pf, "E24", parallel_mode="additive")
+        result_nf = match_component(target_nf, "E24", parallel_mode="additive")
 
         # Both should have same error percentage despite different scales
         assert abs(result_pf.single_error_pct - result_nf.single_error_pct) < 1e-10
@@ -312,9 +331,9 @@ class TestMatchingPhysicalReality:
         """Test typical tolerance progression E12 > E24 > E96."""
         target = 347e-12  # Not exact in any series
 
-        match_component(target, "E12")
-        result_e24 = match_component(target, "E24")
-        result_e96 = match_component(target, "E96")
+        match_component(target, "E12", parallel_mode="additive")
+        result_e24 = match_component(target, "E24", parallel_mode="additive")
+        result_e96 = match_component(target, "E96", parallel_mode="additive")
 
         # E24 tolerance ±5%, E12 ±10%, E96 ±1%
         # For odd values, E96 should match better

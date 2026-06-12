@@ -27,7 +27,7 @@ Examples:
   %(prog)s highpass bw t 10MHz -n 5
   %(prog)s hp ch 10MHz --topology pi -r 0.5
   %(prog)s bandpass bw top -f 14.2MHz -b 500kHz
-  %(prog)s bp ch shunt --fl 14MHz --fh 14.35MHz -n 7""",
+  %(prog)s bp ch top --fl 14MHz --fh 14.35MHz -n 7""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 

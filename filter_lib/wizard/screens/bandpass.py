@@ -39,9 +39,8 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                 yield Static("Coupling Topology", classes="form-section-title")
                 with RadioSet(id="coupling"):
                     yield RadioButton(
-                        "Top-C (Series) - Better for wider bandwidth", value=True, id="top"
+                        "Top-C (Series) - capacitively coupled resonators", value=True, id="top"
                     )
-                    yield RadioButton("Shunt-C (Parallel) - Better for narrow < 10%", id="shunt")
 
             # Frequency Parameters
             with Vertical(classes="form-section"):
@@ -238,7 +237,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         state: FilterState = self.app.filter_state
         state.category = "bandpass"
         state.filter_type = filter_type
-        state.topology = coupling  # top or shunt
+        state.topology = coupling  # top
         state.frequency_hz = f0
         state.bandwidth_hz = bw
         state.impedance = impedance

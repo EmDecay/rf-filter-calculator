@@ -525,7 +525,7 @@ class TestCalculateBandpass:
             impedance=50.0,
             order=3,  # Chebyshev requires odd resonator count
             ripple_db=0.5,
-            topology="shunt",
+            topology="top",
             output_format="table",
             quiet=False,
             raw_units=False,
@@ -868,15 +868,15 @@ class TestFormatBandpassTable:
         assert "Coupling Capacitors" in output
         assert "External Q" in output
 
-    def test_format_bandpass_shunt_coupling(self):
-        """Test formatting bandpass with shunt-C coupling."""
+    def test_format_bandpass_is_top_c_only(self):
+        """Bandpass formatting always renders Top-C (shunt-C was removed)."""
         result = {
             "filter_type": "butterworth",
             "f0": 10e6,
             "bw": 500e3,
             "z0": 50.0,
             "n_resonators": 3,
-            "coupling": "shunt",
+            "coupling": "top",
             "fbw": 0.05,
             "L_resonant": 1e-6,
             "c_tank": [100e-12, 100e-12, 100e-12],
@@ -893,7 +893,8 @@ class TestFormatBandpassTable:
         lines = format_bandpass_table(result, state)
 
         output = "\n".join(lines)
-        assert "Shunt-C Coupled" in output
+        assert "Top-C Coupled" in output
+        assert "Shunt" not in output
 
     def test_format_bandpass_with_warnings(self):
         """Test formatting bandpass with warnings."""

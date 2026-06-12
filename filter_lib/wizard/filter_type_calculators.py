@@ -193,7 +193,7 @@ def calculate_bandpass(state: FilterState) -> list[str]:
     """Calculate bandpass filter and return formatted output lines."""
     from filter_lib.bandpass import calculate_bandpass_filter
     from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
-    from filter_lib.bandpass.transfer import frequency_sweep
+    from filter_lib.bandpass.transfer import netlist_frequency_sweep
     from filter_lib.shared.plotting import (
         find_db_thresholds,
         format_threshold_table,
@@ -228,25 +228,12 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         lines.extend(format_bandpass_eseries_recs(result, state.eseries))
 
     if state.show_plot:
-        from filter_lib.shared.transfer_response_dispatch import make_bp_response_db
+        from filter_lib.shared.transfer_response_dispatch import make_bp_netlist_response_db
 
         ripple_val = result.get("ripple_db") or 0.5
-        sweep = frequency_sweep(
-            result["f0"],
-            result["bw"],
-            result["n_resonators"],
-            result["filter_type"],
-            ripple_db=ripple_val,
-            points=61,
-        )
+        sweep = netlist_frequency_sweep(result, points=61)
         title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"
-        response_fn = make_bp_response_db(
-            result["f0"],
-            result["bw"],
-            result["n_resonators"],
-            result["filter_type"],
-            ripple_val,
-        )
+        response_fn = make_bp_netlist_response_db(result)
         lines.append("")
         lines.append(
             render_bandpass_plot_pair(

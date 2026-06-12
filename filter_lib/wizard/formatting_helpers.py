@@ -125,25 +125,37 @@ def format_bandpass_eseries_recs(result: dict, eseries: str) -> list[str]:
 
     for i, ct in enumerate(result["c_tank"]):
         lines.append(f"Cp{i + 1} Calculated: {format_capacitance(ct)}")
-        for line in format_eseries_match(ct, eseries, format_capacitance):
+        for line in format_eseries_match(ct, eseries, format_capacitance, parallel_mode="additive"):
             lines.append(line)
 
-    for i, cs in enumerate(result["c_coupling"]):
-        lines.append(f"Cs{i + 1}{i + 2} Calculated: {format_capacitance(cs)}")
-        for line in format_eseries_match(cs, eseries, format_capacitance):
+    for label, value in _coupling_cap_items(result):
+        lines.append(f"{label} Calculated: {format_capacitance(value)}")
+        for line in format_eseries_match(
+            value, eseries, format_capacitance, parallel_mode="additive"
+        ):
             lines.append(line)
 
     return lines
 
 
+def _coupling_cap_items(result: dict) -> list[tuple[str, float]]:
+    """Coupling capacitors with end caps (when present) framing the Cs list."""
+    items: list[tuple[str, float]] = []
+    if result.get("c_end_in") is not None:
+        items.append(("Ce_in", result["c_end_in"]))
+    items.extend((f"Cs{i + 1}{i + 2}", cs) for i, cs in enumerate(result["c_coupling"]))
+    if result.get("c_end_out") is not None:
+        items.append(("Ce_out", result["c_end_out"]))
+    return items
+
+
 def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
     """Format bandpass filter results as table."""
-    from filter_lib.bandpass.diagrams import format_shunt_c_diagram, format_top_c_diagram
+    from filter_lib.bandpass.diagrams import format_top_c_diagram
     from filter_lib.shared.formatting import format_capacitance, format_frequency, format_inductance
 
     lines = []
-    coupling = result.get("coupling", "top")
-    coupling_name = "Top-C Coupled" if coupling == "top" else "Shunt-C Coupled"
+    coupling_name = "Top-C Coupled"
     title = f"{result['filter_type'].title()} {coupling_name} Band-Pass Filter"
     lines.append(f"\n{title}")
     lines.append("=" * 60)
@@ -165,10 +177,7 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
     lines.append(f"  (Q safety factor: {result['q_safety']})")
 
     lines.append("\nTopology:")
-    if coupling == "top":
-        lines.append(format_top_c_diagram(result["n_resonators"]))
-    else:
-        lines.append(format_shunt_c_diagram(result["n_resonators"]))
+    lines.append(format_top_c_diagram(result["n_resonators"]))
 
     n = result["n_resonators"]
     h24 = "\u2500" * 24
@@ -192,16 +201,18 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
     lines.append(f"\u2502{'Coupling Capacitors':^24}\u2502")
     lines.append(f"\u251c{h24}\u2524")
 
-    for i, cs in enumerate(result["c_coupling"]):
+    for label, value in _coupling_cap_items(result):
         if state.raw_units:
-            cs_str = f"Cs{i + 1}{i + 2}: {cs:.6e} F"
+            cs_str = f"{label}: {value:.6e} F"
         else:
-            cs_str = f"Cs{i + 1}{i + 2}: {format_capacitance(cs)}"
+            cs_str = f"{label}: {format_capacitance(value)}"
         lines.append(f"\u2502 {cs_str:<22} \u2502")
 
     lines.append(f"\u2514{h24}\u2518")
 
-    lines.append(f"\nExternal Q (input):  {result['qe_in']:.2f}")
-    lines.append(f"External Q (output): {result['qe_out']:.2f}")
+    realized_in = " (realized by Ce_in)" if result.get("c_end_in") is not None else ""
+    realized_out = " (realized by Ce_out)" if result.get("c_end_out") is not None else ""
+    lines.append(f"\nExternal Q (input):  {result['qe_in']:.2f}{realized_in}")
+    lines.append(f"External Q (output): {result['qe_out']:.2f}{realized_out}")
 
     return lines

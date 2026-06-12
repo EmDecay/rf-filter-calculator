@@ -203,7 +203,7 @@ def find_closest_single(target: float, series: str = "E24") -> tuple[float, floa
 
 
 def find_parallel_combo(
-    target: float, series: str = "E24", mode: str = "auto", ratio_limit: float = 10.0
+    target: float, series: str = "E24", mode: str | None = None, ratio_limit: float = 10.0
 ) -> tuple[tuple[float, float], float, float] | None:
     """Find parallel combination closest to target.
 
@@ -211,8 +211,9 @@ def find_parallel_combo(
         target: Target component value
         series: E-series name (E12, E24, E96)
         mode: 'additive' for capacitors (C_par = C1 + C2),
-              'harmonic' for resistors/inductors (R_par = R1*R2/(R1+R2)),
-              'auto' to auto-detect based on value magnitude
+              'harmonic' for resistors/inductors (R_par = R1*R2/(R1+R2)).
+              Required — the physics of the combination depends on the
+              component kind, which cannot be inferred from the value alone.
         ratio_limit: Maximum ratio between component values
 
     Returns:
@@ -221,10 +222,8 @@ def find_parallel_combo(
     if series not in E_SERIES:
         raise ValueError(f"Unknown series '{series}'. Use E12, E24, or E96.")
 
-    # Auto-detect mode: small values (< 1e-6) are likely capacitors (additive)
-    # larger values are likely inductors/resistors (harmonic)
-    if mode == "auto":
-        mode = "additive" if target < 1e-6 else "harmonic"
+    if mode not in ("additive", "harmonic"):
+        raise ValueError(f"Mode is required: use 'additive' or 'harmonic' (got {mode!r}).")
 
     _, decade = _normalize(target)
     # Build candidate values spanning relevant decades
@@ -272,15 +271,15 @@ def find_parallel_combo(
 
 
 def match_component(
-    target: float, series: str = "E24", parallel_mode: str = "auto", ratio_limit: float = 10.0
+    target: float, series: str = "E24", parallel_mode: str | None = None, ratio_limit: float = 10.0
 ) -> ESeriesMatch:
     """Find best E-series match with optional parallel combination.
 
     Args:
         target: Target component value
         series: E-series name (E12, E24, E96)
-        parallel_mode: 'additive' for capacitors, 'harmonic' for resistors/inductors,
-                       'auto' to auto-detect
+        parallel_mode: 'additive' for capacitors, 'harmonic' for resistors/inductors.
+                       Required — see find_parallel_combo.
         ratio_limit: Maximum ratio between parallel component values
 
     Returns:
