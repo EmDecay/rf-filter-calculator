@@ -136,6 +136,11 @@ def run(args: Namespace) -> None:
 
     filter_type = resolve_filter_type(filter_type)
     coupling = resolve_coupling(coupling)
+    if coupling == "shunt":
+        raise ValueError(
+            "Shunt-C coupling is temporarily disabled: the current synthesis produces "
+            "non-working filters and is being reworked. Use Top-C ('top')."
+        )
 
     f0, bw = _validate_frequencies(args)
     z0 = parse_impedance(args.impedance)

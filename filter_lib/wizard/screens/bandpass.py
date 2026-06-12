@@ -41,7 +41,10 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                     yield RadioButton(
                         "Top-C (Series) - Better for wider bandwidth", value=True, id="top"
                     )
-                    yield RadioButton("Shunt-C (Parallel) - Better for narrow < 10%", id="shunt")
+                    yield RadioButton(
+                        "Shunt-C (Parallel) - Better for narrow < 10% (temporarily disabled)",
+                        id="shunt",
+                    )
 
             # Frequency Parameters
             with Vertical(classes="form-section"):
@@ -215,6 +218,15 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         # Get filter type and coupling
         filter_type = get_selected_radio(self, "filter-type")
         coupling = get_selected_radio(self, "coupling")
+
+        if coupling == "shunt":
+            self.notify(
+                "Shunt-C coupling is temporarily disabled: the current synthesis produces "
+                "non-working filters and is being reworked. Use Top-C.",
+                severity="error",
+            )
+            self.query_one("#coupling", RadioSet).focus()
+            return
 
         # Chebyshev requires odd number of resonators
         if filter_type == "chebyshev" and resonators % 2 == 0:

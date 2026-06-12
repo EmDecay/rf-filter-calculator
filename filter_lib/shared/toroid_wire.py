@@ -1,8 +1,10 @@
 """Wire gauge, length, DC resistance, and max-turns fit check for toroids.
 
-Uses VK3CPU Pythagorean wire-length formula, NOT the 'simple' form in the
-research doc (see plan Accuracy Contract sec 7). Bare copper diameter is used
-for DC resistance; insulated (enamel) diameter is used for mechanical fit.
+Wire length per turn uses the Pythagorean form, which combines the mean
+circumferential advance with the per-turn cross-section perimeter; a
+perimeter-only estimate underestimates length because each turn also travels
+around the core. Bare copper diameter is used for DC resistance; insulated
+(enamel) diameter is used for mechanical fit.
 """
 
 import math

@@ -54,7 +54,8 @@ def _calculate_butterworth_base(
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
-        Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
+        Tuple of (capacitors, inductors, order). The HP public wrappers reorder
+        the lists for display; this base function never swaps them.
     """
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
@@ -113,7 +114,8 @@ def _calculate_chebyshev_base(
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
-        Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
+        Tuple of (capacitors, inductors, order). The HP public wrappers reorder
+        the lists for display; this base function never swaps them.
     """
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
@@ -180,7 +182,8 @@ def _calculate_bessel_base(
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
-        Tuple of (capacitors, inductors, order) for LP or (inductors, capacitors, order) for HP
+        Tuple of (capacitors, inductors, order). The HP public wrappers reorder
+        the lists for display; this base function never swaps them.
     """
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)

@@ -4,9 +4,10 @@ Canonical formulas (all A_L in nH/turn^2, all L in Henries):
     L[H]    = A_L * 1e-9 * N^2
     N_ideal = sqrt(L[H] / (A_L * 1e-9)) = sqrt(1000 * L[uH] / A_L)
 
-Research doc's `N = 100 * sqrt(L/A_L)` form is wrong for A_L in nH/turn^2 — it
-assumes the Amidon "uH per 100 turns^2" convention (10x larger A_L). Regression
-fixture in tests locks the correct behaviour (T68-2 @ 2.5 uH -> N=21, not 66).
+Beware the alternate `N = 100 * sqrt(L[uH]/A_L)` form seen in Amidon catalogs:
+it assumes A_L in "uH per 100 turns^2" and gives ~3x-too-many turns when fed
+A_L in nH/turn^2. A regression fixture in tests locks the correct behaviour
+(T68-2 @ 2.5 uH -> N=21, not 66).
 """
 
 import math

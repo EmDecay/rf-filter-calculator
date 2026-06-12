@@ -7,6 +7,7 @@ lowpass-prototype frequency transformation.
 import math
 
 from ..shared.lp_hp_base_transfer_functions import lowpass_bessel_response
+from ..shared.transfer_functions import magnitude_to_db
 
 
 def chebyshev_polynomial(n: int, x: float) -> float:
@@ -96,7 +97,7 @@ def magnitude_db(
 ) -> float:
     """Return magnitude in dB for any supported filter type.
 
-    Clamps minimum to -100 dB to avoid log(0) issues.
+    Floored at -120 dB (shared convention with LP/HP responses).
     """
     if filter_type == "butterworth":
         mag = magnitude_butterworth(f, f0, bw, order)
@@ -107,9 +108,7 @@ def magnitude_db(
     else:
         raise ValueError(f"Unknown filter type: {filter_type}")
 
-    if mag < 1e-5:
-        return -100.0
-    return 20.0 * math.log10(mag)
+    return magnitude_to_db(mag)
 
 
 def frequency_sweep(

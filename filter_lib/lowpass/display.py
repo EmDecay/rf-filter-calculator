@@ -119,7 +119,9 @@ def display_results(
         print()
         for i, cap in enumerate(result["capacitors"]):
             print(f"C{i + 1} Calculated: {format_capacitance(cap)}")
-            for line in format_eseries_match(cap, eseries, format_capacitance):
+            for line in format_eseries_match(
+                cap, eseries, format_capacitance, parallel_mode="additive"
+            ):
                 print(line)
 
     if include_toroids:

@@ -214,8 +214,9 @@ class TestBandpassTransfer:
             bp_transfer.magnitude_db(14e6, 14e6, 1e6, 3, "invalid")
 
     def test_magnitude_db_floor(self):
+        """Deep-stopband response floors at -120 dB, same as LP/HP."""
         db = bp_transfer.magnitude_db(100e6, 14e6, 1e6, 5, "butterworth")
-        assert db >= -100.0
+        assert db == -120.0
 
     def test_frequency_sweep_defaults(self):
         result = bp_transfer.frequency_sweep(14e6, 1e6, 3, "butterworth")

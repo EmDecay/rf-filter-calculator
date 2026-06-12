@@ -193,3 +193,76 @@ def test_highpass_wizard_allows_odd_chebyshev():
     screen._calculate()
 
     assert pushed, "odd Chebyshev should advance past validation"
+
+
+# ---------------------------------------------------------------------------
+# Bandpass wizard must block shunt-C coupling while it is disabled
+# ---------------------------------------------------------------------------
+
+
+def _make_bandpass_screen_with_coupling(coupling: str):
+    """Build a BandpassScreen with stubbed Input / RadioSet queries."""
+    from filter_lib.wizard.screens.bandpass import BandpassScreen
+
+    screen = BandpassScreen()
+    state = FilterState()
+    app = Mock()
+    app.filter_state = state
+    notifications: list[tuple[str, str]] = []
+
+    def _input(value: str) -> Mock:
+        inp = Mock()
+        inp.value = value
+        inp.placeholder = ""
+        inp.focus = Mock()
+        return inp
+
+    def _radio_set(selected_id: str) -> Mock:
+        rs = Mock(spec=RadioSet)
+        btn = Mock()
+        btn.id = selected_id
+        rs.pressed_button = btn
+        rs.focus = Mock()
+        return rs
+
+    widget_map: dict[str, Mock] = {
+        "#frequency": _input("14.175MHz"),
+        "#bandwidth": _input("350kHz"),
+        "#impedance": _input("50"),
+        "#resonators": _input("3"),
+        "#ripple": _input("0.5"),
+        "#filter-type": _radio_set("butterworth"),
+        "#coupling": _radio_set(coupling),
+    }
+
+    def fake_query_one(selector: str, widget_type=None):
+        return widget_map[selector]
+
+    screen.query_one = fake_query_one  # type: ignore[assignment]
+    type(screen).app = property(lambda _self: app)  # type: ignore[misc]
+    screen.notify = lambda msg, severity="information": notifications.append((severity, msg))  # type: ignore[assignment]
+
+    pushed: list = []
+    app.push_screen = pushed.append
+
+    return screen, state, notifications, pushed, widget_map
+
+
+def test_bandpass_wizard_blocks_shunt_coupling_while_disabled():
+    screen, state, notifications, pushed, widgets = _make_bandpass_screen_with_coupling("shunt")
+    screen._calculate()
+
+    assert pushed == [], "navigation should be blocked while shunt-C is disabled"
+    assert any(sev == "error" and "temporarily disabled" in msg for sev, msg in notifications), (
+        notifications
+    )
+    widgets["#coupling"].focus.assert_called_once()
+    assert state.category == "", "state must not be mutated when the gate blocks"
+
+
+def test_bandpass_wizard_allows_top_coupling():
+    screen, state, notifications, pushed, _widgets = _make_bandpass_screen_with_coupling("top")
+    screen._calculate()
+
+    assert pushed, "Top-C should advance past validation"
+    assert state.topology == "top"

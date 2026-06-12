@@ -494,8 +494,20 @@ class TestBandpassExtraValidation:
             bandpass_run(_bp_args(coupling_pos=None, coupling_flag=None))
 
     def test_coupling_flag_used_when_positional_missing(self, capsys):
-        bandpass_run(_bp_args(coupling_pos=None, coupling_flag="shunt"))
+        bandpass_run(_bp_args(coupling_pos=None, coupling_flag="top"))
         assert capsys.readouterr().out
+
+    def test_shunt_coupling_positional_rejected_while_disabled(self):
+        with pytest.raises(ValueError, match="Shunt-C coupling is temporarily disabled"):
+            bandpass_run(_bp_args(coupling_pos="shunt"))
+
+    def test_shunt_coupling_flag_rejected_while_disabled(self):
+        with pytest.raises(ValueError, match="Shunt-C coupling is temporarily disabled"):
+            bandpass_run(_bp_args(coupling_pos=None, coupling_flag="shunt"))
+
+    def test_shunt_coupling_alias_rejected_while_disabled(self):
+        with pytest.raises(ValueError, match="Shunt-C coupling is temporarily disabled"):
+            bandpass_run(_bp_args(coupling_pos="s"))
 
     def test_type_flag_used_when_positional_missing(self, capsys):
         bandpass_run(_bp_args(filter_type=None, type_flag="bw"))

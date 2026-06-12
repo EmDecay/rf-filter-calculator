@@ -125,12 +125,12 @@ def format_bandpass_eseries_recs(result: dict, eseries: str) -> list[str]:
 
     for i, ct in enumerate(result["c_tank"]):
         lines.append(f"Cp{i + 1} Calculated: {format_capacitance(ct)}")
-        for line in format_eseries_match(ct, eseries, format_capacitance):
+        for line in format_eseries_match(ct, eseries, format_capacitance, parallel_mode="additive"):
             lines.append(line)
 
     for i, cs in enumerate(result["c_coupling"]):
         lines.append(f"Cs{i + 1}{i + 2} Calculated: {format_capacitance(cs)}")
-        for line in format_eseries_match(cs, eseries, format_capacitance):
+        for line in format_eseries_match(cs, eseries, format_capacitance, parallel_mode="additive"):
             lines.append(line)
 
     return lines
