@@ -325,7 +325,7 @@ class TestLowpassButtonDispatch:
         return _lp_hp_mock_screen(cls)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
-    def test_calculate_button_triggers_calculate(self, cls):
+    def test_next_button_triggers_validation(self, cls):
         screen, _state, _notes, pushed, _ = self._make(cls)
         event = Mock()
         event.button = Mock()
