@@ -298,6 +298,16 @@ class TestLowpassScreenValidation:
         assert any("Invalid ripple" in msg for _sev, msg in notes)
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
+    def test_chebyshev_nan_ripple_notifies(self, cls):
+        screen, state, notes, pushed, _ = _lp_hp_mock_screen(
+            cls, filter_type="chebyshev", order_value="3", ripple_value="nan"
+        )
+        screen._validate_and_continue()
+        assert pushed == []
+        assert state.ripple_db == 0.5
+        assert any("Invalid ripple" in msg and "finite" in msg for _sev, msg in notes)
+
+    @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_chebyshev_ripple_above_max_notifies(self, cls):
         screen, _state, notes, pushed, _ = _lp_hp_mock_screen(
             cls, filter_type="chebyshev", order_value="3", ripple_value="3.1"
@@ -490,6 +500,15 @@ class TestBandpassScreenValidation:
         screen._validate_and_continue()
         assert pushed == []
         assert any("Invalid ripple" in msg for _sev, msg in notes)
+
+    def test_chebyshev_nan_ripple_notifies(self):
+        screen, state, notes, pushed, _ = _bp_mock_screen(
+            filter_type="chebyshev", resonators_value="3", ripple_value="nan"
+        )
+        screen._validate_and_continue()
+        assert pushed == []
+        assert state.ripple_db == 0.5
+        assert any("Invalid ripple" in msg and "finite" in msg for _sev, msg in notes)
 
     def test_chebyshev_ripple_above_max_notifies(self):
         screen, _state, notes, pushed, _ = _bp_mock_screen(

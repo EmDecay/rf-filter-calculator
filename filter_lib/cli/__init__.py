@@ -2,11 +2,21 @@
 
 import argparse
 import sys
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as metadata_version
 
+from .. import __version__
 from . import bandpass_cmd, highpass_cmd, lowpass_cmd, wizard_cmd
 
 __all__ = ["lowpass_cmd", "highpass_cmd", "bandpass_cmd", "wizard_cmd", "main"]
+
+
+def _package_version() -> str:
+    """Return the installed distribution version, falling back for source checkouts."""
+    try:
+        return metadata_version("rf-filter-calculator")
+    except PackageNotFoundError:
+        return __version__
 
 
 def main():
@@ -36,7 +46,7 @@ Examples:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {version('rf-filter-calculator')}",
+        version=f"%(prog)s {_package_version()}",
     )
 
     subparsers = parser.add_subparsers(dest="command")

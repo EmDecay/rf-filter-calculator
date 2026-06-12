@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import argparse
 from argparse import Namespace
+from importlib.metadata import PackageNotFoundError
 from unittest.mock import patch
 
 import pytest
 
-from filter_lib import cli
+from filter_lib import __version__, cli
 from filter_lib.cli import bandpass_cmd, highpass_cmd, lowpass_cmd, toroid_flags, wizard_cmd
 from filter_lib.cli.bandpass_cmd import run as bandpass_run
 from filter_lib.cli.highpass_cmd import run as highpass_run
@@ -109,6 +110,20 @@ class TestCliMain:
                 cli.main()
         assert exc_info.value.code == 0
         assert version("rf-filter-calculator") in capsys.readouterr().out
+
+    def test_main_version_flag_falls_back_for_source_checkout(self, capsys):
+        argv = ["filter-calc", "--version"]
+        with (
+            patch("sys.argv", argv),
+            patch(
+                "filter_lib.cli.metadata_version",
+                side_effect=PackageNotFoundError("rf-filter-calculator"),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                cli.main()
+        assert exc_info.value.code == 0
+        assert __version__ in capsys.readouterr().out
 
     def test_main_bandpass_chebyshev_default_resonators(self, capsys):
         """Default -n is 3 (odd), so Chebyshev BP works with no -n supplied."""

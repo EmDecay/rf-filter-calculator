@@ -1,5 +1,7 @@
 """Highpass filter input screen."""
 
+import math
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -179,6 +181,8 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
         if filter_type == "chebyshev":
             try:
                 ripple = float(ripple_input.value)
+                if not math.isfinite(ripple):
+                    raise ValueError("must be finite")
                 if ripple <= 0:
                     raise ValueError("must be positive")
                 if ripple > 3.0:
