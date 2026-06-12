@@ -66,65 +66,783 @@ GOLDENS = {
         "category": "lowpass",
         "filter_type": "butterworth",
         "topology": "pi",
-        "table": "\nButterworth PI Low Pass Filter\n==================================================\nCutoff Frequency:    10 MHz\nImpedance Z0:        50 Ohm\nOrder:               3\n==================================================\n\nTopology:\n  IN ───┬───┤ L1 ├───┬─── OUT\n        │            │       \n       ===          ===      \n       C1           C2       \n        │            │       \n       GND          GND      \n\n                 Component Values                 \n┌────────────────────────┬────────────────────────┐\n│       Capacitors       │       Inductors        │\n├────────────────────────┼────────────────────────┤\n│ C1: 318.31 pF          │ L1: 1.59 µH            │\n│ C2: 318.31 pF          │                        │\n└────────────────────────┴────────────────────────┘\n\nE24 Standard Capacitor Recommendations\n---------------------------------------------\n(Calculated values with nearest standard matches)\n\nC1 Calculated: 318.31 pF\n  Nearest Std:  330.00 pF (+3.7%)\n  Parallel Std: 47.00 pF || 270.00 pF (-0.4%)\nC2 Calculated: 318.31 pF\n  Nearest Std:  330.00 pF (+3.7%)\n  Parallel Std: 47.00 pF || 270.00 pF (-0.4%)\n\n",
-        "json": '{\n  "filter_type": "butterworth",\n  "cutoff_frequency_hz": 10000000.0,\n  "impedance_ohms": 50.0,\n  "order": 3,\n  "components": {\n    "capacitors": [\n      {\n        "name": "C1",\n        "value_farads": 3.1830988618379065e-10,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 3.3e-10,\n            "error_pct": 3.6725575684631835\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 4.7e-11\n              },\n              {\n                "value_farads": 2.7000000000000005e-10\n              }\n            ],\n            "value_farads": 3.1700000000000004e-10,\n            "error_pct": -0.41151288120353385\n          }\n        }\n      },\n      {\n        "name": "C2",\n        "value_farads": 3.1830988618379065e-10,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 3.3e-10,\n            "error_pct": 3.6725575684631835\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 4.7e-11\n              },\n              {\n                "value_farads": 2.7000000000000005e-10\n              }\n            ],\n            "value_farads": 3.1700000000000004e-10,\n            "error_pct": -0.41151288120353385\n          }\n        }\n      }\n    ],\n    "inductors": [\n      {\n        "name": "L1",\n        "value_henries": 1.5915494309189533e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 1.6e-06,\n            "error_pct": 0.5309649148733809\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 2.4e-06\n              },\n              {\n                "value_henries": 4.7e-06\n              }\n            ],\n            "value_henries": 1.588732394366197e-06,\n            "error_pct": -0.1769996267806622\n          }\n        }\n      }\n    ]\n  },\n  "topology": "pi"\n}',
-        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\nC1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24\nC2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24\nL1,1.59,µH,1.60,µH,0.5,2.40 µH || 4.70 µH,-0.2,E24",
+        "table": "\n"
+        "Butterworth PI Low Pass Filter\n"
+        "==================================================\n"
+        "Cutoff Frequency:    10 MHz\n"
+        "Impedance Z0:        50 Ohm\n"
+        "Order:               3\n"
+        "==================================================\n"
+        "\n"
+        "Topology:\n"
+        "  IN ───┬───┤ L1 ├───┬─── OUT\n"
+        "        │            │       \n"
+        "       ===          ===      \n"
+        "       C1           C2       \n"
+        "        │            │       \n"
+        "       GND          GND      \n"
+        "\n"
+        "                 Component Values                 \n"
+        "┌────────────────────────┬────────────────────────┐\n"
+        "│       Capacitors       │       Inductors        │\n"
+        "├────────────────────────┼────────────────────────┤\n"
+        "│ C1: 318.31 pF          │ L1: 1.59 µH            │\n"
+        "│ C2: 318.31 pF          │                        │\n"
+        "└────────────────────────┴────────────────────────┘\n"
+        "Inductors: wind to value (see toroid recommendations)\n"
+        "\n"
+        "E24 Standard Capacitor Recommendations\n"
+        "---------------------------------------------\n"
+        "(Calculated values with nearest standard matches)\n"
+        "\n"
+        "C1 Calculated: 318.31 pF\n"
+        "  Nearest Std:  330.00 pF (+3.7%)\n"
+        "  Parallel Std: 47.00 pF || 270.00 pF (-0.4%)\n"
+        "C2 Calculated: 318.31 pF\n"
+        "  Nearest Std:  330.00 pF (+3.7%)\n"
+        "  Parallel Std: 47.00 pF || 270.00 pF (-0.4%)\n"
+        "\n",
+        "json": "{\n"
+        '  "filter_type": "butterworth",\n'
+        '  "cutoff_frequency_hz": 10000000.0,\n'
+        '  "impedance_ohms": 50.0,\n'
+        '  "order": 3,\n'
+        '  "components": {\n'
+        '    "capacitors": [\n'
+        "      {\n"
+        '        "name": "C1",\n'
+        '        "value_farads": 3.1830988618379065e-10,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 3.3e-10,\n'
+        '            "error_pct": 3.6725575684631835\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 4.7e-11\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 2.7000000000000005e-10\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 3.1700000000000004e-10,\n'
+        '            "error_pct": -0.41151288120353385\n'
+        "          }\n"
+        "        }\n"
+        "      },\n"
+        "      {\n"
+        '        "name": "C2",\n'
+        '        "value_farads": 3.1830988618379065e-10,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 3.3e-10,\n'
+        '            "error_pct": 3.6725575684631835\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 4.7e-11\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 2.7000000000000005e-10\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 3.1700000000000004e-10,\n'
+        '            "error_pct": -0.41151288120353385\n'
+        "          }\n"
+        "        }\n"
+        "      }\n"
+        "    ],\n"
+        '    "inductors": [\n'
+        "      {\n"
+        '        "name": "L1",\n'
+        '        "value_henries": 1.5915494309189533e-06\n'
+        "      }\n"
+        "    ]\n"
+        "  },\n"
+        '  "topology": "pi"\n'
+        "}",
+        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
+        "C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24\n"
+        "C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24\n"
+        "L1,1.59,µH,,,,,,",
     },
     "lowpass_butterworth_t": {
         "category": "lowpass",
         "filter_type": "butterworth",
         "topology": "t",
-        "table": "\nButterworth T Low Pass Filter\n==================================================\nCutoff Frequency:    10 MHz\nImpedance Z0:        50 Ohm\nOrder:               3\n==================================================\n\nTopology:\n  IN ───┤L1├───┬───┤L2├─── OUT\n               │              \n              ===             \n              C1              \n               │              \n              GND             \n\n                 Component Values                 \n┌────────────────────────┬────────────────────────┐\n│       Inductors        │       Capacitors       │\n├────────────────────────┼────────────────────────┤\n│ L1: 795.77 nH          │ C1: 636.62 pF          │\n│ L2: 795.77 nH          │                        │\n└────────────────────────┴────────────────────────┘\n\nE24 Standard Capacitor Recommendations\n---------------------------------------------\n(Calculated values with nearest standard matches)\n\nC1 Calculated: 636.62 pF\n  Nearest Std:  620.00 pF (-2.6%)\n  Parallel Std: 75.00 pF || 560.00 pF (-0.3%)\n\n",
-        "json": '{\n  "filter_type": "butterworth",\n  "cutoff_frequency_hz": 10000000.0,\n  "impedance_ohms": 50.0,\n  "order": 3,\n  "components": {\n    "inductors": [\n      {\n        "name": "L1",\n        "value_henries": 7.957747154594766e-07,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 8.199999999999999e-07,\n            "error_pct": 3.044239037745218\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 1e-06\n              },\n              {\n                "value_henries": 3.9e-06\n              }\n            ],\n            "value_henries": 7.959183673469388e-07,\n            "error_pct": 0.0180518285730234\n          }\n        }\n      },\n      {\n        "name": "L2",\n        "value_henries": 7.957747154594766e-07,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 8.199999999999999e-07,\n            "error_pct": 3.044239037745218\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 1e-06\n              },\n              {\n                "value_henries": 3.9e-06\n              }\n            ],\n            "value_henries": 7.959183673469388e-07,\n            "error_pct": 0.0180518285730234\n          }\n        }\n      }\n    ],\n    "capacitors": [\n      {\n        "name": "C1",\n        "value_farads": 6.366197723675814e-10,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 6.2e-10,\n            "error_pct": -2.610627738716414\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 7.5e-11\n              },\n              {\n                "value_farads": 5.6e-10\n              }\n            ],\n            "value_farads": 6.35e-10,\n            "error_pct": -0.25443324852407717\n          }\n        }\n      }\n    ]\n  },\n  "topology": "t"\n}',
-        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\nL1,795.77,nH,820.00,nH,3.0,1.00 µH || 3.90 µH,0.0,E24\nL2,795.77,nH,820.00,nH,3.0,1.00 µH || 3.90 µH,0.0,E24\nC1,636.62,pF,620.00,pF,-2.6,75.00 pF || 560.00 pF,-0.3,E24",
+        "table": "\n"
+        "Butterworth T Low Pass Filter\n"
+        "==================================================\n"
+        "Cutoff Frequency:    10 MHz\n"
+        "Impedance Z0:        50 Ohm\n"
+        "Order:               3\n"
+        "==================================================\n"
+        "\n"
+        "Topology:\n"
+        "  IN ───┤L1├───┬───┤L2├─── OUT\n"
+        "               │              \n"
+        "              ===             \n"
+        "              C1              \n"
+        "               │              \n"
+        "              GND             \n"
+        "\n"
+        "                 Component Values                 \n"
+        "┌────────────────────────┬────────────────────────┐\n"
+        "│       Inductors        │       Capacitors       │\n"
+        "├────────────────────────┼────────────────────────┤\n"
+        "│ L1: 795.77 nH          │ C1: 636.62 pF          │\n"
+        "│ L2: 795.77 nH          │                        │\n"
+        "└────────────────────────┴────────────────────────┘\n"
+        "Inductors: wind to value (see toroid recommendations)\n"
+        "\n"
+        "E24 Standard Capacitor Recommendations\n"
+        "---------------------------------------------\n"
+        "(Calculated values with nearest standard matches)\n"
+        "\n"
+        "C1 Calculated: 636.62 pF\n"
+        "  Nearest Std:  620.00 pF (-2.6%)\n"
+        "  Parallel Std: 75.00 pF || 560.00 pF (-0.3%)\n"
+        "\n",
+        "json": "{\n"
+        '  "filter_type": "butterworth",\n'
+        '  "cutoff_frequency_hz": 10000000.0,\n'
+        '  "impedance_ohms": 50.0,\n'
+        '  "order": 3,\n'
+        '  "components": {\n'
+        '    "inductors": [\n'
+        "      {\n"
+        '        "name": "L1",\n'
+        '        "value_henries": 7.957747154594766e-07\n'
+        "      },\n"
+        "      {\n"
+        '        "name": "L2",\n'
+        '        "value_henries": 7.957747154594766e-07\n'
+        "      }\n"
+        "    ],\n"
+        '    "capacitors": [\n'
+        "      {\n"
+        '        "name": "C1",\n'
+        '        "value_farads": 6.366197723675814e-10,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 6.2e-10,\n'
+        '            "error_pct": -2.610627738716414\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 7.5e-11\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 5.6e-10\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 6.35e-10,\n'
+        '            "error_pct": -0.25443324852407717\n'
+        "          }\n"
+        "        }\n"
+        "      }\n"
+        "    ]\n"
+        "  },\n"
+        '  "topology": "t"\n'
+        "}",
+        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
+        "L1,795.77,nH,,,,,,\n"
+        "L2,795.77,nH,,,,,,\n"
+        "C1,636.62,pF,620.00,pF,-2.6,75.00 pF || 560.00 pF,-0.3,E24",
     },
     "lowpass_chebyshev_pi": {
         "category": "lowpass",
         "filter_type": "chebyshev",
         "topology": "pi",
-        "table": "\nChebyshev PI Low Pass Filter\n==================================================\nCutoff Frequency:    10 MHz\nImpedance Z0:        50 Ohm\nRipple:              0.5 dB\nOrder:               3\n==================================================\n\nTopology:\n  IN ───┬───┤ L1 ├───┬─── OUT\n        │            │       \n       ===          ===      \n       C1           C2       \n        │            │       \n       GND          GND      \n\n                 Component Values                 \n┌────────────────────────┬────────────────────────┐\n│       Capacitors       │       Inductors        │\n├────────────────────────┼────────────────────────┤\n│ C1: 508.11 pF          │ L1: 872.72 nH          │\n│ C2: 508.11 pF          │                        │\n└────────────────────────┴────────────────────────┘\n\nE24 Standard Capacitor Recommendations\n---------------------------------------------\n(Calculated values with nearest standard matches)\n\nC1 Calculated: 508.11 pF\n  Nearest Std:  510.00 pF (+0.4%)\nC2 Calculated: 508.11 pF\n  Nearest Std:  510.00 pF (+0.4%)\n\n",
-        "json": '{\n  "filter_type": "chebyshev",\n  "cutoff_frequency_hz": 10000000.0,\n  "impedance_ohms": 50.0,\n  "order": 3,\n  "components": {\n    "capacitors": [\n      {\n        "name": "C1",\n        "value_farads": 5.081117254341799e-10,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 5.1e-10,\n            "error_pct": 0.37162585929434255\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 1.2e-10\n              },\n              {\n                "value_farads": 3.9e-10\n              }\n            ],\n            "value_farads": 5.1e-10,\n            "error_pct": 0.37162585929434255\n          }\n        }\n      },\n      {\n        "name": "C2",\n        "value_farads": 5.081117254341798e-10,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 5.1e-10,\n            "error_pct": 0.371625859294363\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 1.2e-10\n              },\n              {\n                "value_farads": 3.9e-10\n              }\n            ],\n            "value_farads": 5.1e-10,\n            "error_pct": 0.371625859294363\n          }\n        }\n      }\n    ],\n    "inductors": [\n      {\n        "name": "L1",\n        "value_henries": 8.727195466182308e-07,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 9.1e-07,\n            "error_pct": 4.271756433808559\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 1e-06\n              },\n              {\n                "value_henries": 6.799999999999999e-06\n              }\n            ],\n            "value_henries": 8.717948717948717e-07,\n            "error_pct": -0.10595326149645795\n          }\n        }\n      }\n    ]\n  },\n  "topology": "pi",\n  "ripple_db": 0.5\n}',
-        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\nC1,508.11,pF,510.00,pF,0.4,120.00 pF || 390.00 pF,0.4,E24\nC2,508.11,pF,510.00,pF,0.4,120.00 pF || 390.00 pF,0.4,E24\nL1,872.72,nH,910.00,nH,4.3,1.00 µH || 6.80 µH,-0.1,E24",
+        "table": "\n"
+        "Chebyshev PI Low Pass Filter\n"
+        "==================================================\n"
+        "Cutoff Frequency:    10 MHz\n"
+        "Impedance Z0:        50 Ohm\n"
+        "Ripple:              0.5 dB\n"
+        "Order:               3\n"
+        "==================================================\n"
+        "\n"
+        "Topology:\n"
+        "  IN ───┬───┤ L1 ├───┬─── OUT\n"
+        "        │            │       \n"
+        "       ===          ===      \n"
+        "       C1           C2       \n"
+        "        │            │       \n"
+        "       GND          GND      \n"
+        "\n"
+        "                 Component Values                 \n"
+        "┌────────────────────────┬────────────────────────┐\n"
+        "│       Capacitors       │       Inductors        │\n"
+        "├────────────────────────┼────────────────────────┤\n"
+        "│ C1: 508.11 pF          │ L1: 872.72 nH          │\n"
+        "│ C2: 508.11 pF          │                        │\n"
+        "└────────────────────────┴────────────────────────┘\n"
+        "Inductors: wind to value (see toroid recommendations)\n"
+        "\n"
+        "E24 Standard Capacitor Recommendations\n"
+        "---------------------------------------------\n"
+        "(Calculated values with nearest standard matches)\n"
+        "\n"
+        "C1 Calculated: 508.11 pF\n"
+        "  Nearest Std:  510.00 pF (+0.4%)\n"
+        "C2 Calculated: 508.11 pF\n"
+        "  Nearest Std:  510.00 pF (+0.4%)\n"
+        "\n",
+        "json": "{\n"
+        '  "filter_type": "chebyshev",\n'
+        '  "cutoff_frequency_hz": 10000000.0,\n'
+        '  "impedance_ohms": 50.0,\n'
+        '  "order": 3,\n'
+        '  "components": {\n'
+        '    "capacitors": [\n'
+        "      {\n"
+        '        "name": "C1",\n'
+        '        "value_farads": 5.081117254341799e-10,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 5.1e-10,\n'
+        '            "error_pct": 0.37162585929434255\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 1.2e-10\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 3.9e-10\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 5.1e-10,\n'
+        '            "error_pct": 0.37162585929434255\n'
+        "          }\n"
+        "        }\n"
+        "      },\n"
+        "      {\n"
+        '        "name": "C2",\n'
+        '        "value_farads": 5.081117254341798e-10,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 5.1e-10,\n'
+        '            "error_pct": 0.371625859294363\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 1.2e-10\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 3.9e-10\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 5.1e-10,\n'
+        '            "error_pct": 0.371625859294363\n'
+        "          }\n"
+        "        }\n"
+        "      }\n"
+        "    ],\n"
+        '    "inductors": [\n'
+        "      {\n"
+        '        "name": "L1",\n'
+        '        "value_henries": 8.727195466182308e-07\n'
+        "      }\n"
+        "    ]\n"
+        "  },\n"
+        '  "topology": "pi",\n'
+        '  "ripple_db": 0.5\n'
+        "}",
+        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
+        "C1,508.11,pF,510.00,pF,0.4,120.00 pF || 390.00 pF,0.4,E24\n"
+        "C2,508.11,pF,510.00,pF,0.4,120.00 pF || 390.00 pF,0.4,E24\n"
+        "L1,872.72,nH,,,,,,",
     },
     "lowpass_chebyshev_t": {
         "category": "lowpass",
         "filter_type": "chebyshev",
         "topology": "t",
-        "table": "\nChebyshev T Low Pass Filter\n==================================================\nCutoff Frequency:    10 MHz\nImpedance Z0:        50 Ohm\nRipple:              0.5 dB\nOrder:               3\n==================================================\n\nTopology:\n  IN ───┤L1├───┬───┤L2├─── OUT\n               │              \n              ===             \n              C1              \n               │              \n              GND             \n\n                 Component Values                 \n┌────────────────────────┬────────────────────────┐\n│       Inductors        │       Capacitors       │\n├────────────────────────┼────────────────────────┤\n│ L1: 1.27 µH            │ C1: 349.09 pF          │\n│ L2: 1.27 µH            │                        │\n└────────────────────────┴────────────────────────┘\n\nE24 Standard Capacitor Recommendations\n---------------------------------------------\n(Calculated values with nearest standard matches)\n\nC1 Calculated: 349.09 pF\n  Nearest Std:  360.00 pF (+3.1%)\n  Parallel Std: 110.00 pF || 240.00 pF (+0.3%)\n\n",
-        "json": '{\n  "filter_type": "chebyshev",\n  "cutoff_frequency_hz": 10000000.0,\n  "impedance_ohms": 50.0,\n  "order": 3,\n  "components": {\n    "inductors": [\n      {\n        "name": "L1",\n        "value_henries": 1.2702793135854499e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 1.3e-06,\n            "error_pct": 2.3396969545746225\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 2.4e-06\n              },\n              {\n                "value_henries": 2.7e-06\n              }\n            ],\n            "value_henries": 1.2705882352941175e-06,\n            "error_pct": 0.024319195421337057\n          }\n        }\n      },\n      {\n        "name": "L2",\n        "value_henries": 1.2702793135854497e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 1.3e-06,\n            "error_pct": 2.3396969545746393\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 2.4e-06\n              },\n              {\n                "value_henries": 2.7e-06\n              }\n            ],\n            "value_henries": 1.2705882352941175e-06,\n            "error_pct": 0.02431919542135373\n          }\n        }\n      }\n    ],\n    "capacitors": [\n      {\n        "name": "C1",\n        "value_farads": 3.490878186472923e-10,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 3.6e-10,\n            "error_pct": 3.125912956513969\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 1.1000000000000001e-10\n              },\n              {\n                "value_farads": 2.4e-10\n              }\n            ],\n            "value_farads": 3.5000000000000003e-10,\n            "error_pct": 0.2613042632774796\n          }\n        }\n      }\n    ]\n  },\n  "topology": "t",\n  "ripple_db": 0.5\n}',
-        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\nL1,1.27,µH,1.30,µH,2.3,2.40 µH || 2.70 µH,0.0,E24\nL2,1.27,µH,1.30,µH,2.3,2.40 µH || 2.70 µH,0.0,E24\nC1,349.09,pF,360.00,pF,3.1,110.00 pF || 240.00 pF,0.3,E24",
+        "table": "\n"
+        "Chebyshev T Low Pass Filter\n"
+        "==================================================\n"
+        "Cutoff Frequency:    10 MHz\n"
+        "Impedance Z0:        50 Ohm\n"
+        "Ripple:              0.5 dB\n"
+        "Order:               3\n"
+        "==================================================\n"
+        "\n"
+        "Topology:\n"
+        "  IN ───┤L1├───┬───┤L2├─── OUT\n"
+        "               │              \n"
+        "              ===             \n"
+        "              C1              \n"
+        "               │              \n"
+        "              GND             \n"
+        "\n"
+        "                 Component Values                 \n"
+        "┌────────────────────────┬────────────────────────┐\n"
+        "│       Inductors        │       Capacitors       │\n"
+        "├────────────────────────┼────────────────────────┤\n"
+        "│ L1: 1.27 µH            │ C1: 349.09 pF          │\n"
+        "│ L2: 1.27 µH            │                        │\n"
+        "└────────────────────────┴────────────────────────┘\n"
+        "Inductors: wind to value (see toroid recommendations)\n"
+        "\n"
+        "E24 Standard Capacitor Recommendations\n"
+        "---------------------------------------------\n"
+        "(Calculated values with nearest standard matches)\n"
+        "\n"
+        "C1 Calculated: 349.09 pF\n"
+        "  Nearest Std:  360.00 pF (+3.1%)\n"
+        "  Parallel Std: 110.00 pF || 240.00 pF (+0.3%)\n"
+        "\n",
+        "json": "{\n"
+        '  "filter_type": "chebyshev",\n'
+        '  "cutoff_frequency_hz": 10000000.0,\n'
+        '  "impedance_ohms": 50.0,\n'
+        '  "order": 3,\n'
+        '  "components": {\n'
+        '    "inductors": [\n'
+        "      {\n"
+        '        "name": "L1",\n'
+        '        "value_henries": 1.2702793135854499e-06\n'
+        "      },\n"
+        "      {\n"
+        '        "name": "L2",\n'
+        '        "value_henries": 1.2702793135854497e-06\n'
+        "      }\n"
+        "    ],\n"
+        '    "capacitors": [\n'
+        "      {\n"
+        '        "name": "C1",\n'
+        '        "value_farads": 3.490878186472923e-10,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 3.6e-10,\n'
+        '            "error_pct": 3.125912956513969\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 1.1000000000000001e-10\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 2.4e-10\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 3.5000000000000003e-10,\n'
+        '            "error_pct": 0.2613042632774796\n'
+        "          }\n"
+        "        }\n"
+        "      }\n"
+        "    ]\n"
+        "  },\n"
+        '  "topology": "t",\n'
+        '  "ripple_db": 0.5\n'
+        "}",
+        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
+        "L1,1.27,µH,,,,,,\n"
+        "L2,1.27,µH,,,,,,\n"
+        "C1,349.09,pF,360.00,pF,3.1,110.00 pF || 240.00 pF,0.3,E24",
     },
     "highpass_butterworth_pi": {
         "category": "highpass",
         "filter_type": "butterworth",
         "topology": "pi",
-        "table": "\nButterworth PI High Pass Filter\n==================================================\nCutoff Frequency:    1 MHz\nImpedance Z0:        50 Ohm\nOrder:               3\n==================================================\n\nTopology:\n  IN ───┬───┤ C1 ├───┬─── OUT\n        │            │       \n       ===          ===      \n       L1           L2       \n        │            │       \n       GND          GND      \n\n                 Component Values                 \n┌────────────────────────┬────────────────────────┐\n│       Inductors        │       Capacitors       │\n├────────────────────────┼────────────────────────┤\n│ L1: 7.96 µH            │ C1: 1.59 nF            │\n│ L2: 7.96 µH            │                        │\n└────────────────────────┴────────────────────────┘\n\nE24 Standard Capacitor Recommendations\n---------------------------------------------\n(Calculated values with nearest standard matches)\n\nC1 Calculated: 1.59 nF\n  Nearest Std:  1.60 nF (+0.5%)\n  Parallel Std: 390.00 pF || 1.20 nF (-0.1%)\n\n",
-        "json": '{\n  "filter_type": "butterworth",\n  "cutoff_frequency_hz": 1000000.0,\n  "impedance_ohms": 50.0,\n  "order": 3,\n  "components": {\n    "inductors": [\n      {\n        "name": "L1",\n        "value_henries": 7.957747154594769e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 8.2e-06,\n            "error_pct": 3.044239037745188\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 1e-05\n              },\n              {\n                "value_henries": 3.9e-05\n              }\n            ],\n            "value_henries": 7.95918367346939e-06,\n            "error_pct": 0.018051828573010086\n          }\n        }\n      },\n      {\n        "name": "L2",\n        "value_henries": 7.957747154594769e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 8.2e-06,\n            "error_pct": 3.044239037745188\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 1e-05\n              },\n              {\n                "value_henries": 3.9e-05\n              }\n            ],\n            "value_henries": 7.95918367346939e-06,\n            "error_pct": 0.018051828573010086\n          }\n        }\n      }\n    ],\n    "capacitors": [\n      {\n        "name": "C1",\n        "value_farads": 1.5915494309189535e-09,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 1.6000000000000003e-09,\n            "error_pct": 0.5309649148733911\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 3.9e-10\n              },\n              {\n                "value_farads": 1.2e-09\n              }\n            ],\n            "value_farads": 1.59e-09,\n            "error_pct": -0.09735361584457833\n          }\n        }\n      }\n    ]\n  },\n  "topology": "pi"\n}',
-        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\nL1,7.96,µH,8.20,µH,3.0,10.00 µH || 39.00 µH,0.0,E24\nL2,7.96,µH,8.20,µH,3.0,10.00 µH || 39.00 µH,0.0,E24\nC1,1.59,nF,1.60,nF,0.5,390.00 pF || 1.20 nF,-0.1,E24",
+        "table": "\n"
+        "Butterworth PI High Pass Filter\n"
+        "==================================================\n"
+        "Cutoff Frequency:    1 MHz\n"
+        "Impedance Z0:        50 Ohm\n"
+        "Order:               3\n"
+        "==================================================\n"
+        "\n"
+        "Topology:\n"
+        "  IN ───┬───┤ C1 ├───┬─── OUT\n"
+        "        │            │       \n"
+        "       ===          ===      \n"
+        "       L1           L2       \n"
+        "        │            │       \n"
+        "       GND          GND      \n"
+        "\n"
+        "                 Component Values                 \n"
+        "┌────────────────────────┬────────────────────────┐\n"
+        "│       Inductors        │       Capacitors       │\n"
+        "├────────────────────────┼────────────────────────┤\n"
+        "│ L1: 7.96 µH            │ C1: 1.59 nF            │\n"
+        "│ L2: 7.96 µH            │                        │\n"
+        "└────────────────────────┴────────────────────────┘\n"
+        "Inductors: wind to value (see toroid recommendations)\n"
+        "\n"
+        "E24 Standard Capacitor Recommendations\n"
+        "---------------------------------------------\n"
+        "(Calculated values with nearest standard matches)\n"
+        "\n"
+        "C1 Calculated: 1.59 nF\n"
+        "  Nearest Std:  1.60 nF (+0.5%)\n"
+        "  Parallel Std: 390.00 pF || 1.20 nF (-0.1%)\n"
+        "\n",
+        "json": "{\n"
+        '  "filter_type": "butterworth",\n'
+        '  "cutoff_frequency_hz": 1000000.0,\n'
+        '  "impedance_ohms": 50.0,\n'
+        '  "order": 3,\n'
+        '  "components": {\n'
+        '    "inductors": [\n'
+        "      {\n"
+        '        "name": "L1",\n'
+        '        "value_henries": 7.957747154594769e-06\n'
+        "      },\n"
+        "      {\n"
+        '        "name": "L2",\n'
+        '        "value_henries": 7.957747154594769e-06\n'
+        "      }\n"
+        "    ],\n"
+        '    "capacitors": [\n'
+        "      {\n"
+        '        "name": "C1",\n'
+        '        "value_farads": 1.5915494309189535e-09,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 1.6000000000000003e-09,\n'
+        '            "error_pct": 0.5309649148733911\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 3.9e-10\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 1.2e-09\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 1.59e-09,\n'
+        '            "error_pct": -0.09735361584457833\n'
+        "          }\n"
+        "        }\n"
+        "      }\n"
+        "    ]\n"
+        "  },\n"
+        '  "topology": "pi"\n'
+        "}",
+        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
+        "L1,7.96,µH,,,,,,\n"
+        "L2,7.96,µH,,,,,,\n"
+        "C1,1.59,nF,1.60,nF,0.5,390.00 pF || 1.20 nF,-0.1,E24",
     },
     "highpass_butterworth_t": {
         "category": "highpass",
         "filter_type": "butterworth",
         "topology": "t",
-        "table": "\nButterworth T High Pass Filter\n==================================================\nCutoff Frequency:    1 MHz\nImpedance Z0:        50 Ohm\nOrder:               3\n==================================================\n\nTopology:\n  IN ───┤C1├───┬───┤C2├─── OUT\n               │              \n              ===             \n              L1              \n               │              \n              GND             \n\n                 Component Values                 \n┌────────────────────────┬────────────────────────┐\n│       Capacitors       │       Inductors        │\n├────────────────────────┼────────────────────────┤\n│ C1: 3.18 nF            │ L1: 3.98 µH            │\n│ C2: 3.18 nF            │                        │\n└────────────────────────┴────────────────────────┘\n\nE24 Standard Capacitor Recommendations\n---------------------------------------------\n(Calculated values with nearest standard matches)\n\nC1 Calculated: 3.18 nF\n  Nearest Std:  3.30 nF (+3.7%)\n  Parallel Std: 470.00 pF || 2.70 nF (-0.4%)\nC2 Calculated: 3.18 nF\n  Nearest Std:  3.30 nF (+3.7%)\n  Parallel Std: 470.00 pF || 2.70 nF (-0.4%)\n\n",
-        "json": '{\n  "filter_type": "butterworth",\n  "cutoff_frequency_hz": 1000000.0,\n  "impedance_ohms": 50.0,\n  "order": 3,\n  "components": {\n    "capacitors": [\n      {\n        "name": "C1",\n        "value_farads": 3.183098861837908e-09,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 3.3e-09,\n            "error_pct": 3.6725575684631457\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 4.7e-10\n              },\n              {\n                "value_farads": 2.7e-09\n              }\n            ],\n            "value_farads": 3.1700000000000004e-09,\n            "error_pct": -0.4115128812035759\n          }\n        }\n      },\n      {\n        "name": "C2",\n        "value_farads": 3.183098861837908e-09,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 3.3e-09,\n            "error_pct": 3.6725575684631457\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 4.7e-10\n              },\n              {\n                "value_farads": 2.7e-09\n              }\n            ],\n            "value_farads": 3.1700000000000004e-09,\n            "error_pct": -0.4115128812035759\n          }\n        }\n      }\n    ],\n    "inductors": [\n      {\n        "name": "L1",\n        "value_henries": 3.9788735772973834e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 3.9e-06,\n            "error_pct": -1.9823092079984537\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 5.0999999999999995e-06\n              },\n              {\n                "value_henries": 1.8e-05\n              }\n            ],\n            "value_henries": 3.974025974025974e-06,\n            "error_pct": -0.12183355859981565\n          }\n        }\n      }\n    ]\n  },\n  "topology": "t"\n}',
-        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\nC1,3.18,nF,3.30,nF,3.7,470.00 pF || 2.70 nF,-0.4,E24\nC2,3.18,nF,3.30,nF,3.7,470.00 pF || 2.70 nF,-0.4,E24\nL1,3.98,µH,3.90,µH,-2.0,5.10 µH || 18.00 µH,-0.1,E24",
+        "table": "\n"
+        "Butterworth T High Pass Filter\n"
+        "==================================================\n"
+        "Cutoff Frequency:    1 MHz\n"
+        "Impedance Z0:        50 Ohm\n"
+        "Order:               3\n"
+        "==================================================\n"
+        "\n"
+        "Topology:\n"
+        "  IN ───┤C1├───┬───┤C2├─── OUT\n"
+        "               │              \n"
+        "              ===             \n"
+        "              L1              \n"
+        "               │              \n"
+        "              GND             \n"
+        "\n"
+        "                 Component Values                 \n"
+        "┌────────────────────────┬────────────────────────┐\n"
+        "│       Capacitors       │       Inductors        │\n"
+        "├────────────────────────┼────────────────────────┤\n"
+        "│ C1: 3.18 nF            │ L1: 3.98 µH            │\n"
+        "│ C2: 3.18 nF            │                        │\n"
+        "└────────────────────────┴────────────────────────┘\n"
+        "Inductors: wind to value (see toroid recommendations)\n"
+        "\n"
+        "E24 Standard Capacitor Recommendations\n"
+        "---------------------------------------------\n"
+        "(Calculated values with nearest standard matches)\n"
+        "\n"
+        "C1 Calculated: 3.18 nF\n"
+        "  Nearest Std:  3.30 nF (+3.7%)\n"
+        "  Parallel Std: 470.00 pF || 2.70 nF (-0.4%)\n"
+        "C2 Calculated: 3.18 nF\n"
+        "  Nearest Std:  3.30 nF (+3.7%)\n"
+        "  Parallel Std: 470.00 pF || 2.70 nF (-0.4%)\n"
+        "\n",
+        "json": "{\n"
+        '  "filter_type": "butterworth",\n'
+        '  "cutoff_frequency_hz": 1000000.0,\n'
+        '  "impedance_ohms": 50.0,\n'
+        '  "order": 3,\n'
+        '  "components": {\n'
+        '    "capacitors": [\n'
+        "      {\n"
+        '        "name": "C1",\n'
+        '        "value_farads": 3.183098861837908e-09,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 3.3e-09,\n'
+        '            "error_pct": 3.6725575684631457\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 4.7e-10\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 2.7e-09\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 3.1700000000000004e-09,\n'
+        '            "error_pct": -0.4115128812035759\n'
+        "          }\n"
+        "        }\n"
+        "      },\n"
+        "      {\n"
+        '        "name": "C2",\n'
+        '        "value_farads": 3.183098861837908e-09,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 3.3e-09,\n'
+        '            "error_pct": 3.6725575684631457\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 4.7e-10\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 2.7e-09\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 3.1700000000000004e-09,\n'
+        '            "error_pct": -0.4115128812035759\n'
+        "          }\n"
+        "        }\n"
+        "      }\n"
+        "    ],\n"
+        '    "inductors": [\n'
+        "      {\n"
+        '        "name": "L1",\n'
+        '        "value_henries": 3.9788735772973834e-06\n'
+        "      }\n"
+        "    ]\n"
+        "  },\n"
+        '  "topology": "t"\n'
+        "}",
+        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
+        "C1,3.18,nF,3.30,nF,3.7,470.00 pF || 2.70 nF,-0.4,E24\n"
+        "C2,3.18,nF,3.30,nF,3.7,470.00 pF || 2.70 nF,-0.4,E24\n"
+        "L1,3.98,µH,,,,,,",
     },
     "highpass_chebyshev_pi": {
         "category": "highpass",
         "filter_type": "chebyshev",
         "topology": "pi",
-        "table": "\nChebyshev PI High Pass Filter\n==================================================\nCutoff Frequency:    1 MHz\nImpedance Z0:        50 Ohm\nRipple:              0.5 dB\nOrder:               3\n==================================================\n\nTopology:\n  IN ───┬───┤ C1 ├───┬─── OUT\n        │            │       \n       ===          ===      \n       L1           L2       \n        │            │       \n       GND          GND      \n\n                 Component Values                 \n┌────────────────────────┬────────────────────────┐\n│       Inductors        │       Capacitors       │\n├────────────────────────┼────────────────────────┤\n│ L1: 4.99 µH            │ C1: 2.90 nF            │\n│ L2: 4.99 µH            │                        │\n└────────────────────────┴────────────────────────┘\n\nE24 Standard Capacitor Recommendations\n---------------------------------------------\n(Calculated values with nearest standard matches)\n\nC1 Calculated: 2.90 nF\n  Nearest Std:  3.00 nF (+3.4%)\n  Parallel Std: 1.10 nF || 1.80 nF (-0.1%)\n\n",
-        "json": '{\n  "filter_type": "chebyshev",\n  "cutoff_frequency_hz": 1000000.0,\n  "impedance_ohms": 50.0,\n  "order": 3,\n  "components": {\n    "inductors": [\n      {\n        "name": "L1",\n        "value_henries": 4.985182321651755e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 5.0999999999999995e-06,\n            "error_pct": 2.3031791204419036\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 9.1e-06\n              },\n              {\n                "value_henries": 1.1000000000000001e-05\n              }\n            ],\n            "value_henries": 4.980099502487562e-06,\n            "error_pct": -0.10195854105710586\n          }\n        }\n      },\n      {\n        "name": "L2",\n        "value_henries": 4.985182321651756e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 5.0999999999999995e-06,\n            "error_pct": 2.303179120441886\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 9.1e-06\n              },\n              {\n                "value_henries": 1.1000000000000001e-05\n              }\n            ],\n            "value_henries": 4.980099502487562e-06,\n            "error_pct": -0.10195854105712285\n          }\n        }\n      }\n    ],\n    "capacitors": [\n      {\n        "name": "C1",\n        "value_farads": 2.902455434708526e-09,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 3.0000000000000004e-09,\n            "error_pct": 3.3607601386400003\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 1.1000000000000001e-09\n              },\n              {\n                "value_farads": 1.8000000000000002e-09\n              }\n            ],\n            "value_farads": 2.9000000000000003e-09,\n            "error_pct": -0.08459853264800143\n          }\n        }\n      }\n    ]\n  },\n  "topology": "pi",\n  "ripple_db": 0.5\n}',
-        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\nL1,4.99,µH,5.10,µH,2.3,9.10 µH || 11.00 µH,-0.1,E24\nL2,4.99,µH,5.10,µH,2.3,9.10 µH || 11.00 µH,-0.1,E24\nC1,2.90,nF,3.00,nF,3.4,1.10 nF || 1.80 nF,-0.1,E24",
+        "table": "\n"
+        "Chebyshev PI High Pass Filter\n"
+        "==================================================\n"
+        "Cutoff Frequency:    1 MHz\n"
+        "Impedance Z0:        50 Ohm\n"
+        "Ripple:              0.5 dB\n"
+        "Order:               3\n"
+        "==================================================\n"
+        "\n"
+        "Topology:\n"
+        "  IN ───┬───┤ C1 ├───┬─── OUT\n"
+        "        │            │       \n"
+        "       ===          ===      \n"
+        "       L1           L2       \n"
+        "        │            │       \n"
+        "       GND          GND      \n"
+        "\n"
+        "                 Component Values                 \n"
+        "┌────────────────────────┬────────────────────────┐\n"
+        "│       Inductors        │       Capacitors       │\n"
+        "├────────────────────────┼────────────────────────┤\n"
+        "│ L1: 4.99 µH            │ C1: 2.90 nF            │\n"
+        "│ L2: 4.99 µH            │                        │\n"
+        "└────────────────────────┴────────────────────────┘\n"
+        "Inductors: wind to value (see toroid recommendations)\n"
+        "\n"
+        "E24 Standard Capacitor Recommendations\n"
+        "---------------------------------------------\n"
+        "(Calculated values with nearest standard matches)\n"
+        "\n"
+        "C1 Calculated: 2.90 nF\n"
+        "  Nearest Std:  3.00 nF (+3.4%)\n"
+        "  Parallel Std: 1.10 nF || 1.80 nF (-0.1%)\n"
+        "\n",
+        "json": "{\n"
+        '  "filter_type": "chebyshev",\n'
+        '  "cutoff_frequency_hz": 1000000.0,\n'
+        '  "impedance_ohms": 50.0,\n'
+        '  "order": 3,\n'
+        '  "components": {\n'
+        '    "inductors": [\n'
+        "      {\n"
+        '        "name": "L1",\n'
+        '        "value_henries": 4.985182321651755e-06\n'
+        "      },\n"
+        "      {\n"
+        '        "name": "L2",\n'
+        '        "value_henries": 4.985182321651756e-06\n'
+        "      }\n"
+        "    ],\n"
+        '    "capacitors": [\n'
+        "      {\n"
+        '        "name": "C1",\n'
+        '        "value_farads": 2.902455434708526e-09,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 3.0000000000000004e-09,\n'
+        '            "error_pct": 3.3607601386400003\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 1.1000000000000001e-09\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 1.8000000000000002e-09\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 2.9000000000000003e-09,\n'
+        '            "error_pct": -0.08459853264800143\n'
+        "          }\n"
+        "        }\n"
+        "      }\n"
+        "    ]\n"
+        "  },\n"
+        '  "topology": "pi",\n'
+        '  "ripple_db": 0.5\n'
+        "}",
+        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
+        "L1,4.99,µH,,,,,,\n"
+        "L2,4.99,µH,,,,,,\n"
+        "C1,2.90,nF,3.00,nF,3.4,1.10 nF || 1.80 nF,-0.1,E24",
     },
     "highpass_chebyshev_t": {
         "category": "highpass",
         "filter_type": "chebyshev",
         "topology": "t",
-        "table": "\nChebyshev T High Pass Filter\n==================================================\nCutoff Frequency:    1 MHz\nImpedance Z0:        50 Ohm\nRipple:              0.5 dB\nOrder:               3\n==================================================\n\nTopology:\n  IN ───┤C1├───┬───┤C2├─── OUT\n               │              \n              ===             \n              L1              \n               │              \n              GND             \n\n                 Component Values                 \n┌────────────────────────┬────────────────────────┐\n│       Capacitors       │       Inductors        │\n├────────────────────────┼────────────────────────┤\n│ C1: 1.99 nF            │ L1: 7.26 µH            │\n│ C2: 1.99 nF            │                        │\n└────────────────────────┴────────────────────────┘\n\nE24 Standard Capacitor Recommendations\n---------------------------------------------\n(Calculated values with nearest standard matches)\n\nC1 Calculated: 1.99 nF\n  Nearest Std:  2.00 nF (+0.3%)\n  Parallel Std: 390.00 pF || 1.60 nF (-0.2%)\nC2 Calculated: 1.99 nF\n  Nearest Std:  2.00 nF (+0.3%)\n  Parallel Std: 390.00 pF || 1.60 nF (-0.2%)\n\n",
-        "json": '{\n  "filter_type": "chebyshev",\n  "cutoff_frequency_hz": 1000000.0,\n  "impedance_ohms": 50.0,\n  "order": 3,\n  "components": {\n    "capacitors": [\n      {\n        "name": "C1",\n        "value_farads": 1.994072928660702e-09,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 2e-09,\n            "error_pct": 0.2972344318058163\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 3.9e-10\n              },\n              {\n                "value_farads": 1.6000000000000003e-09\n              }\n            ],\n            "value_farads": 1.9900000000000004e-09,\n            "error_pct": -0.20425174035320065\n          }\n        }\n      },\n      {\n        "name": "C2",\n        "value_farads": 1.9940729286607027e-09,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_farads": 2e-09,\n            "error_pct": 0.2972344318057747\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_farads": 3.9e-10\n              },\n              {\n                "value_farads": 1.6000000000000003e-09\n              }\n            ],\n            "value_farads": 1.9900000000000004e-09,\n            "error_pct": -0.20425174035324203\n          }\n        }\n      }\n    ],\n    "inductors": [\n      {\n        "name": "L1",\n        "value_henries": 7.256138586771314e-06,\n        "standard_match": {\n          "series": "E24",\n          "nearest": {\n            "value_henries": 7.499999999999999e-06,\n            "error_pct": 3.3607601386399892\n          },\n          "parallel": {\n            "components": [\n              {\n                "value_henries": 9.1e-06\n              },\n              {\n                "value_henries": 3.6e-05\n              }\n            ],\n            "value_henries": 7.263858093126385e-06,\n            "error_pct": 0.1063858726340311\n          }\n        }\n      }\n    ]\n  },\n  "topology": "t",\n  "ripple_db": 0.5\n}',
-        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\nC1,1.99,nF,2.00,nF,0.3,390.00 pF || 1.60 nF,-0.2,E24\nC2,1.99,nF,2.00,nF,0.3,390.00 pF || 1.60 nF,-0.2,E24\nL1,7.26,µH,7.50,µH,3.4,9.10 µH || 36.00 µH,0.1,E24",
+        "table": "\n"
+        "Chebyshev T High Pass Filter\n"
+        "==================================================\n"
+        "Cutoff Frequency:    1 MHz\n"
+        "Impedance Z0:        50 Ohm\n"
+        "Ripple:              0.5 dB\n"
+        "Order:               3\n"
+        "==================================================\n"
+        "\n"
+        "Topology:\n"
+        "  IN ───┤C1├───┬───┤C2├─── OUT\n"
+        "               │              \n"
+        "              ===             \n"
+        "              L1              \n"
+        "               │              \n"
+        "              GND             \n"
+        "\n"
+        "                 Component Values                 \n"
+        "┌────────────────────────┬────────────────────────┐\n"
+        "│       Capacitors       │       Inductors        │\n"
+        "├────────────────────────┼────────────────────────┤\n"
+        "│ C1: 1.99 nF            │ L1: 7.26 µH            │\n"
+        "│ C2: 1.99 nF            │                        │\n"
+        "└────────────────────────┴────────────────────────┘\n"
+        "Inductors: wind to value (see toroid recommendations)\n"
+        "\n"
+        "E24 Standard Capacitor Recommendations\n"
+        "---------------------------------------------\n"
+        "(Calculated values with nearest standard matches)\n"
+        "\n"
+        "C1 Calculated: 1.99 nF\n"
+        "  Nearest Std:  2.00 nF (+0.3%)\n"
+        "  Parallel Std: 390.00 pF || 1.60 nF (-0.2%)\n"
+        "C2 Calculated: 1.99 nF\n"
+        "  Nearest Std:  2.00 nF (+0.3%)\n"
+        "  Parallel Std: 390.00 pF || 1.60 nF (-0.2%)\n"
+        "\n",
+        "json": "{\n"
+        '  "filter_type": "chebyshev",\n'
+        '  "cutoff_frequency_hz": 1000000.0,\n'
+        '  "impedance_ohms": 50.0,\n'
+        '  "order": 3,\n'
+        '  "components": {\n'
+        '    "capacitors": [\n'
+        "      {\n"
+        '        "name": "C1",\n'
+        '        "value_farads": 1.994072928660702e-09,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 2e-09,\n'
+        '            "error_pct": 0.2972344318058163\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 3.9e-10\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 1.6000000000000003e-09\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 1.9900000000000004e-09,\n'
+        '            "error_pct": -0.20425174035320065\n'
+        "          }\n"
+        "        }\n"
+        "      },\n"
+        "      {\n"
+        '        "name": "C2",\n'
+        '        "value_farads": 1.9940729286607027e-09,\n'
+        '        "standard_match": {\n'
+        '          "series": "E24",\n'
+        '          "nearest": {\n'
+        '            "value_farads": 2e-09,\n'
+        '            "error_pct": 0.2972344318057747\n'
+        "          },\n"
+        '          "parallel": {\n'
+        '            "components": [\n'
+        "              {\n"
+        '                "value_farads": 3.9e-10\n'
+        "              },\n"
+        "              {\n"
+        '                "value_farads": 1.6000000000000003e-09\n'
+        "              }\n"
+        "            ],\n"
+        '            "value_farads": 1.9900000000000004e-09,\n'
+        '            "error_pct": -0.20425174035324203\n'
+        "          }\n"
+        "        }\n"
+        "      }\n"
+        "    ],\n"
+        '    "inductors": [\n'
+        "      {\n"
+        '        "name": "L1",\n'
+        '        "value_henries": 7.256138586771314e-06\n'
+        "      }\n"
+        "    ]\n"
+        "  },\n"
+        '  "topology": "t",\n'
+        '  "ripple_db": 0.5\n'
+        "}",
+        "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
+        "C1,1.99,nF,2.00,nF,0.3,390.00 pF || 1.60 nF,-0.2,E24\n"
+        "C2,1.99,nF,2.00,nF,0.3,390.00 pF || 1.60 nF,-0.2,E24\n"
+        "L1,7.26,µH,,,,,,",
     },
 }
 

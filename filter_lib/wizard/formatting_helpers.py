@@ -51,10 +51,12 @@ def format_eseries_recs(
 ) -> list[str]:
     """Format E-series recommendations for components.
 
-    parallel_mode must match the component physics: ``additive`` for capacitors
-    (C_par = C1 + C2) and ``harmonic`` for inductors (L_par = L1*L2/(L1+L2)).
+    Capacitors receive E-series matching; inductors are wound to value.
     """
     from filter_lib.shared.display_helpers import format_eseries_match
+
+    if prefix.upper().startswith("L") or name.lower().startswith("inductor"):
+        return ["Inductors: wind to value (see toroid recommendations)"]
 
     lines = []
     lines.append(f"\n{eseries} Standard {name} Recommendations")
@@ -152,6 +154,7 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
         lines.append(f"\u2502 {cap_str:<22} \u2502 {ind_str:<22} \u2502")
 
     lines.append(f"\u2514{h24}\u2534{h24}\u2518")
+    lines.append("Inductors: wind to value (see toroid recommendations)")
 
     lines.append(f"\n\u250c{h24}\u2510")
     lines.append(f"\u2502{'Coupling Capacitors':^24}\u2502")

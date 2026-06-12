@@ -93,6 +93,17 @@ class TestFormatters:
         assert data["coupling"] == "top"
         assert "components" in data
 
+    def test_format_json_eseries_matches_capacitors_only(self):
+        result = _make_result()
+        data = json.loads(format_json(result, eseries="E24", include_toroids=False))
+        first_tank_cap = data["components"]["tank_capacitors"][0]
+        first_inductor = data["components"]["inductors"][0]
+        first_coupling_cap = data["components"]["coupling_capacitors"][0]
+
+        assert "standard_match" in first_tank_cap
+        assert "standard_match" in first_coupling_cap
+        assert "standard_match" not in first_inductor
+
     def test_format_json_with_ripple(self):
         result = _make_result(filter_type="chebyshev", n_resonators=5, ripple_db=0.5)
         data = json.loads(format_json(result))
@@ -104,6 +115,15 @@ class TestFormatters:
         assert "Cp1" in output
         assert "L1" in output
         assert "Cs12" in output
+
+    def test_format_csv_eseries_leaves_inductor_match_columns_empty(self):
+        output = format_csv(_make_result(), eseries="E24", include_toroids=False)
+        rows = [line.split(",") for line in output.splitlines()]
+        inductor_row = next(row for row in rows if row[0] == "L1")
+        cap_row = next(row for row in rows if row[0] == "Cp1")
+
+        assert inductor_row[3:9] == [""] * 6
+        assert cap_row[3] != ""
 
     def test_format_quiet_formatted(self):
         output = format_quiet(_make_result(), raw=False)

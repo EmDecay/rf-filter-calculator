@@ -11,7 +11,7 @@ from .display_common import (
     format_quiet_result,
 )
 from .display_helpers import format_eseries_match
-from .formatting import format_capacitance, format_inductance
+from .formatting import format_capacitance
 from .plotting import find_db_thresholds, format_threshold_table, render_plot_pair
 from .toroid_display import format_recommendation_block, format_recommendation_block_compact
 from .toroid_selection import recommend_cores
@@ -84,7 +84,6 @@ class LpHpRenderOptions:
 
 
 CAPACITOR_MATCH = MatchConfig("capacitors", "C", "Capacitor", format_capacitance, "additive")
-INDUCTOR_MATCH = MatchConfig("inductors", "L", "Inductor", format_inductance, "harmonic")
 
 
 def primary_component(result: dict, config: LpHpDisplayConfig) -> str:

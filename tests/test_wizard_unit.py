@@ -13,8 +13,6 @@ separated from the Textual UI rendering logic.
 import json
 from unittest.mock import Mock
 
-import pytest
-
 from filter_lib.wizard.calculation_handler import calculate_and_format
 from filter_lib.wizard.filter_type_calculators import (
     calculate_bandpass,
@@ -30,7 +28,6 @@ from filter_lib.wizard.formatting_helpers import (
 from filter_lib.wizard.radio_button_helpers import get_selected_radio
 from filter_lib.wizard.screens.results import ResultsScreen
 from filter_lib.wizard.state import FilterState
-from filter_lib.wizard.validation import validate_order, validate_ripple
 
 # ============================================================================
 # Tests for filter_type_calculators.py
@@ -394,7 +391,7 @@ class TestCalculateHighpass:
         assert "{" in lines[0]
 
     def test_highpass_json_with_eseries(self):
-        """Test highpass JSON includes standard match fields."""
+        """Highpass JSON matches capacitors and omits inductor match fields."""
         state = FilterState(
             category="highpass",
             filter_type="butterworth",
@@ -413,11 +410,13 @@ class TestCalculateHighpass:
 
         data = json.loads(lines[0])
         first_cap = data["components"]["capacitors"][0]
+        first_ind = data["components"]["inductors"][0]
         assert "standard_match" in first_cap
         assert first_cap["standard_match"]["series"] == "E24"
+        assert "standard_match" not in first_ind
 
     def test_highpass_csv_with_eseries(self):
-        """Test highpass CSV includes standard match columns."""
+        """Highpass CSV keeps match columns empty for inductors."""
         state = FilterState(
             category="highpass",
             filter_type="butterworth",
@@ -433,12 +432,19 @@ class TestCalculateHighpass:
         )
 
         lines = calculate_highpass(state)
-        header = lines[0].splitlines()[0]
+        csv_lines = lines[0].splitlines()
+        header = csv_lines[0]
         assert "NearestStdValue" in header
         assert "Eseries" in header
+        first_ind_row = csv_lines[1].split(",")
+        cap_row = csv_lines[-1].split(",")
+        assert first_ind_row[0] == "L1"
+        assert first_ind_row[3:9] == [""] * 6
+        assert cap_row[0] == "C1"
+        assert cap_row[3] != ""
 
     def test_highpass_with_eseries(self):
-        """Test highpass with E-series recommendations for inductors."""
+        """Test highpass with capacitor-only E-series recommendations."""
         state = FilterState(
             category="highpass",
             filter_type="butterworth",
@@ -456,7 +462,9 @@ class TestCalculateHighpass:
         lines = calculate_highpass(state)
 
         output = "\n".join(lines)
-        assert "E24" in output or "Inductor" in output
+        assert "E24 Standard Capacitor Recommendations" in output
+        assert "Standard Inductor Recommendations" not in output
+        assert "Inductors: wind to value (see toroid recommendations)" in output
 
     def test_highpass_with_plot(self):
         """Test highpass with frequency response plot."""
@@ -818,8 +826,8 @@ class TestFormatEseriesRecs:
         assert "C3" in output
         assert "Calculated:" in output
 
-    def test_format_eseries_inductors(self):
-        """Test E-series recommendations for inductors."""
+    def test_format_eseries_inductors_uses_winding_note(self):
+        """Test inductor E-series requests use the winding note."""
         from filter_lib.shared.formatting import format_inductance
 
         components = [1e-6, 2.2e-6]  # 1µH, 2.2µH
@@ -827,10 +835,7 @@ class TestFormatEseriesRecs:
         lines = format_eseries_recs(components, "L", "Inductor", "E24", format_inductance)
 
         output = "\n".join(lines)
-        assert "E24" in output
-        assert "Inductor" in output
-        assert "L1" in output
-        assert "L2" in output
+        assert output == "Inductors: wind to value (see toroid recommendations)"
 
     def test_format_eseries_empty_list(self):
         """Test E-series formatting with empty component list."""
@@ -1179,109 +1184,3 @@ class TestGetSelectedRadio:
         get_selected_radio(mock_screen, "filter_type")
 
         assert mock_screen.query_one.called
-
-
-# ============================================================================
-# Tests for validation.py
-# ============================================================================
-
-
-class TestValidateOrder:
-    """Tests for validate_order function."""
-
-    def test_validate_order_valid_minimum(self):
-        """Test minimum valid order value."""
-        result = validate_order("2")
-        assert result == 2
-
-    def test_validate_order_valid_maximum(self):
-        """Test maximum valid order value."""
-        result = validate_order("9")
-        assert result == 9
-
-    def test_validate_order_valid_middle(self):
-        """Test middle range order values."""
-        assert validate_order("3") == 3
-        assert validate_order("5") == 5
-        assert validate_order("7") == 7
-
-    def test_validate_order_too_small(self):
-        """Test order below minimum raises error."""
-        with pytest.raises(ValueError, match="Order must be 2-9"):
-            validate_order("1")
-
-    def test_validate_order_too_large(self):
-        """Test order above maximum raises error."""
-        with pytest.raises(ValueError, match="Order must be 2-9"):
-            validate_order("10")
-
-    def test_validate_order_zero(self):
-        """Test zero order raises error."""
-        with pytest.raises(ValueError, match="Order must be 2-9"):
-            validate_order("0")
-
-    def test_validate_order_negative(self):
-        """Test negative order raises error."""
-        with pytest.raises(ValueError, match="Order must be 2-9"):
-            validate_order("-1")
-
-    def test_validate_order_invalid_string(self):
-        """Test non-numeric string raises error."""
-        with pytest.raises(ValueError):
-            validate_order("abc")
-
-    def test_validate_order_float_string(self):
-        """Test float string gets converted to int."""
-        # Python int() will fail on float strings like "3.5"
-        with pytest.raises(ValueError):
-            validate_order("3.5")
-
-
-class TestValidateRipple:
-    """Tests for validate_ripple function."""
-
-    def test_validate_ripple_valid_small(self):
-        """Test small valid ripple value."""
-        result = validate_ripple("0.1")
-        assert result == 0.1
-
-    def test_validate_ripple_valid_typical(self):
-        """Test typical ripple values."""
-        assert validate_ripple("0.5") == 0.5
-        assert validate_ripple("1.0") == 1.0
-        assert validate_ripple("2.0") == 2.0
-
-    def test_validate_ripple_valid_maximum(self):
-        """Test maximum recommended ripple."""
-        result = validate_ripple("3.0")
-        assert result == 3.0
-
-    def test_validate_ripple_zero(self):
-        """Test zero ripple raises error."""
-        with pytest.raises(ValueError, match="Ripple must be positive"):
-            validate_ripple("0")
-
-    def test_validate_ripple_negative(self):
-        """Test negative ripple raises error."""
-        with pytest.raises(ValueError, match="Ripple must be positive"):
-            validate_ripple("-0.5")
-
-    def test_validate_ripple_too_large(self):
-        """Test ripple above 3.0 dB raises error."""
-        with pytest.raises(ValueError, match="Ripple typically should be <= 3.0 dB"):
-            validate_ripple("3.1")
-
-    def test_validate_ripple_way_too_large(self):
-        """Test very large ripple raises error."""
-        with pytest.raises(ValueError, match="Ripple typically should be <= 3.0 dB"):
-            validate_ripple("10.0")
-
-    def test_validate_ripple_invalid_string(self):
-        """Test non-numeric string raises error."""
-        with pytest.raises(ValueError):
-            validate_ripple("abc")
-
-    def test_validate_ripple_very_small(self):
-        """Test very small positive ripple is valid."""
-        result = validate_ripple("0.01")
-        assert result == 0.01

@@ -1,5 +1,14 @@
 # Project Changelog
 
+## 2026-06-12 — Capacitors-Only E-Series Matching
+
+**BREAKING**: E-series matching now applies to capacitors only. Inductor standard-match
+data has been removed from JSON and CSV export surfaces, including wizard exports;
+text table output now directs inductors to be wound to value using the toroid
+recommendations.
+
+---
+
 ## 2026-06-12 — Unified Response-Export Schema + Wizard Plot Export
 
 **BREAKING (clean break, user-decided)**: `--plot-data json|csv` now emits one unified schema for LP/HP/BP from `shared/response_export.py` (the three divergent implementations in `shared/transfer_functions.py`, `bandpass/transfer.py`, and `shared/plot_data_export.py` are deleted).

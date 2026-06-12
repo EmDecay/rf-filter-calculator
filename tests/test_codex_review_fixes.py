@@ -135,30 +135,28 @@ class TestChebyshev3dBBandwidthSemantics:
 # ---------------------------------------------------------------------------
 
 
-class TestWizardFormatEseriesRecsParallelMode:
-    def test_format_eseries_recs_accepts_parallel_mode(self):
-        """format_eseries_recs threads parallel_mode through to match_component."""
+class TestWizardFormatEseriesRecsPolicy:
+    def test_format_eseries_recs_caps_only_policy(self):
+        """format_eseries_recs matches capacitors and directs inductors to winding."""
         from filter_lib.shared.formatting import format_inductance
         from filter_lib.wizard.formatting_helpers import format_eseries_recs
 
-        # Harmonic mode for inductors — routes through harmonic combo search.
-        lines_harmonic = format_eseries_recs(
+        lines_inductor = format_eseries_recs(
             [2.5e-6, 1.0e-6], "L", "Inductor", "E24", format_inductance, parallel_mode="harmonic"
         )
-        assert any("Inductor" in line for line in lines_harmonic)
+        assert lines_inductor == ["Inductors: wind to value (see toroid recommendations)"]
 
-        # Additive mode for caps remains the default.
         lines_additive = format_eseries_recs(
             [100e-12, 150e-12], "C", "Capacitor", "E24", format_inductance
         )
         assert any("Capacitor" in line for line in lines_additive)
 
-    def test_hp_calculator_passes_harmonic_for_inductors(self):
-        """The wizard HP calculation path requests harmonic parallel matching."""
+    def test_hp_calculator_matches_capacitors_only(self):
+        """The wizard HP calculation path uses capacitor E-series matching."""
         from filter_lib.highpass.display import HP_WIZARD_MATCH
 
-        assert HP_WIZARD_MATCH.component_key == "inductors"
-        assert HP_WIZARD_MATCH.parallel_mode == "harmonic"
+        assert HP_WIZARD_MATCH.component_key == "capacitors"
+        assert HP_WIZARD_MATCH.parallel_mode == "additive"
 
 
 # ---------------------------------------------------------------------------

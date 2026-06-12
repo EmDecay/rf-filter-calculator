@@ -13,7 +13,7 @@ from .toroid_display import CSV_TOROID_HEADER, build_json_recommendations, csv_c
 from .toroid_selection import recommend_cores
 
 
-def _build_standard_match(value: float, eseries: str, unit_key: str, parallel_mode: str) -> dict:
+def build_standard_match(value: float, eseries: str, unit_key: str, parallel_mode: str) -> dict:
     """Build JSON-serializable E-series match data."""
     match = match_component(value, eseries, parallel_mode=parallel_mode)
 
@@ -49,8 +49,8 @@ def _json_component(
     attach `toroid_recommendations` sourced via recommend_cores.
     """
     component = {"name": name, unit_key: value}
-    if eseries:
-        component["standard_match"] = _build_standard_match(value, eseries, unit_key, parallel_mode)
+    if eseries and unit_key == "value_farads":
+        component["standard_match"] = build_standard_match(value, eseries, unit_key, parallel_mode)
     if toroid_freq_hz is not None and unit_key == "value_henries":
         recs = recommend_cores(value, toroid_freq_hz)
         component["toroid_recommendations"] = build_json_recommendations(recs)
@@ -187,7 +187,10 @@ def format_csv_result(
             formatted = formatter(v)
             val, unit = split_value_unit(formatted)
             row = [f"{prefix}{i + 1}", val, unit]
-            row.extend(_csv_match_fields(v, formatter, eseries, parallel_mode))
+            if prefix == "C":
+                row.extend(_csv_match_fields(v, formatter, eseries, parallel_mode))
+            elif eseries:
+                row.extend([""] * 6)
             if emit_toroids:
                 if prefix == "L":
                     recs = recommend_cores(v, toroid_freq_hz)
@@ -317,6 +320,8 @@ def format_component_table(
         )
 
     lines.append(f"\u2514{horiz}\u2534{horiz}\u2518")
+    if result["inductors"]:
+        lines.append("Inductors: wind to value (see toroid recommendations)")
     return "\n".join(lines)
 
 

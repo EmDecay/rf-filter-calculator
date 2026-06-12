@@ -22,14 +22,14 @@ from .formatters import format_csv, format_eseries_match, format_json, format_qu
 from .transfer import netlist_frequency_sweep
 
 # Type alias for filter result dict
-FilterResult = dict[str, Any]
+BandpassResult = dict[str, Any]
 
 # Default number of points for frequency sweep plots
 PLOT_POINTS = 61
 
 
 def display_results(
-    result: FilterResult,
+    result: BandpassResult,
     raw: bool = False,
     output_format: str = "table",
     quiet: bool = False,
@@ -82,7 +82,7 @@ def display_results(
 
 
 def _print_table_output(
-    result: FilterResult,
+    result: BandpassResult,
     raw: bool,
     eseries: str | None,
     show_plot: bool,
@@ -132,7 +132,7 @@ def _print_table_output(
     print()
 
 
-def _print_toroid_block(result: FilterResult, compact: bool, top_n: int = 1) -> None:
+def _print_toroid_block(result: BandpassResult, compact: bool, top_n: int = 1) -> None:
     """Render shared-L_resonant toroid recommendations (full or compact)."""
     formatter = format_recommendation_block_compact if compact else format_recommendation_block
     L0 = result["L_resonant"]
@@ -151,13 +151,13 @@ def _print_toroid_block(result: FilterResult, compact: bool, top_n: int = 1) -> 
     print()
 
 
-def _print_topology(result: FilterResult) -> None:
+def _print_topology(result: BandpassResult) -> None:
     """Print topology diagram."""
     print("\nTopology:")
     print_top_c_diagram(result["n_resonators"])
 
 
-def _print_component_tables(result: FilterResult, raw: bool) -> None:
+def _print_component_tables(result: BandpassResult, raw: bool) -> None:
     """Print component value tables."""
     n = result["n_resonators"]
 
@@ -176,6 +176,7 @@ def _print_component_tables(result: FilterResult, raw: bool) -> None:
         print(f"│ {cap_str:<22} │ {ind_str:<22} │")
 
     print(f"└{'─' * 24}┴{'─' * 24}┘")
+    print("Inductors: wind to value (see toroid recommendations)")
 
     print(f"\n┌{'─' * 24}┐")
     print(f"│{'Coupling Capacitors':^24}│")
@@ -191,7 +192,7 @@ def _print_component_tables(result: FilterResult, raw: bool) -> None:
     print(f"└{'─' * 24}┘")
 
 
-def _coupling_cap_rows(result: FilterResult) -> list[tuple[str, float]]:
+def _coupling_cap_rows(result: BandpassResult) -> list[tuple[str, float]]:
     """Coupling capacitor rows: end caps (when present) then inter-resonator caps."""
     rows: list[tuple[str, float]] = []
     if result.get("c_end_in") is not None:
@@ -202,7 +203,7 @@ def _coupling_cap_rows(result: FilterResult) -> list[tuple[str, float]]:
     return rows
 
 
-def _print_external_q(result: FilterResult) -> None:
+def _print_external_q(result: BandpassResult) -> None:
     """Print external Q values."""
     realized = " (realized by Ce_in)" if result.get("c_end_in") is not None else ""
     print(f"\nExternal Q (input):  {result['qe_in']:.2f}{realized}")
@@ -210,7 +211,7 @@ def _print_external_q(result: FilterResult) -> None:
     print(f"External Q (output): {result['qe_out']:.2f}{realized}")
 
 
-def _print_eseries_matching(result: FilterResult, eseries: str) -> None:
+def _print_eseries_matching(result: BandpassResult, eseries: str) -> None:
     """Print E-series matching recommendations."""
     print(f"\n{eseries} Standard Capacitor Recommendations")
     print("─" * 45)
@@ -226,7 +227,7 @@ def _print_eseries_matching(result: FilterResult, eseries: str) -> None:
             print(line)
 
 
-def _print_frequency_response(result: FilterResult) -> None:
+def _print_frequency_response(result: BandpassResult) -> None:
     """Print frequency response plot with zoomed passband and threshold table.
 
     The response is simulated from the synthesized component values, not the

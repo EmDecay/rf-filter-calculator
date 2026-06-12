@@ -2,7 +2,6 @@
 
 from ..shared.lp_hp_display import (
     CAPACITOR_MATCH,
-    INDUCTOR_MATCH,
     DiagramConfig,
     LpHpDisplayConfig,
     display_results_for_config,
@@ -96,5 +95,4 @@ def display_results(
     )
 
 
-HP_WIZARD_MATCH = INDUCTOR_MATCH
-HP_CLI_MATCH = CAPACITOR_MATCH
+HP_WIZARD_MATCH = CAPACITOR_MATCH
