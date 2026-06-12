@@ -64,7 +64,7 @@ def _lp_hp_widgets(ripple_visible: bool = False):
         "#order": order,
         "#ripple": ripple,
         "#ripple-section": ripple_section,
-        "#calculate-btn": btn,
+        "#next-btn": btn,
     }
 
 
@@ -106,7 +106,7 @@ class TestLowpassHighpassEventHandlers:
         widgets = _lp_hp_widgets(ripple_visible=False)
         _install_query_one(screen, widgets)
         screen._on_order_submitted(Mock())
-        widgets["#calculate-btn"].focus.assert_called_once()
+        widgets["#next-btn"].focus.assert_called_once()
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_ripple_submitted_focuses_button(self, cls):
@@ -114,7 +114,7 @@ class TestLowpassHighpassEventHandlers:
         widgets = _lp_hp_widgets()
         _install_query_one(screen, widgets)
         screen._on_ripple_submitted(Mock())
-        widgets["#calculate-btn"].focus.assert_called_once()
+        widgets["#next-btn"].focus.assert_called_once()
 
     @pytest.mark.parametrize("cls", [LowpassScreen, HighpassScreen])
     def test_filter_type_changed_shows_ripple_for_chebyshev(self, cls):
@@ -164,7 +164,7 @@ def _bp_handler_widgets(ripple_visible: bool = False):
         "#resonators": reson,
         "#ripple": ripple,
         "#ripple-section": ripple_section,
-        "#calculate-btn": btn,
+        "#next-btn": btn,
     }
 
 
@@ -202,14 +202,14 @@ class TestBandpassEventHandlers:
         widgets = _bp_handler_widgets(ripple_visible=False)
         _install_query_one(screen, widgets)
         screen._on_resonators_submitted(Mock())
-        widgets["#calculate-btn"].focus.assert_called_once()
+        widgets["#next-btn"].focus.assert_called_once()
 
     def test_ripple_submitted_focuses_button(self):
         screen = BandpassScreen()
         widgets = _bp_handler_widgets()
         _install_query_one(screen, widgets)
         screen._on_ripple_submitted(Mock())
-        widgets["#calculate-btn"].focus.assert_called_once()
+        widgets["#next-btn"].focus.assert_called_once()
 
     def test_filter_type_changed_shows_ripple_for_chebyshev(self):
         screen = BandpassScreen()

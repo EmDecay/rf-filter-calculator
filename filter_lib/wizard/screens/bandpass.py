@@ -83,7 +83,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
 
             # Buttons
             with Horizontal(classes="button-row"):
-                yield Button("Next", id="calculate-btn", variant="primary")
+                yield Button("Next", id="next-btn", variant="primary")
                 yield Button("Reset", id="reset-btn")
 
         yield Footer()
@@ -125,12 +125,12 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         if self.query_one("#ripple-section").display:
             self.query_one("#ripple", Input).focus()
         else:
-            self.query_one("#calculate-btn", Button).focus()
+            self.query_one("#next-btn", Button).focus()
 
     @on(Input.Submitted, "#ripple")
     def _on_ripple_submitted(self, event: Input.Submitted) -> None:
         """Auto-advance to calculate button after ripple entry."""
-        self.query_one("#calculate-btn", Button).focus()
+        self.query_one("#next-btn", Button).focus()
 
     def action_back(self) -> None:
         """Go back to welcome screen."""
@@ -163,12 +163,12 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == "calculate-btn":
-            self._calculate()
+        if event.button.id == "next-btn":
+            self._validate_and_continue()
         elif event.button.id == "reset-btn":
             self._reset_form()
 
-    def _calculate(self) -> None:
+    def _validate_and_continue(self) -> None:
         """Validate inputs and proceed to output options."""
         from filter_lib.shared.parsing import parse_frequency, parse_impedance
 

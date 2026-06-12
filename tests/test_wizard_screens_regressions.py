@@ -166,7 +166,7 @@ def test_highpass_wizard_rejects_even_chebyshev():
     screen, state, notifications, pushed = _make_lp_hp_screen_with_inputs(
         HighpassScreen, order=4, filter_type="chebyshev"
     )
-    screen._calculate()
+    screen._validate_and_continue()
 
     assert pushed == [], "navigation should be blocked for even Chebyshev"
     assert any("odd order" in msg for _sev, msg in notifications)
@@ -178,7 +178,7 @@ def test_lowpass_wizard_rejects_even_chebyshev():
     screen, state, notifications, pushed = _make_lp_hp_screen_with_inputs(
         LowpassScreen, order=4, filter_type="chebyshev"
     )
-    screen._calculate()
+    screen._validate_and_continue()
 
     assert pushed == [], "navigation should be blocked for even Chebyshev"
     assert any("odd order" in msg for _sev, msg in notifications)
@@ -190,7 +190,7 @@ def test_highpass_wizard_allows_odd_chebyshev():
     screen, state, notifications, pushed = _make_lp_hp_screen_with_inputs(
         HighpassScreen, order=5, filter_type="chebyshev"
     )
-    screen._calculate()
+    screen._validate_and_continue()
 
     assert pushed, "odd Chebyshev should advance past validation"
 
@@ -257,7 +257,7 @@ def test_bandpass_wizard_offers_no_shunt_option():
 
 def test_bandpass_wizard_allows_top_coupling():
     screen, state, notifications, pushed, _widgets = _make_bandpass_screen_with_coupling("top")
-    screen._calculate()
+    screen._validate_and_continue()
 
     assert pushed, "Top-C should advance past validation"
     assert state.topology == "top"
