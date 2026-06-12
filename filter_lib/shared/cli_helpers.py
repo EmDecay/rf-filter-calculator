@@ -3,8 +3,10 @@
 Provides common argument definitions, validation, and output handling.
 """
 
+import sys
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
+from typing import NoReturn
 
 from .cli_aliases import (
     DEFAULT_COMPONENTS,
@@ -18,6 +20,10 @@ FILTER_TYPE_CHOICES = ["butterworth", "chebyshev", "bessel", "bw", "ch", "bs", "
 
 # Topology choices for LPF/HPF
 TOPOLOGY_CHOICES = ["pi", "t"]
+
+
+# Frequency-suffix explanation shared by every frequency flag's help text
+FREQ_SUFFIX_HELP = "suffixes: k/M/G = kHz/MHz/GHz (case-insensitive; m is MHz, not milli)"
 
 
 def add_filter_type_args(parser: ArgumentParser, filter_category: str = "lowpass") -> None:
@@ -35,15 +41,20 @@ def add_filter_type_args(parser: ArgumentParser, filter_category: str = "lowpass
     parser.add_argument("frequency", nargs="?", help="Cutoff frequency (e.g., 10MHz)")
 
     parser.add_argument(
-        "-t",
         "--type",
         dest="type_flag",
         choices=FILTER_TYPE_CHOICES,
         help="Filter type (alternative)",
     )
-    parser.add_argument("-f", "--freq", dest="freq_flag", help="Cutoff frequency (alternative)")
+    parser.add_argument(
+        "-f",
+        "--freq",
+        dest="freq_flag",
+        help=f"Cutoff frequency (alternative); {FREQ_SUFFIX_HELP}",
+    )
     if filter_category in ("lowpass", "highpass"):
         parser.add_argument(
+            "-T",
             "--topology",
             choices=TOPOLOGY_CHOICES,
             dest="topology_flag",
@@ -59,12 +70,14 @@ def add_common_filter_args(parser: ArgumentParser) -> None:
         default=DEFAULT_IMPEDANCE,
         help=f"Characteristic impedance (default: {DEFAULT_IMPEDANCE})",
     )
+    # default=None is a sentinel: "ripple was explicitly supplied" drives the
+    # only-used-by-Chebyshev warning; DEFAULT_RIPPLE_DB is applied afterwards.
     parser.add_argument(
         "-r",
         "--ripple",
         type=float,
-        default=DEFAULT_RIPPLE_DB,
-        help=f"Chebyshev ripple in dB (default: {DEFAULT_RIPPLE_DB})",
+        default=None,
+        help=f"Chebyshev ripple in dB (default: {DEFAULT_RIPPLE_DB}; ignored by other types)",
     )
     parser.add_argument(
         "-n",
@@ -117,6 +130,31 @@ def validate_filter_args(freq_hz: float, impedance: float, components: int) -> N
         raise ValueError("Impedance must be positive")
     if not 2 <= components <= 9:
         raise ValueError("Components must be 2-9")
+
+
+def usage_error(args: Namespace, message: str) -> NoReturn:
+    """Exit with the subcommand's argparse usage error (exit code 2).
+
+    Requires setup_parser to have wired the subparser into the namespace via
+    ``parser.set_defaults(_parser=parser)``.
+    """
+    args._parser.error(message)
+    raise SystemExit(2)  # unreachable: parser.error always exits
+
+
+def resolve_ripple_arg(args: Namespace, filter_type: str) -> float:
+    """Resolve the -r/--ripple sentinel default; warn when ignored.
+
+    Args:
+        args: Parsed arguments (ripple is None unless explicitly supplied)
+        filter_type: Canonical filter type
+
+    Returns:
+        Ripple in dB (the supplied value, or DEFAULT_RIPPLE_DB)
+    """
+    if args.ripple is not None and filter_type != "chebyshev":
+        print("Warning: ripple is only used by Chebyshev; ignoring", file=sys.stderr)
+    return args.ripple if args.ripple is not None else DEFAULT_RIPPLE_DB
 
 
 def get_filter_type_arg(args: Namespace) -> str:

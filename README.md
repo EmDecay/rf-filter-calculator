@@ -44,13 +44,13 @@ uv run filter-calc
 uv run filter-calc lowpass butterworth pi 10MHz -n 5
 
 # Lowpass T topology
-uv run filter-calc lowpass butterworth 10MHz -n 5 --topology t
+uv run filter-calc lowpass butterworth t 10MHz -n 5
 
 # Chebyshev highpass T at 14 MHz with 0.5 dB ripple
-uv run filter-calc highpass chebyshev 14MHz -r 0.5 --topology t
+uv run filter-calc highpass chebyshev t 14MHz -r 0.5
 
-# Highpass Pi topology
-uv run filter-calc highpass chebyshev 14MHz -r 0.5 --topology pi
+# Highpass Pi topology via the -T flag
+uv run filter-calc highpass chebyshev -T pi -f 14MHz -r 0.5
 
 # Bandpass for 20m amateur band (14.0-14.35 MHz)
 uv run filter-calc bandpass butterworth top -f 14.175MHz -b 350kHz
@@ -79,7 +79,7 @@ deactivate
 
 ```bash
 uv run filter-calc lowpass <type> <topology> <frequency> [options]
-uv run filter-calc lp <type> <frequency> --topology pi|t [options]
+uv run filter-calc lp <type> -T pi|t -f <frequency> [options]
 ```
 
 **Example:**
@@ -115,7 +115,7 @@ uv run filter-calc lp bw pi 7.1MHz -n 5 --plot
 
 ```bash
 uv run filter-calc highpass <type> <topology> <frequency> [options]
-uv run filter-calc hp <type> <frequency> --topology pi|t [options]
+uv run filter-calc hp <type> -T pi|t -f <frequency> [options]
 ```
 
 ### Bandpass Filter (Coupled Resonator)
@@ -139,13 +139,13 @@ When using `--fl` and `--fh`, the calculator synthesizes around the geometric ce
 `f_low` and `f_high` values you entered.
 
 **Coupling topologies:**
-- `top` / `t` - Top-coupled (series coupling capacitors)
-- `shunt` / `s` - Shunt-coupled (parallel coupling capacitors)
+- `top` / `t` - Top-coupled (series coupling capacitors; the only supported kind)
 
 ### Interactive Wizard
 
 ```bash
-uv run filter-calc
+uv run filter-calc          # default when no arguments given
+uv run filter-calc wizard   # explicit subcommand (alias: w)
 ```
 
 Running with no arguments starts a Textual TUI wizard with screen-based navigation:
@@ -167,10 +167,10 @@ Default values shown as placeholders; press Enter with empty field to use defaul
 
 | Option | Description |
 |--------|-------------|
-| `--topology` | Filter topology: pi or t (required for lowpass/highpass) |
-| `-n, --components` | Number of components/resonators (2-9) |
+| `-T, --topology` | Filter topology: pi or t (required for lowpass/highpass) |
+| `-n, --components` | Number of components/resonators (2-9, default: 3) |
 | `-z, --impedance` | System impedance (default: 50Ω) |
-| `-r, --ripple` | Chebyshev passband ripple in dB (default: 0.5) |
+| `-r, --ripple` | Chebyshev passband ripple in dB, 0 < r ≤ 3.0 (default: 0.5; ignored by other types) |
 | `-e, --eseries` | E-series for matching: E12, E24, E96 (default: E24) |
 | `--no-match` | Disable E-series matching |
 | `--raw` | Show raw values (Farads/Henries) |
@@ -181,6 +181,8 @@ Default values shown as placeholders; press Enter with empty field to use defaul
 | `--explain` | Explain filter type characteristics |
 | `--no-toroids` | Suppress toroid recommendations in text, JSON, and CSV |
 | `--toroid-compact` | One-line-per-rec toroid text output (ignored for JSON/CSV) |
+| `--toroid-full` | Show top-3 toroid cores per inductor in table output (default top-1; JSON/CSV always top-3) |
+| `--version` | Print version and exit |
 
 ## Filter Type Aliases
 
@@ -205,18 +207,18 @@ Supported suffixes: `GHz`, `MHz`, `kHz`, `Hz`, `G`, `M`, `k`
 
 **JSON:**
 ```bash
-uv run filter-calc lp bw 10MHz --format json
+uv run filter-calc lp bw pi 10MHz --format json
 ```
 
 **CSV:**
 ```bash
-uv run filter-calc lp bw 10MHz --format csv > components.csv
+uv run filter-calc lp bw pi 10MHz --format csv > components.csv
 ```
 
 **Frequency Response Data:**
 ```bash
-uv run filter-calc lp bw 10MHz --plot-data json > response.json
-uv run filter-calc lp bw 10MHz --plot-data csv > response.csv
+uv run filter-calc lp bw pi 10MHz --plot-data json > response.json
+uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 ```
 
 ## Testing & CI

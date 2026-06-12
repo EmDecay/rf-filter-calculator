@@ -20,7 +20,8 @@ COUPLING_ALIASES: dict[str, str] = {
 DEFAULT_IMPEDANCE: str = "50"
 DEFAULT_RIPPLE_DB: float = 0.5
 DEFAULT_COMPONENTS: int = 3
-DEFAULT_RESONATORS: int = 2
+# 3 (not 2) so the default works with Chebyshev, which needs an odd count
+DEFAULT_RESONATORS: int = 3
 DEFAULT_Q_SAFETY: float = 2.0
 DEFAULT_ESERIES: str = "E24"
 

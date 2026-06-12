@@ -39,6 +39,7 @@ def display_results(
     plot_data: str | None = None,
     include_toroids: bool = True,
     toroid_compact: bool = False,
+    toroid_full: bool = False,
 ) -> None:
     """Display calculated filter component values.
 
@@ -52,6 +53,8 @@ def display_results(
         plot_data: Export plot data as 'json' or 'csv'
         include_toroids: Include toroid recommendations in output
         toroid_compact: Use compact 1-line-per-rec text format
+        toroid_full: Show top-3 cores in table output (default top-1;
+            json/csv always carry top-3)
     """
     # Handle plot data export (simulated from the synthesized circuit)
     if plot_data:
@@ -81,7 +84,9 @@ def display_results(
         print(format_quiet(result, raw))
         return
 
-    _print_table_output(result, raw, eseries, show_plot, include_toroids, toroid_compact)
+    _print_table_output(
+        result, raw, eseries, show_plot, include_toroids, toroid_compact, toroid_full
+    )
 
 
 def _print_table_output(
@@ -91,6 +96,7 @@ def _print_table_output(
     show_plot: bool,
     include_toroids: bool = True,
     toroid_compact: bool = False,
+    toroid_full: bool = False,
 ) -> None:
     """Print full table output with diagram and component values."""
     coupling_name = "Top-C (Series)"
@@ -126,7 +132,7 @@ def _print_table_output(
         _print_eseries_matching(result, eseries)
 
     if include_toroids:
-        _print_toroid_block(result, compact=toroid_compact)
+        _print_toroid_block(result, compact=toroid_compact, top_n=3 if toroid_full else 1)
 
     if show_plot:
         _print_frequency_response(result)
@@ -134,13 +140,13 @@ def _print_table_output(
     print()
 
 
-def _print_toroid_block(result: FilterResult, compact: bool) -> None:
+def _print_toroid_block(result: FilterResult, compact: bool, top_n: int = 1) -> None:
     """Render shared-L_resonant toroid recommendations (full or compact)."""
     formatter = format_recommendation_block_compact if compact else format_recommendation_block
     L0 = result["L_resonant"]
     n = result["n_resonators"]
     f0 = result["f0"]
-    recs = recommend_cores(L0, f0)
+    recs = recommend_cores(L0, f0, top_n=top_n)
     label = f"L_resonant (applies to L1…L{n})"
     print()
     print("Toroid Winding Recommendations (Iron-Powder T-Series)")

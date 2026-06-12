@@ -93,6 +93,42 @@ class TestCliMain:
             cli.main()
         mock_wiz.assert_called_once()
 
+    @pytest.mark.parametrize("name", ["wizard", "w"])
+    def test_main_wizard_subcommand_dispatches(self, name):
+        argv = ["filter-calc", name]
+        with patch("sys.argv", argv), patch("filter_lib.cli.wizard_cmd.run_wizard") as mock_wiz:
+            cli.main()
+        mock_wiz.assert_called_once()
+
+    def test_main_version_flag(self, capsys):
+        from importlib.metadata import version
+
+        argv = ["filter-calc", "--version"]
+        with patch("sys.argv", argv):
+            with pytest.raises(SystemExit) as exc_info:
+                cli.main()
+        assert exc_info.value.code == 0
+        assert version("rf-filter-calculator") in capsys.readouterr().out
+
+    def test_main_bandpass_chebyshev_default_resonators(self, capsys):
+        """Default -n is 3 (odd), so Chebyshev BP works with no -n supplied."""
+        argv = [
+            "filter-calc",
+            "bp",
+            "ch",
+            "top",
+            "-f",
+            "14.175MHz",
+            "-b",
+            "350kHz",
+            "--no-match",
+            "-q",
+            "--no-toroids",
+        ]
+        with patch("sys.argv", argv):
+            cli.main()
+        assert capsys.readouterr().out
+
     def test_main_value_error_exits_with_code_1(self, capsys):
         """A ValueError raised inside a subcommand is translated to sys.exit(1)."""
         argv = [
@@ -184,11 +220,19 @@ class TestSetupParsers:
     def test_highpass_setup_parser_accepts_flag_form(self):
         parser = argparse.ArgumentParser()
         highpass_cmd.setup_parser(parser)
-        args = parser.parse_args(["-t", "ch", "--topology", "t", "-f", "10MHz", "-r", "1.0"])
+        args = parser.parse_args(["--type", "ch", "-T", "t", "-f", "10MHz", "-r", "1.0"])
         assert args.type_flag == "ch"
         assert args.topology_flag == "t"
         assert args.freq_flag == "10MHz"
         assert args.ripple == 1.0
+
+    def test_short_type_flag_removed(self):
+        """-t was removed in 2.0; --type remains."""
+        parser = argparse.ArgumentParser()
+        lowpass_cmd.setup_parser(parser)
+        with pytest.raises(SystemExit) as exc_info:
+            parser.parse_args(["-t", "bw", "pi", "10MHz"])
+        assert exc_info.value.code == 2
 
     def test_bandpass_setup_parser_accepts_full_form(self):
         parser = argparse.ArgumentParser()
@@ -217,12 +261,12 @@ class TestSetupParsers:
                 "--plot",
                 "--plot-data",
                 "json",
-                "--verify",
                 "--explain",
                 "--raw",
                 "--quiet",
                 "--no-toroids",
                 "--toroid-compact",
+                "--toroid-full",
             ]
         )
         assert args.filter_type == "butterworth"
@@ -233,12 +277,12 @@ class TestSetupParsers:
         assert args.q_safety == 3.0
         assert args.format == "csv"
         assert args.eseries == "E12"
-        assert args.verify
+        assert args.toroid_full
 
     def test_bandpass_setup_parser_accepts_flag_coupling_and_type(self):
         parser = argparse.ArgumentParser()
         bandpass_cmd.setup_parser(parser)
-        args = parser.parse_args(["-t", "ch", "-c", "top", "--fl", "14MHz", "--fh", "14.35MHz"])
+        args = parser.parse_args(["--type", "ch", "-c", "top", "--fl", "14MHz", "--fh", "14.35MHz"])
         assert args.type_flag == "ch"
         assert args.coupling_flag == "top"
         assert args.f_low == "14MHz"
@@ -307,7 +351,7 @@ class TestCliHelperBuilders:
     def test_add_filter_type_args_flag_alternatives(self):
         parser = argparse.ArgumentParser()
         add_filter_type_args(parser, "lowpass")
-        args = parser.parse_args(["-t", "bw", "-f", "1MHz", "--topology", "pi"])
+        args = parser.parse_args(["--type", "bw", "-f", "1MHz", "-T", "pi"])
         assert args.type_flag == "bw"
         assert args.freq_flag == "1MHz"
         assert args.topology_flag == "pi"
@@ -316,10 +360,11 @@ class TestCliHelperBuilders:
         parser = argparse.ArgumentParser()
         add_common_filter_args(parser)
         args = parser.parse_args([])
-        # Defaults pulled from cli_aliases
+        # Defaults pulled from cli_aliases; ripple None is the
+        # "not explicitly supplied" sentinel
         assert args.impedance  # non-empty default
         assert isinstance(args.components, int)
-        assert isinstance(args.ripple, float)
+        assert args.ripple is None
 
     def test_add_output_args_defaults(self):
         parser = argparse.ArgumentParser()
@@ -372,7 +417,7 @@ def _lp_args(**overrides):
         topology_flag=None,
         impedance="50",
         components=3,
-        ripple=0.5,
+        ripple=None,
         raw=False,
         format="table",
         quiet=True,
@@ -383,6 +428,8 @@ def _lp_args(**overrides):
         plot_data=None,
         no_toroids=True,
         toroid_compact=False,
+        toroid_full=False,
+        _parser=argparse.ArgumentParser(prog="filter-calc lowpass"),
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -398,7 +445,7 @@ def _hp_args(**overrides):
         topology_flag=None,
         impedance="50",
         components=3,
-        ripple=0.5,
+        ripple=None,
         raw=False,
         format="table",
         quiet=True,
@@ -409,6 +456,8 @@ def _hp_args(**overrides):
         plot_data=None,
         no_toroids=True,
         toroid_compact=False,
+        toroid_full=False,
+        _parser=argparse.ArgumentParser(prog="filter-calc highpass"),
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -426,12 +475,11 @@ def _bp_args(**overrides):
         f_high=None,
         impedance="50",
         resonators=3,
-        ripple=0.5,
+        ripple=None,
         q_safety=2.0,
         raw=False,
         format="table",
         quiet=True,
-        verify=False,
         explain=False,
         eseries="E24",
         no_match=True,
@@ -439,19 +487,25 @@ def _bp_args(**overrides):
         plot_data=None,
         no_toroids=True,
         toroid_compact=False,
+        toroid_full=False,
+        _parser=argparse.ArgumentParser(prog="filter-calc bandpass"),
     )
     defaults.update(overrides)
     return Namespace(**defaults)
 
 
 class TestLowpassExtraValidation:
-    def test_explain_without_filter_type_raises(self):
-        with pytest.raises(ValueError, match="Filter type required for --explain"):
+    def test_explain_without_filter_type_exits(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             lowpass_run(_lp_args(filter_type=None, explain=True))
+        assert exc_info.value.code == 2
+        assert "filter type required for --explain" in capsys.readouterr().err
 
-    def test_missing_frequency_raises(self):
-        with pytest.raises(ValueError, match="Frequency required"):
+    def test_missing_frequency_exits(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             lowpass_run(_lp_args(frequency=None, freq_flag=None))
+        assert exc_info.value.code == 2
+        assert "frequency required" in capsys.readouterr().err
 
     def test_chebyshev_negative_ripple_raises(self):
         with pytest.raises(ValueError, match="Ripple must be positive"):
@@ -467,13 +521,17 @@ class TestLowpassExtraValidation:
 
 
 class TestHighpassExtraValidation:
-    def test_explain_without_filter_type_raises(self):
-        with pytest.raises(ValueError, match="Filter type required for --explain"):
+    def test_explain_without_filter_type_exits(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             highpass_run(_hp_args(filter_type=None, explain=True))
+        assert exc_info.value.code == 2
+        assert "filter type required for --explain" in capsys.readouterr().err
 
-    def test_missing_frequency_raises(self):
-        with pytest.raises(ValueError, match="Frequency required"):
+    def test_missing_frequency_exits(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             highpass_run(_hp_args(frequency=None, freq_flag=None))
+        assert exc_info.value.code == 2
+        assert "frequency required" in capsys.readouterr().err
 
     def test_chebyshev_negative_ripple_raises(self):
         with pytest.raises(ValueError, match="Ripple must be positive"):
@@ -485,13 +543,17 @@ class TestHighpassExtraValidation:
 
 
 class TestBandpassExtraValidation:
-    def test_explain_without_filter_type_raises(self):
-        with pytest.raises(ValueError, match="Filter type required for --explain"):
+    def test_explain_without_filter_type_exits(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             bandpass_run(_bp_args(filter_type=None, explain=True))
+        assert exc_info.value.code == 2
+        assert "filter type required for --explain" in capsys.readouterr().err
 
-    def test_missing_coupling_when_filter_type_given(self):
-        with pytest.raises(ValueError, match="Coupling topology required"):
+    def test_missing_coupling_when_filter_type_given(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             bandpass_run(_bp_args(coupling_pos=None, coupling_flag=None))
+        assert exc_info.value.code == 2
+        assert "coupling topology required" in capsys.readouterr().err
 
     def test_coupling_flag_used_when_positional_missing(self, capsys):
         bandpass_run(_bp_args(coupling_pos=None, coupling_flag="top"))
@@ -522,15 +584,19 @@ class TestBandpassExtraValidation:
         bandpass_run(_bp_args(filter_type="chebyshev", resonators=3, ripple=0.1))
         assert capsys.readouterr().out
 
-    def test_both_frequency_methods_raises(self):
-        with pytest.raises(ValueError, match="not both"):
+    def test_both_frequency_methods_exit(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             bandpass_run(
                 _bp_args(frequency="14MHz", bandwidth="1MHz", f_low="13MHz", f_high="15MHz")
             )
+        assert exc_info.value.code == 2
+        assert "not both" in capsys.readouterr().err
 
-    def test_neither_frequency_method_raises(self):
-        with pytest.raises(ValueError, match="Specify frequency"):
+    def test_neither_frequency_method_exits(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             bandpass_run(_bp_args(frequency=None, bandwidth=None, f_low=None, f_high=None))
+        assert exc_info.value.code == 2
+        assert "frequency required" in capsys.readouterr().err
 
     def test_fl_ge_fh_raises(self):
         with pytest.raises(ValueError, match="must be less than upper"):

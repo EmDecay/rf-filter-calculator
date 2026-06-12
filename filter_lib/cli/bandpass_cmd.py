@@ -15,9 +15,16 @@ from ..shared.cli_aliases import (
     resolve_coupling,
     resolve_filter_type,
 )
-from ..shared.cli_helpers import get_filter_type_arg
+from ..shared.cli_helpers import (
+    FREQ_SUFFIX_HELP,
+    get_filter_type_arg,
+    resolve_ripple_arg,
+    usage_error,
+)
 from ..shared.parsing import parse_frequency, parse_impedance
 from .toroid_flags import add_toroid_flags
+
+BP_EXAMPLE = "try: filter-calc bp bw top -f 14.2MHz -b 500kHz"
 
 
 def setup_parser(parser: ArgumentParser) -> None:
@@ -36,7 +43,6 @@ def setup_parser(parser: ArgumentParser) -> None:
     )
 
     parser.add_argument(
-        "-t",
         "--type",
         dest="type_flag",
         choices=["butterworth", "chebyshev", "bessel", "bw", "ch", "bs", "b", "c"],
@@ -51,12 +57,16 @@ def setup_parser(parser: ArgumentParser) -> None:
     )
 
     # Frequency method 1: center + bandwidth
-    parser.add_argument("-f", "--frequency", help="Center frequency")
-    parser.add_argument("-b", "--bandwidth", help="3dB bandwidth")
+    parser.add_argument("-f", "--frequency", help=f"Center frequency; {FREQ_SUFFIX_HELP}")
+    parser.add_argument(
+        "-b",
+        "--bandwidth",
+        help="True -3 dB bandwidth for all response types (incl. Chebyshev)",
+    )
 
     # Frequency method 2: low/high cutoff
-    parser.add_argument("--fl", dest="f_low", help="Lower cutoff frequency")
-    parser.add_argument("--fh", dest="f_high", help="Upper cutoff frequency")
+    parser.add_argument("--fl", dest="f_low", help=f"Lower cutoff frequency; {FREQ_SUFFIX_HELP}")
+    parser.add_argument("--fh", dest="f_high", help=f"Upper cutoff frequency; {FREQ_SUFFIX_HELP}")
 
     parser.add_argument(
         "-z",
@@ -73,12 +83,14 @@ def setup_parser(parser: ArgumentParser) -> None:
         metavar="N",
         help=f"Number of resonators: 2-9 (default: {DEFAULT_RESONATORS})",
     )
+    # default=None is a sentinel: "ripple was explicitly supplied" drives the
+    # only-used-by-Chebyshev warning; DEFAULT_RIPPLE_DB is applied afterwards.
     parser.add_argument(
         "-r",
         "--ripple",
         type=float,
-        default=DEFAULT_RIPPLE_DB,
-        help=f"Chebyshev ripple in dB (default: {DEFAULT_RIPPLE_DB})",
+        default=None,
+        help=f"Chebyshev ripple in dB, 0 < r <= 3.0 (default: {DEFAULT_RIPPLE_DB})",
     )
     parser.add_argument(
         "--q-safety",
@@ -95,7 +107,6 @@ def setup_parser(parser: ArgumentParser) -> None:
         "--format", choices=["table", "json", "csv"], default="table", help="Output format"
     )
     parser.add_argument("--explain", action="store_true", help="Explain filter type")
-    parser.add_argument("--verify", action="store_true", help="Run self-verification tests")
 
     parser.add_argument(
         "-e",
@@ -111,39 +122,47 @@ def setup_parser(parser: ArgumentParser) -> None:
         "--plot-data", choices=["json", "csv"], help="Export frequency response data"
     )
     add_toroid_flags(parser)
+    parser.epilog = "Note: the bandwidth must be less than the center frequency (bw < f0)."
+    # Make the subparser reachable from run() so missing-argument problems
+    # exit with a usage line (argparse error) instead of a raw traceback.
+    parser.set_defaults(_parser=parser)
 
 
 def run(args: Namespace) -> None:
     """Execute bandpass command."""
-    if args.verify:
-        _run_verification()
-        return
-
     filter_type = get_filter_type_arg(args)
     coupling = args.coupling_pos or args.coupling_flag
 
     if args.explain:
         if not filter_type:
-            raise ValueError("Filter type required for --explain")
+            usage_error(
+                args, "filter type required for --explain (try: filter-calc bp bw --explain)"
+            )
         resolved = resolve_filter_type(filter_type)
         print(FILTER_EXPLANATIONS_BANDPASS[resolved])
         return
 
     if not filter_type:
-        raise ValueError("Filter type required (butterworth/chebyshev/bessel)")
+        usage_error(args, f"filter type required: butterworth/chebyshev/bessel ({BP_EXAMPLE})")
     if not coupling:
-        raise ValueError("Coupling topology required (top)")
+        usage_error(args, f"coupling topology required: top ({BP_EXAMPLE})")
 
     filter_type = resolve_filter_type(filter_type)
     coupling = resolve_coupling(coupling)
+    ripple_db = resolve_ripple_arg(args, filter_type)
 
     f0, bw = _validate_frequencies(args)
     z0 = parse_impedance(args.impedance)
 
     if args.q_safety <= 0:
         raise ValueError("Q safety factor must be positive")
-    if filter_type == "chebyshev" and args.resonators % 2 == 0:
-        raise ValueError("Chebyshev requires odd resonator count")
+    if filter_type == "chebyshev":
+        if args.resonators % 2 == 0:
+            raise ValueError("Chebyshev requires odd resonator count")
+        if not math.isfinite(ripple_db) or ripple_db <= 0:
+            raise ValueError("Ripple must be positive and finite")
+        if ripple_db > 3.0:
+            raise ValueError("Ripple must be at most 3.0 dB")
 
     result = calculate_bandpass_filter(
         f0=f0,
@@ -152,7 +171,7 @@ def run(args: Namespace) -> None:
         n_resonators=args.resonators,
         filter_type=filter_type,
         coupling=coupling,
-        ripple_db=args.ripple if filter_type == "chebyshev" else DEFAULT_RIPPLE_DB,
+        ripple_db=ripple_db if filter_type == "chebyshev" else DEFAULT_RIPPLE_DB,
         q_safety=args.q_safety,
     )
 
@@ -169,6 +188,7 @@ def run(args: Namespace) -> None:
         plot_data=args.plot_data,
         include_toroids=not args.no_toroids,
         toroid_compact=args.toroid_compact,
+        toroid_full=args.toroid_full,
     )
 
 
@@ -182,9 +202,9 @@ def _validate_frequencies(args: Namespace) -> tuple[float, float]:
     has_low_high = args.f_low and args.f_high
 
     if has_center_bw and has_low_high:
-        raise ValueError("Use (-f + -b) OR (--fl + --fh), not both")
+        usage_error(args, "use (-f + -b) OR (--fl + --fh), not both")
     if not has_center_bw and not has_low_high:
-        raise ValueError("Specify frequency as (-f + -b) or (--fl + --fh)")
+        usage_error(args, f"frequency required: (-f + -b) or (--fl + --fh) ({BP_EXAMPLE})")
 
     if has_center_bw:
         f0 = parse_frequency(args.frequency)
@@ -198,33 +218,3 @@ def _validate_frequencies(args: Namespace) -> tuple[float, float]:
         bw = f_high - f_low
 
     return f0, bw
-
-
-def _run_verification() -> None:
-    """Run self-verification tests. Uses explicit checks so ``python -O`` still runs them."""
-    from ..bandpass.calculations import calculate_resonator_components
-    from ..bandpass.g_values import (
-        calculate_butterworth_g_values,
-        get_chebyshev_g_values,
-    )
-
-    def _check(condition: bool, msg: str) -> None:
-        if not condition:
-            raise RuntimeError(f"Verification failed: {msg}")
-
-    print("Running verification tests...")
-
-    # Test g-value calculations
-    g3 = calculate_butterworth_g_values(3)
-    _check(len(g3) == 3, f"Expected 3 g-values, got {len(g3)}")
-    _check(abs(g3[0] - 1.0) < 0.01, f"g1 should be ~1.0, got {g3[0]}")
-
-    # Test Chebyshev
-    gc3 = get_chebyshev_g_values(3, 0.5)
-    _check(len(gc3) == 3, "Expected 3 Chebyshev g-values")
-
-    # Test resonator components
-    L, C = calculate_resonator_components(10e6, 50)
-    _check(L > 0 and C > 0, "L and C must be positive")
-
-    print("Verification passed")

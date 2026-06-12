@@ -74,8 +74,13 @@ def display_results(
     show_plot: bool = False,
     include_toroids: bool = True,
     toroid_compact: bool = False,
+    toroid_full: bool = False,
 ) -> None:
-    """Display calculated filter component values."""
+    """Display calculated filter component values.
+
+    Table output shows the single best toroid per inductor unless toroid_full
+    requests the top-3; JSON/CSV always carry top-3.
+    """
     if output_format == "json":
         print(
             format_json(
@@ -130,7 +135,7 @@ def display_results(
                 print(line)
 
     if include_toroids:
-        _print_toroid_block(result, compact=toroid_compact)
+        _print_toroid_block(result, compact=toroid_compact, top_n=3 if toroid_full else 1)
 
     if show_plot:
         freqs = generate_frequency_points(result["freq_hz"])
@@ -157,7 +162,7 @@ def display_results(
     print()
 
 
-def _print_toroid_block(result: dict, compact: bool) -> None:
+def _print_toroid_block(result: dict, compact: bool, top_n: int = 1) -> None:
     """Render per-inductor toroid recommendations (full or compact)."""
     formatter = format_recommendation_block_compact if compact else format_recommendation_block
     freq_hz = result["freq_hz"]
@@ -168,7 +173,7 @@ def _print_toroid_block(result: dict, compact: bool) -> None:
         print("(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)")
     print()
     for i, L in enumerate(result["inductors"]):
-        recs = recommend_cores(L, freq_hz)
+        recs = recommend_cores(L, freq_hz, top_n=top_n)
         for line in formatter(f"L{i + 1}", L, freq_hz, recs):
             print(line)
         print()

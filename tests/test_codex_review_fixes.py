@@ -5,8 +5,7 @@
 - #3 LOW: Butterworth transfer function no longer OverflowErrors on extreme ratios.
 - #4 MEDIUM: Sweep generators reject points/num_points < 2 with a clear ValueError.
 - #5 MEDIUM: LP/HP/BP validators reject NaN/inf explicitly.
-- #6 LOW: ``filter-calc bp --verify`` works under ``python -O`` (no asserts).
-- #7 LOW: ResultsScreen pre-selects export format from state.
+- #6 LOW: ResultsScreen pre-selects export format from state.
 """
 
 from __future__ import annotations
@@ -26,7 +25,6 @@ from filter_lib.bandpass.transfer import (
 from filter_lib.bandpass.transfer import (
     generate_frequency_points as bp_generate_frequency_points,
 )
-from filter_lib.cli.bandpass_cmd import _run_verification
 from filter_lib.shared.lp_hp_base_transfer_functions import (
     highpass_butterworth_response,
     lowpass_butterworth_response,
@@ -344,33 +342,7 @@ class TestValidatorsRejectNanInf:
 
 
 # ---------------------------------------------------------------------------
-# #6 --verify uses real checks, not asserts
-# ---------------------------------------------------------------------------
-
-
-class TestVerifyCommandUsesRealChecks:
-    def test_verify_runs_to_success(self, capsys):
-        """_run_verification completes cleanly."""
-        _run_verification()
-        assert "Verification passed" in capsys.readouterr().out
-
-    def test_verify_contains_no_assert_statements(self):
-        """Belt-and-suspenders: source of _run_verification has no bare `assert`."""
-        import inspect
-
-        from filter_lib.cli import bandpass_cmd
-
-        src = inspect.getsource(bandpass_cmd._run_verification)
-        # Strip comments/docstrings crudely; look for an assert-keyword line.
-        for line in src.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("#") or stripped.startswith('"""'):
-                continue
-            assert not stripped.startswith("assert "), f"found assert: {line!r}"
-
-
-# ---------------------------------------------------------------------------
-# #7 ResultsScreen pre-selects export format from state
+# #6 ResultsScreen pre-selects export format from state
 # ---------------------------------------------------------------------------
 
 

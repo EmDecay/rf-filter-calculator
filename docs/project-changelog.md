@@ -1,5 +1,28 @@
 # Project Changelog
 
+## 2.0.0 — 2026-06-12 — Breaking CLI Cleanup + Chebyshev G-Value Unification
+
+One coordinated breaking release so the CLI surface changes land once.
+
+**BREAKING CHANGES**:
+1. **`-t` short flag removed** from all three subcommands. `--type` remains; new `-T` short flag for `--topology` on lowpass/highpass. Bandpass keeps `-c/--coupling` unchanged.
+2. **`--verify` removed** from `bandpass` — its three self-checks are covered by the unit test suite.
+3. **`CHEBYSHEV_G_VALUES` lookup table deleted** (`shared/constants.py`); `bandpass.get_chebyshev_g_values` now computes g-values via `shared/chebyshev_g_calculator` for **arbitrary ripple in (0, 3.0]** (was limited to 0.1/0.5/1.0 dB). The `filter_lib.bandpass.CHEBYSHEV_G_VALUES` re-export is gone.
+4. **Default resonator count is 3** (was 2) so the default works with Chebyshev (odd order required).
+5. **Toroid table output defaults to top-1 core per inductor** (was top-3). New `--toroid-full` flag restores top-3 in table output; JSON/CSV always carry top-3.
+6. **Missing required args now exit 2 with a usage line** (argparse error including a working example) instead of `Error: ...` with exit 1.
+7. **Supplying `-r/--ripple` with butterworth/bessel warns on stderr** ("ripple is only used by Chebyshev; ignoring") and proceeds. Bandpass ripple is range-validated: `0 < r <= 3.0`.
+
+**New**:
+- `wizard` (alias `w`) registered as an explicit subcommand (no-arg invocation still launches it).
+- `--version` on the root parser (reads package metadata).
+- Exact dB→neper constant `40/ln(10)` in the Chebyshev calculator (was hardcoded 17.37); g-values now match published tables to <1e-4.
+- Help text: frequency flags explain the k/M/G suffixes ("m is MHz, not milli"); bandpass `-b` documents true −3 dB bandwidth semantics; epilog examples all execute as written.
+
+**Test Stats**: 1201 tests passing.
+
+---
+
 ## 2026-04-24 (Follow-up) — Chebyshev BP 3dB Semantics & Wizard Corrections
 
 Fixes to core filter semantics and wizard display logic, with comprehensive regression testing.

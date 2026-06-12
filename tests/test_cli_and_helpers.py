@@ -1,7 +1,7 @@
 """Tests for CLI commands, plotting, cli_helpers, and formatting modules."""
 
 import json
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 
 import pytest
 
@@ -200,7 +200,7 @@ def _lp_args(**overrides):
         topology_flag=None,
         impedance="50",
         components=3,
-        ripple=0.5,
+        ripple=None,
         raw=False,
         format="table",
         quiet=True,
@@ -211,6 +211,8 @@ def _lp_args(**overrides):
         plot_data=None,
         no_toroids=True,
         toroid_compact=False,
+        toroid_full=False,
+        _parser=ArgumentParser(prog="filter-calc lowpass"),
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -227,7 +229,7 @@ def _hp_args(**overrides):
         topology_flag=None,
         impedance="50",
         components=3,
-        ripple=0.5,
+        ripple=None,
         raw=False,
         format="table",
         quiet=True,
@@ -238,6 +240,8 @@ def _hp_args(**overrides):
         plot_data=None,
         no_toroids=True,
         toroid_compact=False,
+        toroid_full=False,
+        _parser=ArgumentParser(prog="filter-calc highpass"),
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -256,12 +260,11 @@ def _bp_args(**overrides):
         f_high=None,
         impedance="50",
         resonators=3,
-        ripple=0.5,
+        ripple=None,
         q_safety=2.0,
         raw=False,
         format="table",
         quiet=True,
-        verify=False,
         explain=False,
         eseries="E24",
         no_match=True,
@@ -269,6 +272,8 @@ def _bp_args(**overrides):
         plot_data=None,
         no_toroids=True,
         toroid_compact=False,
+        toroid_full=False,
+        _parser=ArgumentParser(prog="filter-calc bandpass"),
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -283,13 +288,19 @@ class TestLowpassCmd:
         lowpass_run(_lp_args(filter_type="chebyshev", topology_pos="t"))
         assert capsys.readouterr().out
 
-    def test_missing_filter_type(self):
-        with pytest.raises(ValueError, match="Filter type required"):
+    def test_missing_filter_type_exits_with_usage(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             lowpass_run(_lp_args(filter_type=None))
+        assert exc_info.value.code == 2
+        err = capsys.readouterr().err
+        assert "filter type required" in err
+        assert "usage:" in err
 
-    def test_missing_topology(self):
-        with pytest.raises(ValueError, match="Topology required"):
+    def test_missing_topology_exits_with_usage(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             lowpass_run(_lp_args(topology_pos=None))
+        assert exc_info.value.code == 2
+        assert "topology required" in capsys.readouterr().err
 
     def test_explain(self, capsys):
         lowpass_run(_lp_args(explain=True))
@@ -306,13 +317,17 @@ class TestHighpassCmd:
         highpass_run(_hp_args())
         assert capsys.readouterr().out
 
-    def test_missing_filter_type(self):
-        with pytest.raises(ValueError, match="Filter type required"):
+    def test_missing_filter_type_exits_with_usage(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             highpass_run(_hp_args(filter_type=None))
+        assert exc_info.value.code == 2
+        assert "filter type required" in capsys.readouterr().err
 
-    def test_missing_topology(self):
-        with pytest.raises(ValueError, match="Topology required"):
+    def test_missing_topology_exits_with_usage(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             highpass_run(_hp_args(topology_pos=None))
+        assert exc_info.value.code == 2
+        assert "topology required" in capsys.readouterr().err
 
     def test_explain(self, capsys):
         highpass_run(_hp_args(explain=True))
@@ -324,17 +339,45 @@ class TestBandpassCmd:
         bandpass_run(_bp_args())
         assert capsys.readouterr().out
 
-    def test_missing_filter_type(self):
-        with pytest.raises(ValueError, match="Filter type required"):
+    def test_missing_filter_type_exits_with_usage(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             bandpass_run(_bp_args(filter_type=None))
+        assert exc_info.value.code == 2
+        assert "filter type required" in capsys.readouterr().err
 
-    def test_missing_coupling(self):
-        with pytest.raises(ValueError, match="Coupling topology required"):
+    def test_missing_coupling_exits_with_usage(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
             bandpass_run(_bp_args(coupling_pos=None))
+        assert exc_info.value.code == 2
+        assert "coupling topology required" in capsys.readouterr().err
 
-    def test_verify(self, capsys):
-        bandpass_run(_bp_args(verify=True))
-        assert "passed" in capsys.readouterr().out.lower()
+    def test_missing_frequency_spec_exits_with_usage(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(frequency=None, bandwidth=None))
+        assert exc_info.value.code == 2
+        assert "frequency required" in capsys.readouterr().err
+
+    def test_both_frequency_specs_exit_with_usage(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(f_low="14MHz", f_high="14.35MHz"))
+        assert exc_info.value.code == 2
+        assert "not both" in capsys.readouterr().err
+
+    def test_ripple_warns_when_ignored(self, capsys):
+        bandpass_run(_bp_args(ripple=0.5))
+        captured = capsys.readouterr()
+        assert "only used by Chebyshev" in captured.err
+        assert captured.out
+
+    def test_chebyshev_ripple_no_warning(self, capsys):
+        bandpass_run(_bp_args(filter_type="chebyshev", ripple=0.5))
+        captured = capsys.readouterr()
+        assert "only used by Chebyshev" not in captured.err
+        assert captured.out
+
+    def test_chebyshev_ripple_above_ceiling_rejected(self):
+        with pytest.raises(ValueError, match="at most 3.0 dB"):
+            bandpass_run(_bp_args(filter_type="chebyshev", ripple=3.5))
 
     def test_explain(self, capsys):
         bandpass_run(_bp_args(explain=True))
