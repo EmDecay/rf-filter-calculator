@@ -11,11 +11,58 @@ from filter_lib.bandpass import calculate_bandpass_filter, compute_bandpass_3db_
 from filter_lib.bandpass.calculations import (
     calculate_coupling_capacitors,
     calculate_coupling_coefficients,
+    calculate_end_coupling,
     calculate_external_q,
     calculate_resonator_components,
     calculate_tank_capacitors,
 )
 from filter_lib.bandpass.transfer import magnitude_db
+
+
+class TestEndCoupling:
+    """Series end-coupling capacitor sizing (realizes the external Q)."""
+
+    def test_reference_design_values(self):
+        """Butterworth n=3, f0=10 MHz, BW=1 MHz, Z0=50: Ce ≈ 106.1 pF."""
+        f0, z0 = 10e6, 50.0
+        omega0 = 2 * math.pi * f0
+        l_resonant = z0 / omega0
+        qe = 1.0 / 0.1  # g1=1 (Butterworth n=3), fbw=10%
+        ce, delta_c = calculate_end_coupling(qe, omega0, l_resonant, z0)
+        assert ce == pytest.approx(106.1e-12, rel=0.001)
+        assert 0 < delta_c < ce
+
+    def test_transformation_identity(self):
+        """Rp seen through the series cap equals Qe·ω0·L by construction."""
+        f0, z0 = 14e6, 50.0
+        omega0 = 2 * math.pi * f0
+        l_resonant = z0 / omega0
+        qe = 25.0
+        ce, _ = calculate_end_coupling(qe, omega0, l_resonant, z0)
+        q = 1 / (omega0 * z0 * ce)
+        assert z0 * (1 + q * q) == pytest.approx(qe * omega0 * l_resonant, rel=1e-9)
+
+    def test_infeasible_when_rp_at_or_below_z0(self):
+        f0, z0 = 10e6, 50.0
+        omega0 = 2 * math.pi * f0
+        l_resonant = z0 / omega0  # makes Rp = qe * z0
+        with pytest.raises(ValueError, match="too wide"):
+            calculate_end_coupling(1.0, omega0, l_resonant, z0)
+        with pytest.raises(ValueError, match="too wide"):
+            calculate_end_coupling(0.5, omega0, l_resonant, z0)
+
+    def test_result_dict_carries_end_caps_and_retuned_tanks(self):
+        result = calculate_bandpass_filter(10e6, 1e6, 50, 3, "butterworth", "top")
+        assert result["c_end_in"] > 0
+        assert result["c_end_out"] > 0
+        # End tanks are retuned (smaller than the symmetric middle tank)
+        assert result["c_tank"][0] < result["c_tank"][1]
+        assert result["c_tank"][-1] < result["c_tank"][1]
+
+    def test_shunt_results_have_no_end_caps(self):
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "shunt")
+        assert result["c_end_in"] is None
+        assert result["c_end_out"] is None
 
 
 class TestCouplingCoefficients:

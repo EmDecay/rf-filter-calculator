@@ -105,6 +105,36 @@ def calculate_tank_capacitors(
     return tank_caps
 
 
+def calculate_end_coupling(
+    qe: float, omega0: float, l_resonant: float, z0: float
+) -> tuple[float, float]:
+    """Series end-coupling capacitor that realizes an external Q at a resistive port.
+
+    The end resonator must see a parallel resistance Rp = Qe·ω0·L to be loaded
+    to its designed external Q. A series capacitor acts as an impedance
+    transformer stepping the port resistance up: Rp = Z0·(1 + q²) with
+    transformation Q given by q = 1/(ω0·Z0·Ce).
+
+    Returns:
+        Tuple (Ce, ΔC): the series end capacitor and its series-equivalent
+        capacitance ΔC = Ce·q²/(1+q²) that appears across the tank and must
+        be subtracted from the end tank capacitor to keep it on frequency.
+
+    Raises:
+        ValueError: when Rp <= Z0 (no real transformation Q exists).
+    """
+    rp = qe * omega0 * l_resonant
+    if rp <= z0:
+        raise ValueError(
+            "Fractional bandwidth too wide to realize input/output coupling at "
+            "this impedance; reduce bandwidth or order"
+        )
+    q = math.sqrt(rp / z0 - 1)
+    ce = 1 / (omega0 * z0 * q)
+    delta_c = ce * q * q / (1 + q * q)
+    return ce, delta_c
+
+
 def calculate_min_q(f0: float, bw: float, safety_factor: float = 2.0) -> float:
     """Calculate minimum component Q requirement.
 
@@ -175,6 +205,11 @@ def _get_fbw_warnings(fbw: float, coupling: str) -> list[str]:
         warnings.append(
             f"FBW {fbw * 100:.1f}% exceeds 10% limit for Shunt-C; consider Top-C topology"
         )
+    if coupling == "top" and fbw > 0.10:
+        warnings.append(
+            f"FBW {fbw * 100:.1f}% exceeds the simulation-validated range (<=10%) for "
+            "Top-C; verify the design before building"
+        )
     if fbw > 0.40:
         warnings.append(f"FBW {fbw * 100:.1f}% exceeds 40%; consider transmission-line design")
     return warnings
@@ -242,6 +277,19 @@ def calculate_bandpass_filter(
     c_coupling = calculate_coupling_capacitors(k_values, C_resonant)
     c_tank = calculate_tank_capacitors(n_resonators, C_resonant, c_coupling)
 
+    # Realize the external Q with series end-coupling capacitors (Top-C).
+    # Without them the source/load load the end tanks far too heavily and
+    # the built filter misses the designed bandwidth by an order of magnitude.
+    c_end_in = c_end_out = None
+    if coupling == "top":
+        omega0 = 2 * math.pi * f0
+        c_end_in, delta_c_in = calculate_end_coupling(qe_in, omega0, L_resonant, z0)
+        c_end_out, delta_c_out = calculate_end_coupling(qe_out, omega0, L_resonant, z0)
+        # The end caps' series-equivalent capacitance appears across the end
+        # tanks; absorb it so the tanks stay resonant at f0.
+        c_tank[0] -= delta_c_in
+        c_tank[-1] -= delta_c_out
+
     # Check for negative tank capacitors
     negative_caps = [(i + 1, ct) for i, ct in enumerate(c_tank) if ct <= 0]
     if negative_caps:
@@ -273,6 +321,8 @@ def calculate_bandpass_filter(
         "C_resonant": C_resonant,
         "c_coupling": c_coupling,
         "c_tank": c_tank,
+        "c_end_in": c_end_in,
+        "c_end_out": c_end_out,
         "q_min": calculate_min_q(f0, bw, q_safety),
         "warnings": warnings,
     }

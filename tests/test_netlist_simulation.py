@@ -188,22 +188,79 @@ class TestLowpassHighpassAcceptance:
         assert f_hi == pytest.approx(fc, rel=0.005)
 
 
-class TestBandpassAsPrescribed:
-    """The Top-C circuit as currently prescribed (no end coupling realized)."""
+def _measure_top_c(result: dict, f0: float, fbw: float) -> tuple[float, float]:
+    """Simulate a Top-C design and return (measured_bw, measured_f0)."""
+    n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
+    # A span of a few designed bandwidths captures both edges; threshold
+    # interpolation recovers edge accuracy well below the grid step.
+    lo, hi = f0 * (1 - 3 * fbw), f0 * (1 + 3 * fbw)
+    step = (hi - lo) / 3000
+    freqs = [lo + i * step for i in range(3001)]
+    mags = solve_s21(n_nodes, branches, 50, 50, in_node, out_node, freqs)
+    f_lo, f_hi = find_3db_edges(freqs, mags)
+    assert f_lo is not None and lo < f_lo, "lower band edge must lie inside the sweep"
+    assert f_hi is not None and f_hi < hi, "upper band edge must lie inside the sweep"
+    return f_hi - f_lo, math.sqrt(f_lo * f_hi)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Top-C external Q is printed but not realized; designed BW is not met",
-    )
-    def test_top_c_realizes_designed_bandwidth(self):
-        f0, bw = 10e6, 1e6
-        result = calculate_bandpass_filter(f0, bw, 50, 3, "butterworth", "top")
-        n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
-        freqs = [5e6 + i * (11e6 / 20000) for i in range(20001)]
-        mags = solve_s21(n_nodes, branches, 50, 50, in_node, out_node, freqs)
-        f_lo, f_hi = find_3db_edges(freqs, mags)
-        assert f_hi - f_lo == pytest.approx(bw, rel=0.03)
-        assert math.sqrt(f_lo * f_hi) == pytest.approx(f0, rel=0.005)
+
+class TestBandpassTopCAcceptance:
+    """The Top-C circuit as prescribed must realize the designed response.
+
+    Simulation-proven support is capped at 10% fractional bandwidth: every
+    cell of this matrix must land within 3% of the designed -3 dB bandwidth
+    and 0.5% of the designed center frequency. Above 10% FBW the synthesis
+    emits a warning instead (accuracy degrades gradually).
+    """
+
+    @pytest.mark.parametrize("fbw", [0.02, 0.05, 0.10])
+    @pytest.mark.parametrize("n", [2, 3, 5, 7])
+    def test_butterworth_matrix(self, n, fbw):
+        f0 = 10e6
+        result = calculate_bandpass_filter(f0, f0 * fbw, 50, n, "butterworth", "top")
+        bw_meas, f0_meas = _measure_top_c(result, f0, fbw)
+        assert bw_meas == pytest.approx(f0 * fbw, rel=0.03)
+        assert f0_meas == pytest.approx(f0, rel=0.005)
+
+    @pytest.mark.parametrize("fbw", [0.02, 0.05, 0.10])
+    @pytest.mark.parametrize("n", [3, 5, 7])
+    def test_chebyshev_matrix(self, n, fbw):
+        """Chebyshev bw is the true -3 dB bandwidth (wider than the ripple band)."""
+        f0 = 10e6
+        result = calculate_bandpass_filter(f0, f0 * fbw, 50, n, "chebyshev", "top", ripple_db=0.5)
+        bw_meas, f0_meas = _measure_top_c(result, f0, fbw)
+        assert bw_meas == pytest.approx(f0 * fbw, rel=0.03)
+        assert f0_meas == pytest.approx(f0, rel=0.005)
+
+    @pytest.mark.parametrize("fbw", [0.02, 0.05, 0.10])
+    @pytest.mark.parametrize("n", [2, 3, 5, 7])
+    def test_bessel_matrix(self, n, fbw):
+        f0 = 10e6
+        result = calculate_bandpass_filter(f0, f0 * fbw, 50, n, "bessel", "top")
+        bw_meas, f0_meas = _measure_top_c(result, f0, fbw)
+        assert bw_meas == pytest.approx(f0 * fbw, rel=0.03)
+        assert f0_meas == pytest.approx(f0, rel=0.005)
+
+    def test_bessel_asymmetric_prototype_has_distinct_end_caps(self):
+        """Bessel g-values are asymmetric, so Qe_in != Qe_out and Ce_in != Ce_out."""
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 4, "bessel", "top")
+        assert result["qe_in"] != pytest.approx(result["qe_out"])
+        assert result["c_end_in"] != pytest.approx(result["c_end_out"])
+        bw_meas, f0_meas = _measure_top_c(result, 10e6, 0.05)
+        assert bw_meas == pytest.approx(0.5e6, rel=0.03)
+        assert f0_meas == pytest.approx(10e6, rel=0.005)
+
+    def test_infeasible_end_coupling_raises(self):
+        """High-order Bessel at wide FBW needs Rp <= Z0: no real series-C exists."""
+        with pytest.raises(ValueError, match="too wide to realize"):
+            calculate_bandpass_filter(10e6, 1.5e6, 50, 7, "bessel", "top")
+
+    def test_wide_fbw_emits_simulation_range_warning(self):
+        result = calculate_bandpass_filter(10e6, 1.2e6, 50, 3, "butterworth", "top")
+        assert any("simulation-validated" in w for w in result["warnings"])
+
+    def test_supported_fbw_has_no_simulation_range_warning(self):
+        result = calculate_bandpass_filter(10e6, 1e6, 50, 3, "butterworth", "top")
+        assert not any("simulation-validated" in w for w in result["warnings"])
 
 
 class TestBuilders:
@@ -224,6 +281,7 @@ class TestBuilders:
 
     def test_bandpass_builder_without_end_caps_uses_end_tanks(self):
         result = calculate_bandpass_filter(10e6, 1e6, 50, 3, "butterworth", "top")
+        result = {**result, "c_end_in": None, "c_end_out": None}
         n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
         assert (n_nodes, in_node, out_node) == (3, 1, 3)
         # 3 tanks (C+L each) + 2 coupling caps
@@ -239,6 +297,6 @@ class TestBuilders:
 
     def test_bandpass_builder_rejects_one_sided_end_caps(self):
         result = calculate_bandpass_filter(10e6, 1e6, 50, 3, "butterworth", "top")
-        result = {**result, "c_end_in": 100e-12}
+        result = {**result, "c_end_out": None}
         with pytest.raises(ValueError, match="both"):
             build_bandpass_top_c_netlist(result)

@@ -111,6 +111,19 @@ def format_json(
         },
         "external_q": {"input": result["qe_in"], "output": result["qe_out"]},
     }
+    # Top-C results carry series end-coupling capacitors that realize the
+    # external Q. JSON schema: components.end_coupling_capacitors is a list of
+    # {"name": "Ce_in"|"Ce_out", "value_farads": float, "standard_match": {...}}
+    # present only when the synthesis emits end caps (absent for Shunt-C).
+    if result.get("c_end_in") is not None and result.get("c_end_out") is not None:
+        output["components"]["end_coupling_capacitors"] = [
+            _bandpass_json_component(
+                "Ce_in", result["c_end_in"], "value_farads", eseries, "additive"
+            ),
+            _bandpass_json_component(
+                "Ce_out", result["c_end_out"], "value_farads", eseries, "additive"
+            ),
+        ]
     if result.get("ripple_db") is not None:
         output["ripple_db"] = result["ripple_db"]
     if include_toroids:
@@ -221,7 +234,22 @@ def format_csv(
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
+    for name, value in _end_cap_items(result):
+        formatted = format_capacitance(value)
+        val, unit = formatted.rsplit(" ", 1)
+        row = [name, val, unit]
+        row.extend(_csv_match_fields(value, format_capacitance, eseries, "additive"))
+        if include_toroids:
+            row.extend([""] * n_toroid_cols)
+        writer.writerow(row)
     return output.getvalue()
+
+
+def _end_cap_items(result: FilterResult) -> list[tuple[str, float]]:
+    """End-coupling capacitors as (name, value) pairs; empty when absent."""
+    if result.get("c_end_in") is None or result.get("c_end_out") is None:
+        return []
+    return [("Ce_in", result["c_end_in"]), ("Ce_out", result["c_end_out"])]
 
 
 def format_quiet(result: FilterResult, raw: bool = False) -> str:
@@ -250,4 +278,9 @@ def format_quiet(result: FilterResult, raw: bool = False) -> str:
             lines.append(f"Cs{i + 1}{i + 2}: {v:.6e} F")
         else:
             lines.append(f"Cs{i + 1}{i + 2}: {format_capacitance(v)}")
+    for name, value in _end_cap_items(result):
+        if raw:
+            lines.append(f"{name}: {value:.6e} F")
+        else:
+            lines.append(f"{name}: {format_capacitance(value)}")
     return "\n".join(lines)

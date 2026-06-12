@@ -7,8 +7,9 @@ Generates Top-C (series) and Shunt-C (parallel) coupling diagrams.
 def format_top_c_diagram(n: int) -> str:
     """Format Top-C (series coupling) topology diagram as string.
 
-    Shows n tanks with n-1 coupling capacitors in series on main line.
-    Each tank is a parallel LC circuit to ground.
+    Shows the series end-coupling capacitors (Ce_in/Ce_out) that realize the
+    external Q at source and load, n tanks, and n-1 inter-resonator coupling
+    capacitors on the main line. Each tank is a parallel LC circuit to ground.
 
     Args:
         n: Number of resonators
@@ -19,8 +20,8 @@ def format_top_c_diagram(n: int) -> str:
     n_coupling = n - 1
     seg_w = 15
 
-    # Main line
-    main_line = "  IN ──────┬" + "──────┤├──────┬" * n_coupling + "────── OUT"
+    # Main line: end caps couple the source and load into the end tanks
+    main_line = "  IN ──┤├──┬" + "──────┤├──────┬" * n_coupling + "──┤├── OUT"
     tank_pos = [11 + i * seg_w for i in range(n)]
     line_len = len(main_line)
 
@@ -29,6 +30,11 @@ def format_top_c_diagram(n: int) -> str:
     for i in range(n_coupling):
         mid = (tank_pos[i] + tank_pos[i + 1]) // 2
         label = f"Cs{i + 1}{i + 2}"
+        start = mid - len(label) // 2
+        for j, ch in enumerate(label):
+            if 0 <= start + j < line_len:
+                label_chars[start + j] = ch
+    for label, mid in (("Ce_in", 8), ("Ce_out", line_len - 8)):
         start = mid - len(label) // 2
         for j, ch in enumerate(label):
             if 0 <= start + j < line_len:

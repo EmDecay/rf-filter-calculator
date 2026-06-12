@@ -194,20 +194,33 @@ def _print_component_tables(result: FilterResult, raw: bool) -> None:
     print(f"│{'Coupling Capacitors':^24}│")
     print(f"├{'─' * 24}┤")
 
-    for i, cs in enumerate(result["c_coupling"]):
+    for label, value in _coupling_cap_rows(result):
         if raw:
-            cs_str = f"Cs{i + 1}{i + 2}: {cs:.6e} F"
+            cs_str = f"{label}: {value:.6e} F"
         else:
-            cs_str = f"Cs{i + 1}{i + 2}: {format_capacitance(cs)}"
+            cs_str = f"{label}: {format_capacitance(value)}"
         print(f"│ {cs_str:<22} │")
 
     print(f"└{'─' * 24}┘")
 
 
+def _coupling_cap_rows(result: FilterResult) -> list[tuple[str, float]]:
+    """Coupling capacitor rows: end caps (when present) then inter-resonator caps."""
+    rows: list[tuple[str, float]] = []
+    if result.get("c_end_in") is not None:
+        rows.append(("Ce_in", result["c_end_in"]))
+    rows.extend((f"Cs{i + 1}{i + 2}", cs) for i, cs in enumerate(result["c_coupling"]))
+    if result.get("c_end_out") is not None:
+        rows.append(("Ce_out", result["c_end_out"]))
+    return rows
+
+
 def _print_external_q(result: FilterResult) -> None:
     """Print external Q values."""
-    print(f"\nExternal Q (input):  {result['qe_in']:.2f}")
-    print(f"External Q (output): {result['qe_out']:.2f}")
+    realized = " (realized by Ce_in)" if result.get("c_end_in") is not None else ""
+    print(f"\nExternal Q (input):  {result['qe_in']:.2f}{realized}")
+    realized = " (realized by Ce_out)" if result.get("c_end_out") is not None else ""
+    print(f"External Q (output): {result['qe_out']:.2f}{realized}")
 
 
 def _print_eseries_matching(result: FilterResult, eseries: str) -> None:
@@ -220,9 +233,9 @@ def _print_eseries_matching(result: FilterResult, eseries: str) -> None:
         print(f"Cp{i + 1} Calculated: {format_capacitance(ct)}")
         for line in format_eseries_match(ct, eseries, format_capacitance):
             print(line)
-    for i, cs in enumerate(result["c_coupling"]):
-        print(f"Cs{i + 1}{i + 2} Calculated: {format_capacitance(cs)}")
-        for line in format_eseries_match(cs, eseries, format_capacitance):
+    for label, value in _coupling_cap_rows(result):
+        print(f"{label} Calculated: {format_capacitance(value)}")
+        for line in format_eseries_match(value, eseries, format_capacitance):
             print(line)
 
 
