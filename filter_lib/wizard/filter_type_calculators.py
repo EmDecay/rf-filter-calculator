@@ -10,16 +10,14 @@ from .state import FilterState
 def calculate_lowpass(state: FilterState) -> list[str]:
     """Calculate lowpass filter and return formatted output lines."""
     from filter_lib.lowpass import calculate_bessel, calculate_butterworth, calculate_chebyshev
-    from filter_lib.lowpass.display import format_csv, format_json, format_quiet
-    from filter_lib.lowpass.transfer import frequency_response, generate_frequency_points
-    from filter_lib.shared.formatting import format_capacitance
-    from filter_lib.shared.plotting import (
-        find_db_thresholds,
-        format_threshold_table,
-        render_plot_pair,
+    from filter_lib.lowpass.display import (
+        LOWPASS_DISPLAY_CONFIG,
+        LP_WIZARD_MATCH,
+        format_csv,
+        format_json,
+        format_quiet,
     )
-
-    from .formatting_helpers import format_eseries_recs, format_lp_hp_table
+    from filter_lib.shared.lp_hp_display import LpHpRenderOptions, render_results_lines
 
     # Calculate component values
     if state.filter_type == "butterworth":
@@ -59,56 +57,32 @@ def calculate_lowpass(state: FilterState) -> list[str]:
     if state.quiet:
         return [format_quiet(result, state.raw_units)]
 
-    lines = format_lp_hp_table(result, state, "Low Pass")
-
-    if state.eseries != "none" and not state.raw_units:
-        lines.extend(
-            format_eseries_recs(
-                result["capacitors"], "C", "Capacitor", state.eseries, format_capacitance
-            )
-        )
-
-    if state.show_plot:
-        from filter_lib.shared.transfer_response_dispatch import make_lp_response_db
-
-        freqs = generate_frequency_points(result["freq_hz"])
-        ripple_val = result.get("ripple") or 0.5
-        response = frequency_response(
-            result["filter_type"], freqs, result["freq_hz"], result["order"], ripple_val
-        )
-        cutoff = result["freq_hz"]
-        response_fn = make_lp_response_db(
-            result["filter_type"], cutoff, result["order"], ripple_val
-        )
-        lines.append("")
-        lines.append(
-            render_plot_pair(
-                freqs,
-                response,
-                cutoff,
-                filter_type="lowpass",
-                ripple_db=ripple_val,
-                response_fn=response_fn,
-            )
-        )
-        thresholds = find_db_thresholds(freqs, response, filter_type="lowpass")
-        lines.append(format_threshold_table(thresholds, filter_type="lowpass"))
-    return lines
+    return render_results_lines(
+        result,
+        LpHpRenderOptions(
+            config=LOWPASS_DISPLAY_CONFIG,
+            raw=state.raw_units,
+            eseries=eseries,
+            show_match=eseries is not None,
+            show_plot=state.show_plot,
+            include_toroids=False,
+            match=LP_WIZARD_MATCH,
+            trailing_blank=False,
+        ),
+    )
 
 
 def calculate_highpass(state: FilterState) -> list[str]:
     """Calculate highpass filter and return formatted output lines."""
     from filter_lib.highpass import calculate_bessel, calculate_butterworth, calculate_chebyshev
-    from filter_lib.highpass.display import format_csv, format_json, format_quiet
-    from filter_lib.highpass.transfer import frequency_response, generate_frequency_points
-    from filter_lib.shared.formatting import format_inductance
-    from filter_lib.shared.plotting import (
-        find_db_thresholds,
-        format_threshold_table,
-        render_plot_pair,
+    from filter_lib.highpass.display import (
+        HIGHPASS_DISPLAY_CONFIG,
+        HP_WIZARD_MATCH,
+        format_csv,
+        format_json,
+        format_quiet,
     )
-
-    from .formatting_helpers import format_eseries_recs, format_lp_hp_table
+    from filter_lib.shared.lp_hp_display import LpHpRenderOptions, render_results_lines
 
     if state.filter_type == "butterworth":
         inds, caps, order = calculate_butterworth(
@@ -147,46 +121,19 @@ def calculate_highpass(state: FilterState) -> list[str]:
     if state.quiet:
         return [format_quiet(result, state.raw_units)]
 
-    lines = format_lp_hp_table(result, state, "High Pass")
-
-    if state.eseries != "none" and not state.raw_units:
-        lines.extend(
-            format_eseries_recs(
-                result["inductors"],
-                "L",
-                "Inductor",
-                state.eseries,
-                format_inductance,
-                parallel_mode="harmonic",
-            )
-        )
-
-    if state.show_plot:
-        from filter_lib.shared.transfer_response_dispatch import make_hp_response_db
-
-        freqs = generate_frequency_points(result["freq_hz"])
-        ripple_val = result.get("ripple") or 0.5
-        response = frequency_response(
-            result["filter_type"], freqs, result["freq_hz"], result["order"], ripple_val
-        )
-        cutoff = result["freq_hz"]
-        response_fn = make_hp_response_db(
-            result["filter_type"], cutoff, result["order"], ripple_val
-        )
-        lines.append("")
-        lines.append(
-            render_plot_pair(
-                freqs,
-                response,
-                cutoff,
-                filter_type="highpass",
-                ripple_db=ripple_val,
-                response_fn=response_fn,
-            )
-        )
-        thresholds = find_db_thresholds(freqs, response, filter_type="highpass")
-        lines.append(format_threshold_table(thresholds, filter_type="highpass"))
-    return lines
+    return render_results_lines(
+        result,
+        LpHpRenderOptions(
+            config=HIGHPASS_DISPLAY_CONFIG,
+            raw=state.raw_units,
+            eseries=eseries,
+            show_match=eseries is not None,
+            show_plot=state.show_plot,
+            include_toroids=False,
+            match=HP_WIZARD_MATCH,
+            trailing_blank=False,
+        ),
+    )
 
 
 def calculate_bandpass(state: FilterState) -> list[str]:

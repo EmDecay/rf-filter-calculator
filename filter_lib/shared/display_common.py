@@ -228,8 +228,8 @@ def format_quiet_result(
     return "\n".join(lines)
 
 
-def print_header(result: dict, topology: str, filter_category: str) -> None:
-    """Print common filter header information.
+def format_header(result: dict, topology: str, filter_category: str) -> str:
+    """Format common filter header information.
 
     Args:
         result: Filter result dictionary
@@ -238,21 +238,28 @@ def print_header(result: dict, topology: str, filter_category: str) -> None:
     """
     from .formatting import format_frequency
 
+    lines = []
     title = f"{result['filter_type'].title()} {topology} {filter_category} Filter"
-    print(f"\n{title}")
-    print("=" * 50)
-    print(f"Cutoff Frequency:    {format_frequency(result['freq_hz'])}")
-    print(f"Impedance Z0:        {result['impedance']:.4g} Ohm")
+    lines.append(f"\n{title}")
+    lines.append("=" * 50)
+    lines.append(f"Cutoff Frequency:    {format_frequency(result['freq_hz'])}")
+    lines.append(f"Impedance Z0:        {result['impedance']:.4g} Ohm")
     if result.get("ripple") is not None:
-        print(f"Ripple:              {result['ripple']} dB")
-    print(f"Order:               {result['order']}")
-    print("=" * 50)
+        lines.append(f"Ripple:              {result['ripple']} dB")
+    lines.append(f"Order:               {result['order']}")
+    lines.append("=" * 50)
+    return "\n".join(lines)
 
 
-def print_component_table(
+def print_header(result: dict, topology: str, filter_category: str) -> None:
+    """Print common filter header information."""
+    print(format_header(result, topology, filter_category))
+
+
+def format_component_table(
     result: dict, raw: bool = False, primary_component: str = "capacitors"
-) -> None:
-    """Print component values in a formatted table.
+) -> str:
+    """Format component values in a table.
 
     Args:
         result: Filter result dictionary
@@ -278,11 +285,13 @@ def print_component_table(
 
     max_rows = max(len(left_vals), len(right_vals))
 
-    print(f"\n{'Component Values':^50}")
     horiz = "\u2500" * col_width
-    print(f"\u250c{horiz}\u252c{horiz}\u2510")
-    print(f"\u2502{left_label:^{col_width}}\u2502{right_label:^{col_width}}\u2502")
-    print(f"\u251c{horiz}\u253c{horiz}\u2524")
+    lines = [
+        f"\n{'Component Values':^50}",
+        f"\u250c{horiz}\u252c{horiz}\u2510",
+        f"\u2502{left_label:^{col_width}}\u2502{right_label:^{col_width}}\u2502",
+        f"\u251c{horiz}\u253c{horiz}\u2524",
+    ]
 
     for i in range(max_rows):
         if i < len(left_vals):
@@ -303,6 +312,16 @@ def print_component_table(
             )
         else:
             right_str = ""
-        print(f"\u2502 {left_str:<{col_width - 2}} \u2502 {right_str:<{col_width - 2}} \u2502")
+        lines.append(
+            f"\u2502 {left_str:<{col_width - 2}} \u2502 {right_str:<{col_width - 2}} \u2502"
+        )
 
-    print(f"\u2514{horiz}\u2534{horiz}\u2518")
+    lines.append(f"\u2514{horiz}\u2534{horiz}\u2518")
+    return "\n".join(lines)
+
+
+def print_component_table(
+    result: dict, raw: bool = False, primary_component: str = "capacitors"
+) -> None:
+    """Print component values in a formatted table."""
+    print(format_component_table(result, raw, primary_component))

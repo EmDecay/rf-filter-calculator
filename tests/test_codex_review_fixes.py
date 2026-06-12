@@ -155,13 +155,10 @@ class TestWizardFormatEseriesRecsParallelMode:
 
     def test_hp_calculator_passes_harmonic_for_inductors(self):
         """The wizard HP calculation path requests harmonic parallel matching."""
-        import inspect
+        from filter_lib.highpass.display import HP_WIZARD_MATCH
 
-        from filter_lib.wizard import filter_type_calculators
-
-        src = inspect.getsource(filter_type_calculators.calculate_highpass)
-        # Crude but effective: the src must now mention harmonic in the E-series block
-        assert 'parallel_mode="harmonic"' in src
+        assert HP_WIZARD_MATCH.component_key == "inductors"
+        assert HP_WIZARD_MATCH.parallel_mode == "harmonic"
 
 
 # ---------------------------------------------------------------------------

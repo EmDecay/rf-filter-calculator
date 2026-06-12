@@ -11,78 +11,34 @@ from .state import FilterState
 
 def format_lp_hp_table(result: dict, state: FilterState, category: str) -> list[str]:
     """Format table output for lowpass/highpass filters."""
-    from filter_lib.shared.formatting import format_frequency
-    from filter_lib.shared.topology_diagrams import (
-        format_pi_topology_diagram,
-        format_t_topology_diagram,
+    from filter_lib.highpass.display import HIGHPASS_DISPLAY_CONFIG
+    from filter_lib.lowpass.display import LOWPASS_DISPLAY_CONFIG
+    from filter_lib.shared.lp_hp_display import LpHpRenderOptions, render_results_lines
+
+    config = (
+        HIGHPASS_DISPLAY_CONFIG
+        if category.strip().lower() in ("high pass", "highpass", "hp")
+        else LOWPASS_DISPLAY_CONFIG
     )
-
-    lines = []
-    topology = result.get("topology", "pi")
-    title = f"{result['filter_type'].title()} {topology.upper()} {category} Filter"
-    lines.append(f"\n{title}")
-    lines.append("=" * 50)
-    lines.append(f"Cutoff Frequency:    {format_frequency(result['freq_hz'])}")
-    lines.append(f"Impedance Z0:        {result['impedance']:.4g} Ohm")
-    if result.get("ripple") is not None:
-        lines.append(f"Ripple:              {result['ripple']} dB")
-    lines.append(f"Order:               {result['order']}")
-    lines.append("=" * 50)
-
-    # HP swaps which component type is series vs shunt, so the schematic labels
-    # and n_series/n_shunt arguments must flip relative to LP. Use explicit
-    # membership rather than startswith to avoid silent mis-detection.
-    is_highpass = category.strip().lower() in ("high pass", "highpass", "hp")
-    n_caps = len(result["capacitors"])
-    n_inds = len(result["inductors"])
-    series_label = "C" if is_highpass else "L"
-    shunt_label = "L" if is_highpass else "C"
-
-    lines.append("\nTopology:")
-    if topology == "pi":
-        # Pi: shunt elements are odd positions, series are even
-        n_shunt = n_inds if is_highpass else n_caps
-        n_series = n_caps if is_highpass else n_inds
-        lines.append(format_pi_topology_diagram(n_shunt, n_series, series_label, shunt_label))
-    else:
-        # T: series elements are odd positions, shunt are even
-        n_series = n_caps if is_highpass else n_inds
-        n_shunt = n_inds if is_highpass else n_caps
-        lines.append(format_t_topology_diagram(n_series, n_shunt, series_label, shunt_label))
-
-    lines.append(_format_component_table(result, state.raw_units))
-    return lines
+    return render_results_lines(
+        result,
+        LpHpRenderOptions(
+            config=config,
+            raw=state.raw_units,
+            eseries=None,
+            show_match=False,
+            show_plot=False,
+            include_toroids=False,
+            trailing_blank=False,
+        ),
+    )
 
 
 def _format_component_table(result: dict, raw: bool) -> str:
     """Format component values as a table."""
-    from filter_lib.shared.formatting import format_capacitance, format_inductance
+    from filter_lib.shared.display_common import format_component_table
 
-    col_width = 24
-    caps = result["capacitors"]
-    inds = result["inductors"]
-    max_rows = max(len(caps), len(inds))
-
-    horiz = "\u2500" * col_width
-    lines = []
-    lines.append(f"\n{'Component Values':^50}")
-    lines.append(f"\u250c{horiz}\u252c{horiz}\u2510")
-    lines.append(f"\u2502{'Capacitors':^{col_width}}\u2502{'Inductors':^{col_width}}\u2502")
-    lines.append(f"\u251c{horiz}\u253c{horiz}\u2524")
-
-    for i in range(max_rows):
-        cap_str = ""
-        ind_str = ""
-        if i < len(caps):
-            val = caps[i]
-            cap_str = f"C{i + 1}: {val:.6e} F" if raw else f"C{i + 1}: {format_capacitance(val)}"
-        if i < len(inds):
-            val = inds[i]
-            ind_str = f"L{i + 1}: {val:.6e} H" if raw else f"L{i + 1}: {format_inductance(val)}"
-        lines.append(f"\u2502 {cap_str:<{col_width - 2}} \u2502 {ind_str:<{col_width - 2}} \u2502")
-
-    lines.append(f"\u2514{horiz}\u2534{horiz}\u2518")
-    return "\n".join(lines)
+    return format_component_table(result, raw=raw, primary_component="capacitors")
 
 
 def format_eseries_recs(
