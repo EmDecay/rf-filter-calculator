@@ -682,7 +682,7 @@ FILTER_TYPE_ALIASES = {
 
 **Error message**: "Chebyshev filters with equal source/load terminations require odd order (3, 5, 7, 9)"
 
-**Ripple limits**: Wizard restricts ripple to 0.1, 0.5, 1.0 dB (practical tolerance range).
+**Ripple range**: 0 < ripple ≤ 3.0 dB supported everywhere (CLI and wizard both accept arbitrary values; formula-based g-value calculation).
 
 ### Bandpass True -3 dB Edges
 
@@ -794,6 +794,6 @@ raise RuntimeError(f"Failed to calculate g-values for order {n}")
 3. **Test** (pytest --cov=filter_lib) - All tests with coverage
 
 **Test Metrics** (as of Apr 24, 2026):
-- Total: 1086 tests (94% coverage, ~0.5s runtime)
+- Total: 1211 tests (94% coverage, ~0.5s runtime)
 
 See [code-standards.md](./code-standards.md) for linting rules and [testing.md](./testing.md) for test coverage details.

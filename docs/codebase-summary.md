@@ -2,13 +2,13 @@
 
 **Last Updated**: April 24, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1086 tests, 94% coverage).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1211 tests, 94% coverage).
 
 ## Project Statistics
 
 - **Total Files**: 95+ files
 - **Total Lines of Code**: ~8,400 LOC (2,200+ core lib + 6,100+ tests + ~350 CLI entry)
-- **Test Coverage**: 1086 tests, 94% coverage (~0.5s runtime)
+- **Test Coverage**: 1211 tests, 94% coverage (~0.5s runtime)
 - **Documentation**: 13 files (~2,500+ LOC)
 - **Core Library**: 42+ modules in filter_lib/, organized by filter type + shared utilities
 
@@ -110,15 +110,18 @@ Provides cross-cutting utilities:
 | `plot_ascii_renderers.py` | **NEW (Apr 2026)** - ASCII plot rendering with configurable `db_floor` |
 | `plot_zoom_pairs.py` | **NEW (Apr 2026)** - Zoomed passband plot pairs (full + zoomed side-by-side) |
 | `plot_threshold_analysis.py` | **NEW (Apr 2026)** - dB crossing detection + summary table formatting |
-| `response_export.py` | Unified JSON/CSV response export (single schema, Jun 2026) |
-| `transfer_response_dispatch.py` | **NEW (Apr 2026)** - Shared factory for response-function closures |
+| `response_export.py` | Unified JSON/CSV response export (single schema for LP/HP/BP) |
+| `transfer_response_dispatch.py` | Shared factory for response-function closures |
 | `topology_diagrams.py` | ASCII circuit topology diagrams |
-| `toroid_core_data.json` | **NEW (Apr 2026)** - Vendored 43-core iron-powder T-series database |
-| `toroid_core_data.py` | **NEW (Apr 2026)** - `ToroidCore` dataclass + lookup helpers |
-| `toroid_inductance.py` | **NEW (Apr 2026)** - L↔N math, rounding, tolerance range, `solve_winding` |
-| `toroid_wire.py` | **NEW (Apr 2026)** - AWG, Pythagorean wire length, DCR, `MechanicalFit` |
-| `toroid_selection.py` | **NEW (Apr 2026)** - Freq-range gate + ranking → top-3 `ToroidRecommendation` |
-| `toroid_display.py` | **NEW (Apr 2026)** - Full/compact text, JSON builder, CSV columns |
+| `netlist_simulation.py` | Bandpass SPICE netlist sweep and simulation-validated response |
+| `netlist_builders.py` | SPICE circuit netlist construction from filter synthesis |
+| `lp_hp_display.py` | Unified LP/HP table renderer (CLI and wizard) |
+| `toroid_core_data.json` | Vendored 43-core iron-powder T-series database |
+| `toroid_core_data.py` | `ToroidCore` dataclass + lookup helpers |
+| `toroid_inductance.py` | L↔N math, rounding, tolerance range, `solve_winding` |
+| `toroid_wire.py` | AWG, Pythagorean wire length, DCR, `MechanicalFit` |
+| `toroid_selection.py` | Freq-range gate + ranking → top-3 `ToroidRecommendation` |
+| `toroid_display.py` | Full/compact text, JSON builder, CSV columns |
 | `transfer_functions.py` | Transfer function calculations |
 
 ## Filter Types Supported
@@ -136,11 +139,12 @@ Provides cross-cutting utilities:
 - **Topologies reversed** vs lowpass: Pi has shunt L, T has series C
 - **Calculations**: `filter_lib/highpass/calculations.py`
 
-### Bandpass (Coupled Resonator)
-- **Response types**: Butterworth, Chebyshev (even-only), Bessel
-- **Coupling types**: Top-coupled (series) or Shunt-coupled (parallel)
+### Bandpass (Coupled Resonator, Top-C Series Coupling Only)
+- **Response types**: Butterworth, Chebyshev, Bessel
+- **Coupling**: Top-coupled series capacitors only (Ce_in/Ce_out for external Q, Cs12/Cs23 inter-resonator). Shunt coupling removed (simulation showed non-realizable passband).
 - **Resonators**: 2-9 tanks
-- **Design method**: Normalized g-values per Matthaei/Young/Jones
+- **Design method**: Normalized g-values per Matthaei/Young/Jones; external Q realized by end-coupling capacitors
+- **Validation**: SPICE netlist sweep for ≤10% fractional BW (simulation-proven tolerance ±3% magnitude, ±0.5% f₀)
 - **Calculations**: `filter_lib/bandpass/calculations.py`
 
 ## Output Formats

@@ -33,11 +33,9 @@ Edge cases, limitations, and important considerations.
 
 ### Ripple Value
 
-- **Must be positive** (> 0 dB)
-- Typical range: 0.1 to 3.0 dB
+- **Must be in range** 0 < r ≤ 3.0 dB
 - Higher ripple = steeper rolloff but more passband variation
-- **Wizard mode**: Only accepts 0.1, 0.5, or 1.0 dB (validated choices)
-- **CLI mode**: Accepts any positive ripple value (formula-based calculation)
+- CLI and wizard both accept arbitrary values in this range (formula-based calculation)
 
 ### Bandpass Resonator Count
 
@@ -47,9 +45,17 @@ Edge cases, limitations, and important considerations.
 
 ---
 
-## Bandpass Frequency Specification
+## Bandpass Design Constraints
 
-### Mutually Exclusive Methods
+### Simulation-Proven Fractional Bandwidth Limit
+
+Bandpass synthesis using top-C series coupling is **simulation-validated only for ≤10% fractional bandwidth**. Wider BW designs produce a warning; synthesis proceeds but passband realization is not guaranteed. The netlist-sweep harness verifies ±3% magnitude, ±0.5% f₀, ±50 kHz BW tolerances against simulation.
+
+```
+FBW = (f_high - f_low) / f₀  must be ≤ 0.10
+```
+
+### Frequency Specification Methods
 
 Cannot use both methods simultaneously:
 - Method 1: `-f` (center) + `-b` (bandwidth)
@@ -57,26 +63,14 @@ Cannot use both methods simultaneously:
 
 Using both produces an error.
 
-### Geometric vs Arithmetic Center
 
-When using `--fl` and `--fh`, the center frequency is the **geometric mean**:
-```
-f₀ = √(f_low × f_high)
-```
-
-This differs from arithmetic mean. For wide bandwidths, the difference is noticeable.
-
-Example: 14 MHz to 14.35 MHz
-- Arithmetic center: 14.175 MHz
-- Geometric center: 14.1747 MHz (what calculator uses)
-
-When frequencies are entered with `--fl` and `--fh`, the calculator preserves those
-exact low/high edge values in text output, JSON/CSV export metadata, and bandpass plot
-labels. Only the internal synthesis center uses the geometric mean.
-
-### Frequency Order
+### Frequency Edge Order
 
 `--fl` must be less than `--fh`. Reversed values produce an error.
+
+### Output with Explicit fₗ/fₕ
+
+When using `--fl` and `--fh`, those exact values are preserved in output, JSON metadata, and bandpass plot labels. The internal synthesis uses geometric center f₀ = √(fₗ·fₕ).
 
 ---
 
@@ -195,25 +189,17 @@ Component values drift with temperature:
 
 ---
 
-## Verification
-
-### Self-Test
-
-For bandpass filters, run the built-in verification:
-
-```bash
-uv run filter-calc bp bw top -f 10MHz -b 1MHz --verify
-```
-
-This checks g-value calculations and component formulas.
-
-### Cross-Check Recommendations
+## Cross-Check Recommendations
 
 For critical applications:
 1. Compare results with established filter design software
 2. Simulate in SPICE before building
 3. Verify E-series matches with actual measurements
 4. Build and measure prototype before final construction
+
+### Bessel Highpass Group Delay
+
+Bessel highpass filters preserve linear phase in the passband but exhibit significant group delay at the cutoff edge. This is inherent to the Bessel response and more pronounced in highpass vs lowpass. Plan accordingly for phase-sensitive or timing-critical applications.
 
 ---
 

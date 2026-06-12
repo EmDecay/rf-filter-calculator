@@ -4,13 +4,16 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 
 ## Features
 
-- **Filter Types**: Lowpass (Pi/T topology), Highpass (Pi/T topology), Bandpass (coupled resonator)
-- **Response Types**: Butterworth, Chebyshev, Bessel
-- **E-Series Matching**: Find closest E12/E24/E96 standard capacitor values with parallel combinations
-- **Toroid Winding Recommendations**: Top-3 iron-powder T-series core + turns, AWG, wire length, DCR, DC-Q (auto-shown for every inductor; 43-core database; `--no-toroids` / `--toroid-compact` opt-outs)
-- **ASCII Plots**: Visualize frequency response in terminal
+- **Filter Types**: Lowpass (Pi/T topology), Highpass (Pi/T topology), Bandpass (top-C series coupling, netlist-simulated)
+- **Response Types**: Butterworth, Chebyshev (arbitrary 0–3 dB ripple), Bessel
+- **E-Series Matching**: Capacitors matched to E12/E24/E96 standard values with parallel combinations; inductors show design values with toroid recommendations
+- **End-Coupling Realization**: Bandpass external Q realized by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
+- **Netlist-Simulated Plots**: Bandpass frequency response generated from synthesized SPICE netlist (simulation-proven ≤10% FBW)
+- **Toroid Recommendations**: Amidon T-series core suggestions on by default (top-1 in table, top-3 in JSON/CSV); 43-core database; `--no-toroids` to suppress, `--toroid-full` for top-3 in table
+- **ASCII Plots**: Visualize frequency response (LP/HP analytic, BP simulated)
 - **Multiple Outputs**: Table, JSON, CSV formats
-- **Interactive Wizard**: Guided filter design mode
+- **Interactive Wizard**: Guided TUI design mode with error surface
+- **--version Support**: Print version and exit
 
 ## Installation
 
@@ -33,6 +36,10 @@ For development (includes pytest and ruff):
 ```bash
 uv sync --group dev
 ```
+
+### Breaking Changes (v2.0.0)
+
+**Migration from v1.x:** `-t` short flag removed (use `--type` instead); `--verify` removed from bandpass; `-r` now warns if used with non-Chebyshev filters; ripple validation changed from hardcoded tiers to 0 < r ≤ 3.0; wizard resonator default changed to 3. See [docs/project-changelog.md](docs/project-changelog.md) for full details and migration path.
 
 ## Quick Start
 
@@ -139,7 +146,7 @@ When using `--fl` and `--fh`, the calculator synthesizes around the geometric ce
 `f_low` and `f_high` values you entered.
 
 **Coupling topologies:**
-- `top` / `t` - Top-coupled (series coupling capacitors; the only supported kind)
+- `top` / `t` — Top-coupled series capacitors (Ce_in/Ce_out for external Q, Cs12/Cs23 for inter-resonator coupling; the only supported kind)
 
 ### Interactive Wizard
 
@@ -168,19 +175,22 @@ Default values shown as placeholders; press Enter with empty field to use defaul
 | Option | Description |
 |--------|-------------|
 | `-T, --topology` | Filter topology: pi or t (required for lowpass/highpass) |
-| `-n, --components` | Number of components/resonators (2-9, default: 3) |
-| `-z, --impedance` | System impedance (default: 50Ω) |
-| `-r, --ripple` | Chebyshev passband ripple in dB, 0 < r ≤ 3.0 (default: 0.5; ignored by other types) |
+| `--type` | Filter response: butterworth, chebyshev, bessel (or bw/ch/bs aliases) |
+| `-n, --components` | Number of components/resonators (2–9, default: 3) |
+| `-f, --frequency` | Center/cutoff frequency (or `-fl`/`--fh` for bandpass limits) |
+| `-z, --impedance` | System impedance (default: 50Ω; accepts 50, 50ohm, 1k, 1M, etc.) |
+| `-r, --ripple` | Chebyshev passband ripple in dB, 0 < r ≤ 3.0 (default: 0.5; warns if used with non-Chebyshev) |
+| `-b, --bandwidth` | Bandpass bandwidth (or use -fl/-fh for explicit edges) |
 | `-e, --eseries` | E-series for matching: E12, E24, E96 (default: E24) |
 | `--no-match` | Disable E-series matching |
 | `--raw` | Show raw values (Farads/Henries) |
 | `-q, --quiet` | Minimal output |
-| `--format` | Output format: table, json, csv |
+| `--format` | Output format: table, json, csv (default: table) |
 | `--plot` | Show ASCII frequency response |
 | `--plot-data` | Export response data: json, csv |
 | `--explain` | Explain filter type characteristics |
-| `--no-toroids` | Suppress toroid recommendations in text, JSON, and CSV |
-| `--toroid-compact` | One-line-per-rec toroid text output (ignored for JSON/CSV) |
+| `--no-toroids` | Suppress toroid recommendations in all output formats |
+| `--toroid-compact` | One-line-per-recommendation toroid text output (ignored for JSON/CSV) |
 | `--toroid-full` | Show top-3 toroid cores per inductor in table output (default top-1; JSON/CSV always top-3) |
 | `--version` | Print version and exit |
 
@@ -233,7 +243,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** 1086 tests (94% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, and toroid recommendations. See [docs/testing.md](docs/testing.md) for details.
+**Test suite:** 1211 tests (94% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, toroid recommendations, and netlist-simulated bandpass validation. See [docs/testing.md](docs/testing.md) for details.
 
 ### Linting
 
