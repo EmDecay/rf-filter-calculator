@@ -19,6 +19,7 @@ from .transfer import (
     frequency_response,
     frequency_sweep,
     generate_frequency_points,
+    netlist_frequency_sweep,
 )
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "get_g_values",
     "CHEBYSHEV_G_VALUES",
     "frequency_sweep",
+    "netlist_frequency_sweep",
     "generate_frequency_points",
     "frequency_response",
     "export_response_json",

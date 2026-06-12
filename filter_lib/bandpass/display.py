@@ -20,7 +20,7 @@ from ..shared.toroid_display import (
 from ..shared.toroid_selection import recommend_cores
 from .diagrams import print_top_c_diagram
 from .formatters import format_csv, format_eseries_match, format_json, format_quiet
-from .transfer import frequency_sweep
+from .transfer import netlist_frequency_sweep
 
 # Type alias for filter result dict
 FilterResult = dict[str, Any]
@@ -53,16 +53,9 @@ def display_results(
         include_toroids: Include toroid recommendations in output
         toroid_compact: Use compact 1-line-per-rec text format
     """
-    # Handle plot data export
+    # Handle plot data export (simulated from the synthesized circuit)
     if plot_data:
-        sweep = frequency_sweep(
-            result["f0"],
-            result["bw"],
-            result["n_resonators"],
-            result["filter_type"],
-            ripple_db=result.get("ripple_db") or 0.5,
-            points=PLOT_POINTS,
-        )
+        sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
         if plot_data == "json":
             print(
                 plot_export_json(
@@ -236,26 +229,17 @@ def _print_eseries_matching(result: FilterResult, eseries: str) -> None:
 
 
 def _print_frequency_response(result: FilterResult) -> None:
-    """Print frequency response plot with zoomed passband and threshold table."""
-    from ..shared.transfer_response_dispatch import make_bp_response_db
+    """Print frequency response plot with zoomed passband and threshold table.
+
+    The response is simulated from the synthesized component values, not the
+    idealized prototype, so it shows what a built filter measures.
+    """
+    from ..shared.transfer_response_dispatch import make_bp_netlist_response_db
 
     ripple = result.get("ripple_db") or 0.5
-    sweep = frequency_sweep(
-        result["f0"],
-        result["bw"],
-        result["n_resonators"],
-        result["filter_type"],
-        ripple_db=ripple,
-        points=PLOT_POINTS,
-    )
+    sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
     title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"
-    response_fn = make_bp_response_db(
-        result["f0"],
-        result["bw"],
-        result["n_resonators"],
-        result["filter_type"],
-        ripple,
-    )
+    response_fn = make_bp_netlist_response_db(result)
     print(
         f"\n{render_bandpass_plot_pair(sweep, result['f0'], result['bw'], f_low_hz=result['f_low'], f_high_hz=result['f_high'], title=title, ripple_db=ripple, response_fn=response_fn)}"
     )

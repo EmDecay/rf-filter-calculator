@@ -158,6 +158,38 @@ def frequency_sweep(
     return result
 
 
+def netlist_frequency_sweep(
+    result: dict, decades: float | None = None, points: int = 61
+) -> list[tuple[float, float]]:
+    """Simulated (frequency, magnitude_db) pairs for the as-synthesized circuit.
+
+    Unlike ``frequency_sweep`` (idealized symmetric prototype), this builds
+    the exact prescribed network from the result dict's component values and
+    solves it by nodal analysis, so the plotted response matches what a built
+    filter measures — including the skew real Top-C circuits show at wider
+    fractional bandwidths. Same adaptive log x-range as ``frequency_sweep``.
+    """
+    from ..shared.netlist_builders import build_bandpass_top_c_netlist
+    from ..shared.netlist_simulation import solve_s21
+
+    f0, bw = result["f0"], result["bw"]
+    if points < 2:
+        raise ValueError("points must be >= 2 for a log sweep")
+    if decades is None:
+        span = 10 * bw
+        decades = math.log10((f0 + span) / f0)
+        decades = max(0.1, min(1.0, decades))
+
+    log_start = math.log10(f0 / (10**decades))
+    log_end = math.log10(f0 * (10**decades))
+    freqs = [10 ** (log_start + (log_end - log_start) * i / (points - 1)) for i in range(points)]
+
+    n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
+    z0 = result["z0"]
+    mags = solve_s21(n_nodes, branches, z0, z0, in_node, out_node, freqs)
+    return [(f, magnitude_to_db(m)) for f, m in zip(freqs, mags)]
+
+
 def generate_frequency_points(f0: float, bw: float, points: int = 101) -> list[float]:
     """Generate frequency points for bandpass response plotting.
 
