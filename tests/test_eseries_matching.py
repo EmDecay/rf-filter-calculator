@@ -132,6 +132,14 @@ class TestClosestSingle:
         matched, error = find_closest_single(9.5, "E24")
         assert matched in (9.1, 10.0)
 
+    def test_adjacent_decade_value_wins_near_boundary(self):
+        """A value from the next decade beats the best in-decade candidate."""
+        # E12 tops out at 8.2 within a decade, so 9.8 pF is far closer to
+        # 10 pF (the next decade's 1.0) than to 8.2 pF.
+        matched, error = find_closest_single(9.8e-12, "E12")
+        assert matched == pytest.approx(1e-11)
+        assert abs(error) < 3.0
+
     def test_all_e24_values_available(self):
         """Test that all E24 values can be matched."""
         from filter_lib.shared.eseries import E_SERIES

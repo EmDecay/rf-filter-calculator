@@ -394,6 +394,11 @@ class TestBandpassEdgeCases:
         with pytest.raises(ValueError, match="at most 3.0 dB"):
             calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=3.5)
 
+    def test_bandwidth_too_wide_negative_tank_caps_rejected(self):
+        """End-coupling deltas exceeding the tank capacitance raise a clear error."""
+        with pytest.raises(ValueError, match="Bandwidth too wide"):
+            calculate_bandpass_filter(10e6, 9e6, 50, 3, "butterworth", "top")
+
 
 class TestBandpass3dBEdges:
     """compute_bandpass_3db_edges must return true -3 dB corner frequencies."""

@@ -162,6 +162,14 @@ class TestDisplay:
         out = capsys.readouterr().out
         assert "Butterworth" in out
 
+    def test_display_table_shows_ripple_and_warnings(self, capsys):
+        result = _make_result(filter_type="chebyshev", ripple_db=0.5)
+        result["warnings"] = ["synthetic warning for display"]
+        display_results(result, output_format="table")
+        out = capsys.readouterr().out
+        assert "Ripple:" in out
+        assert "synthetic warning for display" in out
+
     def test_display_with_eseries(self, sample_result, capsys):
         display_results(sample_result, eseries="E12")
         assert "E12" in capsys.readouterr().out

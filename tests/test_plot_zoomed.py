@@ -277,10 +277,7 @@ class TestRenderPlotPair:
         result = render_plot_pair(freqs, response_db, 1e3, filter_type="lowpass")
         # Should not add zoomed plot for flat response
         assert result.count("Frequency Response") == 1
-        # Zoomed section should be skipped
-        if "Passband Detail" in result:
-            # If it exists, it should indicate nothing to show
-            assert True
+        assert "Passband Detail" not in result
 
     def test_highpass_filter_type(self):
         """Works with highpass filter."""

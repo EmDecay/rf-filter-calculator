@@ -35,9 +35,7 @@ def _butterworth_response_base(
     if is_lowpass:
         ratio = freq_hz / cutoff_hz
     else:
-        if freq_hz == 0:
-            return 0.0
-        ratio = cutoff_hz / freq_hz  # Inverted for HPF
+        ratio = cutoff_hz / freq_hz  # Inverted for HPF; freq_hz == 0 returned above
 
     # For |ratio| >> 1, ratio**(2n) may overflow double precision. The limit
     # of 1/sqrt(1 + ratio^(2n)) as that term overflows is 0, so clamp.
@@ -71,9 +69,7 @@ def _chebyshev_response_base(
     if is_lowpass:
         ratio = freq_hz / cutoff_hz
     else:
-        if freq_hz == 0:
-            return 0.0
-        ratio = cutoff_hz / freq_hz  # Inverted for HPF
+        ratio = cutoff_hz / freq_hz  # Inverted for HPF; freq_hz == 0 returned above
 
     tn = chebyshev_polynomial(order, ratio)
     h_squared = 1.0 / (1.0 + epsilon**2 * tn**2)
@@ -101,9 +97,8 @@ def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpa
     if is_lowpass:
         w = (freq_hz / cutoff_hz) * BESSEL_SCALE[order]
     else:
-        if freq_hz == 0:
-            return 0.0
-        w = (cutoff_hz / freq_hz) * BESSEL_SCALE[order]  # Inverted for HPF
+        # Inverted for HPF; freq_hz == 0 returned above
+        w = (cutoff_hz / freq_hz) * BESSEL_SCALE[order]
 
     coeffs = BESSEL_COEFFS[order]
 

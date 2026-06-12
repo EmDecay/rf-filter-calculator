@@ -156,10 +156,8 @@ def find_parallel_combo(
         for v1 in candidates:
             if v1 <= target:
                 continue  # V1 must be > target for parallel to work
-            # Calculate V2 needed: V2 = V1*target/(V1-target)
+            # Calculate V2 needed: V2 = V1*target/(V1-target); positive since v1 > target
             v2_needed = v1 * target / (v1 - target)
-            if v2_needed <= 0:
-                continue
             v2, _ = find_closest_single(v2_needed, series)
             # Check ratio constraint
             if max(v1, v2) / min(v1, v2) > ratio_limit:

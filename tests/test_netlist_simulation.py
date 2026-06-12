@@ -93,6 +93,16 @@ class TestSolverSelfTests:
             solve_s21(1, [(1, 2, "C", 1e-12)], 50.0, 50.0, 1, 1, [1e6])
 
 
+class TestSolverInputValidation:
+    def test_out_of_range_port_node_rejected(self):
+        with pytest.raises(ValueError, match="in_node and out_node"):
+            solve_s21(n_nodes=2, branches=[], rs=50, rl=50, in_node=1, out_node=3, freqs=[1e6])
+
+    def test_logspace_requires_two_points(self):
+        with pytest.raises(ValueError, match="points must be >= 2"):
+            logspace(0, 1, 1)
+
+
 class TestEdgeFinding:
     def test_find_3db_edges_interpolates(self):
         """Synthetic triangle response: edges at the sqrt(1/2) crossings."""

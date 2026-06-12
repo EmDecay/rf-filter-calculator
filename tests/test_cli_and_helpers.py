@@ -287,6 +287,10 @@ class TestLowpassCmd:
         lowpass_run(_lp_args(filter_type="chebyshev", topology_pos="t"))
         assert capsys.readouterr().out
 
+    def test_bessel_pi(self, capsys):
+        lowpass_run(_lp_args(filter_type="bessel"))
+        assert capsys.readouterr().out
+
     def test_missing_filter_type_exits_with_usage(self, capsys):
         with pytest.raises(SystemExit) as exc_info:
             lowpass_run(_lp_args(filter_type=None))
@@ -316,6 +320,14 @@ class TestHighpassCmd:
         highpass_run(_hp_args())
         assert capsys.readouterr().out
 
+    def test_chebyshev_t(self, capsys):
+        highpass_run(_hp_args(filter_type="chebyshev"))
+        assert capsys.readouterr().out
+
+    def test_bessel_t(self, capsys):
+        highpass_run(_hp_args(filter_type="bessel"))
+        assert capsys.readouterr().out
+
     def test_missing_filter_type_exits_with_usage(self, capsys):
         with pytest.raises(SystemExit) as exc_info:
             highpass_run(_hp_args(filter_type=None))
@@ -337,6 +349,21 @@ class TestBandpassCmd:
     def test_butterworth_top(self, capsys):
         bandpass_run(_bp_args())
         assert capsys.readouterr().out
+
+    def test_chebyshev_ripple_above_ceiling_raises(self):
+        with pytest.raises(ValueError, match="at most 3.0 dB"):
+            bandpass_run(_bp_args(filter_type="chebyshev", ripple=3.5))
+
+    def test_chebyshev_nan_ripple_raises(self):
+        with pytest.raises(ValueError, match="must be positive and finite"):
+            bandpass_run(_bp_args(filter_type="chebyshev", ripple=float("nan")))
+
+    def test_wide_fbw_warning_goes_to_stderr(self, capsys):
+        # 2 MHz BW at 14.175 MHz is ~14% FBW, above the simulation-proven 10%.
+        bandpass_run(_bp_args(bandwidth="2MHz"))
+        captured = capsys.readouterr()
+        assert captured.out
+        assert "Warning:" in captured.err
 
     def test_missing_filter_type_exits_with_usage(self, capsys):
         with pytest.raises(SystemExit) as exc_info:

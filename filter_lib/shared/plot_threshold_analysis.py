@@ -26,15 +26,13 @@ def _find_db_crossing(
     for i in range(len(response_db) - 1):
         if direction == "falling":
             if response_db[i] >= threshold_db and response_db[i + 1] < threshold_db:
-                if response_db[i] == response_db[i + 1]:
-                    return freqs[i]
+                # The bracketing condition guarantees the two samples differ,
+                # so the interpolation denominator is never zero.
                 ratio = (threshold_db - response_db[i]) / (response_db[i + 1] - response_db[i])
                 log_f1, log_f2 = math.log10(freqs[i]), math.log10(freqs[i + 1])
                 return 10 ** (log_f1 + ratio * (log_f2 - log_f1))
         else:
             if response_db[i] < threshold_db and response_db[i + 1] >= threshold_db:
-                if response_db[i] == response_db[i + 1]:
-                    return freqs[i + 1]
                 ratio = (threshold_db - response_db[i]) / (response_db[i + 1] - response_db[i])
                 log_f1, log_f2 = math.log10(freqs[i]), math.log10(freqs[i + 1])
                 return 10 ** (log_f1 + ratio * (log_f2 - log_f1))
