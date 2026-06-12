@@ -10,7 +10,7 @@ class FilterState:
     # Filter selection
     category: str = ""  # lowpass, highpass, bandpass
     filter_type: str = "butterworth"
-    topology: str = "pi"  # pi, t for lowpass/highpass; top, shunt for bandpass
+    topology: str = "pi"  # pi, t for lowpass/highpass; top for bandpass
 
     # Frequency parameters
     frequency_hz: float = 0.0  # cutoff for LP/HP, center for BP

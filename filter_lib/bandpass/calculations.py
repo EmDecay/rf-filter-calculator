@@ -1,7 +1,7 @@
 """Coupled resonator bandpass filter calculations.
 
 Contains coupling coefficient formulas and component value calculations
-for Top-C and Shunt-C topologies.
+for Top-C (series capacitive) coupled resonator filters.
 
 References:
 - Matthaei, Young, Jones "Microwave Filters, Impedance-Matching Networks..."
@@ -64,7 +64,7 @@ def calculate_resonator_components(f0: float, z0: float) -> tuple[float, float]:
 
 
 def calculate_coupling_capacitors(k_values: list[float], c_resonant: float) -> list[float]:
-    """Calculate coupling capacitors for both Top-C and Shunt-C.
+    """Calculate Top-C inter-resonator coupling capacitors.
 
     Formula: Cs[i] = k[i] * C_resonant
 
@@ -194,18 +194,19 @@ def _validate_inputs(
         raise ValueError("Number of resonators must be between 2 and 9")
     if filter_type not in ("butterworth", "chebyshev", "bessel"):
         raise ValueError("Filter type must be 'butterworth', 'chebyshev', or 'bessel'")
-    if coupling not in ("top", "shunt"):
-        raise ValueError("Coupling must be 'top' or 'shunt'")
+    if coupling == "shunt":
+        raise ValueError(
+            "Shunt-C coupling has been removed: capacitive bottom coupling cannot "
+            "realize the designed response (simulation-verified). Use Top-C ('top')."
+        )
+    if coupling != "top":
+        raise ValueError("Coupling must be 'top'")
 
 
-def _get_fbw_warnings(fbw: float, coupling: str) -> list[str]:
+def _get_fbw_warnings(fbw: float) -> list[str]:
     """Generate FBW-related warnings."""
     warnings: list[str] = []
-    if coupling == "shunt" and fbw > 0.10:
-        warnings.append(
-            f"FBW {fbw * 100:.1f}% exceeds 10% limit for Shunt-C; consider Top-C topology"
-        )
-    if coupling == "top" and fbw > 0.10:
+    if fbw > 0.10:
         warnings.append(
             f"FBW {fbw * 100:.1f}% exceeds the simulation-validated range (<=10%) for "
             "Top-C; verify the design before building"
@@ -233,7 +234,7 @@ def calculate_bandpass_filter(
         z0: System impedance in Ohms
         n_resonators: Number of resonators (2-9)
         filter_type: 'butterworth', 'chebyshev', or 'bessel'
-        coupling: 'top' (series) or 'shunt' (parallel)
+        coupling: 'top' (series capacitive coupling; the only supported kind)
         ripple_db: Chebyshev ripple (0.1, 0.5, or 1.0 dB)
         q_safety: Q safety factor multiplier
 
@@ -250,7 +251,7 @@ def calculate_bandpass_filter(
         raise ValueError("ripple_db must be positive and finite for Chebyshev")
 
     fbw = bw / f0
-    warnings = _get_fbw_warnings(fbw, coupling)
+    warnings = _get_fbw_warnings(fbw)
 
     # Get prototype g-values
     g_values = get_g_values(filter_type, n_resonators, ripple_db)
@@ -277,18 +278,16 @@ def calculate_bandpass_filter(
     c_coupling = calculate_coupling_capacitors(k_values, C_resonant)
     c_tank = calculate_tank_capacitors(n_resonators, C_resonant, c_coupling)
 
-    # Realize the external Q with series end-coupling capacitors (Top-C).
-    # Without them the source/load load the end tanks far too heavily and
-    # the built filter misses the designed bandwidth by an order of magnitude.
-    c_end_in = c_end_out = None
-    if coupling == "top":
-        omega0 = 2 * math.pi * f0
-        c_end_in, delta_c_in = calculate_end_coupling(qe_in, omega0, L_resonant, z0)
-        c_end_out, delta_c_out = calculate_end_coupling(qe_out, omega0, L_resonant, z0)
-        # The end caps' series-equivalent capacitance appears across the end
-        # tanks; absorb it so the tanks stay resonant at f0.
-        c_tank[0] -= delta_c_in
-        c_tank[-1] -= delta_c_out
+    # Realize the external Q with series end-coupling capacitors. Without
+    # them the source/load load the end tanks far too heavily and the built
+    # filter misses the designed bandwidth by an order of magnitude.
+    omega0 = 2 * math.pi * f0
+    c_end_in, delta_c_in = calculate_end_coupling(qe_in, omega0, L_resonant, z0)
+    c_end_out, delta_c_out = calculate_end_coupling(qe_out, omega0, L_resonant, z0)
+    # The end caps' series-equivalent capacitance appears across the end
+    # tanks; absorb it so the tanks stay resonant at f0.
+    c_tank[0] -= delta_c_in
+    c_tank[-1] -= delta_c_out
 
     # Check for negative tank capacitors
     negative_caps = [(i + 1, ct) for i, ct in enumerate(c_tank) if ct <= 0]

@@ -10,7 +10,7 @@ from filter_lib.bandpass.calculations import (
     calculate_bandpass_filter,
     calculate_min_q,
 )
-from filter_lib.bandpass.diagrams import print_shunt_c_diagram, print_top_c_diagram
+from filter_lib.bandpass.diagrams import print_top_c_diagram
 from filter_lib.bandpass.display import display_results
 from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
 from filter_lib.bandpass.g_values import (
@@ -166,16 +166,6 @@ class TestDiagrams:
         print_top_c_diagram(5)
         assert "Cs45" in capsys.readouterr().out
 
-    def test_shunt_c_3_resonators(self, capsys):
-        print_shunt_c_diagram(3)
-        out = capsys.readouterr().out
-        assert "IN" in out
-        assert "Cs12" in out
-
-    def test_shunt_c_4_resonators(self, capsys):
-        print_shunt_c_diagram(4)
-        assert "Cs34" in capsys.readouterr().out
-
 
 # --- calculations (extended) ---
 
@@ -213,12 +203,12 @@ class TestCalculationsExtended:
         with pytest.raises(ValueError, match="Coupling must be"):
             _validate_inputs(14e6, 100e3, 50.0, 3, "butterworth", "invalid")
 
-    def test_fbw_warnings_shunt_high(self):
-        warnings = _get_fbw_warnings(0.15, "shunt")
-        assert any("Shunt-C" in w for w in warnings)
+    def test_fbw_warnings_above_validated_range(self):
+        warnings = _get_fbw_warnings(0.15)
+        assert any("simulation-validated" in w for w in warnings)
 
     def test_fbw_warnings_very_wide(self):
-        warnings = _get_fbw_warnings(0.45, "top")
+        warnings = _get_fbw_warnings(0.45)
         assert len(warnings) > 0
 
     def test_bandpass_top_extreme_fbw_infeasible_end_coupling(self):
@@ -234,22 +224,9 @@ class TestCalculationsExtended:
                 coupling="top",
             )
 
-    def test_bandpass_negative_tank_cap(self):
-        # Shunt has no end-coupling guard, so the negative-tank-cap check is
-        # what catches absurdly wide bandwidths on that path
-        with pytest.raises(ValueError, match="Bandwidth too wide"):
-            calculate_bandpass_filter(
-                f0=14.175e6,
-                bw=13.5e6,
-                z0=50.0,
-                n_resonators=5,
-                filter_type="butterworth",
-                coupling="shunt",
-            )
-
-    def test_bandpass_shunt_coupling(self):
-        result = _make_result(coupling="shunt")
-        assert result["coupling"] == "shunt"
+    def test_bandpass_shunt_coupling_removed(self):
+        with pytest.raises(ValueError, match="Shunt-C coupling has been removed"):
+            _make_result(coupling="shunt")
 
     def test_bandpass_chebyshev(self):
         result = _make_result(filter_type="chebyshev", n_resonators=5, ripple_db=0.5)
@@ -286,7 +263,8 @@ class TestEndCapOutputs:
         assert "standard_match" in end_caps[0]
 
     def test_json_omits_end_caps_when_absent(self):
-        result = _make_result(coupling="shunt", bw=200e3)
+        # Formatter stays tolerant of result dicts without end caps
+        result = {**_make_result(), "c_end_in": None, "c_end_out": None}
         data = json.loads(format_json(result, include_toroids=False))
         assert "end_coupling_capacitors" not in data["components"]
 

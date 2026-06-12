@@ -196,7 +196,7 @@ def test_highpass_wizard_allows_odd_chebyshev():
 
 
 # ---------------------------------------------------------------------------
-# Bandpass wizard must block shunt-C coupling while it is disabled
+# Bandpass wizard coupling: only Top-C exists (shunt-C removed)
 # ---------------------------------------------------------------------------
 
 
@@ -248,16 +248,11 @@ def _make_bandpass_screen_with_coupling(coupling: str):
     return screen, state, notifications, pushed, widget_map
 
 
-def test_bandpass_wizard_blocks_shunt_coupling_while_disabled():
-    screen, state, notifications, pushed, widgets = _make_bandpass_screen_with_coupling("shunt")
-    screen._calculate()
-
-    assert pushed == [], "navigation should be blocked while shunt-C is disabled"
-    assert any(sev == "error" and "temporarily disabled" in msg for sev, msg in notifications), (
-        notifications
-    )
-    widgets["#coupling"].focus.assert_called_once()
-    assert state.category == "", "state must not be mutated when the gate blocks"
+def test_bandpass_wizard_offers_no_shunt_option():
+    """Shunt-C was removed; the screen must not offer it."""
+    source = inspect.getsource(bandpass_screen_mod)
+    assert 'id="shunt"' not in source
+    assert "Shunt-C" not in source
 
 
 def test_bandpass_wizard_allows_top_coupling():

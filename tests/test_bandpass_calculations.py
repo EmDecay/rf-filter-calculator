@@ -59,10 +59,9 @@ class TestEndCoupling:
         assert result["c_tank"][0] < result["c_tank"][1]
         assert result["c_tank"][-1] < result["c_tank"][1]
 
-    def test_shunt_results_have_no_end_caps(self):
-        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "shunt")
-        assert result["c_end_in"] is None
-        assert result["c_end_out"] is None
+    def test_shunt_coupling_rejected_as_removed(self):
+        with pytest.raises(ValueError, match="Shunt-C coupling has been removed"):
+            calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "shunt")
 
 
 class TestCouplingCoefficients:

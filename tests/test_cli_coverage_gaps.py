@@ -238,9 +238,9 @@ class TestSetupParsers:
     def test_bandpass_setup_parser_accepts_flag_coupling_and_type(self):
         parser = argparse.ArgumentParser()
         bandpass_cmd.setup_parser(parser)
-        args = parser.parse_args(["-t", "ch", "-c", "shunt", "--fl", "14MHz", "--fh", "14.35MHz"])
+        args = parser.parse_args(["-t", "ch", "-c", "top", "--fl", "14MHz", "--fh", "14.35MHz"])
         assert args.type_flag == "ch"
-        assert args.coupling_flag == "shunt"
+        assert args.coupling_flag == "top"
         assert args.f_low == "14MHz"
         assert args.f_high == "14.35MHz"
 
@@ -497,17 +497,10 @@ class TestBandpassExtraValidation:
         bandpass_run(_bp_args(coupling_pos=None, coupling_flag="top"))
         assert capsys.readouterr().out
 
-    def test_shunt_coupling_positional_rejected_while_disabled(self):
-        with pytest.raises(ValueError, match="Shunt-C coupling is temporarily disabled"):
+    def test_shunt_coupling_rejected_as_removed(self):
+        # Namespace-built args bypass argparse choices; the library guard catches it
+        with pytest.raises(ValueError, match="Shunt-C coupling has been removed"):
             bandpass_run(_bp_args(coupling_pos="shunt"))
-
-    def test_shunt_coupling_flag_rejected_while_disabled(self):
-        with pytest.raises(ValueError, match="Shunt-C coupling is temporarily disabled"):
-            bandpass_run(_bp_args(coupling_pos=None, coupling_flag="shunt"))
-
-    def test_shunt_coupling_alias_rejected_while_disabled(self):
-        with pytest.raises(ValueError, match="Shunt-C coupling is temporarily disabled"):
-            bandpass_run(_bp_args(coupling_pos="s"))
 
     def test_type_flag_used_when_positional_missing(self, capsys):
         bandpass_run(_bp_args(filter_type=None, type_flag="bw"))

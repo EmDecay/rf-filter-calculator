@@ -1,6 +1,6 @@
 """Bandpass filter module.
 
-Coupled resonator bandpass filter calculations with Top-C and Shunt-C topologies.
+Coupled resonator bandpass filter calculations (Top-C series capacitive coupling).
 Supports Butterworth, Chebyshev, and Bessel filter types.
 """
 

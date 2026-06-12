@@ -151,12 +151,11 @@ def _coupling_cap_items(result: dict) -> list[tuple[str, float]]:
 
 def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
     """Format bandpass filter results as table."""
-    from filter_lib.bandpass.diagrams import format_shunt_c_diagram, format_top_c_diagram
+    from filter_lib.bandpass.diagrams import format_top_c_diagram
     from filter_lib.shared.formatting import format_capacitance, format_frequency, format_inductance
 
     lines = []
-    coupling = result.get("coupling", "top")
-    coupling_name = "Top-C Coupled" if coupling == "top" else "Shunt-C Coupled"
+    coupling_name = "Top-C Coupled"
     title = f"{result['filter_type'].title()} {coupling_name} Band-Pass Filter"
     lines.append(f"\n{title}")
     lines.append("=" * 60)
@@ -178,10 +177,7 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
     lines.append(f"  (Q safety factor: {result['q_safety']})")
 
     lines.append("\nTopology:")
-    if coupling == "top":
-        lines.append(format_top_c_diagram(result["n_resonators"]))
-    else:
-        lines.append(format_shunt_c_diagram(result["n_resonators"]))
+    lines.append(format_top_c_diagram(result["n_resonators"]))
 
     n = result["n_resonators"]
     h24 = "\u2500" * 24

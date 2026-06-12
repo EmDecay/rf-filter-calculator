@@ -18,7 +18,7 @@ from ..shared.toroid_display import (
     format_recommendation_block_compact,
 )
 from ..shared.toroid_selection import recommend_cores
-from .diagrams import print_shunt_c_diagram, print_top_c_diagram
+from .diagrams import print_top_c_diagram
 from .formatters import format_csv, format_eseries_match, format_json, format_quiet
 from .transfer import frequency_sweep
 
@@ -100,7 +100,7 @@ def _print_table_output(
     toroid_compact: bool = False,
 ) -> None:
     """Print full table output with diagram and component values."""
-    coupling_name = "Top-C (Series)" if result["coupling"] == "top" else "Shunt-C (Parallel)"
+    coupling_name = "Top-C (Series)"
     title = f"{result['filter_type'].title()} Coupled Resonator Bandpass Filter"
 
     print(f"\n{title}")
@@ -162,12 +162,8 @@ def _print_toroid_block(result: FilterResult, compact: bool) -> None:
 
 def _print_topology(result: FilterResult) -> None:
     """Print topology diagram."""
-    n = result["n_resonators"]
     print("\nTopology:")
-    if result["coupling"] == "top":
-        print_top_c_diagram(n)
-    else:
-        print_shunt_c_diagram(n)
+    print_top_c_diagram(result["n_resonators"])
 
 
 def _print_component_tables(result: FilterResult, raw: bool) -> None:

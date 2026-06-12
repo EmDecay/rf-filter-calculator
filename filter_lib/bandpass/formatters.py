@@ -114,7 +114,7 @@ def format_json(
     # Top-C results carry series end-coupling capacitors that realize the
     # external Q. JSON schema: components.end_coupling_capacitors is a list of
     # {"name": "Ce_in"|"Ce_out", "value_farads": float, "standard_match": {...}}
-    # present only when the synthesis emits end caps (absent for Shunt-C).
+    # present whenever the synthesis emits end caps.
     if result.get("c_end_in") is not None and result.get("c_end_out") is not None:
         output["components"]["end_coupling_capacitors"] = [
             _bandpass_json_component(
