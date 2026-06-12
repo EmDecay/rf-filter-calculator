@@ -31,7 +31,7 @@ FILTER_EXPLANATIONS: dict[str, str] = {
 - Flattest possible passband response
 - No ripple in passband
 - Moderate rolloff steepness
-- Good for audio applications""",
+- Good general-purpose choice""",
     "chebyshev": """Chebyshev Filter (Equiripple)
 - Steeper rolloff than Butterworth for same order
 - Ripple in passband (specified in dB)
@@ -56,9 +56,10 @@ FILTER_EXPLANATIONS_HIGHPASS: dict[str, str] = {
 - Ripple in passband (specified in dB)
 - Better stopband attenuation
 - Supports Pi and T topologies""",
-    "bessel": """Bessel High-Pass Filter (Maximally Flat Delay)
-- Best pulse response (minimal overshoot)
-- Linear phase response
+    "bessel": """Bessel High-Pass Filter
+- Smooth monotonic rolloff
+- Note: the LP prototype's flat group delay is NOT preserved
+  through the high-pass transformation
 - Gentlest rolloff
 - Supports Pi and T topologies""",
 }
@@ -74,9 +75,9 @@ FILTER_EXPLANATIONS_BANDPASS: dict[str, str] = {
 - Ripple in passband (specified in dB)
 - Requires odd number of resonators
 - Better selectivity for same order""",
-    "bessel": """Bessel Bandpass Filter (Maximally Flat Delay)
+    "bessel": """Bessel Bandpass Filter
 - Best pulse response
-- Linear phase in passband
+- Approximately linear passband phase for narrow fractional bandwidths
 - Gentlest rolloff""",
 }
 

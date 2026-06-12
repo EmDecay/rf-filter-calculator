@@ -42,11 +42,11 @@ Python 3.10+ CLI tool for calculating LC filter component values. Entry point is
 - **`cli/`** — argparse subcommands (`lowpass_cmd`, `highpass_cmd`, `bandpass_cmd`, `wizard_cmd`). Each has `setup_parser()` and `run()`.
 - **`lowpass/`**, **`highpass/`** — Thin wrappers over shared base. Each has `calculations.py`, `transfer.py`, `display.py`.
 - **`bandpass/`** — Coupled resonator design. Has its own calculation, transfer, display, formatters, diagrams, and g-value modules.
-- **`wizard/`** — Textual TUI. `app.py` drives screens in `screens/` (welcome → filter config → output options → results). `state.py` holds `WizardState` dataclass shared across screens.
+- **`wizard/`** — Textual TUI. `app.py` drives screens in `screens/` (welcome → filter config → output options → results). `state.py` holds the `FilterState` dataclass shared across screens.
 - **`shared/`** — Core logic shared across filter types:
   - `lp_hp_base_calculations.py` — Strategy pattern: LP and HP share calculation code, differing only in component formulas (`cap_formula`/`ind_formula` callables) and ordering.
   - `eseries.py` — E12/E24/E96 standard capacitor value matching with parallel combinations. Inductors are shown raw (no E-series matching).
-  - `plotting.py` + `plot_*.py` — ASCII frequency response, zoom pairs, threshold analysis, data export (split per GH-7).
+  - `plotting.py` + `plot_*.py` — ASCII frequency response, zoom pairs, threshold analysis (split per GH-7); response-data export lives in `response_export.py`.
   - `parsing.py` — Flexible frequency/impedance parsing (`10MHz`, `10M`, `10e6`, etc.). Impedance also accepts k/M suffixes.
   - `constants.py` — Bessel g-value lookup tables. Chebyshev g-values computed by formula (see `chebyshev_g_calculator.py`).
   - `chebyshev_g_calculator.py` — Arbitrary Chebyshev ripple (0, 3.0] dB support via formula-based g-value computation (exact dB→neper conversion: 40/ln(10)).
@@ -91,7 +91,7 @@ CLI tests build `argparse.Namespace` directly via `_lp_args()/_hp_args()/_bp_arg
 
 ## Netlist-Simulation Testing
 
-Bandpass synthesis is gated by simulation validation. To add a new simulation-gated acceptance case (e.g., a new ripple/FBW/order combination), parametrize it in the acceptance matrix at `tests/test_netlist_simulation.py` (±3% magnitude tolerance, ±0.5% f₀ tolerance, ±50 kHz BW tolerance). Cases must land within ≤10% FBW. Running `uv run pytest tests/test_netlist_simulation.py -v` will synthesize the circuit, simulate via SPICE netlist, and verify mag/f₀/BW against specification.
+Bandpass synthesis is gated by simulation validation. To add a new simulation-gated acceptance case (e.g., a new ripple/FBW/order combination), parametrize it in the acceptance matrix at `tests/test_netlist_simulation.py` (measured -3 dB bandwidth within 3% of design, center frequency within 0.5%). Cases must land within ≤10% FBW (the simulation-proven range). The harness builds the prescribed circuit via `shared/netlist_builders.py` and solves it with the stdlib AC nodal-analysis solver in `shared/netlist_simulation.py` — no external SPICE dependency.
 
 ## Patching lazy imports
 
