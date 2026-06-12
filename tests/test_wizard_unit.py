@@ -19,12 +19,7 @@ from filter_lib.wizard.filter_type_calculators import (
     calculate_highpass,
     calculate_lowpass,
 )
-from filter_lib.wizard.formatting_helpers import (
-    _format_component_table,
-    format_bandpass_table,
-    format_eseries_recs,
-    format_lp_hp_table,
-)
+from filter_lib.wizard.formatting_helpers import format_bandpass_table
 from filter_lib.wizard.radio_button_helpers import get_selected_radio
 from filter_lib.wizard.screens.results import ResultsScreen
 from filter_lib.wizard.state import FilterState
@@ -704,149 +699,59 @@ class TestCalculateBandpass:
 # ============================================================================
 
 
-class TestFormatLpHpTable:
-    """Tests for lowpass/highpass table formatting."""
+class TestWizardLpHpRendering:
+    """The wizard renders LP/HP through the shared display module."""
 
-    def test_format_pi_topology_lowpass(self, lowpass_result):
-        """Test formatting Pi topology lowpass filter."""
-        state = FilterState(raw_units=False)
+    @staticmethod
+    def _state(**overrides) -> FilterState:
+        defaults = dict(
+            category="lowpass",
+            filter_type="butterworth",
+            topology="pi",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            eseries="none",
+            show_plot=False,
+        )
+        defaults.update(overrides)
+        return FilterState(**defaults)
 
-        lines = format_lp_hp_table(lowpass_result, state, "Low Pass")
+    def test_lowpass_pi_table_renders(self):
+        from filter_lib.wizard.filter_type_calculators import calculate_lowpass
 
+        lines = calculate_lowpass(self._state())
         output = "\n".join(lines)
         assert "Butterworth" in output
-        assert "PI Low Pass" in output
-        assert "10" in output  # Frequency should be formatted
-        assert "MHz" in output or "M" in output
-        assert "50" in output  # Impedance
-        assert "Order:" in output
-        assert "5" in output
+        assert "Low Pass" in output
+        assert "Component Values" in output
         assert "Topology:" in output
-        assert "Component Values" in output
 
-    def test_format_t_topology_lowpass(self, lowpass_t_result):
-        """Test formatting T topology lowpass filter."""
-        state = FilterState(raw_units=False)
+    def test_lowpass_t_table_lists_inductors_first(self):
+        """T topology is series-L first: inductors are the primary (left) column."""
+        from filter_lib.wizard.filter_type_calculators import calculate_lowpass
 
-        lines = format_lp_hp_table(lowpass_t_result, state, "Low Pass")
-
+        lines = calculate_lowpass(self._state(topology="t"))
         output = "\n".join(lines)
-        assert "T Low Pass" in output
-        assert "Butterworth" in output
+        assert output.index("Inductors") < output.index("Capacitors")
 
-    def test_format_with_ripple(self, highpass_result):
-        """Test formatting includes ripple for Chebyshev."""
-        state = FilterState(raw_units=False)
+    def test_highpass_pi_table_lists_inductors_first(self):
+        """HP Pi is shunt-L first: inductors are the primary (left) column."""
+        from filter_lib.wizard.filter_type_calculators import calculate_highpass
 
-        lines = format_lp_hp_table(highpass_result, state, "High Pass")
-
+        lines = calculate_highpass(self._state(category="highpass", topology="pi"))
         output = "\n".join(lines)
-        assert "Chebyshev" in output
-        assert "Ripple:" in output
-        assert "0.5 dB" in output
+        assert output.index("Inductors") < output.index("Capacitors")
 
-    def test_format_raw_units(self, lowpass_result):
-        """Test formatting with raw units enabled."""
-        state = FilterState(raw_units=True)
+    def test_highpass_eseries_matches_capacitors_only(self):
+        """HP wizard output recommends standard capacitors; inductors get wound."""
+        from filter_lib.wizard.filter_type_calculators import calculate_highpass
 
-        lines = format_lp_hp_table(lowpass_result, state, "Low Pass")
-
+        lines = calculate_highpass(self._state(category="highpass", topology="t", eseries="E24"))
         output = "\n".join(lines)
-        # Raw units should show scientific notation
-        assert "e-" in output or "E-" in output
-
-    def test_format_nice_units(self, lowpass_result):
-        """Test formatting with human-readable units."""
-        state = FilterState(raw_units=False)
-
-        lines = format_lp_hp_table(lowpass_result, state, "Low Pass")
-
-        output = "\n".join(lines)
-        # Should use nice units like pF, nF, µH
-        assert "F" in output or "H" in output
-        # Should not use raw scientific notation for all values
-        assert output.count("e-") < output.count("C") + output.count("L")
-
-
-class TestFormatComponentTable:
-    """Tests for component table formatting helper."""
-
-    def test_format_component_table_raw(self, lowpass_result):
-        """Test component table with raw units."""
-        output = _format_component_table(lowpass_result, raw=True)
-
-        assert "Component Values" in output
-        assert "Capacitors" in output
-        assert "Inductors" in output
-        assert "C1:" in output
-        assert "L1:" in output
-        assert "e-" in output or "E-" in output  # Scientific notation
-        # Box drawing characters
-        assert "\u2502" in output  # Vertical line
-
-    def test_format_component_table_nice(self, lowpass_result):
-        """Test component table with formatted units."""
-        output = _format_component_table(lowpass_result, raw=False)
-
-        assert "Component Values" in output
-        assert "C1:" in output
-        assert "L1:" in output
-        # Should have formatted units
-        assert "F" in output or "H" in output
-
-    def test_format_unequal_components(self, highpass_result):
-        """Test formatting with different numbers of caps and inductors."""
-        # Highpass T has 2 caps, 1 inductor
-        output = _format_component_table(highpass_result, raw=False)
-
-        assert "C1:" in output
-        assert "C2:" in output
-        assert "L1:" in output
-        # Table should handle unequal rows
-        assert output.count("C") >= 2
-
-
-class TestFormatEseriesRecs:
-    """Tests for E-series recommendations formatting."""
-
-    def test_format_eseries_capacitors(self):
-        """Test E-series recommendations for capacitors."""
-        from filter_lib.shared.formatting import format_capacitance
-
-        components = [100e-12, 220e-12, 470e-12]  # 100pF, 220pF, 470pF
-
-        lines = format_eseries_recs(components, "C", "Capacitor", "E12", format_capacitance)
-
-        output = "\n".join(lines)
-        assert "E12" in output
-        assert "Capacitor" in output
-        assert "Recommendations" in output
-        assert "C1" in output
-        assert "C2" in output
-        assert "C3" in output
-        assert "Calculated:" in output
-
-    def test_format_eseries_inductors_uses_winding_note(self):
-        """Test inductor E-series requests use the winding note."""
-        from filter_lib.shared.formatting import format_inductance
-
-        components = [1e-6, 2.2e-6]  # 1µH, 2.2µH
-
-        lines = format_eseries_recs(components, "L", "Inductor", "E24", format_inductance)
-
-        output = "\n".join(lines)
-        assert output == "Inductors: wind to value (see toroid recommendations)"
-
-    def test_format_eseries_empty_list(self):
-        """Test E-series formatting with empty component list."""
-        from filter_lib.shared.formatting import format_capacitance
-
-        lines = format_eseries_recs([], "C", "Capacitor", "E12", format_capacitance)
-
-        # Should still have header
-        assert len(lines) > 0
-        output = "\n".join(lines)
-        assert "E12" in output
+        assert "Standard Capacitor Recommendations" in output
+        assert "Standard Inductor Recommendations" not in output
+        assert "wind to value" in output
 
 
 class TestFormatBandpassTable:

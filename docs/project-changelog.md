@@ -7,6 +7,12 @@ data has been removed from JSON and CSV export surfaces, including wizard export
 text table output now directs inductors to be wound to value using the toroid
 recommendations.
 
+Also in this consolidation: LP/HP rendering (CLI and wizard) now goes through one shared
+module. The wizard component table consequently adopts the CLI's primary-component-first
+column order — lowpass T and highpass Pi tables now list Inductors in the left column
+(previously the wizard always showed Capacitors first). Internal export surfaces deleted:
+`filter_lib.shared.filter_result`, `filter_lib.wizard.validation`, `filter_lib.wizard.widgets`.
+
 ---
 
 ## 2026-06-12 — Unified Response-Export Schema + Wizard Plot Export

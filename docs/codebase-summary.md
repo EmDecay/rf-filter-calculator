@@ -77,7 +77,6 @@ rf-filter-calculator/
 - `screen_navigation_mixin.py` (46 LOC) - Screen navigation mixin (Feb 2026)
 - `radio_button_helpers.py` (19 LOC) - Radio button widget utilities (Feb 2026)
 - `filter_type_calculators.py` (261 LOC) - Calculation logic for LP/HP/BP (Apr 2026, expanded)
-- `validation.py` (39 LOC) - Input validators (frequency, impedance, order, ripple)
 - `styles.tcss` (192 LOC) - Textual CSS styling for all screens
 
 **Screens** (`screens/` directory):
@@ -88,9 +87,6 @@ rf-filter-calculator/
 - `output_options.py` (146 LOC) - Output format, E-series, export settings
 - `results.py` (175 LOC) - Results display with async worker for calculations
 - `__init__.py` - Screen exports
-
-**Widgets** (`widgets/` directory):
-- `__init__.py` - Placeholder for custom Textual widgets (future extensions)
 
 **Key Design Pattern**: Each screen is independent, receives/updates shared FilterState. Results screen uses background worker thread to prevent UI blocking during calculations.
 
@@ -108,7 +104,6 @@ Provides cross-cutting utilities:
 | `display_common.py` | Shared display formatting functions |
 | `display_helpers.py` | E-series matching and formatting helpers |
 | `eseries.py` | E12/E24/E96 standard component values |
-| `filter_result.py` | Result data structure wrapper |
 | `formatting.py` | Number formatting for user display |
 | `parsing.py` | Input validation and normalization |
 | `plotting.py` | **Facade** — re-exports plotting functions for backward compat |

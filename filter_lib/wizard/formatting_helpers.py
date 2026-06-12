@@ -1,73 +1,11 @@
 """Formatting helpers for wizard calculation output.
 
 Separated from calculation_handler.py for better organization.
-Contains table formatting functions for filter results display.
+Contains table formatting functions for bandpass results display;
+LP/HP rendering goes through shared.lp_hp_display.
 """
 
-from collections.abc import Callable
-
 from .state import FilterState
-
-
-def format_lp_hp_table(result: dict, state: FilterState, category: str) -> list[str]:
-    """Format table output for lowpass/highpass filters."""
-    from filter_lib.highpass.display import HIGHPASS_DISPLAY_CONFIG
-    from filter_lib.lowpass.display import LOWPASS_DISPLAY_CONFIG
-    from filter_lib.shared.lp_hp_display import LpHpRenderOptions, render_results_lines
-
-    config = (
-        HIGHPASS_DISPLAY_CONFIG
-        if category.strip().lower() in ("high pass", "highpass", "hp")
-        else LOWPASS_DISPLAY_CONFIG
-    )
-    return render_results_lines(
-        result,
-        LpHpRenderOptions(
-            config=config,
-            raw=state.raw_units,
-            eseries=None,
-            show_match=False,
-            show_plot=False,
-            include_toroids=False,
-            trailing_blank=False,
-        ),
-    )
-
-
-def _format_component_table(result: dict, raw: bool) -> str:
-    """Format component values as a table."""
-    from filter_lib.shared.display_common import format_component_table
-
-    return format_component_table(result, raw=raw, primary_component="capacitors")
-
-
-def format_eseries_recs(
-    components: list,
-    prefix: str,
-    name: str,
-    eseries: str,
-    formatter: Callable,
-    parallel_mode: str = "additive",
-) -> list[str]:
-    """Format E-series recommendations for components.
-
-    Capacitors receive E-series matching; inductors are wound to value.
-    """
-    from filter_lib.shared.display_helpers import format_eseries_match
-
-    if prefix.upper().startswith("L") or name.lower().startswith("inductor"):
-        return ["Inductors: wind to value (see toroid recommendations)"]
-
-    lines = []
-    lines.append(f"\n{eseries} Standard {name} Recommendations")
-    lines.append("-" * 45)
-    lines.append("(Calculated values with nearest standard matches)")
-    lines.append("")
-    for i, val in enumerate(components):
-        lines.append(f"{prefix}{i + 1} Calculated: {formatter(val)}")
-        for line in format_eseries_match(val, eseries, formatter, parallel_mode=parallel_mode):
-            lines.append(line)
-    return lines
 
 
 def format_bandpass_eseries_recs(result: dict, eseries: str) -> list[str]:

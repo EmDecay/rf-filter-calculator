@@ -136,20 +136,25 @@ class TestChebyshev3dBBandwidthSemantics:
 
 
 class TestWizardFormatEseriesRecsPolicy:
-    def test_format_eseries_recs_caps_only_policy(self):
-        """format_eseries_recs matches capacitors and directs inductors to winding."""
-        from filter_lib.shared.formatting import format_inductance
-        from filter_lib.wizard.formatting_helpers import format_eseries_recs
+    def test_wizard_hp_output_caps_only_policy(self):
+        """Wizard HP output matches capacitors and directs inductors to winding."""
+        from filter_lib.wizard.filter_type_calculators import calculate_highpass
+        from filter_lib.wizard.state import FilterState
 
-        lines_inductor = format_eseries_recs(
-            [2.5e-6, 1.0e-6], "L", "Inductor", "E24", format_inductance, parallel_mode="harmonic"
+        state = FilterState(
+            category="highpass",
+            filter_type="butterworth",
+            topology="t",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            eseries="E24",
+            show_plot=False,
         )
-        assert lines_inductor == ["Inductors: wind to value (see toroid recommendations)"]
-
-        lines_additive = format_eseries_recs(
-            [100e-12, 150e-12], "C", "Capacitor", "E24", format_inductance
-        )
-        assert any("Capacitor" in line for line in lines_additive)
+        output = "\n".join(calculate_highpass(state))
+        assert "Standard Capacitor Recommendations" in output
+        assert "wind to value" in output
+        assert "Standard Inductor Recommendations" not in output
 
     def test_hp_calculator_matches_capacitors_only(self):
         """The wizard HP calculation path uses capacitor E-series matching."""
