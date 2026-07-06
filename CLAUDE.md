@@ -14,6 +14,7 @@ uv sync --group dev
 # Run the tool
 uv run filter-calc lowpass butterworth pi 10MHz -n 5
 uv run filter-calc lp bw pi 10MHz --format json     # short aliases (lp/hp/bp); json/csv output
+uv run filter-calc bp bw top -f 10MHz -b 500kHz --sim-matched  # simulate E-series matched caps
 uv run filter-calc                  # starts interactive wizard
 
 # Tests
@@ -52,6 +53,7 @@ Python 3.10+ CLI tool for calculating LC filter component values. Entry point is
   - `chebyshev_g_calculator.py` — Arbitrary Chebyshev ripple (0, 3.0] dB support via formula-based g-value computation (exact dB→neper conversion: 40/ln(10)).
   - `netlist_simulation.py` + `netlist_builders.py` — Bandpass netlist frequency sweep and component synthesis for simulation-proven response validation.
   - `response_export.py` — Unified --plot-data schema for LP/HP/BP (replaces divergent implementations).
+  - `matched_simulation.py` — `--sim-matched` support: re-simulates the circuit with capacitors replaced by their recommended E-series matches (`ESeriesMatch.best_value`), inductors exact, and reports exact-vs-matched -3 dB metrics. Table output on all three subcommands; BP JSON gains an additive `matched_sim` key. `--sim-matched --no-match` is a usage error.
   - `lp_hp_display.py` — Single LP/HP table renderer used by CLI and wizard.
   - `toroid_*.py` + `toroid_core_data.json` — Amidon core recommendations: given an inductance + frequency, suggests core/turns/wire gauge/DC resistance (GH-6). On by default; --no-toroids to suppress, --toroid-full to show top-3 in table (JSON always top-3; CSV rows carry the best match only).
 
@@ -61,10 +63,10 @@ Full module map: `docs/codebase-summary.md`.
 
 - **LP/HP duality**: Lowpass and highpass use the same base calculation functions with different formulas injected (LP: `C=g/(Z*ω)`, `L=g*Z/ω`; HP: inverse). Topology (Pi/T) controls shunt vs series placement.
 - **Filter-type alias canonicalization**: `shared/cli_aliases.py::FILTER_TYPE_ALIASES` is the single source of truth (`bw/b`→butterworth, `ch/c`→chebyshev, `bs`→bessel). Any new dispatch code must consult it rather than re-implement — see `shared/transfer_response_dispatch.py::_canonicalize_filter_type`.
-- **Filter results**: LP/HP calculation functions return a tuple `(capacitors, inductors, order)`; display layers combine it with frequency/impedance/topology metadata. Bandpass `calculate_bandpass_filter()` returns a dict with synthesis and coupling fields (`f0`, `bw`, `fbw`, `n_resonators`, `g_values`, `qe_in`/`qe_out`, `L_resonant`/`C_resonant`, `c_coupling`, `c_tank`, `c_end_in`/`c_end_out`, `q_min`, `warnings`).
+- **Filter results**: LP/HP calculation functions return a tuple `(capacitors, inductors, order)`; display layers combine it with frequency/impedance/topology metadata. Bandpass `calculate_bandpass_filter()` returns a dict with synthesis and coupling fields (`f0`, `bw`, `fbw`, `fbw_synth`, `n_resonators`, `g_values`, `qe_in`/`qe_out`, `L_resonant`/`C_resonant`, `c_coupling`, `c_tank`, `c_end_in`/`c_end_out`, `q_min`, `il_estimates`, `warnings`). `il_estimates` maps `%g`-formatted Qu strings to Cohn dissipation-loss estimates in dB (standard Qu=100/250 plus the optional `--qu` value).
 - **Bandpass -3 dB edges**: True edges come from solving `(f²-f0²)/(BW·f) = ±1`, not `f0 ± bw/2`. Source of truth: `bandpass.calculations.compute_bandpass_3db_edges` (uses `f_low = f0²/f_high` to dodge catastrophic cancellation for wide BW).
 - **Chebyshev BP 3 dB semantics**: `bw` is the user's true -3 dB BW in both synthesis and plotting. For Chebyshev only, fbw is scaled down by `delta_3dB = cosh(acosh(1/ε)/n)` in `calculate_bandpass_filter`, and `magnitude_chebyshev` scales its deviation up by the same factor. Butterworth/Bessel prototypes already land at -3 dB when delta=1, so no scaling. Source of truth: `bandpass/transfer.py::chebyshev_3db_deviation`.
-- **Chebyshev constraints**: LP, HP, and BP all require odd order (3/5/7/9) for equal source/load terminations — enforced in `shared/lp_hp_base_calculations.py` and `cli/bandpass_cmd.py`. Ripple is formula-computed for arbitrary values (no lookup tables); the 3.0 dB cap is enforced by the wizard (all filter types) and the bandpass CLI, while the LP/HP CLI validates only ripple > 0 (no upper bound).
+- **Chebyshev constraints**: LP, HP, and BP all require odd order (3/5/7/9) for equal source/load terminations — enforced in `shared/lp_hp_base_calculations.py` and `cli/bandpass_cmd.py`. Ripple is formula-computed for arbitrary values (no lookup tables); the 3.0 dB cap is enforced across all CLI subcommands by `shared/cli_helpers.py::resolve_ripple_arg`, by the wizard, and by the bandpass library (`bandpass/calculations.py`). The LP/HP library layer (`shared/lp_hp_base_calculations.py`) stays permissive (ripple > 0 only).
 - **Bandpass end-coupling**: External Q at port realized by series end-coupling capacitors Ce_in/Ce_out. Each Ce transforms the termination: Rp = Qe·ω0·L. Source of truth: `bandpass/calculations.py::calculate_end_coupling`. Shunt/bottom coupling removed — simulation showed it cannot realize the designed passband.
 - **Bandpass netlist-simulation**: Top-C series coupling is the only coupling topology. Plots and --plot-data are netlist-simulated from the synthesized circuit (`netlist_frequency_sweep`), not idealized prototypes. Simulation-proven support capped at ≤10% fractional bandwidth (warning above threshold).
 - **Toroid recommendations**: On by default, showing top-1 core per inductor in table output. --no-toroids suppresses entirely; --toroid-full shows top-3 in table (JSON/CSV always include top-3). Selection ranks cores by fit, computes turns from A_L, checks wire OD against window area.
