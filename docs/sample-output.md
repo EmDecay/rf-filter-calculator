@@ -59,8 +59,8 @@ Toroid Winding Recommendations (Iron-Powder T-Series)
   1. T68-2  (Red/Clear, mix 2, 95 ppm/°C)
      Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
      L range (A_L ±5%): 1.22 µH – 1.35 µH
-     Wire: 294 mm of AWG 20 (0.812 mm)   DCR: 9.5 mΩ
-     Q (DC est, upper bound): 8,450 @ 10 MHz
+     Wire: 308 mm of AWG 20 (0.812 mm)   DCR: 10.0 mΩ
+     Q (DC est, upper bound): 8,072 @ 10 MHz
      Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
 
   L2 target: 1.29 µH  (design freq 10 MHz)
@@ -68,8 +68,8 @@ Toroid Winding Recommendations (Iron-Powder T-Series)
   1. T68-2  (Red/Clear, mix 2, 95 ppm/°C)
      Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
      L range (A_L ±5%): 1.22 µH – 1.35 µH
-     Wire: 294 mm of AWG 20 (0.812 mm)   DCR: 9.5 mΩ
-     Q (DC est, upper bound): 8,450 @ 10 MHz
+     Wire: 308 mm of AWG 20 (0.812 mm)   DCR: 10.0 mΩ
+     Q (DC est, upper bound): 8,072 @ 10 MHz
      Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
 
 Frequency Response (dB)
@@ -160,8 +160,9 @@ Resonators:          3
 Coupling:            Top-C (Series)
 ==================================================
 
-Minimum Component Q: 81
+Minimum usable Q (severe loss at this value): 81
   (Q safety factor: 2.0)
+Est. insertion loss (Cohn): 7.0 dB @ Qu=100, 2.8 dB @ Qu=250
 
 Topology:
       Ce_in     Cs12           Cs23      Ce_out     

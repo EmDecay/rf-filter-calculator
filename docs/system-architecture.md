@@ -655,7 +655,7 @@ FILTER_TYPE_ALIASES = {
 
 **Error message**: "Chebyshev filters with equal source/load terminations require odd order (3, 5, 7, 9)"
 
-**Ripple range**: Arbitrary ripple in (0, 3.0] dB is supported via formula-based g-value calculation. The wizard enforces the full range for all filter types, and the bandpass CLI enforces 0 < ripple ≤ 3.0 dB; the LP/HP CLI currently validates only ripple > 0 (no upper bound enforced).
+**Ripple range**: Arbitrary ripple in (0, 3.0] dB is supported via formula-based g-value calculation. All three subcommands (LP, HP, BP) and the wizard enforce 0 < ripple ≤ 3.0 dB. Values above 3.0 dB are rejected with error "Ripple must be at most 3.0 dB".
 
 ### Bandpass True -3 dB Edges
 

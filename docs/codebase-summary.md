@@ -1,13 +1,13 @@
 # Codebase Summary
 
-**Last Updated**: June 12, 2026
+**Last Updated**: July 6, 2026
 
-RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1227 tests, 94% coverage).
+RF Filter Calculator is a Python CLI tool for calculating LC filter component values. Built with modern tooling (uv, ruff, GitHub Actions CI) and comprehensive testing (1274 tests, 95% coverage).
 
 ## Project Statistics
 
 - **Total Lines of Code**: ~20,700 LOC (~7,950 core lib + ~12,700 tests)
-- **Test Coverage**: 1227 tests, 94% coverage (~3s runtime)
+- **Test Coverage**: 1274 tests, 95% coverage (~3s runtime)
 - **Documentation**: 14 files (~4,600 LOC)
 - **Core Library**: 66 modules in filter_lib/, organized by filter type + shared utilities
 
@@ -115,6 +115,7 @@ Provides cross-cutting utilities:
 | `netlist_simulation.py` | Pure-stdlib nodal-analysis solver and simulation-validated bandpass response |
 | `netlist_builders.py` | Internal circuit branch-list construction from filter synthesis |
 | `lp_hp_display.py` | Unified LP/HP table renderer (CLI and wizard) |
+| `matched_simulation.py` | **NEW (Jul 2026)** - E-series matched capacitor re-simulation (inductors exact) |
 | `toroid_core_data.json` | Vendored 43-core iron-powder T-series database |
 | `toroid_core_data.py` | `ToroidCore` dataclass + lookup helpers |
 | `toroid_inductance.py` | L↔N math, rounding, tolerance range, `solve_winding` |
@@ -168,7 +169,7 @@ Provides cross-cutting utilities:
 
 ## Test Coverage
 
-**Test Files** (1227 tests total across 32 modules, 94% coverage — see `docs/testing.md` for per-file counts):
+**Test Files** (1274 tests total across 32 modules, 95% coverage — see `docs/testing.md` for per-file counts):
 - `test_bandpass_calculations.py` - Coupled resonator design, end-coupling, -3 dB edges
 - `test_bandpass_modules.py` - Bandpass g-values, display, and formatting
 - `test_chebyshev_calculator.py` - Chebyshev g-value calculations
@@ -227,7 +228,7 @@ uv run filter-calc lp bw pi 10MHz -n 5  # CLI command
 
 1. **Calculation Return Shapes**:
    - LP/HP: calculation functions return a tuple `(capacitors, inductors, order)` (lists of float values in Farads/Henries); display layers combine it with frequency/impedance/topology metadata
-   - Bandpass: `calculate_bandpass_filter()` returns a dict with `f0`, `f_low`/`f_high`, `bw`, `fbw`, `z0`, `n_resonators`, `g_values`, `qe_in`/`qe_out`, `L_resonant`/`C_resonant`, `c_coupling`, `c_tank`, `c_end_in`/`c_end_out`, `q_min`, `warnings`
+   - Bandpass: `calculate_bandpass_filter()` returns a dict with `f0`, `f_low`/`f_high`, `bw`, `fbw`, `fbw_synth`, `z0`, `n_resonators`, `g_values`, `qe_in`/`qe_out`, `L_resonant`/`C_resonant`, `c_coupling`, `c_tank`, `c_end_in`/`c_end_out`, `q_min`, `il_estimates` (dict mapping Qu values to dB), `warnings`
 
 2. **Primary Component Concept**: Identifies which component type should show E-series recommendations:
    - Lowpass Pi: Capacitors (shunt positions)
@@ -335,8 +336,8 @@ Most code files stay near the 200-line guideline for optimal context:
 5. **Package Management** (commit 4da4f68): Switched from pip/venv to uv
 6. **Bug Fixes** (Jan-Feb 2026): ASCII topology spacing, HPF capacitor formula, wizard defaults, E-series export
 
-**Quality Metrics** (as of Jun 12, 2026):
-- 1227 tests, 94% coverage
+**Quality Metrics** (as of Jul 6, 2026):
+- 1274 tests, 95% coverage
 - ~20,700 total LOC
 - GitHub Actions CI enforcing lint → format → test on all PRs
 - Graph enhancements (GH-7) complete with threshold tables + zoomed plots

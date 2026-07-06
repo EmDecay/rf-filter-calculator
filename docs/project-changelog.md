@@ -1,5 +1,25 @@
 # Project Changelog
 
+## 2026-07-06 — Math-Audit Remediation + Matched-Value Simulation
+
+**BREAKING**: Chebyshev LP/HP ripple parameter now capped at 3.0 dB (was no upper bound in LP/HP CLI, wizard and bandpass already had the cap). Ripple value of 3.5 dB now errors "Ripple must be at most 3.0 dB" instead of accepting it.
+
+**Chebyshev cutoff convention (display + docs)**: Chebyshev LP/HP table output now prints under the header: "Note: Chebyshev cutoff = ripple-band edge (attenuation = ripple at fc); see threshold table for the -3 dB frequency." Butterworth/Bessel LP/HP do NOT print this note. Bandpass `bw` remains true -3 dB BW. [filter-theory.md](filter-theory.md), [project-overview-pdr.md](project-overview-pdr.md), and README already got targeted edits in earlier phases.
+
+**Bandpass insertion-loss estimate (Cohn 1959)**: New table line: "Est. insertion loss (Cohn): X.X dB @ Qu=100, X.X dB @ Qu=250" (plus user's `--qu` value when given, optional flag). Formula: `IL ≈ 4.343·Σgᵢ/(fbw_synth·Qu)` dB. JSON adds top-level `il_estimates` mapping (e.g. {"100": 3.47, "250": 1.39}); `q_min` unchanged. Bandpass result dict also gained `fbw_synth` field.
+
+**Relabeled Q-safety text**: Old line "Minimum Component Q:" relabeled to "Minimum usable Q (severe loss at this value):" in both LP/HP/BP CLI table output and wizard, matching the design intent.
+
+**Toroid wire-length correction**: Per-turn wire-radius term changed from 4·r_wire to 2π·r_wire (corner arcs sum to a full circle). Wire lengths/DCR values in any doc examples are now a few % higher; turn counts and core rankings unchanged. E.g. T50-2 N=10 AWG22 is now ≈170 mm (was ≈163).
+
+**Bessel bandpass phase caveat (docs only)**: LP→BP transform does not preserve flat group delay. Already added to [caveats-and-known-issues.md](caveats-and-known-issues.md) ("Bessel Bandpass Group Delay" section) and [filter-theory.md](filter-theory.md).
+
+**New `--sim-matched` flag**: Re-simulates the circuit with capacitors replaced by their recommended E-series matches (single or parallel, whichever |error| is smaller; parallel combos simulated as combined value), inductors kept exact. Prints a "Matched-Value Simulation (E24)" comparison block after table output: LP/HP show -3 dB cutoff + worst passband dev with Exact, Matched, Delta columns; BP shows Center f0 / -3 dB BW / Lower edge / Upper edge / Worst passband dev. `--sim-matched --no-match` is a usage error. JSON adds additive `matched_sim` key. New module: `filter_lib/shared/matched_simulation.py`.
+
+**Test Stats**: 1274 tests passing, 95% coverage.
+
+---
+
 ## 2026-06-12 — Validation Hardening + Test Strengthening
 
 - **`--version` fallback**: CLI falls back to `filter_lib.__version__` when distribution metadata is unavailable, so source-checkout runs don't fail during parser construction; `__version__` corrected to 2.0.0.

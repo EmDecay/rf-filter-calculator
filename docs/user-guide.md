@@ -51,6 +51,10 @@ uv run filter-calc lp <filter_type> <frequency> --topology pi|t [options]
 | `--plot` | - | Show ASCII frequency response |
 | `--plot-data` | - | Export response data: `json` or `csv` |
 | `--explain` | - | Display filter type characteristics |
+| `--no-toroids` | - | Suppress toroid recommendations |
+| `--toroid-compact` | - | Compact 1-line-per-rec toroid output (text only) |
+| `--toroid-full` | - | Show top-3 toroids in table (default top-1) |
+| `--sim-matched` | - | Re-simulate with E-series matched capacitor values |
 
 ### Examples
 
@@ -171,6 +175,8 @@ values, and the bandpass plot labels, remain the exact edge frequencies you ente
 | `--no-toroids` | - | Suppress toroid recommendations |
 | `--toroid-compact` | - | Compact 1-line-per-rec toroid output (text only) |
 | `--toroid-full` | - | Show top-3 toroids in table (default top-1) |
+| `--qu` | - | Custom unloaded Q for Cohn IL estimate (e.g., `--qu 150`) |
+| `--sim-matched` | - | Re-simulate with E-series matched capacitor values |
 | `--version` | - | Print version and exit |
 
 ### Bandpass Coupling Topologies
