@@ -12,7 +12,9 @@ def get_selected_radio(screen: Screen, radio_set_id: str) -> str:
         radio_set_id: The ID of the RadioSet widget
 
     Returns:
-        The ID of the selected radio button, or empty string if none selected
+        The ID of the selected radio button, or empty string if none selected.
+        The empty-string fallback lets callers substitute their own default
+        (e.g. `get_selected_radio(...) or "E24"`) instead of handling None.
     """
     radio_set = screen.query_one(f"#{radio_set_id}", RadioSet)
     if radio_set.pressed_button:

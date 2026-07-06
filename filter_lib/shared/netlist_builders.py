@@ -10,6 +10,17 @@ from .netlist_simulation import Branch
 # Ladder position rules: (filter category, topology) -> (kind of odd
 # positions, whether odd positions are shunt). Even positions are always
 # the other kind in the other placement.
+#
+# Two independent facts combine here. Topology fixes PLACEMENT: Pi starts
+# with a shunt element, T starts with a series element. Filter category
+# fixes which KIND lives in each placement: lowpass puts C in shunt and L
+# in series (each shorts/blocks highs), highpass is the dual (L in shunt,
+# C in series, each shorts/blocks lows). That is why LP-Pi and HP-T both
+# start with a capacitor despite one being shunt and the other series —
+# the first component's kind is placement × category, never topology
+# alone. This table must stay consistent with
+# lp_hp_base_calculations._component_kind, or simulated circuits would
+# diverge from the component tables they are meant to validate.
 _ODD_SLOT_RULES: dict[tuple[str, str], tuple[str, bool]] = {
     ("lowpass", "pi"): ("C", True),  # shunt C first, series L between
     ("lowpass", "t"): ("L", False),  # series L first, shunt C between
@@ -25,7 +36,21 @@ def _build_ladder(
     odd_kind: str,
     odd_is_shunt: bool,
 ) -> tuple[int, list[Branch], int, int]:
-    """Walk ladder positions 1..order, consuming each list in output order."""
+    """Walk ladder positions 1..order, consuming each list in output order.
+
+    The calculation layer emits capacitors and inductors already sorted by
+    ladder position, so interleaving by odd/even slot reconstructs the
+    physical circuit. Leftover values after the walk mean the result dict
+    and the claimed order disagree — fail loudly instead of simulating a
+    circuit that is not the one displayed.
+
+    Returns:
+        (n_nodes, branches, in_node, out_node); input is node 1, output is
+        the last series-created node.
+
+    Raises:
+        ValueError: If the component lists are longer than the ladder order.
+    """
     caps = list(capacitors)
     inds = list(inductors)
     branches: list[Branch] = []

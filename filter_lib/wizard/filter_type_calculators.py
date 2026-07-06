@@ -1,14 +1,27 @@
 """Filter-specific calculation and formatting logic.
 
-Separated from calculation_handler.py for better organization.
-Contains lowpass, highpass, and bandpass calculation implementations.
+Contains lowpass, highpass, and bandpass calculation implementations,
+dispatched to by calculation_handler.calculate_and_format.
+
+Contract shared by all three calculators: run the synthesis from the
+FilterState the screens populated, stash the raw result dict on
+`state.result` (the results screen's export paths re-format it later), and
+return display lines for the requested output format.
 """
 
 from .state import FilterState
 
 
 def calculate_lowpass(state: FilterState) -> list[str]:
-    """Calculate lowpass filter and return formatted output lines."""
+    """Calculate lowpass filter and return formatted output lines.
+
+    Args:
+        state: Fully populated wizard state; `state.result` is set as a
+            side effect for later export.
+
+    Returns:
+        Display lines in the format selected by `state.output_format`.
+    """
     from filter_lib.lowpass import calculate_bessel, calculate_butterworth, calculate_chebyshev
     from filter_lib.lowpass.display import (
         LOWPASS_DISPLAY_CONFIG,
@@ -19,7 +32,8 @@ def calculate_lowpass(state: FilterState) -> list[str]:
     )
     from filter_lib.shared.lp_hp_display import LpHpRenderOptions, render_results_lines
 
-    # Calculate component values
+    # Only Chebyshev has a ripple parameter; ripple=None tells the display
+    # layer to omit the ripple row for the other response types.
     if state.filter_type == "butterworth":
         caps, inds, order = calculate_butterworth(
             state.frequency_hz, state.impedance, state.order, state.topology
@@ -46,6 +60,8 @@ def calculate_lowpass(state: FilterState) -> list[str]:
         "ripple": ripple,
         "topology": state.topology,
     }
+    # Keep the raw result so the results screen can export JSON/CSV/response
+    # data later without re-running the synthesis.
     state.result = result
 
     eseries = None if state.eseries == "none" else state.eseries
@@ -73,7 +89,15 @@ def calculate_lowpass(state: FilterState) -> list[str]:
 
 
 def calculate_highpass(state: FilterState) -> list[str]:
-    """Calculate highpass filter and return formatted output lines."""
+    """Calculate highpass filter and return formatted output lines.
+
+    Args:
+        state: Fully populated wizard state; `state.result` is set as a
+            side effect for later export.
+
+    Returns:
+        Display lines in the format selected by `state.output_format`.
+    """
     from filter_lib.highpass import calculate_bessel, calculate_butterworth, calculate_chebyshev
     from filter_lib.highpass.display import (
         HIGHPASS_DISPLAY_CONFIG,
@@ -84,6 +108,8 @@ def calculate_highpass(state: FilterState) -> list[str]:
     )
     from filter_lib.shared.lp_hp_display import LpHpRenderOptions, render_results_lines
 
+    # Highpass calculators return inductors first: the LP→HP transform swaps
+    # component roles, so the tuple order is the mirror of the lowpass one.
     if state.filter_type == "butterworth":
         inds, caps, order = calculate_butterworth(
             state.frequency_hz, state.impedance, state.order, state.topology
@@ -110,6 +136,8 @@ def calculate_highpass(state: FilterState) -> list[str]:
         "ripple": ripple,
         "topology": state.topology,
     }
+    # Keep the raw result so the results screen can export JSON/CSV/response
+    # data later without re-running the synthesis.
     state.result = result
 
     eseries = None if state.eseries == "none" else state.eseries
@@ -137,7 +165,16 @@ def calculate_highpass(state: FilterState) -> list[str]:
 
 
 def calculate_bandpass(state: FilterState) -> list[str]:
-    """Calculate bandpass filter and return formatted output lines."""
+    """Calculate bandpass filter and return formatted output lines.
+
+    Args:
+        state: Fully populated wizard state; `state.topology` carries the
+            coupling id ("top") and `state.order` the resonator count.
+            `state.result` is set as a side effect for later export.
+
+    Returns:
+        Display lines in the format selected by `state.output_format`.
+    """
     from filter_lib.bandpass import calculate_bandpass_filter
     from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
     from filter_lib.bandpass.transfer import netlist_frequency_sweep
@@ -158,6 +195,8 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         coupling=state.topology,
         ripple_db=state.ripple_db,
     )
+    # Keep the raw result so the results screen can export JSON/CSV/response
+    # data later without re-running the synthesis.
     state.result = result
 
     eseries = None if state.eseries == "none" else state.eseries
@@ -177,6 +216,10 @@ def calculate_bandpass(state: FilterState) -> list[str]:
     if state.show_plot:
         from filter_lib.shared.transfer_response_dispatch import make_bp_netlist_response_db
 
+        # Butterworth/Bessel results carry no ripple; the plot renderer still
+        # needs a value for its ripple reference, so fall back to the wizard's
+        # 0.5 dB default. The plot itself is netlist-simulated from the
+        # synthesized circuit, not an idealized prototype curve.
         ripple_val = result.get("ripple_db") or 0.5
         sweep = netlist_frequency_sweep(result, points=61)
         title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"

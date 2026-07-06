@@ -82,8 +82,33 @@ def solve_s21(
 
     The source is the Norton equivalent of a 1 V Thevenin source with
     series ``rs`` (current 1/rs with rs shunt at ``in_node``); ``rl``
-    shunts ``out_node``. ``S21 = 2·V_out·sqrt(rs/rl)`` so a matched,
-    lossless passband reads exactly 1.0.
+    shunts ``out_node``. ``S21 = 2·V_out·sqrt(rs/rl)``.
+
+    Why that scaling makes a matched, lossless passband read exactly 1.0:
+    |S21|^2 is power delivered to the load over power available from the
+    source. Available power is V_th^2/(4·rs) = 1/(4·rs); delivered power is
+    V_out^2/rl. Their ratio is (2·V_out·sqrt(rs/rl))^2 — a lossless network
+    presenting a matched input delivers all available power, so |S21| = 1.
+    Changing the scale factor would silently re-baseline every dB value the
+    plots, threshold tables, and acceptance tests consume.
+
+    Args:
+        n_nodes: Number of non-ground nodes (numbered 1..n_nodes; 0 = ground)
+        branches: (node1, node2, kind, value) with kind 'C'/'L'/'R',
+            values in F/H/Ohms
+        rs: Source resistance in Ohms
+        rl: Load resistance in Ohms
+        in_node: Node the source drives
+        out_node: Node the load shunts
+        freqs: Frequencies in Hz to sweep
+
+    Returns:
+        |S21| magnitude (linear, unitless) per frequency, same order as freqs.
+
+    Raises:
+        ValueError: If rs/rl is not positive and finite, a port node is
+            outside 1..n_nodes, a branch references an unknown node, or the
+            circuit produces a singular nodal matrix.
     """
     if not math.isfinite(rs) or rs <= 0:
         raise ValueError("rs must be positive and finite")
@@ -145,6 +170,9 @@ def passband_ripple_db(
 
     dB values are absolute (0 dB = unity |S21|), so a matched Chebyshev
     passband reads max ≈ 0 and min ≈ -ripple.
+
+    Raises:
+        ValueError: If no frequency point lies at or below f_limit.
     """
     in_band = [m for f, m in zip(freqs, mags) if f <= f_limit]
     if not in_band:

@@ -18,7 +18,7 @@ from ..shared.transfer_functions import (
 
 
 def butterworth_response(freq_hz: float, cutoff_hz: float, order: int) -> float:
-    """Calculate Butterworth HPF magnitude response (0 to 1).
+    """Calculate Butterworth HPF magnitude response (linear, 0 to 1).
 
     HPF response: H(f) = 1 / sqrt(1 + (fc/f)^(2n))
     """
@@ -26,15 +26,16 @@ def butterworth_response(freq_hz: float, cutoff_hz: float, order: int) -> float:
 
 
 def chebyshev_response(freq_hz: float, cutoff_hz: float, order: int, ripple_db: float) -> float:
-    """Calculate Chebyshev Type I HPF magnitude response.
+    """Calculate Chebyshev Type I HPF magnitude response (linear, 0 to 1).
 
-    HPF uses inverted frequency ratio: fc/f instead of f/fc
+    HPF uses inverted frequency ratio: fc/f instead of f/fc. ``cutoff_hz`` is
+    the ripple-band edge, matching the component-value convention (not -3 dB).
     """
     return highpass_chebyshev_response(freq_hz, cutoff_hz, order, ripple_db)
 
 
 def bessel_response(freq_hz: float, cutoff_hz: float, order: int) -> float:
-    """Calculate Bessel HPF magnitude response.
+    """Calculate Bessel HPF magnitude response (linear, 0 to 1).
 
     HPF uses inverted frequency transformation: w_hp = fc/f * scale
     """
@@ -44,7 +45,21 @@ def bessel_response(freq_hz: float, cutoff_hz: float, order: int) -> float:
 def frequency_response(
     filter_type: str, freqs: list[float], cutoff_hz: float, order: int, ripple_db: float = 0.5
 ) -> list[float]:
-    """Calculate frequency response in dB for a list of frequencies."""
+    """Calculate frequency response in dB for a list of frequencies.
+
+    Args:
+        filter_type: 'butterworth'/'bw', 'chebyshev'/'ch', or 'bessel'/'bs'
+        freqs: Frequencies to evaluate, in Hz
+        cutoff_hz: Cutoff frequency in Hz (ripple-band edge for Chebyshev)
+        order: Filter order
+        ripple_db: Chebyshev passband ripple in dB (ignored for other types)
+
+    Returns:
+        Magnitudes in dB, one per input frequency, floored at -120 dB.
+
+    Raises:
+        ValueError: If filter_type is not one of the accepted names/aliases.
+    """
     filter_type = filter_type.lower()
 
     def response_fn(f: float) -> float:

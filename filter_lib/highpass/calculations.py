@@ -21,13 +21,18 @@ def calculate_butterworth(
     """Calculate Butterworth high-pass filter component values.
 
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: -3 dB cutoff frequency in Hz
         impedance: Characteristic impedance in Ohms
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (inductors, capacitors, order)
+        Tuple of (inductors in Henries, capacitors in Farads, order).
+        Note the inductors-first ordering — reversed from the lowpass API.
+
+    Raises:
+        ValueError: If any input is non-positive/non-finite, num_components is
+            outside 2-9, or topology is not 'pi'/'t'.
     """
     return calculate_highpass_butterworth(cutoff_hz, impedance, num_components, topology)
 
@@ -37,15 +42,25 @@ def calculate_chebyshev(
 ) -> tuple[list[float], list[float], int]:
     """Calculate Chebyshev high-pass filter component values.
 
+    Convention: ``cutoff_hz`` is the ripple-band edge (attenuation = ripple_db
+    there), not the -3 dB point, which lies below it for a highpass.
+
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Ripple-band edge frequency in Hz
         impedance: Characteristic impedance in Ohms
-        ripple_db: Passband ripple in dB
-        num_components: Number of filter elements (2-9)
+        ripple_db: Passband ripple in dB (> 0; the CLI adds a 3.0 dB cap for
+            bandpass/wizard but LP/HP accepts any positive finite value)
+        num_components: Number of filter elements; odd only (3/5/7/9) because
+            equal source/load terminations require odd Chebyshev order
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (inductors, capacitors, order)
+        Tuple of (inductors in Henries, capacitors in Farads, order).
+        Note the inductors-first ordering — reversed from the lowpass API.
+
+    Raises:
+        ValueError: If inputs are non-positive/non-finite, order is even or
+            outside 2-9, or topology is not 'pi'/'t'.
     """
     return calculate_highpass_chebyshev(cutoff_hz, impedance, ripple_db, num_components, topology)
 
@@ -56,14 +71,21 @@ def calculate_bessel(
     """Calculate Bessel (Thomson) high-pass filter component values.
 
     Bessel filters provide maximally-flat group delay (linear phase response).
+    g-values come from the Zverev lookup table (orders 2-9 only). Note the
+    LP-to-HP transformation does not preserve the flat group delay exactly.
 
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: -3 dB cutoff frequency in Hz
         impedance: Characteristic impedance in Ohms
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (inductors, capacitors, order)
+        Tuple of (inductors in Henries, capacitors in Farads, order).
+        Note the inductors-first ordering — reversed from the lowpass API.
+
+    Raises:
+        ValueError: If any input is non-positive/non-finite, num_components is
+            outside 2-9, or topology is not 'pi'/'t'.
     """
     return calculate_highpass_bessel(cutoff_hz, impedance, num_components, topology)

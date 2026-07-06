@@ -25,12 +25,20 @@ class ToroidRecommendation:
 
 
 def _q_dc_upper_bound(l_actual_h: float, freq_hz: float, r_dc_ohm: float) -> float:
+    """Q = ωL/R using DC resistance only.
+
+    An upper bound, not an estimate: at RF the effective resistance rises
+    with skin effect and core loss, so the real Q is always lower. Display
+    code labels it accordingly.
+    """
     if r_dc_ohm <= 0:
         return float("inf")
     return 2.0 * math.pi * freq_hz * l_actual_h / r_dc_ohm
 
 
 def _sort_key(rec: ToroidRecommendation) -> tuple[float, float, float, str]:
+    """Ranking: accuracy, then temp stability, then size; name breaks ties
+    so results are deterministic across runs."""
     return (
         abs(rec.winding.error_pct),
         rec.core.temp_coeff_ppm_per_c,
@@ -46,6 +54,20 @@ def recommend_cores(
 
     Applies frequency-range gating and mechanical wire-fit as hard filters,
     then ranks survivors by |error_pct|, temp coefficient, and core OD.
+
+    Args:
+        l_target_h: Target inductance in Henries
+        design_freq_hz: Operating frequency in Hz (gates core selection by
+            the core's published frequency range)
+        top_n: Maximum number of recommendations to return
+
+    Returns:
+        Up to top_n recommendations, best first; empty list when no core
+        covers the frequency or fits mechanically.
+
+    Raises:
+        ValueError: If l_target_h or design_freq_hz is non-positive, or
+            top_n < 1.
     """
     if l_target_h <= 0:
         raise ValueError("l_target_h must be positive")

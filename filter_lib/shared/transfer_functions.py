@@ -1,8 +1,16 @@
-"""Shared transfer function utilities for frequency response calculations."""
+"""Shared transfer function utilities for frequency response calculations.
+
+Holds the Bessel polynomial data plus the small numeric helpers (frequency
+grids, Chebyshev polynomial, dB conversion) used by every idealized
+response function. Magnitudes are unitless 0-1; frequencies are Hz.
+"""
 
 import math
 
-# Bessel polynomial coefficients for orders 2-9
+# Reverse Bessel polynomial theta_n(s) coefficients for orders 2-9, listed
+# in ascending powers of s (coeffs[0] = theta_n(0) = the DC gain the
+# response functions normalize by). Integer-exact by construction from the
+# recurrence theta_n = (2n-1)·theta_{n-1} + s^2·theta_{n-2}.
 BESSEL_COEFFS = {
     2: [3, 3, 1],
     3: [15, 15, 6, 1],
@@ -14,7 +22,10 @@ BESSEL_COEFFS = {
     9: [34459425, 34459425, 16216200, 4729725, 945945, 135135, 13860, 990, 45, 1],
 }
 
-# Bessel -3dB normalization scale factors
+# Bessel -3 dB normalization: the raw polynomial |theta_n(jw)| reaches
+# -3 dB at w equal to these factors (they grow with order), so response
+# functions multiply the f/fc ratio by BESSEL_SCALE[order] to place the
+# user's cutoff exactly at -3 dB. Standard tabulated values (Zverev).
 BESSEL_SCALE = {
     2: 1.3617,
     3: 1.7557,
@@ -44,6 +55,9 @@ def generate_frequency_points(
 
     Returns:
         List of frequencies in Hz
+
+    Raises:
+        ValueError: If f0 is not positive and finite, or num_points < 2.
     """
     if not math.isfinite(f0) or f0 <= 0:
         raise ValueError("Cutoff frequency must be positive and finite")
@@ -80,7 +94,11 @@ def chebyshev_polynomial(n: int, x: float) -> float:
 
 
 def magnitude_to_db(magnitude: float) -> float:
-    """Convert magnitude to dB (floored at -120 dB)."""
+    """Convert magnitude to dB, floored at -120 dB.
+
+    The floor keeps deep-stopband and zero-magnitude points plottable
+    (no -inf) without visibly affecting any real filter curve.
+    """
     if magnitude <= 0:
         return -120.0
     return max(20 * math.log10(magnitude), -120.0)

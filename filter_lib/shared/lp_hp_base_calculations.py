@@ -75,6 +75,9 @@ def _calculate_butterworth_base(
     inductors = []
 
     for i in range(1, n + 1):
+        # Closed-form Butterworth prototype element for equal 1-ohm
+        # terminations, -3 dB at omega = 1: g_k = 2·sin((2k-1)·pi / 2n).
+        # (Matthaei, Young, Jones Sec. 4.05) — no lookup table needed.
         k = (2 * i - 1) * math.pi / (2 * n)
         g = 2 * math.sin(k)
 
@@ -101,8 +104,12 @@ def _calculate_chebyshev_base(
 ) -> tuple[list[float], list[float], int]:
     """Base Chebyshev calculation with strategy functions for LP/HP differences.
 
+    ``cutoff_hz`` is the equal-ripple band edge (the last frequency at
+    -ripple_db), not the -3 dB point — the same convention the LP/HP
+    transfer functions use, so component tables and plotted responses agree.
+
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Cutoff frequency in Hz (ripple band edge)
         impedance: Characteristic impedance in Ohms
         ripple_db: Passband ripple in dB
         num_components: Number of filter elements (2-9)
@@ -225,13 +232,17 @@ def calculate_lowpass_butterworth(
     """Calculate Butterworth low-pass filter component values.
 
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Cutoff frequency in Hz (-3 dB point)
         impedance: Characteristic impedance in Ohms
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (capacitors, inductors, order)
+        Tuple of (capacitors in F, inductors in H, order)
+
+    Raises:
+        ValueError: If topology is invalid, cutoff/impedance is not positive
+            and finite, or num_components is outside 2-9.
     """
     return _calculate_butterworth_base(
         cutoff_hz,
@@ -250,14 +261,18 @@ def calculate_lowpass_chebyshev(
     """Calculate Chebyshev low-pass filter component values.
 
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Cutoff frequency in Hz (equal-ripple band edge, not -3 dB)
         impedance: Characteristic impedance in Ohms
-        ripple_db: Passband ripple in dB
-        num_components: Number of filter elements (2-9)
+        ripple_db: Passband ripple in dB (> 0)
+        num_components: Number of filter elements; must be odd (3, 5, 7, 9)
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (capacitors, inductors, order)
+        Tuple of (capacitors in F, inductors in H, order)
+
+    Raises:
+        ValueError: If topology is invalid, cutoff/impedance/ripple is not
+            positive and finite, or num_components is outside 2-9 or even.
     """
     return _calculate_chebyshev_base(
         cutoff_hz,
@@ -277,13 +292,17 @@ def calculate_lowpass_bessel(
     """Calculate Bessel (Thomson) low-pass filter component values.
 
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Cutoff frequency in Hz (-3 dB point)
         impedance: Characteristic impedance in Ohms
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (capacitors, inductors, order)
+        Tuple of (capacitors in F, inductors in H, order)
+
+    Raises:
+        ValueError: If topology is invalid, cutoff/impedance is not positive
+            and finite, or num_components is outside 2-9.
     """
     return _calculate_bessel_base(
         cutoff_hz,
@@ -303,13 +322,17 @@ def calculate_highpass_butterworth(
     """Calculate Butterworth high-pass filter component values.
 
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Cutoff frequency in Hz (-3 dB point)
         impedance: Characteristic impedance in Ohms
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (inductors, capacitors, order)
+        Tuple of (inductors in H, capacitors in F, order)
+
+    Raises:
+        ValueError: If topology is invalid, cutoff/impedance is not positive
+            and finite, or num_components is outside 2-9.
     """
     capacitors, inductors, n = _calculate_butterworth_base(
         cutoff_hz,
@@ -329,14 +352,18 @@ def calculate_highpass_chebyshev(
     """Calculate Chebyshev high-pass filter component values.
 
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Cutoff frequency in Hz (equal-ripple band edge, not -3 dB)
         impedance: Characteristic impedance in Ohms
-        ripple_db: Passband ripple in dB
-        num_components: Number of filter elements (2-9)
+        ripple_db: Passband ripple in dB (> 0)
+        num_components: Number of filter elements; must be odd (3, 5, 7, 9)
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (inductors, capacitors, order)
+        Tuple of (inductors in H, capacitors in F, order)
+
+    Raises:
+        ValueError: If topology is invalid, cutoff/impedance/ripple is not
+            positive and finite, or num_components is outside 2-9 or even.
     """
     capacitors, inductors, n = _calculate_chebyshev_base(
         cutoff_hz,
@@ -357,13 +384,17 @@ def calculate_highpass_bessel(
     """Calculate Bessel (Thomson) high-pass filter component values.
 
     Args:
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Cutoff frequency in Hz (-3 dB point)
         impedance: Characteristic impedance in Ohms
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
 
     Returns:
-        Tuple of (inductors, capacitors, order)
+        Tuple of (inductors in H, capacitors in F, order)
+
+    Raises:
+        ValueError: If topology is invalid, cutoff/impedance is not positive
+            and finite, or num_components is outside 2-9.
     """
     capacitors, inductors, n = _calculate_bessel_base(
         cutoff_hz,

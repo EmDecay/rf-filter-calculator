@@ -5,8 +5,15 @@ References:
 - Matthaei, Young, Jones "Microwave Filters, Impedance-Matching Networks..."
 """
 
-# Bessel filter g-values (normalized element values)
-# Keys are filter order, values are g-values for each element
+# Bessel filter g-values (normalized element values) from Zverev's tables.
+# Keys are filter order; values are g1..gn listed in ladder order starting
+# from the source end, normalized to -3 dB at omega = 1 with equal 1-ohm
+# terminations. Unlike Butterworth/odd-Chebyshev prototypes, Bessel
+# prototypes are asymmetric, so element order matters — reversing a row
+# yields the (electrically equivalent but differently valued) dual ladder,
+# and would change every component table this tool prints.
+# Bessel g-values have no closed form, hence a lookup table rather than a
+# calculator module like Chebyshev's.
 BESSEL_G_VALUES: dict[int, list[float]] = {
     2: [0.5755, 2.1478],
     3: [0.3374, 0.9705, 2.2034],

@@ -9,6 +9,9 @@ from .formatting import format_frequency, format_inductance
 from .toroid_core_data import ToroidCore
 from .toroid_selection import ToroidRecommendation
 
+# Order and count must stay in sync with csv_columns_for_best below; units
+# are encoded in the column names (µH, mm, mΩ, ppm/°C) so CSV consumers
+# don't need a separate legend.
 CSV_TOROID_HEADER: list[str] = [
     "ToroidCore",
     "ToroidMix",
@@ -26,6 +29,7 @@ _EMPTY_MSG = "  No iron-powder T-series core covers this frequency or fits mecha
 
 
 def _dcr_display(ohm: float) -> str:
+    """Format DC resistance: mΩ below 1 Ω, plain Ω above."""
     if ohm < 1.0:
         return f"{ohm * 1000.0:.1f} mΩ"
     return f"{ohm:.3f} Ω"

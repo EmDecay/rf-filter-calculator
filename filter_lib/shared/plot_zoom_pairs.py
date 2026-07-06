@@ -11,9 +11,12 @@ from .plot_ascii_renderers import render_ascii_plot, render_bandpass_plot
 
 
 def _compute_zoom_range(ripple_db: float | None) -> float:
-    """Compute zoom range in dB for passband detail view.
+    """Compute zoom depth in dB for the passband detail view.
 
-    Returns max(6.0, 2.0 * ripple_db) for Chebyshev, else 6.0.
+    Returns max(6.0, 2.0 * ripple_db) when ripple is given, else 6.0.
+    The 2x ripple factor guarantees the whole Chebyshev ripple band plus
+    equal headroom stays visible; 6 dB is the floor so the -3 dB edge is
+    always inside the zoomed view even for small ripple.
     """
     if ripple_db is not None:
         return max(6.0, 2.0 * ripple_db)
@@ -21,7 +24,7 @@ def _compute_zoom_range(ripple_db: float | None) -> float:
 
 
 def _generate_zoom_freqs(freqs: list[float], num_points: int) -> list[float]:
-    """Generate higher-density frequency points spanning the same range."""
+    """Generate num_points log-spaced frequencies over the same Hz range."""
     f_min, f_max = min(freqs), max(freqs)
     log_min, log_max = math.log10(f_min), math.log10(f_max)
     if num_points <= 1:
@@ -56,17 +59,20 @@ def render_plot_pair(
 
     zoom_db = _compute_zoom_range(ripple_db)
 
-    # Generate 2x points for smoother zoomed view
+    # Resample at 2x density when a response function is available: the
+    # zoomed Y-range is much finer, so the original grid would render as
+    # visible stair-steps.
     if response_fn:
         zoom_freqs = _generate_zoom_freqs(freqs, num_points=len(freqs) * 2)
         zoom_response = [response_fn(f) for f in zoom_freqs]
     else:
         zoom_freqs, zoom_response = freqs, response_db
 
-    # Check if zoomed view has anything to show (not all flat at 0dB)
+    # Skip the zoom entirely when every in-range point sits within 0.1 dB
+    # of 0 dB — a flat line adds no information over the full plot.
     in_range = [db for db in zoom_response if db >= -zoom_db]
     if in_range and all(abs(db) < 0.1 for db in in_range):
-        return full  # Nothing interesting in passband
+        return full
 
     zoomed = render_ascii_plot(
         zoom_freqs,
@@ -120,7 +126,8 @@ def render_bandpass_plot_pair(
 
     zoom_db = _compute_zoom_range(ripple_db)
 
-    # Generate 2x points for smoother zoomed view
+    # 2x resampling and flat-passband skip: same rationale as
+    # render_plot_pair above.
     if response_fn:
         freqs = [f for f, _ in sweep_data]
         zoom_freqs = _generate_zoom_freqs(freqs, num_points=len(freqs) * 2)
@@ -128,7 +135,6 @@ def render_bandpass_plot_pair(
     else:
         zoom_sweep = sweep_data
 
-    # Check if zoomed view has anything to show
     zoom_dbs = [db for _, db in zoom_sweep if db >= -zoom_db]
     if zoom_dbs and all(abs(db) < 0.1 for db in zoom_dbs):
         return full

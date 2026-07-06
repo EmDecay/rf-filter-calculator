@@ -51,9 +51,14 @@ def _chebyshev_response_base(
 ) -> float:
     """Calculate Chebyshev Type I filter magnitude response.
 
+    ``cutoff_hz`` is the equal-ripple band edge: |H| there is
+    1/sqrt(1 + epsilon^2), i.e. -ripple_db, NOT -3 dB. This matches the g-value
+    synthesis convention in lp_hp_base_calculations, so plotted curves line
+    up with the component tables.
+
     Args:
         freq_hz: Frequency in Hz
-        cutoff_hz: Cutoff frequency in Hz
+        cutoff_hz: Cutoff frequency in Hz (ripple band edge)
         order: Filter order
         ripple_db: Passband ripple in dB
         is_lowpass: True for lowpass, False for highpass
@@ -79,14 +84,22 @@ def _chebyshev_response_base(
 def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpass: bool) -> float:
     """Calculate Bessel filter magnitude response.
 
+    The frequency ratio is multiplied by BESSEL_SCALE[order] because the raw
+    Bessel polynomial reaches -3 dB at w = scale, not w = 1; the scaling
+    pins cutoff_hz to the -3 dB point so all three filter families share the
+    same cutoff semantics.
+
     Args:
         freq_hz: Frequency in Hz
-        cutoff_hz: Cutoff frequency in Hz
-        order: Filter order
+        cutoff_hz: Cutoff frequency in Hz (-3 dB point)
+        order: Filter order (2-9, the range covered by the coefficient table)
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
         Magnitude response (0 to 1)
+
+    Raises:
+        ValueError: If order is outside 2-9.
     """
     if order < 2 or order > 9:
         raise ValueError("Order must be between 2 and 9")
@@ -102,6 +115,10 @@ def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpa
 
     coeffs = BESSEL_COEFFS[order]
 
+    # |H(jw)|^2 = theta_n(0)^2 / |theta_n(jw)|^2, with theta_n the reverse
+    # Bessel polynomial (coeffs in ascending powers of s). Substituting
+    # s = jw makes term k carry j^k = (real for even k, imaginary for odd),
+    # with sign (-1)^(k//2) — accumulate the two parts without complex math.
     real_part, imag_part = 0.0, 0.0
     w_power = 1.0
 
@@ -119,6 +136,8 @@ def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpa
     if denom_squared == 0:
         return 1.0 if is_lowpass else 0.0  # LP passes DC, HP blocks DC
     h_squared = dc_gain_squared / denom_squared
+    # |theta_n(jw)| >= theta_n(0) analytically, so clamp only guards float
+    # rounding near w = 0 from pushing the magnitude a hair above unity.
     return math.sqrt(min(h_squared, 1.0))
 
 

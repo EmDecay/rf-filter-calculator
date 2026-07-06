@@ -15,7 +15,12 @@ from ..state import FilterState
 
 
 class HighpassScreen(FilterScreenNavigationMixin, Screen):
-    """Screen for configuring highpass filter parameters."""
+    """Screen for configuring highpass filter parameters.
+
+    On "Next" it validates the form, writes the shared FilterState, and
+    pushes the output-options screen. Kept deliberately parallel to
+    LowpassScreen — changes here usually belong there too.
+    """
 
     BINDINGS = [
         ("escape", "back", "Back"),
@@ -36,7 +41,9 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                     yield RadioButton("Chebyshev - Sharper cutoff, passband ripple", id="chebyshev")
                     yield RadioButton("Bessel - Best transient response", id="bessel")
 
-            # Topology - T is default for highpass
+            # T is the default here (lowpass defaults to Pi): for the same
+            # order, the highpass T needs fewer inductors than the shunt-L
+            # Pi, which is the usual builder's preference.
             with Vertical(classes="form-section"):
                 yield Static("Topology", classes="form-section-title")
                 with RadioSet(id="topology"):
@@ -127,16 +134,21 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             self._reset_form()
 
     def _validate_and_continue(self) -> None:
-        """Validate inputs and proceed to output options."""
+        """Validate inputs and proceed to output options.
+
+        Re-checks ranges the Input validators already cover: validators only
+        style the field red — they don't block the Next button. On any
+        failure, notify and refocus the offending field instead of advancing.
+        """
         from filter_lib.shared.parsing import parse_frequency, parse_impedance
 
-        # Get values
         freq_input = self.query_one("#frequency", Input)
         impedance_input = self.query_one("#impedance", Input)
         order_input = self.query_one("#order", Input)
         ripple_input = self.query_one("#ripple", Input)
 
-        # Validate frequency (use placeholder as default if empty)
+        # Empty frequency falls back to the placeholder so a user can
+        # Enter straight through the suggested defaults.
         freq_value = freq_input.value.strip() or freq_input.placeholder
         try:
             freq_hz = parse_frequency(freq_value)
@@ -153,7 +165,6 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             impedance_input.focus()
             return
 
-        # Validate order
         try:
             order = int(order_input.value)
             if not 2 <= order <= 9:
@@ -163,7 +174,6 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             order_input.focus()
             return
 
-        # Get filter type and topology
         filter_type = get_selected_radio(self, "filter-type")
         topology = get_selected_radio(self, "topology")
 
@@ -176,7 +186,8 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             order_input.focus()
             return
 
-        # Get ripple for Chebyshev
+        # Ripple applies to Chebyshev only. The wizard enforces the 3.0 dB
+        # cap here — the LP/HP CLI deliberately validates only ripple > 0.
         ripple = None
         if filter_type == "chebyshev":
             try:
@@ -192,7 +203,6 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                 ripple_input.focus()
                 return
 
-        # Update state
         state: FilterState = self.app.filter_state
         state.category = "highpass"
         state.filter_type = filter_type
@@ -200,9 +210,10 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
         state.frequency_hz = freq_hz
         state.impedance = impedance
         state.order = order
+        # Non-Chebyshev paths never read ripple_db; storing the default keeps
+        # a stale value from an earlier Chebyshev pass from lingering.
         state.ripple_db = ripple if ripple else 0.5
 
-        # Navigate to output options
         from .output_options import OutputOptionsScreen
 
         self.app.push_screen(OutputOptionsScreen())

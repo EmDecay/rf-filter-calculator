@@ -14,7 +14,11 @@ from .plot_threshold_analysis import _find_3db_frequency
 
 
 def _format_freq_compact(freq_hz: float) -> str:
-    """Format frequency compactly for plot labels."""
+    """Format a frequency in Hz as a short label like '10M' or '3.5k'.
+
+    Suffix only (no 'Hz') to keep axis labels narrow; 3 significant
+    figures is the most that fits under a 60-column plot.
+    """
     if freq_hz >= 1e9:
         return f"{freq_hz / 1e9:.3g}G"
     elif freq_hz >= 1e6:
@@ -48,6 +52,9 @@ def render_ascii_plot(
 
     Returns:
         Multi-line string with ASCII plot
+
+    Raises:
+        ValueError: If freqs and response_db have different lengths.
     """
     if len(freqs) != len(response_db):
         raise ValueError("Frequency and response lists must have same length")
@@ -57,14 +64,17 @@ def render_ascii_plot(
     width = max(40, width)
     height = max(6, height)
 
-    # Adaptive dB range based on actual response
+    # Y-axis: 0 dB always at top; auto floor clamps at -60 dB so deep
+    # stopband tails don't flatten the passband into one or two rows.
+    # The -5 pad keeps the deepest sample off the bottom border.
     db_max = 0
     if db_floor is not None:
         db_min = db_floor
     else:
         db_min = max(-60, min(response_db) - 5)
 
-    # Frequency range in log space
+    # X-axis is log-frequency. The `or 1.0` fallbacks avoid divide-by-zero
+    # for degenerate single-point/flat inputs (renderer must never crash).
     freq_min, freq_max = min(freqs), max(freqs)
     log_min, log_max = math.log10(freq_min), math.log10(freq_max)
     log_range = log_max - log_min or 1.0
@@ -79,7 +89,7 @@ def render_ascii_plot(
     db_3db_row = int((db_max - (-3)) / db_range * (plot_height - 1))
     db_3db_row = max(0, min(plot_height - 1, db_3db_row))
 
-    # Find actual -3dB crossing point
+    # Find the actual -3dB crossing (interpolated from samples, not fc)
     direction = "rising" if filter_type == "highpass" else "falling"
     f_3db = _find_3db_frequency(freqs, response_db, direction)
     f_3db_col, show_3db_marker = None, False
@@ -87,7 +97,10 @@ def render_ascii_plot(
         log_f_3db = math.log10(f_3db)
         f_3db_col = int((log_f_3db - log_min) / log_range * (plot_width - 1))
         f_3db_col = max(0, min(plot_width - 1, f_3db_col))
-        # Only show marker if -3dB differs significantly from cutoff (>1%)
+        # Marker only when -3dB deviates >1% from fc. This matters for
+        # Chebyshev, where fc is the ripple-band edge and the true -3 dB
+        # point sits beyond it; for Butterworth the two coincide and a
+        # marker would just be noise.
         show_3db_marker = abs(f_3db - cutoff_hz) / cutoff_hz > 0.01
 
     # Draw -3dB reference line (dashed) — skip if outside plot range
@@ -96,7 +109,9 @@ def render_ascii_plot(
             if grid[db_3db_row][col] == " ":
                 grid[db_3db_row][col] = "\u00b7" if col % 2 == 0 else " "
 
-    # Plot the response curve - fill from curve down to bottom
+    # Plot the response as a filled area (curve down to bottom): solid
+    # blocks read better at terminal resolution than a 1-char-thin line,
+    # which fragments on steep skirts where adjacent samples skip rows.
     for freq, db in zip(freqs, response_db):
         if freq <= 0:
             continue
@@ -104,7 +119,6 @@ def render_ascii_plot(
         col = max(0, min(plot_width - 1, col))
         row = int((db_max - db) / db_range * (plot_height - 1))
         row = max(0, min(plot_height - 1, row))
-        # Fill from curve down to show attenuation region
         for r in range(row, plot_height):
             grid[r][col] = "\u2588"
 
@@ -130,7 +144,8 @@ def render_ascii_plot(
             label = "      \u2502"
         lines.append(label + "".join(grid[row_idx]))
 
-    # X-axis with tick marks at decade subdivisions
+    # X-axis ticks at the 1-2-5 log-scale subdivisions of each decade
+    # around fc \u2014 standard graph-paper spacing on a log axis.
     x_axis = list("\u2500" * plot_width)
     tick_multipliers = [1, 2, 5]
     for decade in range(-1, 2):
@@ -217,7 +232,7 @@ def render_bandpass_plot(
     height = max(6, height)
     grid = [[" " for _ in range(width)] for _ in range(height)]
 
-    # Plot response - fill from curve down
+    # Filled-area rendering, same rationale as render_ascii_plot
     for f, db in sweep_data:
         if f <= 0:
             continue
@@ -237,7 +252,8 @@ def render_bandpass_plot(
             if grid[row_3db][col] == " ":
                 grid[row_3db][col] = "\u00b7"
 
-    # Mark center frequency
+    # Vertical f0 marker — only drawn over blank/reference cells so it
+    # never erases the response curve itself.
     if f0 > 0:
         log_f0 = math.log10(f0)
         col_f0 = int((log_f0 - log_min) / log_range * (width - 1))
@@ -286,6 +302,8 @@ def render_bandpass_plot(
         f"{_format_freq_compact(f_high):>10}",
         f"{_format_freq_compact(f_max):>8}",
     ]
+    # Truncate to the axis width (6-char gutter + plot) so the label row
+    # never extends past the plot frame.
     lines.append("  ".join(label_parts)[: 6 + width])
 
     return "\n".join(lines)

@@ -14,7 +14,20 @@ from .toroid_selection import recommend_cores
 
 
 def build_standard_match(value: float, eseries: str, unit_key: str, parallel_mode: str) -> dict:
-    """Build JSON-serializable E-series match data."""
+    """Build JSON-serializable E-series match data for one component.
+
+    Args:
+        value: Component value in base SI units (F or H)
+        eseries: E-series name ('E12', 'E24', 'E96')
+        unit_key: JSON key naming the unit ('value_farads' or 'value_henries')
+        parallel_mode: How parallel pairs combine — 'additive' for
+            capacitors (C1 + C2), 'harmonic' for inductors (reciprocal sum).
+            Must match the component physics or the pair value is wrong.
+
+    Returns:
+        Dict with 'series' and 'nearest' keys; 'parallel' only when a
+        two-component pair beats the single nearest value.
+    """
     match = match_component(value, eseries, parallel_mode=parallel_mode)
 
     standard = {
@@ -49,6 +62,9 @@ def _json_component(
     attach `toroid_recommendations` sourced via recommend_cores.
     """
     component = {"name": name, unit_key: value}
+    # E-series matching applies to capacitors only: inductors are hand-wound
+    # to the exact value (see toroid recommendations), not bought off a
+    # standard-value chart.
     if eseries and unit_key == "value_farads":
         component["standard_match"] = build_standard_match(value, eseries, unit_key, parallel_mode)
     if toroid_freq_hz is not None and unit_key == "value_henries":
@@ -60,7 +76,11 @@ def _json_component(
 def _csv_match_fields(
     value: float, formatter, eseries: str | None, parallel_mode: str
 ) -> list[str]:
-    """Build extra CSV columns for E-series matching."""
+    """Build the six E-series CSV columns for one component.
+
+    Length and order must stay in sync with the eseries header block in
+    format_csv_result — every row in the file needs the same column count.
+    """
     if not eseries:
         return []
 
@@ -99,7 +119,7 @@ def format_json_result(
         result: Filter result dictionary with capacitors, inductors, etc.
         primary_component: Which component type to list first ('capacitors' or 'inductors')
         eseries: E-series for standard matching (None to disable)
-        toroid_freq_hz: Design freq for toroid recommendations (None disables)
+        toroid_freq_hz: Design frequency in Hz for toroid recommendations (None disables)
         include_toroids: If False, skip toroid recommendations entirely
 
     Returns:
@@ -150,7 +170,7 @@ def format_csv_result(
         result: Filter result dictionary with capacitors, inductors, etc.
         primary_component: Which component type to list first ('capacitors' or 'inductors')
         eseries: E-series for standard matching (None to disable)
-        toroid_freq_hz: Design freq for toroid best-match columns (None disables)
+        toroid_freq_hz: Design frequency in Hz for toroid best-match columns (None disables)
         include_toroids: If False, skip toroid columns entirely (backward-compat CSV)
 
     Returns:
@@ -187,6 +207,9 @@ def format_csv_result(
             formatted = formatter(v)
             val, unit = split_value_unit(formatted)
             row = [f"{prefix}{i + 1}", val, unit]
+            # E-series columns are capacitor-only and toroid columns are
+            # inductor-only; the other component type gets empty cells so
+            # every row keeps the header's column count.
             if prefix == "C":
                 row.extend(_csv_match_fields(v, formatter, eseries, parallel_mode))
             elif eseries:
@@ -238,6 +261,9 @@ def format_header(result: dict, topology: str, filter_category: str) -> str:
         result: Filter result dictionary
         topology: Topology description (e.g., 'Pi', 'T')
         filter_category: Filter category (e.g., 'Low Pass', 'High Pass')
+
+    Returns:
+        Multi-line header string (title, cutoff, impedance, order).
     """
     from .formatting import format_frequency
 
@@ -265,12 +291,17 @@ def format_component_table(
     primary_component: str = "capacitors",
     mention_toroids: bool = True,
 ) -> str:
-    """Format component values in a table.
+    """Format component values in a two-column table.
 
     Args:
         result: Filter result dictionary
-        raw: If True, show raw SI values
+        raw: If True, show raw SI values in scientific notation
         primary_component: Which component type in left column ('capacitors' or 'inductors')
+        mention_toroids: If True, the inductor footnote points at the toroid
+            recommendations section (suppressed under --no-toroids)
+
+    Returns:
+        Multi-line table string.
     """
     from .formatting import format_capacitance, format_inductance
 

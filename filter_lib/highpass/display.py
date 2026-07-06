@@ -1,4 +1,9 @@
-"""Display functions for highpass filters."""
+"""Display functions for highpass filters.
+
+All rendering is delegated to the shared LP/HP display layer; this module only
+supplies the highpass-specific configuration (labels, topology-to-component
+mapping, diagram builders, and response functions).
+"""
 
 from ..shared.lp_hp_display import (
     CAPACITOR_MATCH,
@@ -14,6 +19,10 @@ from ..shared.topology_diagrams import format_pi_topology_diagram, format_t_topo
 from ..shared.transfer_response_dispatch import make_hp_response_db
 from .transfer import frequency_response, generate_frequency_points
 
+# Highpass swaps component roles relative to lowpass: T leads with series
+# capacitors (odd positions), Pi leads with shunt inductors. The diagram tuples
+# list (odd-position, even-position) component keys, and the explicit
+# series/shunt labels override the lowpass-oriented diagram defaults.
 HIGHPASS_DISPLAY_CONFIG = LpHpDisplayConfig(
     category="High Pass",
     plot_filter_type="highpass",
@@ -79,7 +88,22 @@ def display_results(
     toroid_compact: bool = False,
     toroid_full: bool = False,
 ) -> None:
-    """Display calculated filter component values."""
+    """Display calculated filter component values.
+
+    Args:
+        result: Dict from the highpass calculation functions (inductors in
+            Henries, capacitors in Farads, plus freq/impedance/topology
+            metadata)
+        raw: If True, display values in scientific notation
+        output_format: 'table', 'json', or 'csv'
+        quiet: If True, output only component values
+        eseries: E-series name for capacitor matching (E12/E24/E96)
+        show_match: Include E-series matching section in table output
+        show_plot: Show ASCII frequency response
+        include_toroids: Include toroid winding recommendations
+        toroid_compact: Use compact 1-line-per-rec toroid text format
+        toroid_full: Show top-3 cores in table output (default top-1)
+    """
     display_results_for_config(
         result,
         HIGHPASS_DISPLAY_CONFIG,
@@ -95,4 +119,7 @@ def display_results(
     )
 
 
+# Wizard match-mode hook: capacitors get E-series matching (inductors are
+# wound to value, so they are never matched). Named per filter type so the
+# wizard can import one symbol regardless of filter category.
 HP_WIZARD_MATCH = CAPACITOR_MATCH

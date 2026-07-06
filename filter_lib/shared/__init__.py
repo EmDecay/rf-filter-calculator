@@ -1,4 +1,10 @@
-"""Shared utilities for filter calculations."""
+"""Shared utilities for filter calculations.
+
+Flat re-export facade: filter modules and tests import from
+``filter_lib.shared`` rather than individual submodules, so moving code
+between submodules doesn't break callers. New public names should be
+added to both the import block and ``__all__``.
+"""
 
 from .chebyshev_g_calculator import CHEBYSHEV_DB_TO_NEPER_FACTOR, calculate_chebyshev_g_values
 from .cli_aliases import (

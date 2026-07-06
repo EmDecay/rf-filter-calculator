@@ -83,6 +83,9 @@ Examples:
             run_wizard()
         else:
             args.func(args)
+    # ValueError is the library-wide contract for invalid user input (bad
+    # frequencies, unsupported orders, unrealizable designs): surface the
+    # message cleanly on stderr instead of dumping a traceback.
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

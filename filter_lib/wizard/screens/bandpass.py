@@ -15,7 +15,13 @@ from ..state import FilterState
 
 
 class BandpassScreen(FilterScreenNavigationMixin, Screen):
-    """Screen for configuring bandpass filter parameters."""
+    """Screen for configuring bandpass filter parameters.
+
+    On "Next" it validates the form, writes the shared FilterState, and
+    pushes the output-options screen. Differs from LP/HP in taking a
+    bandwidth (with live fractional-BW feedback) and a resonator count
+    instead of a component order.
+    """
 
     BINDINGS = [
         ("escape", "back", "Back"),
@@ -27,7 +33,6 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         yield Static("Band-Pass Filter Design", classes="header")
         yield Static("Enter: next · ↑/↓: choose · Esc: back", classes="nav-hint")
         with VerticalScroll(classes="content"):
-            # Response Type
             with Vertical(classes="form-section"):
                 yield Static("Response Type", classes="form-section-title")
                 with RadioSet(id="filter-type"):
@@ -37,7 +42,10 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                     yield RadioButton("Chebyshev - Sharper cutoff, passband ripple", id="chebyshev")
                     yield RadioButton("Bessel - Best transient response", id="bessel")
 
-            # Coupling
+            # Single-option RadioSet on purpose: Top-C is the only coupling
+            # that survived simulation validation (shunt coupling was
+            # removed), but keeping the RadioSet preserves the Enter-through
+            # navigation flow and leaves room for future topologies.
             with Vertical(classes="form-section"):
                 yield Static("Coupling Topology", classes="form-section-title")
                 with RadioSet(id="coupling"):
@@ -45,7 +53,6 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                         "Top-C (Series) - capacitively coupled resonators", value=True, id="top"
                     )
 
-            # Frequency Parameters
             with Vertical(classes="form-section"):
                 yield Static("Frequency", classes="form-section-title")
                 yield Static("Center Frequency (e.g., 14.175MHz):")
@@ -60,7 +67,6 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                 )
                 yield Static("", id="fbw-display", classes="fbw-display")
 
-            # Other Parameters
             with Vertical(classes="form-section"):
                 yield Static("Parameters", classes="form-section-title")
                 yield Static("Impedance (e.g., 50, 50ohm, 1k):")
@@ -83,7 +89,6 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                         validators=[Number(minimum=0.01, maximum=3.0)],
                     )
 
-            # Buttons
             with Horizontal(classes="button-row"):
                 yield Button("Next", id="next-btn", variant="primary")
                 yield Button("Reset", id="reset-btn")
@@ -141,7 +146,11 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
     @on(Input.Changed, "#frequency")
     @on(Input.Changed, "#bandwidth")
     def _update_fbw_display(self) -> None:
-        """Update fractional bandwidth display when frequency or bandwidth changes."""
+        """Update fractional bandwidth display when frequency or bandwidth changes.
+
+        Live feedback so the user sees an over-wide design before committing;
+        the synthesis itself warns again above the simulation-proven FBW.
+        """
         from filter_lib.shared.parsing import parse_frequency
 
         freq_input = self.query_one("#frequency", Input)
@@ -161,6 +170,8 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                 fbw_display.remove_class("fbw-warning")
                 fbw_display.add_class("fbw-display")
         except (ValueError, ZeroDivisionError):
+            # Half-typed values are normal while editing — blank the readout
+            # rather than flashing errors on every keystroke.
             fbw_display.update("")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -171,17 +182,22 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
             self._reset_form()
 
     def _validate_and_continue(self) -> None:
-        """Validate inputs and proceed to output options."""
+        """Validate inputs and proceed to output options.
+
+        Re-checks ranges the Input validators already cover: validators only
+        style the field red — they don't block the Next button. On any
+        failure, notify and refocus the offending field instead of advancing.
+        """
         from filter_lib.shared.parsing import parse_frequency, parse_impedance
 
-        # Get input widgets
         freq_input = self.query_one("#frequency", Input)
         bw_input = self.query_one("#bandwidth", Input)
         impedance_input = self.query_one("#impedance", Input)
         resonators_input = self.query_one("#resonators", Input)
         ripple_input = self.query_one("#ripple", Input)
 
-        # Validate center frequency (use placeholder as default if empty)
+        # Empty frequency/bandwidth fall back to their placeholders so a user
+        # can Enter straight through the suggested defaults.
         freq_value = freq_input.value.strip() or freq_input.placeholder
         try:
             f0 = parse_frequency(freq_value)
@@ -190,7 +206,6 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
             freq_input.focus()
             return
 
-        # Validate bandwidth (use placeholder as default if empty)
         bw_value = bw_input.value.strip() or bw_input.placeholder
         try:
             bw = parse_frequency(bw_value)
@@ -207,7 +222,6 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
             impedance_input.focus()
             return
 
-        # Validate resonators
         try:
             resonators = int(resonators_input.value)
             if not 2 <= resonators <= 9:
@@ -217,17 +231,18 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
             resonators_input.focus()
             return
 
-        # Get filter type and coupling
         filter_type = get_selected_radio(self, "filter-type")
         coupling = get_selected_radio(self, "coupling")
 
-        # Chebyshev requires odd number of resonators
+        # Chebyshev requires an odd resonator count for equal source/load
+        # terminations (same constraint as the LP/HP odd-order rule).
         if filter_type == "chebyshev" and resonators % 2 == 0:
             self.notify("Chebyshev bandpass requires odd number of resonators", severity="warning")
             resonators_input.focus()
             return
 
-        # Get ripple for Chebyshev
+        # Ripple applies to Chebyshev only; the 3.0 dB cap matches the
+        # bandpass CLI's validation.
         ripple = None
         if filter_type == "chebyshev":
             try:
@@ -243,18 +258,20 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                 ripple_input.focus()
                 return
 
-        # Update state
         state: FilterState = self.app.filter_state
         state.category = "bandpass"
         state.filter_type = filter_type
-        state.topology = coupling  # top
+        # FilterState reuses the topology field for the bandpass coupling id
+        # ("top"); order likewise carries the resonator count.
+        state.topology = coupling
         state.frequency_hz = f0
         state.bandwidth_hz = bw
         state.impedance = impedance
         state.order = resonators
+        # Non-Chebyshev paths never read ripple_db; storing the default keeps
+        # a stale value from an earlier Chebyshev pass from lingering.
         state.ripple_db = ripple if ripple else 0.5
 
-        # Navigate to output options
         from .output_options import OutputOptionsScreen
 
         self.app.push_screen(OutputOptionsScreen())

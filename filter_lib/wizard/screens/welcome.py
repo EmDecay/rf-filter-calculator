@@ -8,8 +8,15 @@ from textual.widgets.option_list import Option
 
 
 class WelcomeScreen(Screen):
-    """Initial screen for selecting filter category."""
+    """Initial screen for selecting filter category.
 
+    Entry point of the wizard flow (welcome → filter config → output options
+    → results); the choice made here sets `filter_state.category` and decides
+    which config screen is pushed next.
+    """
+
+    # This screen is the flow's root: rebind Escape to quit rather than let
+    # the app-level "back" pop it and expose the blank base screen.
     BINDINGS = [
         ("escape", "quit", "Quit"),
     ]
@@ -37,6 +44,8 @@ class WelcomeScreen(Screen):
         option_id = event.option.id
         app = self.app
 
+        # Config screens are imported at navigation time (wizard convention:
+        # defer screen imports until the user actually goes there).
         if option_id == "lowpass":
             app.filter_state.category = "lowpass"
             from .lowpass import LowpassScreen

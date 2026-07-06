@@ -17,5 +17,9 @@ def setup_parser(parser: ArgumentParser) -> None:
 
 
 def run(args: Namespace) -> None:
-    """Execute wizard command."""
+    """Execute wizard command.
+
+    ``args`` is unused (the wizard takes no flags) but the signature must
+    match the subcommand dispatch contract used by cli.main().
+    """
     run_wizard()

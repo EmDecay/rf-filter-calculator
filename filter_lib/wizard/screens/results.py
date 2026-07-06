@@ -14,7 +14,13 @@ from ..state import FilterState
 
 
 class ResultsScreen(Screen):
-    """Screen displaying calculation results."""
+    """Screen displaying calculation results.
+
+    Final stop of the wizard flow. The calculation runs in a thread worker so
+    "Calculating..." paints immediately; Escape returns to output options for
+    tweaks without re-entering filter parameters, and "Design Another"
+    restarts the whole flow with fresh state.
+    """
 
     BINDINGS = [
         ("escape", "back", "Back"),
@@ -52,10 +58,13 @@ class ResultsScreen(Screen):
 
     def on_mount(self) -> None:
         """Start calculation when screen mounts."""
-        # Hide export section initially
+        # Export UI is opt-in via the Export button.
         self.query_one("#export-section").display = False
         # Honour the export format the user picked on the Output Options screen.
         self._preselect_export_format()
+        # thread=True keeps the event loop free (bandpass runs a netlist
+        # sweep, which is not instant); exclusive=True guards against a
+        # remount stacking a second calculation.
         self.run_worker(self._calculate, exclusive=True, thread=True)
 
     def _preselect_export_format(self) -> None:
@@ -144,11 +153,11 @@ class ResultsScreen(Screen):
         """
         state: FilterState = self.app.filter_state
 
-        # Get selected format
         radio_set = self.query_one("#export-format", RadioSet)
         format_id = radio_set.pressed_button.id if radio_set.pressed_button else "export-txt"
 
-        # Generate filename with timestamp
+        # Timestamped filenames keep repeated exports from clobbering each
+        # other within a session.
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         category = state.category or "filter"
 
@@ -193,7 +202,13 @@ class ResultsScreen(Screen):
         self._hide_export_options()
 
     def _get_response_export(self, state: FilterState, fmt: str) -> str:
-        """Generate frequency-response data in the unified export schema."""
+        """Generate frequency-response data in the unified export schema.
+
+        Uses shared.response_export so wizard exports are byte-compatible
+        with the CLI's --plot-data output. Bandpass data comes from the
+        netlist simulation of the synthesized circuit; LP/HP from the
+        analytic transfer functions.
+        """
         from filter_lib.shared.response_export import (
             export_response_csv,
             export_response_json,
@@ -225,6 +240,9 @@ class ResultsScreen(Screen):
                 freqs,
                 result["freq_hz"],
                 result["order"],
+                # Non-Chebyshev results store ripple=None; the response fn
+                # ignores it for those types, so any placeholder works — 0.5
+                # matches the wizard default.
                 result.get("ripple") or 0.5,
             )
 
@@ -271,9 +289,12 @@ class ResultsScreen(Screen):
         """Start a new design."""
         from .welcome import WelcomeScreen
 
+        # Replace (not mutate) the state so every field returns to its
+        # dataclass default — nothing from the previous design can leak.
         self.app.filter_state = FilterState()
-        # Pop all screens except the base default screen
+        # Unwind to the base default screen, then push a fresh WelcomeScreen:
+        # rebuilding from scratch guarantees no stale widget state on the
+        # old screens.
         while len(self.app.screen_stack) > 1:
             self.app.pop_screen()
-        # Push a fresh WelcomeScreen
         self.app.push_screen(WelcomeScreen())

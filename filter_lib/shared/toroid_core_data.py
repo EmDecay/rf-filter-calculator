@@ -3,8 +3,10 @@
 Data vendored from toroids.info via research repo:
 https://github.com/EmDecay/toroid-calc-research (snapshot 2026-02-03)
 
-All A_L values in nH/turn² (NOT Amidon "µH per 100 turns²"; see plan Accuracy
-Contract). All dimensions in mm. Frequencies in Hz.
+Unit conventions:
+- A_L in nH/turn² — NOT Amidon catalog "µH per 100 turns²"; mixing the two
+  gives ~3x-wrong turn counts (see toroid_inductance.py for the derivation).
+- Dimensions in mm, frequencies in Hz.
 """
 
 import json
@@ -12,8 +14,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from importlib.resources import files
 
-# 43 iron-powder T-series cores exist in the vendored data. Plan estimated 42;
-# actual count including both double-height variants (T200-2B, T225-2B) is 43.
+# The vendored snapshot contains exactly 43 iron-powder T-series cores
+# (including the double-height variants T200-2B and T225-2B). The loader
+# asserts this count so an accidental edit or truncation of the JSON fails
+# loudly at import time instead of silently shrinking the candidate pool.
 _EXPECTED_CORE_COUNT = 43
 
 
@@ -40,6 +44,7 @@ class ToroidCore:
 
 
 def _load_cores() -> dict[str, ToroidCore]:
+    """Load and validate the vendored core JSON, keyed by core name."""
     data_path = files(__package__).joinpath("toroid_core_data.json")
     with data_path.open("r", encoding="utf-8") as f:
         raw = json.load(f)
@@ -58,7 +63,11 @@ def list_cores() -> list[ToroidCore]:
 
 
 def get_core(name: str) -> ToroidCore:
-    """Look up a core by exact name (e.g. 'T50-2'). Case-sensitive."""
+    """Look up a core by exact name (e.g. 'T50-2'). Case-sensitive.
+
+    Raises:
+        ValueError: If the name is not in the vendored database.
+    """
     if name not in _CORES:
         raise ValueError(f"Unknown toroid core: {name!r}")
     return _CORES[name]

@@ -3,6 +3,10 @@
 Provides g-value calculations for Butterworth, Chebyshev, and Bessel filters.
 These normalized element values are the foundation of filter synthesis.
 
+Convention: g-values are 1-indexed in the literature; every function here
+returns [g1, ..., gn] (list index 0 = g1). The terminations g0 = g_{n+1} = 1
+are implied — this library assumes equal source/load impedances throughout.
+
 References:
 - Zverev "Handbook of Filter Synthesis" (1967)
 - Matthaei, Young, Jones "Microwave Filters, Impedance-Matching Networks..."
@@ -17,7 +21,9 @@ from ..shared.constants import BESSEL_G_VALUES
 def calculate_butterworth_g_values(n: int) -> list[float]:
     """Calculate Butterworth prototype g-values.
 
-    Formula: g[i] = 2 * sin((2*i - 1) * pi / (2*n))
+    Closed form for the maximally-flat prototype (Matthaei/Young/Jones):
+    g[i] = 2 * sin((2*i - 1) * pi / (2*n)), i = 1..n. Exact for all orders,
+    so no lookup table is needed.
 
     Args:
         n: Filter order (number of resonators)
@@ -31,7 +37,9 @@ def calculate_butterworth_g_values(n: int) -> list[float]:
 def get_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
     """Calculate Chebyshev prototype g-values for an arbitrary ripple.
 
-    Note: Chebyshev with equal terminations requires ODD resonator counts.
+    Requires an ODD resonator count: even-order Chebyshev prototypes end with
+    g_{n+1} != 1, i.e. they demand unequal source/load terminations, which
+    this library's equal-termination assumption cannot satisfy.
 
     Args:
         n: Number of resonators (odd only)

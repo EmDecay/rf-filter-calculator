@@ -14,6 +14,10 @@ def _find_db_crossing(
 ) -> float | None:
     """Find frequency where response crosses a dB threshold.
 
+    Interpolation is linear in log10(frequency), matching the log axis
+    the response is plotted on; linear-in-Hz interpolation would bias
+    crossings toward the high side of coarse sample spacing.
+
     Args:
         freqs: List of frequencies in Hz
         response_db: Corresponding magnitude responses in dB
@@ -21,7 +25,8 @@ def _find_db_crossing(
         direction: 'falling' for LPF (crosses going down), 'rising' for HPF
 
     Returns:
-        Interpolated crossing frequency, or None if not found
+        Interpolated crossing frequency in Hz (first crossing found
+        scanning low to high), or None if the response never crosses
     """
     for i in range(len(response_db) - 1):
         if direction == "falling":
@@ -64,7 +69,7 @@ def find_db_thresholds(
         filter_type: 'lowpass', 'highpass', or 'bandpass'
 
     Returns:
-        Dict mapping dB level to list of crossing frequencies.
+        Dict mapping dB level to list of crossing frequencies in Hz.
         LP/HP: single-element list. BP: [f_low, f_high].
         None entries for crossings not found.
     """
@@ -108,6 +113,8 @@ def format_threshold_table(
     Returns:
         Multi-line formatted table string
     """
+    # Deferred import: plot_ascii_renderers imports from this module at
+    # top level, so importing it here avoids a circular import.
     from .plot_ascii_renderers import _format_freq_compact
 
     is_bandpass = filter_type == "bandpass"

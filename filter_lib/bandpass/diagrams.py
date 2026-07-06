@@ -15,6 +15,10 @@ def format_top_c_diagram(n: int) -> str:
         Multi-line string with the topology diagram.
     """
     n_coupling = n - 1
+    # Layout constants are tied to the main_line template below: each repeated
+    # coupling segment "──────┤├──────┬" is 15 chars wide, and the first tank
+    # branch "┬" sits at index 11 of the "  IN ──┤├──┬" prefix. Changing the
+    # template requires re-deriving both offsets.
     seg_w = 15
 
     # Main line: end caps couple the source and load into the end tanks
@@ -31,6 +35,8 @@ def format_top_c_diagram(n: int) -> str:
         for j, ch in enumerate(label):
             if 0 <= start + j < line_len:
                 label_chars[start + j] = ch
+    # 8 centers the label over the "┤├" end-cap symbols, which sit a fixed
+    # distance from each end of the template regardless of resonator count.
     for label, mid in (("Ce_in", 8), ("Ce_out", line_len - 8)):
         start = mid - len(label) // 2
         for j, ch in enumerate(label):

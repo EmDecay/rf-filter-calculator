@@ -1,6 +1,12 @@
-"""Shared CLI aliases and constants for filter commands."""
+"""Shared CLI aliases and constants for filter commands.
 
-# Filter type aliases: short -> canonical
+FILTER_TYPE_ALIASES is the single source of truth for alias
+canonicalization — dispatch code must resolve through it (see
+resolve_filter_type) rather than re-implementing the mapping.
+"""
+
+# Filter type aliases: short -> canonical. Adding an alias also requires
+# listing it in cli_helpers.FILTER_TYPE_CHOICES so argparse accepts it.
 FILTER_TYPE_ALIASES: dict[str, str] = {
     "bw": "butterworth",
     "b": "butterworth",
@@ -83,10 +89,14 @@ FILTER_EXPLANATIONS_BANDPASS: dict[str, str] = {
 
 
 def resolve_filter_type(alias: str) -> str:
-    """Resolve filter type alias to canonical name."""
+    """Resolve filter type alias to canonical name.
+
+    Unknown strings pass through unchanged — validity is enforced
+    upstream by argparse choices, not here.
+    """
     return FILTER_TYPE_ALIASES.get(alias, alias)
 
 
 def resolve_coupling(alias: str) -> str:
-    """Resolve coupling alias to canonical name."""
+    """Resolve coupling alias to canonical name (unknown values pass through)."""
     return COUPLING_ALIASES.get(alias, alias)

@@ -11,7 +11,11 @@ from ..state import FilterState
 
 
 class OutputOptionsScreen(Screen):
-    """Screen for selecting output format options."""
+    """Screen for selecting output format options.
+
+    Shared by all three filter categories — it only writes the output-side
+    FilterState fields, so it never needs to know which filter was designed.
+    """
 
     BINDINGS = [
         ("escape", "back", "Back"),
@@ -21,7 +25,6 @@ class OutputOptionsScreen(Screen):
         yield Static("Output Options", classes="header")
         yield Static("Enter: next · ↑/↓: choose · Esc: back", classes="nav-hint")
         with VerticalScroll(classes="content"):
-            # E-Series Selection
             with Vertical(classes="form-section"):
                 yield Static("Component Matching", classes="form-section-title")
                 with RadioSet(id="eseries"):
@@ -30,7 +33,6 @@ class OutputOptionsScreen(Screen):
                     yield RadioButton("E96 - More values, tighter tolerance", id="E96")
                     yield RadioButton("None - Calculated values only", id="none")
 
-            # Output Format
             with Vertical(classes="form-section"):
                 yield Static("Output Format", classes="form-section-title")
                 with RadioSet(id="format"):
@@ -38,7 +40,9 @@ class OutputOptionsScreen(Screen):
                     yield RadioButton("JSON - Machine readable", id="json")
                     yield RadioButton("CSV - Spreadsheet compatible", id="csv")
 
-            # Additional Options - use SelectionList for arrow key navigation
+            # SelectionList rather than individual Checkboxes so arrow keys
+            # walk the multi-select options the same way they walk the
+            # RadioSets above — one consistent keyboard model per screen.
             with Vertical(classes="form-section"):
                 yield Static("Additional Options", classes="form-section-title")
                 yield SelectionList[str](
@@ -48,7 +52,6 @@ class OutputOptionsScreen(Screen):
                     id="options-list",
                 )
 
-            # Export Format
             with Vertical(classes="form-section"):
                 yield Static("Export Plot Data", classes="form-section-title")
                 with RadioSet(id="export"):
@@ -62,7 +65,6 @@ class OutputOptionsScreen(Screen):
                         id="export-csv",
                     )
 
-            # Buttons
             with Horizontal(classes="button-row"):
                 yield Button("Show Results", id="results-btn", variant="primary")
                 yield Button("Back", id="back-btn")
@@ -74,7 +76,12 @@ class OutputOptionsScreen(Screen):
         self.query_one("#eseries", RadioSet).focus()
 
     def on_key(self, event) -> None:
-        """Handle Enter key to advance from RadioSet and SelectionList."""
+        """Handle Enter key to advance from RadioSet and SelectionList.
+
+        Hand-rolled Enter chain instead of FilterScreenNavigationMixin: the
+        mixin only walks RadioSets, and this screen has a SelectionList in
+        the middle of the flow.
+        """
         if event.key == "enter":
             try:
                 eseries_set = self.query_one("#eseries", RadioSet)
@@ -117,21 +124,21 @@ class OutputOptionsScreen(Screen):
         """Save options and navigate to results screen."""
         state: FilterState = self.app.filter_state
 
-        # Get E-series selection (may be "none" to disable matching)
+        # The literal id "none" (as opposed to an empty selection) means the
+        # user explicitly disabled E-series matching; empty falls back to E24.
         eseries = get_selected_radio(self, "eseries")
         state.eseries = eseries or "E24"
 
-        # Get output format
         state.output_format = get_selected_radio(self, "format")
 
-        # Get options from SelectionList
         options_list = self.query_one("#options-list", SelectionList)
         selected = options_list.selected
         state.raw_units = "raw" in selected
         state.quiet = "quiet" in selected
         state.show_plot = "plot" in selected
 
-        # Get export format
+        # None (not a string) signals "no response-data export"; the results
+        # screen checks this when deciding whether to write a second file.
         export = get_selected_radio(self, "export")
         if export == "export-json":
             state.export_format = "json"
@@ -140,7 +147,6 @@ class OutputOptionsScreen(Screen):
         else:
             state.export_format = None
 
-        # Navigate to results
         from .results import ResultsScreen
 
         self.app.push_screen(ResultsScreen())

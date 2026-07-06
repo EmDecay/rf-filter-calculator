@@ -29,12 +29,28 @@ def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
         ripple_db: Passband ripple in dB (e.g., 0.1, 0.5, 1.0)
 
     Returns:
-        List of g-values [g1, g2, ..., gn] (1-indexed values at indices 1..n)
+        List of length n+1 where g[0] is unused padding (0.0) and g[1]..g[n]
+        are the prototype element values. The padding keeps indices aligned
+        with the 1-indexed g_k of the filter-synthesis literature, so the
+        recurrence below (and any caller doing g[i]) reads exactly like the
+        textbook equations — shifting to 0-indexing would silently break
+        every consumer that passes g[i] for element i.
 
     Note:
-        Returns array where g[0] is unused (0.0), and g[1]..g[n] are the values.
-        This matches the mathematical notation used in filter synthesis.
+        g-values are normalized to the equal-ripple band edge (omega' = 1
+        where the response last touches -ripple_db), NOT the -3 dB point.
+        Callers that promise -3 dB semantics (e.g. bandpass) must apply
+        their own edge correction.
     """
+    # Matthaei, Young, Jones "Microwave Filters" Sec. 4.05, Eq. 4.13-4.16
+    # (their beta/gamma/a_k/b_k recurrence for equal-ripple prototypes):
+    #   beta  = ln(coth(L_Ar / 17.37)) with L_Ar the ripple in dB
+    #   gamma = sinh(beta / 2n)                     -> `gn` below
+    #   a_k   = sin((2k-1)·pi / 2n)                 -> `a[i]`
+    #   b_k   = gamma^2 + sin^2(k·pi / n)           -> `b[i]`
+    #   g_1   = 2·a_1 / gamma
+    #   g_k   = 4·a_{k-1}·a_k / (b_{k-1}·g_{k-1})
+    # 17.37 is Matthaei's rounding of 40/ln(10); we keep it exact.
     rr = ripple_db / CHEBYSHEV_DB_TO_NEPER_FACTOR
     e2x = math.exp(2 * rr)
     coth = (e2x + 1) / (e2x - 1)

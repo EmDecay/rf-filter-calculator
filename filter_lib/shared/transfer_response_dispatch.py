@@ -1,6 +1,12 @@
 """Factory for creating single-frequency response functions.
 
-Eliminates duplicated closure pattern across LP/HP display and wizard modules.
+Eliminates the duplicated closure pattern across LP/HP display and wizard
+modules. Every factory returns ``f(freq_hz) -> dB``, so plotting and
+threshold code can stay agnostic of filter category.
+
+The lowpass/highpass/bandpass transfer modules are imported inside each
+factory, not at module level: those packages' display modules import this
+module at load time, so top-level imports here would be circular.
 """
 
 from collections.abc import Callable
@@ -33,7 +39,20 @@ def _canonicalize_filter_type(filter_type: str, valid: tuple[str, ...]) -> str:
 def make_lp_response_db(
     filter_type: str, cutoff_hz: float, order: int, ripple_db: float = 0.5
 ) -> Callable[[float], float]:
-    """Return f(freq_hz) -> dB for a lowpass filter."""
+    """Return f(freq_hz) -> dB for an idealized lowpass prototype response.
+
+    Args:
+        filter_type: Canonical name or CLI alias (bw/ch/bs/b/c)
+        cutoff_hz: Cutoff frequency in Hz (Chebyshev: ripple edge)
+        order: Filter order
+        ripple_db: Passband ripple in dB; only Chebyshev reads it
+
+    Returns:
+        Callable mapping frequency in Hz to response in dB (<= 0).
+
+    Raises:
+        ValueError: If filter_type is None or not a known type/alias.
+    """
     from ..lowpass.transfer import bessel_response, butterworth_response, chebyshev_response
 
     ft = _canonicalize_filter_type(filter_type, _CANONICAL_LP_HP_TYPES)
@@ -51,7 +70,20 @@ def make_lp_response_db(
 def make_hp_response_db(
     filter_type: str, cutoff_hz: float, order: int, ripple_db: float = 0.5
 ) -> Callable[[float], float]:
-    """Return f(freq_hz) -> dB for a highpass filter."""
+    """Return f(freq_hz) -> dB for an idealized highpass prototype response.
+
+    Args:
+        filter_type: Canonical name or CLI alias (bw/ch/bs/b/c)
+        cutoff_hz: Cutoff frequency in Hz (Chebyshev: ripple edge)
+        order: Filter order
+        ripple_db: Passband ripple in dB; only Chebyshev reads it
+
+    Returns:
+        Callable mapping frequency in Hz to response in dB (<= 0).
+
+    Raises:
+        ValueError: If filter_type is None or not a known type/alias.
+    """
     from ..highpass.transfer import bessel_response, butterworth_response, chebyshev_response
 
     ft = _canonicalize_filter_type(filter_type, _CANONICAL_LP_HP_TYPES)
@@ -69,7 +101,25 @@ def make_hp_response_db(
 def make_bp_response_db(
     f0: float, bw: float, n_resonators: int, filter_type: str, ripple_db: float = 0.5
 ) -> Callable[[float], float]:
-    """Return f(freq_hz) -> dB for the idealized symmetric bandpass prototype."""
+    """Return f(freq_hz) -> dB for the idealized symmetric bandpass prototype.
+
+    This is the formula prototype, not the simulated circuit — use
+    make_bp_netlist_response_db when the output must match a built filter.
+
+    Args:
+        f0: Center frequency in Hz
+        bw: True -3 dB bandwidth in Hz (Chebyshev edge scaling is applied
+            downstream in bandpass.transfer)
+        n_resonators: Number of coupled resonators (filter order)
+        filter_type: Canonical name or CLI alias (bw/ch/bs/b/c)
+        ripple_db: Passband ripple in dB; only Chebyshev reads it
+
+    Returns:
+        Callable mapping frequency in Hz to response in dB (<= 0).
+
+    Raises:
+        ValueError: If filter_type is None or not a known type/alias.
+    """
     from ..bandpass.transfer import magnitude_db
 
     ft = _canonicalize_filter_type(filter_type, _CANONICAL_BP_TYPES)

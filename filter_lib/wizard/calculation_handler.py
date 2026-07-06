@@ -17,8 +17,13 @@ def calculate_and_format(state: FilterState) -> str:
     Returns:
         Formatted output string for display
     """
+    # Deferred so the wizard UI can start without loading the calculation
+    # stack; it's only paid when the user actually reaches the results screen.
     from .filter_type_calculators import calculate_bandpass, calculate_highpass, calculate_lowpass
 
+    # Broad catch is deliberate: this runs inside a Textual worker thread, and
+    # any escaping exception would leave the results screen stuck on
+    # "Calculating...". Errors become display text instead.
     try:
         if state.category == "lowpass":
             lines = calculate_lowpass(state)
