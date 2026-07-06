@@ -20,6 +20,7 @@ from ..shared.cli_helpers import (
     add_filter_type_args,
     add_output_args,
     add_plot_args,
+    add_sim_matched_arg,
     export_plot_data,
     get_filter_type_arg,
     resolve_ripple_arg,
@@ -37,6 +38,7 @@ def setup_parser(parser: ArgumentParser) -> None:
     add_common_filter_args(parser)
     add_output_args(parser)
     add_eseries_args(parser)
+    add_sim_matched_arg(parser)
     add_plot_args(parser)
     add_toroid_flags(parser)
     # Make the subparser reachable from run() so missing-argument problems
@@ -45,7 +47,16 @@ def setup_parser(parser: ArgumentParser) -> None:
 
 
 def run(args: Namespace) -> None:
-    """Execute lowpass command."""
+    """Execute lowpass command.
+
+    Args:
+        args: Parsed Namespace from setup_parser()
+
+    Raises:
+        ValueError: For invalid numeric input; cli.main() converts this to a
+            clean stderr message. Usage-level problems (missing filter type,
+            frequency, or topology) exit via argparse's usage error instead.
+    """
     filter_type = get_filter_type_arg(args)
     freq_input = args.frequency or args.freq_flag
 
@@ -86,6 +97,9 @@ def run(args: Namespace) -> None:
         )
         ripple = None
     elif filter_type == "chebyshev":
+        # The 3.0 dB ripple ceiling was already enforced by resolve_ripple_arg;
+        # this guards non-positive values, while NaN falls through to the
+        # shared calculation layer's isfinite check.
         if ripple_db <= 0:
             raise ValueError("Ripple must be positive")
         caps, inds, order = calculate_chebyshev(
@@ -107,6 +121,11 @@ def run(args: Namespace) -> None:
         "topology": topology,
     }
 
+    # Validate the flag conflict before any output path (including --plot-data)
+    # so the usage error is consistent regardless of output mode.
+    if args.sim_matched and args.no_match:
+        usage_error(args, "--sim-matched requires E-series matching; remove --no-match")
+
     if args.plot_data:
         freqs = generate_frequency_points(freq_hz)
         response = frequency_response(filter_type, freqs, freq_hz, order, ripple_db)
@@ -125,3 +144,9 @@ def run(args: Namespace) -> None:
         toroid_compact=args.toroid_compact,
         toroid_full=args.toroid_full,
     )
+
+    if args.sim_matched and args.format == "table" and not args.quiet:
+        from ..shared.matched_simulation import format_matched_sim_block, run_matched_simulation
+
+        summary = run_matched_simulation(result, "lowpass", args.eseries)
+        print("\n".join(format_matched_sim_block(summary)))

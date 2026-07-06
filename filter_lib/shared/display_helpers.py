@@ -32,17 +32,16 @@ def format_eseries_match(
     error_sign = "+" if match.single_error_pct > 0 else ""
     lines.append(f"  Nearest Std:  {formatted} ({error_sign}{match.single_error_pct:.1f}%)")
 
-    if match.parallel and match.parallel_error_pct is not None:
-        if abs(match.parallel_error_pct) < abs(match.single_error_pct):
-            p1, p2 = match.parallel
-            # Both values keep full units: a pair can span decades
-            # (e.g. "910 pF || 8.2 nF"), so a bare first number is ambiguous.
-            p1_fmt = unit_formatter(p1)
-            p2_fmt = unit_formatter(p2)
-            err_sign = "+" if match.parallel_error_pct > 0 else ""
-            lines.append(
-                f"  Parallel Std: {p1_fmt} || {p2_fmt} ({err_sign}{match.parallel_error_pct:.1f}%)"
-            )
+    if match.prefers_parallel:
+        p1, p2 = match.parallel
+        # Both values keep full units: a pair can span decades
+        # (e.g. "910 pF || 8.2 nF"), so a bare first number is ambiguous.
+        p1_fmt = unit_formatter(p1)
+        p2_fmt = unit_formatter(p2)
+        err_sign = "+" if match.parallel_error_pct > 0 else ""
+        lines.append(
+            f"  Parallel Std: {p1_fmt} || {p2_fmt} ({err_sign}{match.parallel_error_pct:.1f}%)"
+        )
     return lines
 
 
@@ -61,6 +60,9 @@ def format_component_value(
         Formatted string like "C1: 150 pF" or "C1: 1.50e-10 F"
     """
     if raw:
+        # Raw mode bypasses the formatter, so the base unit is inferred from
+        # the formatter's name (format_capacitance -> F, else H). Renaming
+        # those formatters would silently mislabel raw output.
         unit = "F" if "capacit" in unit_formatter.__name__.lower() else "H"
         return f"{name}: {value:.6e} {unit}"
     return f"{name}: {unit_formatter(value)}"
@@ -68,6 +70,9 @@ def format_component_value(
 
 def split_value_unit(formatted_string: str) -> tuple[str, str]:
     """Split a formatted value string into (value, unit) tuple.
+
+    Relies on the formatting.py invariant that every formatter emits
+    exactly one space before the unit suffix ("<number> <unit>").
 
     Args:
         formatted_string: String like "150 pF" or "1.5 uH"

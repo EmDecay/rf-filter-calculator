@@ -65,6 +65,28 @@ class ESeriesMatch:
     parallel_value: float | None  # Resulting parallel value
     parallel_error_pct: float | None  # Error percentage for parallel
 
+    @property
+    def prefers_parallel(self) -> bool:
+        """True when the parallel combination beats the single match on |error|.
+
+        This is the selection rule the component tables present, so any
+        consumer choosing "the value a builder would actually solder" must
+        use it rather than re-deriving its own comparison.
+        """
+        return (
+            self.parallel is not None
+            and self.parallel_error_pct is not None
+            and abs(self.parallel_error_pct) < abs(self.single_error_pct)
+        )
+
+    @property
+    def best_value(self) -> float:
+        """The realized value of the recommended match (parallel or single)."""
+        if self.prefers_parallel:
+            assert self.parallel_value is not None
+            return self.parallel_value
+        return self.single_value
+
 
 def _normalize(value: float) -> tuple[float, int]:
     """Extract mantissa (1.0-10.0) and decade exponent."""
@@ -91,8 +113,16 @@ def _error_pct(actual: float, target: float) -> float:
 def find_closest_single(target: float, series: str = "E24") -> tuple[float, float]:
     """Find closest single E-series value.
 
+    Args:
+        target: Target component value (any unit; matching is decade-free)
+        series: E-series name (E12, E24, E96)
+
     Returns:
-        Tuple of (matched_value, error_pct)
+        Tuple of (matched_value, error_pct); error_pct is signed
+        (positive = matched value above target).
+
+    Raises:
+        ValueError: If series is unknown or target is not positive.
     """
     if series not in E_SERIES:
         raise ValueError(f"Unknown series '{series}'. Use E12, E24, or E96.")
@@ -132,10 +162,18 @@ def find_parallel_combo(
               'harmonic' for resistors/inductors (R_par = R1*R2/(R1+R2)).
               Required — the physics of the combination depends on the
               component kind, which cannot be inferred from the value alone.
-        ratio_limit: Maximum ratio between component values
+        ratio_limit: Maximum ratio between component values. Caps the value
+            spread so recommendations stay practical to source and so one
+            component does not dominate tolerance-wise.
 
     Returns:
-        ((V1, V2), parallel_value, error_pct) or None if no valid combo
+        ((V1, V2), parallel_value, error_pct) with V1 <= V2, or None if no
+        combination satisfies the ratio limit. error_pct is signed
+        (positive = realized value above target).
+
+    Raises:
+        ValueError: If series is unknown or mode is not
+            'additive'/'harmonic'.
     """
     if series not in E_SERIES:
         raise ValueError(f"Unknown series '{series}'. Use E12, E24, or E96.")
@@ -144,7 +182,9 @@ def find_parallel_combo(
         raise ValueError(f"Mode is required: use 'additive' or 'harmonic' (got {mode!r}).")
 
     _, decade = _normalize(target)
-    # Build candidate values spanning relevant decades
+    # Span one decade below through two above the target: additive halves can
+    # sit a decade down, while harmonic companions sit above the target (up
+    # to ratio_limit times it), which can reach two decades up.
     candidates = [
         _denormalize(sv, d) for d in range(decade - 1, decade + 3) for sv in E_SERIES[series]
     ]
@@ -154,9 +194,13 @@ def find_parallel_combo(
     if mode == "harmonic":
         # Harmonic parallel: R_par = R1*R2/(R1+R2)
         for v1 in candidates:
+            # R_par < min(R1, R2) always, so every value in a harmonic
+            # parallel pair must individually exceed the target; a v1 at or
+            # below it can never combine up to the target with any v2.
             if v1 <= target:
-                continue  # V1 must be > target for parallel to work
-            # Calculate V2 needed: V2 = V1*target/(V1-target); positive since v1 > target
+                continue
+            # Solve R_par = target for the exact companion:
+            # V2 = V1*target/(V1-target), positive because v1 > target.
             v2_needed = v1 * target / (v1 - target)
             v2, _ = find_closest_single(v2_needed, series)
             # Check ratio constraint

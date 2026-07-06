@@ -14,7 +14,9 @@ from .cli_aliases import (
     DEFAULT_RIPPLE_DB,
 )
 
-# Standard filter type choices (shared across all commands)
+# Standard filter type choices (shared across all commands). Must contain
+# the canonical names plus every key of cli_aliases.FILTER_TYPE_ALIASES —
+# argparse rejects anything not listed here before canonicalization runs.
 FILTER_TYPE_CHOICES = ["butterworth", "chebyshev", "bessel", "bw", "ch", "bs", "b", "c"]
 
 # Topology choices for LPF/HPF
@@ -76,7 +78,8 @@ def add_common_filter_args(parser: ArgumentParser) -> None:
         "--ripple",
         type=float,
         default=None,
-        help=f"Chebyshev ripple in dB (default: {DEFAULT_RIPPLE_DB}; ignored by other types)",
+        help=f"Chebyshev ripple in dB, 0 < r <= 3.0 (default: {DEFAULT_RIPPLE_DB}; "
+        "ignored by other types)",
     )
     parser.add_argument(
         "-n",
@@ -109,6 +112,16 @@ def add_eseries_args(parser: ArgumentParser) -> None:
     parser.add_argument("--no-match", action="store_true", help="Disable E-series matching")
 
 
+def add_sim_matched_arg(parser: ArgumentParser) -> None:
+    """Add the matched-value simulation flag (shared by LP/HP/BP)."""
+    parser.add_argument(
+        "--sim-matched",
+        action="store_true",
+        help="Simulate the circuit with E-series matched capacitor values and "
+        "report the measured response shift vs the exact design (table output)",
+    )
+
+
 def add_plot_args(parser: ArgumentParser) -> None:
     """Add plot-related arguments."""
     parser.add_argument("--plot", action="store_true", help="Show ASCII frequency response")
@@ -120,8 +133,14 @@ def add_plot_args(parser: ArgumentParser) -> None:
 def validate_filter_args(freq_hz: float, impedance: float, components: int) -> None:
     """Validate common filter arguments.
 
+    Args:
+        freq_hz: Cutoff/center frequency in Hz
+        impedance: Characteristic impedance in ohms
+        components: Filter order (component count)
+
     Raises:
-        ValueError: If any argument is invalid
+        ValueError: If frequency or impedance is non-positive, or
+            components is outside 2-9
     """
     if freq_hz <= 0:
         raise ValueError("Frequency must be positive")
@@ -144,15 +163,25 @@ def usage_error(args: Namespace, message: str) -> NoReturn:
 def resolve_ripple_arg(args: Namespace, filter_type: str) -> float:
     """Resolve the -r/--ripple sentinel default; warn when ignored.
 
+    Enforces the CLI-wide Chebyshev ripple ceiling of 3.0 dB: above
+    3.0103 dB the -3 dB "crossing" a threshold table reports is an in-band
+    ripple dip, not the band edge, so higher values produce misleading
+    output. The library layer stays permissive (> 0 only).
+
     Args:
         args: Parsed arguments (ripple is None unless explicitly supplied)
         filter_type: Canonical filter type
 
     Returns:
         Ripple in dB (the supplied value, or DEFAULT_RIPPLE_DB)
+
+    Raises:
+        ValueError: If a Chebyshev ripple above 3.0 dB was supplied.
     """
     if args.ripple is not None and filter_type != "chebyshev":
         print("Warning: ripple is only used by Chebyshev; ignoring", file=sys.stderr)
+    if filter_type == "chebyshev" and args.ripple is not None and args.ripple > 3.0:
+        raise ValueError("Ripple must be at most 3.0 dB")
     return args.ripple if args.ripple is not None else DEFAULT_RIPPLE_DB
 
 
