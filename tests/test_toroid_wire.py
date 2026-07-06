@@ -46,13 +46,18 @@ def test_default_awg_for_each_family():
 
 
 def test_t50_2_n10_awg22_wire_length():
-    """T50-2 N=10 AWG22 ~= 163 mm (Pythagorean)."""
+    """T50-2 N=10 AWG22 ≈ 170 mm.
+
+    Analytic: cross/turn = 2π·0.3219 + 2·4.83 + (12.7 − 7.7) = 16.68 mm,
+    ×10 turns = 166.8 mm; axial = π·(12.7+7.7)/2 = 32.04 mm;
+    √(166.8² + 32.04²) ≈ 169.9 mm.
+    """
     length = wire_length_mm(get_core("T50-2"), 10, 22)
-    assert 162 <= length <= 164
+    assert 169 <= length <= 171
 
 
 def test_t50_2_n10_awg22_dcr():
-    """T50-2 N=10 AWG22 DCR ~= 8.4 mOhm."""
+    """T50-2 N=10 AWG22 DCR ≈ 8.8 mOhm (169.9 mm of AWG22 copper at 20 C)."""
     length = wire_length_mm(get_core("T50-2"), 10, 22)
     r = dc_resistance_ohms(length, 22)
     assert 0.008 <= r <= 0.009

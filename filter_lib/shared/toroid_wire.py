@@ -35,7 +35,11 @@ _DEFAULT_AWG_BY_FAMILY: dict[str, int] = {
 
 
 def awg_to_diameter_mm(awg: int) -> float:
-    """Bare copper diameter from AWG (standard 0.127 * 92^((36-AWG)/39) formula)."""
+    """Bare copper diameter in mm from AWG (standard 0.127 * 92^((36-AWG)/39) formula).
+
+    Raises:
+        ValueError: If awg is outside [0, 50].
+    """
     if not 0 <= awg <= 50:
         raise ValueError(f"AWG out of range [0, 50]: {awg}")
     return 0.127 * (92 ** ((36 - awg) / 39))
@@ -52,7 +56,9 @@ def default_awg_for_core(core: ToroidCore) -> int:
 def max_turns(core: ToroidCore, awg: int) -> int:
     """Max single-layer turns that fit through the inner diameter.
 
-    Applies enamel factor (1.07 x diameter) and winding fill factor (0.9).
+    The inner circumference is the binding constraint — wire crowds at the
+    hole, not the outer rim. Applies enamel factor (1.07 x diameter) and
+    winding fill factor (0.9).
     """
     d_insulated = awg_to_diameter_mm(awg) * _ENAMEL_FACTOR
     inner_circumference = math.pi * core.id_mm
@@ -61,12 +67,19 @@ def max_turns(core: ToroidCore, awg: int) -> int:
 
 
 def wire_length_mm(core: ToroidCore, n: int, awg: int) -> float:
-    """Pythagorean (VK3CPU) wire-length including wire-radius contribution."""
+    """Pythagorean (VK3CPU) wire-length including wire-radius contribution.
+
+    Each turn wraps the rectangular core cross-section with the wire
+    centerline offset outward by the wire radius r: the two straight runs per
+    side are unchanged, and the four quarter-circle corner arcs of radius r
+    sum to one full circle, adding 2πr per turn. The Pythagorean combination
+    with the mean circumferential advance accounts for the helical path.
+    """
     if n <= 0:
         raise ValueError("n must be positive")
     r_wire = awg_to_diameter_mm(awg) / 2.0
     axial = math.pi * (core.od_mm + core.id_mm) / 2.0
-    cross = n * (4.0 * r_wire + 2.0 * core.height_mm + core.od_mm - core.id_mm)
+    cross = n * (2.0 * math.pi * r_wire + 2.0 * core.height_mm + core.od_mm - core.id_mm)
     return math.sqrt(axial**2 + cross**2)
 
 
