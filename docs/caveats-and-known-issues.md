@@ -199,6 +199,10 @@ For critical applications:
 
 Bessel highpass filters preserve linear phase in the passband but exhibit significant group delay at the cutoff edge. This is inherent to the Bessel response and more pronounced in highpass vs lowpass. Plan accordingly for phase-sensitive or timing-critical applications.
 
+### Bessel Bandpass Group Delay
+
+Bessel bandpass magnitude follows the prototype via the narrowband |δ| mapping (magnitude response is correct and simulation-verified), but the LP→BP transformation warps phase: group delay is NOT maximally flat across the passband. Since flat group delay is the usual reason to choose Bessel, verify group delay externally (e.g. SPICE) before building a phase-critical bandpass design.
+
 ---
 
 ## Toroid Recommendations (v1)
@@ -225,3 +229,31 @@ See `plan.md` "Deferred" section in the GH-6 plan directory for the full list.
 ### Unit-convention warning
 
 A_L values in the database are in **nH/turn²** (e.g. T50-2 = 4.9). The Amidon "µH per 100 turns²" convention uses numerically 10× larger values. The code uses nH/turn² exclusively. The upstream research doc's `N = 100·√(L/A_L)` formula is unit-mismatched for our database; the correct form is `N_ideal = √(1000·L[µH] / A_L[nH/turn²])`. A regression test locks this.
+
+---
+
+## Matched-Value Simulation (`--sim-matched`)
+
+### What it does
+
+The `--sim-matched` flag re-simulates the circuit with capacitors replaced by their recommended E-series standard (single or parallel combo) and inductors kept at their design values. Comparison block shows Exact (design) vs Matched (with E-series caps) response side-by-side with delta.
+
+### Assumptions
+
+- **Capacitors simulated as ideal** — no ESR/ESL; parallel combos treated as a single combined value
+- **Inductors kept exact** — not replaced by E-series matches (inductors are shown raw with toroid recommendations instead)
+- **No parasitic modeling** — does not account for component parasitics, PCB traces, or layout effects
+- **Only capacitor tolerance is modeled** — the tolerance reflected is the difference between design and E-series match, not the manufacturer's ±5% or ±10% tolerance
+
+### Simulation-proven range
+
+Bandpass matched simulation uses the same netlist solver and is valid for the same ≤10% fractional bandwidth range. Wider BW designs are simulated but response realization is not guaranteed.
+
+### When matched differs from exact
+
+E-series matching typically shifts the response:
+- **Passband**: ±1–3% typically; parallel combos track more closely
+- **Cutoff frequency**: ±0.5–2% typical for single-component matches
+- **Worst-case deviation**: worst-case passband magnitude ripple, shown in the delta column
+
+If the matched version shows unacceptable deviation, consider using a tighter E-series (E24 → E96) or parallel combinations.

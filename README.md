@@ -5,7 +5,7 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 ## Features
 
 - **Filter Types**: Lowpass (Pi/T topology), Highpass (Pi/T topology), Bandpass (top-C series coupling, netlist-simulated)
-- **Response Types**: Butterworth, Chebyshev (arbitrary 0–3 dB ripple), Bessel
+- **Response Types**: Butterworth, Chebyshev (arbitrary 0–3 dB ripple), Bessel. Chebyshev LP/HP cutoff is the ripple-band edge (ARRL/Elsie/Zverev convention), not the −3 dB point; bandpass `bw` is the true −3 dB bandwidth
 - **E-Series Matching**: Capacitors matched to E12/E24/E96 standard values with parallel combinations; inductors show design values with toroid recommendations
 - **End-Coupling Realization**: Bandpass external Q realized by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
 - **Netlist-Simulated Plots**: Bandpass frequency response generated from the synthesized circuit netlist with the built-in nodal-analysis solver (simulation-proven ≤10% FBW)
@@ -192,6 +192,8 @@ Default values shown as placeholders; press Enter with empty field to use defaul
 | `--no-toroids` | Suppress toroid recommendations in all output formats |
 | `--toroid-compact` | One-line-per-recommendation toroid text output (ignored for JSON/CSV) |
 | `--toroid-full` | Show top-3 toroid cores per inductor in table output (default top-1; JSON always top-3, CSV best match) |
+| `--sim-matched` | Re-simulate circuit with E-series matched capacitor values (inductors kept exact); displays matched vs exact comparison block |
+| `--qu` | Custom unloaded Q for Cohn insertion-loss estimate (bandpass only; default estimates at Qu=100, 250) |
 | `--version` | Print version and exit |
 
 ## Filter Type Aliases
@@ -243,7 +245,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** 1227 tests (94% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, toroid recommendations, and netlist-simulated bandpass validation. See [docs/testing.md](docs/testing.md) for details.
+**Test suite:** 1274 tests (95% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, toroid recommendations, and netlist-simulated bandpass validation. See [docs/testing.md](docs/testing.md) for details.
 
 ### Linting
 

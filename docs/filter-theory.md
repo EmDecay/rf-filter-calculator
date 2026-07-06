@@ -28,6 +28,12 @@ Background on filter types, response characteristics, and topologies.
 
 **Tradeoff**: Passband ripple may affect signal quality. Higher ripple = steeper rolloff.
 
+**Cutoff convention**: For Chebyshev LP/HP, the specified cutoff is the ripple-band
+edge (attenuation equals the ripple value at fc), matching ARRL Handbook / Elsie /
+Zverev tables — not the −3 dB point. The −3 dB frequency lies beyond fc for lowpass
+and below fc for highpass; the threshold table in plot output reports it. Bandpass
+`bw` is different: it is the true −3 dB bandwidth (what a VNA measures).
+
 **Note**: For bandpass Chebyshev filters, an odd number of resonators is required.
 
 ### Bessel (Maximally Flat Delay)
@@ -36,6 +42,8 @@ Background on filter types, response characteristics, and topologies.
 - Linear phase response in passband
 - Gentlest rolloff of the three types
 - Preserves waveform shape
+
+**Note**: The flat-group-delay property holds for the lowpass prototype. The LP→BP transformation warps phase, so a Bessel *bandpass* is not maximally flat in group delay — verify externally (e.g. SPICE) for phase-critical work.
 
 **Best for**: Data/pulse applications, digital communications, timing-critical signals.
 
@@ -170,12 +178,27 @@ Q_capacitor = 1 / (ωC × R_series)
 
 ### Minimum Q for Bandpass Filters
 
-The calculator displays minimum required Q based on:
+The calculator displays minimum usable Q (severe loss at this value) based on:
 ```
 Q_min = f₀ / BW × Q_safety
 ```
 
 Default safety factor is 2.0. Increase for better filter performance.
+
+**Cohn Insertion Loss Estimate** (v2.0.1):
+
+For circuits with low-loss (high-Q) components, insertion loss can be estimated using the Cohn formula:
+```
+IL (dB) ≈ 4.343 × Σgᵢ / (FBW_synth × Qu)
+```
+
+Where:
+- **Σgᵢ** = sum of normalized g-values for all resonators
+- **FBW_synth** = synthesized fractional bandwidth (may differ slightly from requested BW for Chebyshev)
+- **Qu** = unloaded Q of reactive components
+- **4.343** = conversion constant (dB = nepers × 4.343)
+
+The calculator estimates IL at Qu = 100 and Qu = 250 by default (typical values). Use `--qu` flag to estimate at a custom value.
 
 ### Practical Considerations
 

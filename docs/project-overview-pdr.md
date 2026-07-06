@@ -79,11 +79,13 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 **FR-1.2.1: Butterworth (Maximally Flat)**
 - Flat passband response
-- 3dB cutoff at specified frequency
+- -3 dB cutoff at specified frequency
 - -20n dB/decade rolloff (n = order)
 
 **FR-1.2.2: Chebyshev (Equiripple)**
 - Specified ripple in passband (default 0.5 dB)
+- LP/HP cutoff = ripple-band edge (attenuation = ripple at fc, per ARRL/Elsie/Zverev
+  convention); the -3 dB point lies beyond fc. Bandpass `bw` remains true -3 dB BW.
 - Steeper rolloff than Butterworth
 - Ripple parameter settable by user
 
@@ -389,7 +391,9 @@ Status: ✓ Verified with Q safety factor validation
 **AC-5.1.3: Frequency Response Accuracy**
 ```
 Test: Plot response, check -3dB point
-Expected: -3dB at specified cutoff frequency ±5%
+Expected: Butterworth/Bessel: -3dB at specified cutoff frequency ±5%.
+          Chebyshev LP/HP: attenuation = ripple at specified cutoff (ripple-band
+          edge convention); -3dB lies beyond fc for LP, below fc for HP.
 Status: ✓ Verified via transfer function evaluation
 ```
 

@@ -2,6 +2,10 @@
 
 Supports Butterworth, Chebyshev Type I, and Bessel responses via
 lowpass-prototype frequency transformation.
+
+Conventions: ``bw`` is always the user-facing true -3 dB bandwidth in Hz
+(for Chebyshev the internal deviation is rescaled so this holds); returned
+magnitudes are linear 0-1 unless a function says dB.
 """
 
 import math
@@ -34,6 +38,10 @@ def _bandpass_deviation(f: float, f0: float, bw: float) -> float:
     """Calculate normalized frequency deviation for bandpass.
 
     delta = (f^2 - f0^2) / (BW * f)
+
+    This is the standard LP→BP prototype mapping: delta plays the role of
+    the lowpass prototype's normalized frequency, with |delta| = 1 at the
+    passband edges and geometric symmetry about f0.
     """
     if f <= 0:
         raise ValueError("Frequency must be positive")
@@ -76,6 +84,10 @@ def magnitude_bessel(f: float, f0: float, bw: float, order: int) -> float:
     The normalized bandpass deviation maps directly onto the corresponding
     lowpass prototype variable, so the Bessel magnitude can be evaluated by
     reusing the normalized lowpass Bessel response.
+
+    Magnitude only: the LP→BP transformation does not preserve the Bessel
+    prototype's maximally-flat group delay, so passband phase linearity is
+    not guaranteed.
     """
     delta = abs(_bandpass_deviation(f, f0, bw))
     return lowpass_bessel_response(delta, 1.0, order)
@@ -87,6 +99,10 @@ def magnitude_db(
     """Return magnitude in dB for any supported filter type.
 
     Floored at -120 dB (shared convention with LP/HP responses).
+
+    Raises:
+        ValueError: If filter_type is not butterworth/chebyshev/bessel
+            (canonical names only — alias resolution happens in the CLI).
     """
     if filter_type == "butterworth":
         mag = magnitude_butterworth(f, f0, bw, order)
@@ -128,7 +144,9 @@ def frequency_sweep(
     if points < 2:
         raise ValueError("points must be >= 2 for a log sweep")
     if decades is None:
-        # Show 10x BW on each side of f0, converted to log scale
+        # Show 10x BW on each side of f0, converted to log scale. Clamp to
+        # [0.1, 1.0] decades so ultra-narrow filters still get a visible span
+        # and wide ones don't zoom out past the useful stopband detail.
         span = 10 * bw
         decades = math.log10((f0 + span) / f0)
         decades = max(0.1, min(1.0, decades))
@@ -219,6 +237,8 @@ def frequency_response(result: dict, freqs: list[float]) -> list[float]:
     bw = result["bw"]
     order = result["n_resonators"]
     filter_type = result["filter_type"]
+    # ripple_db is None in non-Chebyshev results; that is safe because only
+    # the Chebyshev branch of magnitude_db ever reads it.
     ripple_db = result.get("ripple_db", 0.5)
 
     return [magnitude_db(f, f0, bw, order, filter_type, ripple_db) for f in freqs]
