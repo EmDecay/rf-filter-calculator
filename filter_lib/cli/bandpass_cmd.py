@@ -17,6 +17,7 @@ from ..shared.cli_aliases import (
 )
 from ..shared.cli_helpers import (
     FREQ_SUFFIX_HELP,
+    add_sim_matched_arg,
     get_filter_type_arg,
     resolve_ripple_arg,
     usage_error,
@@ -98,6 +99,13 @@ def setup_parser(parser: ArgumentParser) -> None:
         default=DEFAULT_Q_SAFETY,
         help=f"Q safety factor (default: {DEFAULT_Q_SAFETY})",
     )
+    parser.add_argument(
+        "--qu",
+        type=float,
+        default=None,
+        help="Unloaded component Q for the insertion-loss estimate "
+        "(estimates at Qu=100/250 are always shown)",
+    )
 
     parser.add_argument(
         "--raw", action="store_true", help="Output raw values in scientific notation"
@@ -116,6 +124,7 @@ def setup_parser(parser: ArgumentParser) -> None:
         help=f"E-series (default: {DEFAULT_ESERIES})",
     )
     parser.add_argument("--no-match", action="store_true", help="Disable E-series matching")
+    add_sim_matched_arg(parser)
 
     parser.add_argument("--plot", action="store_true", help="Show ASCII frequency response")
     parser.add_argument(
@@ -129,7 +138,17 @@ def setup_parser(parser: ArgumentParser) -> None:
 
 
 def run(args: Namespace) -> None:
-    """Execute bandpass command."""
+    """Execute bandpass command.
+
+    Args:
+        args: Parsed Namespace from setup_parser()
+
+    Raises:
+        ValueError: For invalid numeric input or unrealizable designs;
+            cli.main() converts this to a clean stderr message. Usage-level
+            problems (missing filter type, coupling, or frequencies) exit via
+            argparse's usage error instead.
+    """
     filter_type = get_filter_type_arg(args)
     coupling = args.coupling_pos or args.coupling_flag
 
@@ -156,13 +175,15 @@ def run(args: Namespace) -> None:
 
     if args.q_safety <= 0:
         raise ValueError("Q safety factor must be positive")
+    if args.qu is not None and (not math.isfinite(args.qu) or args.qu <= 0):
+        raise ValueError("Qu must be positive and finite")
     if filter_type == "chebyshev":
         if args.resonators % 2 == 0:
             raise ValueError("Chebyshev requires odd resonator count")
+        # The 3.0 dB ripple ceiling is enforced upstream by resolve_ripple_arg
+        # (shared with LP/HP); only NaN/non-positive can reach this point.
         if not math.isfinite(ripple_db) or ripple_db <= 0:
             raise ValueError("Ripple must be positive and finite")
-        if ripple_db > 3.0:
-            raise ValueError("Ripple must be at most 3.0 dB")
 
     result = calculate_bandpass_filter(
         f0=f0,
@@ -171,12 +192,28 @@ def run(args: Namespace) -> None:
         n_resonators=args.resonators,
         filter_type=filter_type,
         coupling=coupling,
+        # Non-Chebyshev types ignore ripple but the parameter must still pass
+        # validation, so send the known-good default rather than user input.
         ripple_db=ripple_db if filter_type == "chebyshev" else DEFAULT_RIPPLE_DB,
         q_safety=args.q_safety,
+        qu=args.qu,
     )
 
     for w in result.get("warnings", []):
         print(f"Warning: {w}", file=sys.stderr)
+
+    if args.sim_matched and args.no_match:
+        usage_error(args, "--sim-matched requires E-series matching; remove --no-match")
+
+    matched_sim = None
+    # --plot-data short-circuits display_results before JSON formatting, so
+    # skip the (expensive) matched simulation on that path.
+    if args.sim_matched and args.format == "json" and not args.plot_data:
+        from ..shared.matched_simulation import matched_sim_json_payload, run_matched_simulation
+
+        matched_sim = matched_sim_json_payload(
+            run_matched_simulation(result, "bandpass", args.eseries)
+        )
 
     display_results(
         result,
@@ -189,14 +226,24 @@ def run(args: Namespace) -> None:
         include_toroids=not args.no_toroids,
         toroid_compact=args.toroid_compact,
         toroid_full=args.toroid_full,
+        matched_sim=matched_sim,
     )
+
+    if args.sim_matched and args.format == "table" and not args.quiet and not args.plot_data:
+        from ..shared.matched_simulation import format_matched_sim_block, run_matched_simulation
+
+        summary = run_matched_simulation(result, "bandpass", args.eseries)
+        print("\n".join(format_matched_sim_block(summary)))
 
 
 def _validate_frequencies(args: Namespace) -> tuple[float, float]:
     """Validate and compute f0, bw from input method.
 
-    Returns f0 (geometric center) and bw (passband width). The true -3 dB
-    edges are computed downstream by compute_bandpass_3db_edges.
+    Returns f0 (geometric center) and bw (passband width). f0 = sqrt(fl*fh)
+    rather than the arithmetic mean because the bandpass transfer function is
+    geometrically symmetric about f0 — with this choice the user's --fl/--fh
+    land exactly on the -3 dB edges recomputed downstream by
+    compute_bandpass_3db_edges.
     """
     has_center_bw = args.frequency and args.bandwidth
     has_low_high = args.f_low and args.f_high

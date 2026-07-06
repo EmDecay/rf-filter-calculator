@@ -39,6 +39,7 @@ def display_results(
     include_toroids: bool = True,
     toroid_compact: bool = False,
     toroid_full: bool = False,
+    matched_sim: dict[str, Any] | None = None,
 ) -> None:
     """Display calculated filter component values.
 
@@ -54,6 +55,8 @@ def display_results(
         toroid_compact: Use compact 1-line-per-rec text format
         toroid_full: Show top-3 cores in table output (default top-1;
             json/csv always carry top-3)
+        matched_sim: Optional matched-value simulation summary attached to
+            JSON output as an additive ``matched_sim`` key
     """
     # Handle plot data export (simulated from the synthesized circuit)
     if plot_data:
@@ -67,7 +70,14 @@ def display_results(
         return
 
     if output_format == "json":
-        print(format_json(result, eseries=eseries, include_toroids=include_toroids))
+        print(
+            format_json(
+                result,
+                eseries=eseries,
+                include_toroids=include_toroids,
+                matched_sim=matched_sim,
+            )
+        )
         return
     if output_format == "csv":
         print(format_csv(result, eseries=eseries, include_toroids=include_toroids), end="")
@@ -113,8 +123,11 @@ def _print_table_output(
         for w in result["warnings"]:
             print(f"  ⚠ {w}")
 
-    print(f"\nMinimum Component Q: {result['q_min']:.0f}")
+    print(f"\nMinimum usable Q (severe loss at this value): {result['q_min']:.0f}")
     print(f"  (Q safety factor: {result['q_safety']})")
+    il_line = format_insertion_loss_line(result)
+    if il_line:
+        print(il_line)
 
     _print_topology(result)
     _print_component_tables(result, raw, mention_toroids=include_toroids)
@@ -130,6 +143,21 @@ def _print_table_output(
         _print_frequency_response(result)
 
     print()
+
+
+def format_insertion_loss_line(result: BandpassResult) -> str:
+    """One-line Cohn insertion-loss summary, e.g.
+
+    ``Est. insertion loss (Cohn): 1.8 dB @ Qu=100, 0.7 dB @ Qu=250``
+
+    Returns an empty string when the result carries no il_estimates
+    (backward compatibility with older result dicts).
+    """
+    il_estimates = result.get("il_estimates")
+    if not il_estimates:
+        return ""
+    parts = [f"{il:.1f} dB @ Qu={qu}" for qu, il in il_estimates.items()]
+    return f"Est. insertion loss (Cohn): {', '.join(parts)}"
 
 
 def _print_toroid_block(result: BandpassResult, compact: bool, top_n: int = 1) -> None:
@@ -236,6 +264,8 @@ def _print_frequency_response(result: BandpassResult) -> None:
     """
     from ..shared.transfer_response_dispatch import make_bp_netlist_response_db
 
+    # ripple_db is None for non-Chebyshev results; the plot annotations still
+    # need a numeric ripple, so fall back to the 0.5 dB display default.
     ripple = result.get("ripple_db") or 0.5
     sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
     title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"

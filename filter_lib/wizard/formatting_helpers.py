@@ -1,15 +1,26 @@
 """Formatting helpers for wizard calculation output.
 
-Separated from calculation_handler.py for better organization.
-Contains table formatting functions for bandpass results display;
-LP/HP rendering goes through shared.lp_hp_display.
+Contains table formatting functions for bandpass results display; LP/HP
+rendering goes through shared.lp_hp_display instead, so only bandpass needs
+wizard-local formatters.
 """
 
 from .state import FilterState
 
 
 def format_bandpass_eseries_recs(result: dict, eseries: str) -> list[str]:
-    """Format E-series recommendations for bandpass capacitor values."""
+    """Format E-series recommendations for bandpass capacitor values.
+
+    Covers tank and coupling capacitors only — inductors are wound to value,
+    so they get no standard-value matching anywhere in this project.
+
+    Args:
+        result: Bandpass result dict from calculate_bandpass_filter
+        eseries: E-series name ("E12"/"E24"/"E96")
+
+    Returns:
+        Display lines listing each capacitor with its nearest standard match.
+    """
     from filter_lib.shared.display_helpers import format_eseries_match
     from filter_lib.shared.formatting import format_capacitance
 
@@ -35,7 +46,12 @@ def format_bandpass_eseries_recs(result: dict, eseries: str) -> list[str]:
 
 
 def _coupling_cap_items(result: dict) -> list[tuple[str, float]]:
-    """Coupling capacitors with end caps (when present) framing the Cs list."""
+    """Coupling capacitors with end caps (when present) framing the Cs list.
+
+    Ordering mirrors the physical circuit left-to-right (Ce_in, Cs12…, Ce_out)
+    so the table and E-series sections read in the same order as the topology
+    diagram.
+    """
     items: list[tuple[str, float]] = []
     if result.get("c_end_in") is not None:
         items.append(("Ce_in", result["c_end_in"]))
@@ -46,7 +62,16 @@ def _coupling_cap_items(result: dict) -> list[tuple[str, float]]:
 
 
 def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
-    """Format bandpass filter results as table."""
+    """Format bandpass filter results as table.
+
+    Args:
+        result: Bandpass result dict from calculate_bandpass_filter
+        state: Wizard state (consulted for the raw-units toggle)
+
+    Returns:
+        Display lines: design summary, warnings, Q figures, topology diagram,
+        and box-drawn component tables.
+    """
     from filter_lib.bandpass.diagrams import format_top_c_diagram
     from filter_lib.shared.formatting import format_capacitance, format_frequency, format_inductance
 
@@ -69,12 +94,21 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
         for w in result["warnings"]:
             lines.append(f"  ! {w}")
 
-    lines.append(f"\nMinimum Component Q: {result['q_min']:.0f}")
+    lines.append(f"\nMinimum usable Q (severe loss at this value): {result['q_min']:.0f}")
     lines.append(f"  (Q safety factor: {result['q_safety']})")
+
+    from filter_lib.bandpass.display import format_insertion_loss_line
+
+    il_line = format_insertion_loss_line(result)
+    if il_line:
+        lines.append(il_line)
 
     lines.append("\nTopology:")
     lines.append(format_top_c_diagram(result["n_resonators"]))
 
+    # 24-char box-drawing rule; cell contents below are padded to 22 chars
+    # plus one space each side, so changing one width without the other
+    # breaks the table borders.
     n = result["n_resonators"]
     h24 = "\u2500" * 24
     lines.append(f"\n{'Component Values':^50}")

@@ -15,6 +15,7 @@ from filter_lib.bandpass.calculations import (
     calculate_external_q,
     calculate_resonator_components,
     calculate_tank_capacitors,
+    estimate_insertion_loss,
 )
 from filter_lib.bandpass.transfer import magnitude_db
 
@@ -398,6 +399,69 @@ class TestBandpassEdgeCases:
         """End-coupling deltas exceeding the tank capacitance raise a clear error."""
         with pytest.raises(ValueError, match="Bandwidth too wide"):
             calculate_bandpass_filter(10e6, 9e6, 50, 3, "butterworth", "top")
+
+
+class TestInsertionLoss:
+    """Cohn dissipation-loss estimate: IL ≈ 4.343·Σg/(FBW_synth·Qu) dB."""
+
+    def test_butterworth_n3_spot_value(self):
+        """n=3 Butterworth (g = 1, 2, 1 → Σg = 4), FBW=5%, Qu=100 → 3.47 dB."""
+        g_values = [1.0, 2.0, 1.0]
+        il = estimate_insertion_loss(g_values, 0.05, 100.0)
+        assert il == pytest.approx(4.343 * 4.0 / (0.05 * 100.0), abs=1e-2)
+
+    @pytest.mark.parametrize("qu", [0.0, -1.0, float("inf"), float("nan")])
+    def test_invalid_qu_rejected(self, qu):
+        with pytest.raises(ValueError, match="must be positive and finite"):
+            estimate_insertion_loss([1.0, 2.0, 1.0], 0.05, qu)
+
+    def test_result_dict_standard_estimates(self):
+        """il_estimates carries the standard Qu=100/250 entries; q_min unchanged."""
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top")
+        assert set(result["il_estimates"]) == {"100", "250"}
+        expected_100 = 4.343 * sum(result["g_values"]) / (result["fbw_synth"] * 100.0)
+        assert result["il_estimates"]["100"] == pytest.approx(expected_100)
+        # IL scales as 1/Qu
+        assert result["il_estimates"]["250"] == pytest.approx(expected_100 * 100.0 / 250.0)
+        assert result["q_min"] > 0
+
+    def test_user_qu_adds_entry(self):
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=150.0)
+        assert set(result["il_estimates"]) == {"100", "250", "150"}
+
+    def test_user_qu_duplicate_of_standard_not_repeated(self):
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=100.0)
+        assert set(result["il_estimates"]) == {"100", "250"}
+
+    def test_user_qu_rendering_like_standard_keeps_standard_entry(self):
+        """A user Qu whose "%g" rendering collides with a standard key must not
+        overwrite the standard estimate."""
+        result = calculate_bandpass_filter(
+            10e6, 0.5e6, 50, 3, "butterworth", "top", qu=249.9999999999
+        )
+        assert set(result["il_estimates"]) == {"100", "250"}
+        expected_250 = 4.343 * sum(result["g_values"]) / (result["fbw_synth"] * 250.0)
+        assert result["il_estimates"]["250"] == pytest.approx(expected_250)
+
+    def test_invalid_qu_in_calculate_rejected(self):
+        with pytest.raises(ValueError, match="must be positive and finite"):
+            calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=0.0)
+
+    def test_fbw_synth_butterworth_equals_fbw(self):
+        """Butterworth |delta|=1 is already the -3 dB edge, so no rescaling."""
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top")
+        assert result["fbw_synth"] == pytest.approx(result["fbw"])
+
+    def test_fbw_synth_chebyshev_narrower_than_fbw(self):
+        """Chebyshev ripple edge is narrower than the -3 dB BW (delta_3dB > 1)."""
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=0.5)
+        assert result["fbw_synth"] < result["fbw"]
+
+    def test_chebyshev_il_uses_fbw_synth(self):
+        """IL is computed against the prototype-mapped FBW, not the user's -3 dB FBW."""
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=0.5)
+        expected = 4.343 * sum(result["g_values"]) / (result["fbw_synth"] * 100.0)
+        assert result["il_estimates"]["100"] == pytest.approx(expected)
 
 
 class TestBandpass3dBEdges:

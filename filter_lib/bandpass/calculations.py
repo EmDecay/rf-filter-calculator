@@ -21,11 +21,14 @@ BandpassResult = dict[str, Any]
 def calculate_coupling_coefficients(g_values: list[float], fbw: float) -> list[float]:
     """Calculate inter-resonator coupling coefficients.
 
-    Formula: k[i,i+1] = FBW / sqrt(g[i] * g[i+1])
+    Cohn's coupled-resonator relation (Cohn 1957; Matthaei/Young/Jones):
+    k[i,i+1] = FBW / sqrt(g[i] * g[i+1]). Callers pass the synthesis FBW
+    (``fbw_synth``, δ₃dB-scaled for Chebyshev) so k tracks the prototype's
+    passband-edge convention.
 
     Args:
-        g_values: Prototype g-values [g1, g2, ..., gn]
-        fbw: Fractional bandwidth (BW/f0)
+        g_values: Prototype g-values [g1, g2, ..., gn] (list index 0 = g1)
+        fbw: Fractional bandwidth (BW/f0, dimensionless)
 
     Returns:
         List of coupling coefficients [k12, k23, ..., k_{n-1,n}]
@@ -37,11 +40,12 @@ def calculate_external_q(g_values: list[float], fbw: float) -> tuple[float, floa
     """Calculate external Q factors for input/output coupling.
 
     Assumes equal source/load terminations, so g0 = g_{n+1} = 1 and:
-    Qe_in = g1/FBW, Qe_out = gn/FBW.
+    Qe_in = g1/FBW, Qe_out = gn/FBW (Matthaei/Young/Jones). As with the
+    coupling coefficients, callers pass the synthesis FBW (``fbw_synth``).
 
     Args:
         g_values: Prototype g-values [g1, g2, ..., gn]
-        fbw: Fractional bandwidth
+        fbw: Fractional bandwidth (BW/f0, dimensionless)
 
     Returns:
         Tuple (Qe_in, Qe_out)
@@ -52,12 +56,16 @@ def calculate_external_q(g_values: list[float], fbw: float) -> tuple[float, floa
 def calculate_resonator_components(f0: float, z0: float) -> tuple[float, float]:
     """Calculate parallel LC tank components for center frequency.
 
+    Chooses the tank reactance equal to z0 at f0 (L = z0/ω0, C = 1/(ω0·z0)),
+    a conventional starting point that keeps component values practical and
+    makes every tank identical before coupling compensation.
+
     Args:
         f0: Center frequency in Hz
         z0: System impedance in Ohms
 
     Returns:
-        Tuple (L in Henries, C in Farads)
+        Tuple (L in Henries, C in Farads) satisfying ω0² = 1/(L·C)
     """
     omega0 = 2 * math.pi * f0
     return z0 / omega0, 1 / (omega0 * z0)
@@ -66,7 +74,9 @@ def calculate_resonator_components(f0: float, z0: float) -> tuple[float, float]:
 def calculate_coupling_capacitors(k_values: list[float], c_resonant: float) -> list[float]:
     """Calculate Top-C inter-resonator coupling capacitors.
 
-    Formula: Cs[i] = k[i] * C_resonant
+    Narrowband capacitive-coupling relation Cs[i] = k[i] * C_resonant
+    (Cohn 1957): for identical shunt tanks the coupling coefficient of a
+    series capacitor between resonator nodes is Cs/C to first order.
 
     Args:
         k_values: Coupling coefficients [k12, k23, ...]
@@ -83,8 +93,11 @@ def calculate_tank_capacitors(
 ) -> list[float]:
     """Calculate compensated tank capacitors.
 
-    Tank capacitors are reduced to account for coupling capacitor effects.
-    Formula: Cp[i] = C_resonant - Cs[i-1] - Cs[i]
+    Each coupling capacitor appears (to first order) in shunt with the tanks
+    on both of its sides, so it would pull the resonators below f0. Absorb it
+    by shrinking the tank caps: Cp[i] = C_resonant - Cs[i-1] - Cs[i] (end
+    tanks lose only their single neighbor). Skipping this compensation shifts
+    the realized center frequency visibly even at modest FBW.
 
     Args:
         n_resonators: Number of resonators
@@ -111,17 +124,37 @@ def calculate_end_coupling(
     """Series end-coupling capacitor that realizes an external Q at a resistive port.
 
     The end resonator must see a parallel resistance Rp = Qe·ω0·L to be loaded
-    to its designed external Q. A series capacitor acts as an impedance
-    transformer stepping the port resistance up: Rp = Z0·(1 + q²) with
-    transformation Q given by q = 1/(ω0·Z0·Ce).
+    to its designed external Q. The port itself presents only Z0, so the series
+    capacitor Ce is used as an impedance transformer (Matthaei/Young/Jones
+    capacitive-gap coupling; Zverev 1967).
+
+    Derivation via the standard series→parallel RC transformation: the port
+    Z0 in series with Ce has quality factor q = Xc/Z0 = 1/(ω0·Z0·Ce). Viewed
+    from the tank, that series branch is equivalent to a parallel combination
+
+        Rp = Z0·(1 + q²)      (resistance stepped up by the transformation)
+        Cp = Ce·q²/(1 + q²)   (slightly smaller capacitance, now in shunt)
+
+    Setting Rp = Qe·ω0·L and solving gives q = sqrt(Rp/Z0 - 1), hence
+    Ce = 1/(ω0·Z0·q). The parallel-equivalent Cp lands directly across the
+    end tank, detuning it low; the caller must subtract ΔC = Cp from the end
+    tank capacitor or the resonator drifts off f0 and the passband skews.
+
+    Args:
+        qe: External Q the end resonator must present (dimensionless)
+        omega0: Center angular frequency in rad/s (2π·f0)
+        l_resonant: Resonator tank inductance in Henries
+        z0: Port (source/load) resistance in Ohms
 
     Returns:
-        Tuple (Ce, ΔC): the series end capacitor and its series-equivalent
-        capacitance ΔC = Ce·q²/(1+q²) that appears across the tank and must
-        be subtracted from the end tank capacitor to keep it on frequency.
+        Tuple (Ce, ΔC) in Farads: the series end capacitor and its
+        parallel-equivalent capacitance ΔC = Ce·q²/(1+q²) that must be
+        absorbed into the end tank capacitor to keep it resonant at f0.
 
     Raises:
-        ValueError: when Rp <= Z0 (no real transformation Q exists).
+        ValueError: when Rp <= Z0 — the transformation can only step the
+            port resistance up, so no real q exists; this happens when the
+            fractional bandwidth is too wide for the chosen impedance/order.
     """
     rp = qe * omega0 * l_resonant
     if rp <= z0:
@@ -135,8 +168,46 @@ def calculate_end_coupling(
     return ce, delta_c
 
 
+# Representative unloaded-Q values for the insertion-loss table: ~100 is
+# typical for iron-powder toroids, ~250 for good air-core coils at HF.
+STANDARD_QU_VALUES: tuple[float, ...] = (100.0, 250.0)
+
+
+def estimate_insertion_loss(g_values: list[float], fbw_synth: float, qu: float) -> float:
+    """Estimate midband insertion loss from uniform finite resonator Q.
+
+    Cohn's dissipation-loss formula ("Dissipation Loss in Multiple-Coupled-
+    Resonator Filters", Proc. IRE 47, 1959):
+
+        IL ≈ 4.343 · Σgᵢ / (FBW_synth · Qu)  dB
+
+    ``fbw_synth`` is the prototype-mapped fractional bandwidth (for Chebyshev
+    the δ₃dB-scaled value), keeping the estimate consistent with the k/Qe
+    synthesis. The formula assumes uniform Qu across resonators and narrowband
+    coupling; treat the result as an estimate, not a measurement.
+
+    Args:
+        g_values: Prototype g-values [g1, g2, ..., gn]
+        fbw_synth: Synthesis fractional bandwidth (prototype-mapped BW/f0)
+        qu: Unloaded component Q (must be positive and finite)
+
+    Returns:
+        Estimated insertion loss in dB.
+
+    Raises:
+        ValueError: If qu is not positive and finite.
+    """
+    if not math.isfinite(qu) or qu <= 0:
+        raise ValueError("Qu must be positive and finite")
+    return 4.343 * sum(g_values) / (fbw_synth * qu)
+
+
 def calculate_min_q(f0: float, bw: float, safety_factor: float = 2.0) -> float:
     """Calculate minimum component Q requirement.
+
+    f0/bw is the filter's loaded Q; components whose unloaded Q is only at
+    that level dissipate most of the signal. The safety factor sets how far
+    above loaded Q the components must be for acceptable insertion loss.
 
     Args:
         f0: Center frequency in Hz
@@ -144,7 +215,7 @@ def calculate_min_q(f0: float, bw: float, safety_factor: float = 2.0) -> float:
         safety_factor: Design margin multiplier (default 2.0)
 
     Returns:
-        Minimum required component Q
+        Minimum required component Q (dimensionless)
     """
     return (f0 / bw) * safety_factor
 
@@ -161,6 +232,16 @@ def compute_bandpass_3db_edges(f0: float, bw: float) -> tuple[float, float]:
     These edges satisfy f_high - f_low = BW and f0 = sqrt(f_low * f_high)
     (geometric centering), which differs from the arithmetic shortcut f0 ± BW/2
     for wider fractional bandwidths.
+
+    Args:
+        f0: Center frequency in Hz
+        bw: -3 dB bandwidth in Hz
+
+    Returns:
+        Tuple (f_low, f_high) in Hz.
+
+    Raises:
+        ValueError: If f0 or bw is non-positive or non-finite.
     """
     if not math.isfinite(f0) or f0 <= 0:
         raise ValueError("f0 must be positive and finite")
@@ -204,7 +285,11 @@ def _validate_inputs(
 
 
 def _get_fbw_warnings(fbw: float) -> list[str]:
-    """Generate FBW-related warnings."""
+    """Warnings for fractional bandwidths beyond the trusted design range.
+
+    10% is the ceiling of the simulation-validated range for Top-C synthesis;
+    40% is where the lumped narrowband approximation itself breaks down.
+    """
     warnings: list[str] = []
     if fbw > 0.10:
         warnings.append(
@@ -225,28 +310,39 @@ def calculate_bandpass_filter(
     coupling: str,
     ripple_db: float = 0.5,
     q_safety: float = 2.0,
+    qu: float | None = None,
 ) -> BandpassResult:
     """Calculate complete bandpass filter component values.
 
     Args:
         f0: Center frequency in Hz
-        bw: 3dB bandwidth in Hz
+        bw: True -3 dB bandwidth in Hz for every filter type — including
+            Chebyshev, where the ripple-edge BW is derived internally
         z0: System impedance in Ohms
-        n_resonators: Number of resonators (2-9)
+        n_resonators: Number of resonators (2-9; odd only for Chebyshev)
         filter_type: 'butterworth', 'chebyshev', or 'bessel'
         coupling: 'top' (series capacitive coupling; the only supported kind)
         ripple_db: Chebyshev passband ripple in dB, in (0, 3.0]
         q_safety: Q safety factor multiplier
+        qu: Optional user-supplied unloaded component Q; adds an entry to the
+            il_estimates mapping alongside the standard Qu values
 
     Returns:
-        Dict containing all filter parameters and component values
+        Dict with synthesis inputs and component values (L/C in Henries/
+        Farads). Note the two fractional-BW keys: ``fbw`` is the user-facing
+        bw/f0, while ``fbw_synth`` is the prototype-mapped value used for
+        k/Qe synthesis (δ₃dB-scaled down for Chebyshev, identical otherwise).
 
     Raises:
-        ValueError: If invalid parameters provided
+        ValueError: If invalid parameters provided, or if the requested
+            bandwidth cannot be realized (negative tank capacitors or
+            unrealizable end coupling).
     """
     _validate_inputs(f0, bw, z0, n_resonators, filter_type, coupling)
     if not math.isfinite(q_safety) or q_safety <= 0:
         raise ValueError("q_safety must be positive and finite")
+    if qu is not None and (not math.isfinite(qu) or qu <= 0):
+        raise ValueError("Qu must be positive and finite")
     if filter_type == "chebyshev":
         if not math.isfinite(ripple_db) or ripple_db <= 0:
             raise ValueError("ripple_db must be positive and finite for Chebyshev")
@@ -256,7 +352,6 @@ def calculate_bandpass_filter(
     fbw = bw / f0
     warnings = _get_fbw_warnings(fbw)
 
-    # Get prototype g-values
     g_values = get_g_values(filter_type, n_resonators, ripple_db)
 
     # Cohn synthesis treats fbw as the prototype passband-edge fractional BW
@@ -270,14 +365,11 @@ def calculate_bandpass_filter(
 
         fbw_synth = fbw / chebyshev_3db_deviation(n_resonators, ripple_db)
 
-    # Calculate coupling and external Q
     k_values = calculate_coupling_coefficients(g_values, fbw_synth)
     qe_in, qe_out = calculate_external_q(g_values, fbw_synth)
 
-    # Calculate resonator components
     L_resonant, C_resonant = calculate_resonator_components(f0, z0)
 
-    # Calculate coupling and tank capacitors
     c_coupling = calculate_coupling_capacitors(k_values, C_resonant)
     c_tank = calculate_tank_capacitors(n_resonators, C_resonant, c_coupling)
 
@@ -292,7 +384,9 @@ def calculate_bandpass_filter(
     c_tank[0] -= delta_c_in
     c_tank[-1] -= delta_c_out
 
-    # Check for negative tank capacitors
+    # Coupling and end-cap absorption both shrink the tank caps; at wide FBW
+    # they can consume the entire tank capacitance. A non-positive Cp is
+    # physically unrealizable, so reject rather than emit garbage values.
     negative_caps = [(i + 1, ct) for i, ct in enumerate(c_tank) if ct <= 0]
     if negative_caps:
         cap_list = ", ".join([f"Cp{i}" for i, _ in negative_caps])
@@ -303,12 +397,24 @@ def calculate_bandpass_filter(
 
     f_low, f_high = compute_bandpass_3db_edges(f0, bw)
 
+    # Insertion-loss estimates at the standard Qu values plus the user's Qu
+    # when supplied. Keys are "%g"-formatted so JSON output reads naturally
+    # (e.g. {"100": 1.85, "250": 0.74}). Deduplicate on the formatted key,
+    # not float equality, so a user Qu that renders identically (e.g.
+    # 249.9999999 → "250") cannot silently overwrite a standard entry.
+    il_estimates = {
+        f"{q:g}": estimate_insertion_loss(g_values, fbw_synth, q) for q in STANDARD_QU_VALUES
+    }
+    if qu is not None and f"{qu:g}" not in il_estimates:
+        il_estimates[f"{qu:g}"] = estimate_insertion_loss(g_values, fbw_synth, qu)
+
     return {
         "f0": f0,
         "f_low": f_low,
         "f_high": f_high,
         "bw": bw,
         "fbw": fbw,
+        "fbw_synth": fbw_synth,
         "z0": z0,
         "n_resonators": n_resonators,
         "filter_type": filter_type,
@@ -326,5 +432,6 @@ def calculate_bandpass_filter(
         "c_end_in": c_end_in,
         "c_end_out": c_end_out,
         "q_min": calculate_min_q(f0, bw, q_safety),
+        "il_estimates": il_estimates,
         "warnings": warnings,
     }

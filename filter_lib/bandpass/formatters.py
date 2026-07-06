@@ -46,6 +46,7 @@ def format_json(
     result: BandpassResult,
     eseries: str | None = None,
     include_toroids: bool = True,
+    matched_sim: dict[str, Any] | None = None,
 ) -> str:
     """Format results as JSON.
 
@@ -53,6 +54,8 @@ def format_json(
         result: Dict from calculate_bandpass_filter()
         eseries: E-series name (None disables matching)
         include_toroids: Attach resonator_toroid_recommendations top-level field
+        matched_sim: Optional matched-value simulation summary (additive
+            top-level ``matched_sim`` key when present)
 
     Returns:
         JSON formatted string
@@ -68,6 +71,7 @@ def format_json(
         "impedance_ohms": result["z0"],
         "n_resonators": result["n_resonators"],
         "q_min": result["q_min"],
+        "il_estimates": result.get("il_estimates", {}),
         "components": {
             "tank_capacitors": [
                 _bandpass_json_component(f"Cp{i + 1}", v, "value_farads", eseries, "additive")
@@ -106,13 +110,20 @@ def format_json(
     if include_toroids:
         recs = recommend_cores(result["L_resonant"], result["f0"])
         output["resonator_toroid_recommendations"] = build_json_recommendations(recs)
+    if matched_sim is not None:
+        output["matched_sim"] = matched_sim
     return json.dumps(output, indent=2)
 
 
 def _bandpass_json_component(
     name: str, value: float, unit_key: str, eseries: str | None, parallel_mode: str
 ) -> dict[str, Any]:
-    """Build one JSON component entry for bandpass export."""
+    """Build one JSON component entry for bandpass export.
+
+    Only capacitor entries (unit_key == "value_farads") receive a
+    standard_match block — inductors are wound to value, never E-series
+    matched — so parallel_mode is meaningful only for capacitors.
+    """
     component: dict[str, Any] = {"name": name, unit_key: value}
     if eseries and unit_key == "value_farads":
         component["standard_match"] = build_standard_match(value, eseries, unit_key, parallel_mode)
@@ -127,6 +138,8 @@ def _csv_match_fields(
         return []
 
     match = match_component(value, eseries, parallel_mode=parallel_mode)
+    # Shared formatters always emit "<number> <unit>" (e.g. "3.3 nF"), so
+    # rsplit on the final space splits value from unit for separate columns.
     nearest_fmt = formatter(match.single_value)
     nearest_val, nearest_unit = nearest_fmt.rsplit(" ", 1)
 
@@ -182,6 +195,10 @@ def format_csv(
     writer.writerow(header)
     n_toroid_cols = len(CSV_TOROID_HEADER)
 
+    # Toroid columns apply only to inductor rows (inductors are wound on
+    # cores; capacitors are purchased parts). All resonators share L_resonant,
+    # so one recommendation is computed and repeated per L row; capacitor
+    # rows get blank padding to keep the CSV rectangular.
     toroid_cols: list[str] = []
     if include_toroids:
         recs = recommend_cores(result["L_resonant"], result["f0"])

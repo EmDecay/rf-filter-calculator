@@ -206,6 +206,7 @@ def _lp_args(**overrides):
         explain=False,
         eseries="E24",
         no_match=True,
+        sim_matched=False,
         plot=False,
         plot_data=None,
         no_toroids=True,
@@ -235,6 +236,7 @@ def _hp_args(**overrides):
         explain=False,
         eseries="E24",
         no_match=True,
+        sim_matched=False,
         plot=False,
         plot_data=None,
         no_toroids=True,
@@ -261,12 +263,14 @@ def _bp_args(**overrides):
         resonators=3,
         ripple=None,
         q_safety=2.0,
+        qu=None,
         raw=False,
         format="table",
         quiet=True,
         explain=False,
         eseries="E24",
         no_match=True,
+        sim_matched=False,
         plot=False,
         plot_data=None,
         no_toroids=True,
@@ -314,6 +318,18 @@ class TestLowpassCmd:
         data = json.loads(capsys.readouterr().out)
         assert "capacitors" in data or "filter_type" in data
 
+    def test_chebyshev_ripple_at_ceiling_accepted(self, capsys):
+        lowpass_run(_lp_args(filter_type="chebyshev", ripple=3.0))
+        assert capsys.readouterr().out
+
+    def test_chebyshev_ripple_above_ceiling_rejected(self):
+        with pytest.raises(ValueError, match="at most 3.0 dB"):
+            lowpass_run(_lp_args(filter_type="chebyshev", ripple=3.01))
+
+    def test_chebyshev_ripple_below_ceiling_unchanged(self, capsys):
+        lowpass_run(_lp_args(filter_type="chebyshev", ripple=0.5))
+        assert capsys.readouterr().out
+
 
 class TestHighpassCmd:
     def test_butterworth_t(self, capsys):
@@ -343,6 +359,14 @@ class TestHighpassCmd:
     def test_explain(self, capsys):
         highpass_run(_hp_args(explain=True))
         assert capsys.readouterr().out
+
+    def test_chebyshev_ripple_at_ceiling_accepted(self, capsys):
+        highpass_run(_hp_args(filter_type="chebyshev", ripple=3.0))
+        assert capsys.readouterr().out
+
+    def test_chebyshev_ripple_above_ceiling_rejected(self):
+        with pytest.raises(ValueError, match="at most 3.0 dB"):
+            highpass_run(_hp_args(filter_type="chebyshev", ripple=3.01))
 
 
 class TestBandpassCmd:
@@ -412,6 +436,29 @@ class TestBandpassCmd:
     def test_fl_fh_method(self, capsys):
         bandpass_run(_bp_args(frequency=None, bandwidth=None, f_low="14MHz", f_high="14.35MHz"))
         assert capsys.readouterr().out
+
+    def test_il_estimates_shown_in_table(self, capsys):
+        bandpass_run(_bp_args(quiet=False))
+        out = capsys.readouterr().out
+        assert "Est. insertion loss (Cohn):" in out
+        assert "Qu=100" in out and "Qu=250" in out
+        assert "Minimum usable Q (severe loss at this value):" in out
+        assert "Minimum Component Q" not in out
+
+    def test_qu_adds_third_il_entry(self, capsys):
+        bandpass_run(_bp_args(quiet=False, qu=150.0))
+        assert "Qu=150" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("qu", [0.0, -5.0, float("inf"), float("nan")])
+    def test_invalid_qu_rejected(self, qu):
+        with pytest.raises(ValueError, match="must be positive and finite"):
+            bandpass_run(_bp_args(qu=qu))
+
+    def test_json_carries_il_estimates(self, capsys):
+        bandpass_run(_bp_args(quiet=False, format="json"))
+        payload = json.loads(capsys.readouterr().out)
+        assert set(payload["il_estimates"]) == {"100", "250"}
+        assert payload["q_min"] > 0
 
 
 # --- Flag combination tests ---
