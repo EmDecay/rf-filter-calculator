@@ -6,29 +6,107 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  quality:
+    name: Ruff quality
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-    - uses: astral-sh/setup-uv@v4
-      with:
-        enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.13"
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-suffix: quality
 
-    - name: Install dependencies
-      run: uv sync --group dev
+      - name: Install dependencies
+        run: uv sync --locked --group dev
 
-    - name: Lint
-      run: uv run ruff check .
+      - name: Lint
+        run: uv run --locked ruff check .
 
-    - name: Check formatting
-      run: uv run ruff format --check .
+      - name: Check formatting
+        run: uv run --locked ruff format --check .
 
-    - name: Run tests
-      run: uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-suffix: py${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --locked --group dev
+
+      - name: Run full test suite with coverage
+        run: >-
+          uv run --locked pytest tests/
+          --cov=filter_lib
+          --cov-report=term-missing
+          --cov-report=xml
+          --cov-fail-under=90
+
+  package:
+    name: Build and smoke distributions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [quality, test]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-suffix: package
+
+      - name: Install test dependencies
+        run: uv sync --locked --group dev
+
+      - name: Build wheel and source distribution
+        run: uv build
+
+      - name: Verify distribution archives
+        env:
+          RF_FILTER_DIST_DIR: ${{ github.workspace }}/dist
+        run: uv run --locked pytest tests/test_packaging.py
+
+      - name: Smoke installed wheel
+        run: python tests/wheel_smoke.py dist/*.whl
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: rf-filter-calculator-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
