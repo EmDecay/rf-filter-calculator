@@ -67,10 +67,11 @@ def bp_result():
 def test_lp_table_includes_toroid_block(lp_result, capsys):
     lp_display(lp_result, output_format="table", show_plot=False, show_match=False)
     out = capsys.readouterr().out
-    assert "Toroid Winding Recommendations" in out
+    assert "Screened Toroid Winding Candidates" in out
     assert "L1 target:" in out
     assert "L2 target:" in out
-    assert "Q (DC est, upper bound)" in out
+    assert "Wire-only ωL/Rdc ceiling" in out
+    assert "RF Q: not assessed" in out
 
 
 def test_lp_table_defaults_to_single_core_per_inductor(lp_result, capsys):
@@ -96,24 +97,28 @@ def test_bp_table_defaults_to_single_core(bp_result, capsys):
     assert "  2. " not in out
 
 
-def test_bp_table_toroid_full_shows_multiple_cores(bp_result, capsys):
+def test_bp_table_toroid_full_shows_only_qualified_cores(bp_result, capsys):
     bp_display(bp_result, output_format="table", show_plot=False, eseries=None, toroid_full=True)
     out = capsys.readouterr().out
     assert "  1. " in out
-    assert "  2. " in out
+    # At this target, only one primary-sourced core has an integer-turn error
+    # within its published A_L tolerance. Full mode must not resurrect a poor
+    # nominal match merely to fill the requested list.
+    assert "  2. " not in out
 
 
 def test_lp_table_compact_single_line_per_rec(lp_result, capsys):
     lp_display(lp_result, output_format="table", show_match=False, toroid_compact=True)
     out = capsys.readouterr().out
-    assert "Toroid Winding Recommendations" in out
-    assert "Q≈" in out  # compact uses shorthand
+    assert "Screened Toroid Winding Candidates" in out
+    assert "Q≈" not in out
+    assert "ωL/Rdc≤" in out
 
 
 def test_lp_table_no_toroids_omits_block(lp_result, capsys):
     lp_display(lp_result, output_format="table", show_match=False, include_toroids=False)
     out = capsys.readouterr().out
-    assert "Toroid Winding Recommendations" not in out
+    assert "Screened Toroid Winding Candidates" not in out
     assert "see toroid recommendations" not in out
     assert "Inductors: wind to value" in out
 
@@ -138,7 +143,8 @@ def test_lp_csv_includes_toroid_columns(lp_result, capsys):
     out = capsys.readouterr().out
     header = next(_csv.reader(io.StringIO(out)))
     assert "ToroidCore" in header
-    assert "ToroidQ_DC_Upper" in header
+    assert "ToroidWireDCRReactanceRatioCeiling" in header
+    assert "ToroidRFQStatus" in header
 
 
 def test_lp_csv_no_toroids_matches_pre_feature(lp_result, capsys):
@@ -167,7 +173,7 @@ def test_lp_quiet_suppresses_toroid_text(lp_result, capsys):
     """--quiet skips toroid TEXT block (JSON/CSV unaffected)."""
     lp_display(lp_result, output_format="table", quiet=True, show_match=False)
     out = capsys.readouterr().out
-    assert "Toroid Winding Recommendations" not in out
+    assert "Screened Toroid Winding Candidates" not in out
 
 
 def test_lp_no_toroids_precedence_over_compact(lp_result, capsys):
@@ -204,7 +210,7 @@ def test_lp_out_of_range_freq_friendly_message(capsys):
 def test_hp_table_includes_toroid_block(hp_result, capsys):
     hp_display(hp_result, output_format="table", show_plot=False, show_match=False)
     out = capsys.readouterr().out
-    assert "Toroid Winding Recommendations" in out
+    assert "Screened Toroid Winding Candidates" in out
     assert "L1 target:" in out
 
 
@@ -218,7 +224,7 @@ def test_hp_json_has_toroid_recommendations(hp_result, capsys):
 def test_bp_table_single_shared_block(bp_result, capsys):
     bp_display(bp_result, output_format="table", eseries=None, show_plot=False)
     out = capsys.readouterr().out
-    assert "Toroid Winding Recommendations" in out
+    assert "Screened Toroid Winding Candidates" in out
     assert "L_resonant (applies to L1…L" in out
 
 
@@ -260,7 +266,7 @@ def test_bp_csv_no_toroids_drops_columns(bp_result, capsys):
 def test_bp_table_no_toroids_omits_dangling_note(bp_result, capsys):
     bp_display(bp_result, output_format="table", eseries=None, include_toroids=False)
     out = capsys.readouterr().out
-    assert "Toroid Winding Recommendations" not in out
+    assert "Screened Toroid Winding Candidates" not in out
     assert "see toroid recommendations" not in out
     assert "Inductors: wind to value" in out
 
@@ -269,4 +275,5 @@ def test_bp_compact_block(bp_result, capsys):
     bp_display(bp_result, output_format="table", eseries=None, toroid_compact=True)
     out = capsys.readouterr().out
     assert "L_resonant (applies to L1…L" in out
-    assert "Q≈" in out
+    assert "Q≈" not in out
+    assert "ωL/Rdc≤" in out

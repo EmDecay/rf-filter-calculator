@@ -557,7 +557,7 @@ class TestFormattingFunctionsEdgeCases:
     def test_format_inductance_picohenry(self):
         """Picohenry range."""
         result = format_inductance(1e-12)
-        assert "nH" in result
+        assert result == "1.000000e-12 H"
 
     def test_format_inductance_henry(self):
         """Henry range."""
@@ -608,6 +608,10 @@ class TestFormatEseriesMatchEdgeCases:
         result = format_eseries_match(1e-15, "E12", format_capacitance, parallel_mode="additive")
         assert isinstance(result, list)
         assert len(result) > 0
+        output = "\n".join(result)
+        assert "reference only" in output
+        assert "EXPERT ACTION REQUIRED" in output
+        assert "below the 1 pF" in output
 
     def test_very_large_value_eseries(self):
         """Very large value E-series matching."""

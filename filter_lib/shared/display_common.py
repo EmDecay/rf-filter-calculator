@@ -4,13 +4,32 @@ Extracts shared logic to reduce code duplication between filter display modules.
 Each filter module can import these and customize as needed.
 """
 
-import json
+import csv
+from io import StringIO
+from typing import Any
 
 from .display_helpers import format_component_value, split_value_unit
 from .eseries import match_component
 from .formatting import format_capacitance, format_inductance
+from .strict_json import dumps_strict, validate_finite_tree
 from .toroid_display import CSV_TOROID_HEADER, build_json_recommendations, csv_columns_for_best
 from .toroid_selection import recommend_cores
+
+ESERIES_CSV_HEADER = [
+    "NearestStdValue",
+    "NearestStdUnit",
+    "NearestStdErrorPct",
+    "ParallelStdValues",
+    "ParallelStdErrorPct",
+    "Eseries",
+    "RecommendedStdKind",
+    "RecommendedStdValues",
+    "RecommendedStdErrorPct",
+    "RecommendationStatus",
+    "RecommendationReason",
+    "RecommendationWarnings",
+    "RecommendationPolicy",
+]
 
 
 def build_standard_match(value: float, eseries: str, unit_key: str, parallel_mode: str) -> dict:
@@ -30,20 +49,38 @@ def build_standard_match(value: float, eseries: str, unit_key: str, parallel_mod
     """
     match = match_component(value, eseries, parallel_mode=parallel_mode)
 
-    standard = {
+    standard: dict = {
         "series": eseries,
         "nearest": {
             unit_key: match.single_value,
             "error_pct": match.single_error_pct,
         },
+        "policy": match.policy.as_dict(),
+        "status": match.status,
+        "selected": None,
+        "reason": match.recommendation_reason,
+        "warnings": list(match.warnings),
     }
 
-    if match.parallel and match.parallel_value is not None and match.parallel_error_pct is not None:
+    if match.recommended_kind == "single":
+        standard["selected"] = {
+            "kind": "single",
+            "components": [{unit_key: match.single_value}],
+            unit_key: match.single_value,
+            "error_pct": match.single_error_pct,
+        }
+    elif (
+        match.prefers_parallel
+        and match.parallel
+        and match.parallel_value is not None
+        and match.parallel_error_pct is not None
+    ):
         standard["parallel"] = {
             "components": [{unit_key: match.parallel[0]}, {unit_key: match.parallel[1]}],
             unit_key: match.parallel_value,
             "error_pct": match.parallel_error_pct,
         }
+        standard["selected"] = {"kind": "parallel", **standard["parallel"]}
 
     return standard
 
@@ -73,10 +110,8 @@ def _json_component(
     return component
 
 
-def _csv_match_fields(
-    value: float, formatter, eseries: str | None, parallel_mode: str
-) -> list[str]:
-    """Build the six E-series CSV columns for one component.
+def csv_match_fields(value: float, formatter, eseries: str | None, parallel_mode: str) -> list[str]:
+    """Build the E-series recommendation-policy CSV columns for one component.
 
     Length and order must stay in sync with the eseries header block in
     format_csv_result — every row in the file needs the same column count.
@@ -90,11 +125,20 @@ def _csv_match_fields(
 
     parallel_vals = ""
     parallel_err = ""
-    if match.parallel and match.parallel_error_pct is not None:
+    if match.prefers_parallel and match.parallel and match.parallel_error_pct is not None:
         p1_fmt = formatter(match.parallel[0])
         p2_fmt = formatter(match.parallel[1])
         parallel_vals = f"{p1_fmt} || {p2_fmt}"
         parallel_err = f"{match.parallel_error_pct:.1f}"
+
+    selected_values = ""
+    selected_error = ""
+    if match.recommended_kind == "single":
+        selected_values = nearest_fmt
+        selected_error = f"{match.single_error_pct:.1f}"
+    elif match.prefers_parallel:
+        selected_values = parallel_vals
+        selected_error = parallel_err
 
     return [
         nearest_val,
@@ -103,6 +147,13 @@ def _csv_match_fields(
         parallel_vals,
         parallel_err,
         eseries,
+        match.recommended_kind,
+        selected_values,
+        selected_error,
+        match.status,
+        match.recommendation_reason,
+        "; ".join(match.warnings),
+        match.policy.summary(),
     ]
 
 
@@ -112,6 +163,8 @@ def format_json_result(
     eseries: str | None = None,
     toroid_freq_hz: float | None = None,
     include_toroids: bool = True,
+    matched_sim: dict[str, Any] | None = None,
+    build_analysis=None,
 ) -> str:
     """Format filter results as JSON.
 
@@ -121,6 +174,8 @@ def format_json_result(
         eseries: E-series for standard matching (None to disable)
         toroid_freq_hz: Design frequency in Hz for toroid recommendations (None disables)
         include_toroids: If False, skip toroid recommendations entirely
+        matched_sim: Optional deprecated matched-value compatibility payload
+        build_analysis: Optional realized-build analysis result
 
     Returns:
         JSON string with filter data.
@@ -154,7 +209,14 @@ def format_json_result(
     if result.get("ripple"):
         output["ripple_db"] = result["ripple"]
 
-    return json.dumps(output, indent=2)
+    if matched_sim is not None:
+        output["matched_sim"] = matched_sim
+    if build_analysis is not None:
+        from .build_output import build_analysis_fields
+
+        output.update(build_analysis_fields(result, build_analysis))
+
+    return dumps_strict(output, indent=2)
 
 
 def format_csv_result(
@@ -176,24 +238,24 @@ def format_csv_result(
     Returns:
         CSV string with component data.
     """
+    validate_finite_tree(
+        {
+            "capacitors": result["capacitors"],
+            "inductors": result["inductors"],
+            "toroid_frequency_hz": toroid_freq_hz,
+        }
+    )
     emit_toroids = include_toroids and toroid_freq_hz is not None
     n_toroid_cols = len(CSV_TOROID_HEADER)
 
     header = ["Component", "Value", "Unit"]
     if eseries:
-        header.extend(
-            [
-                "NearestStdValue",
-                "NearestStdUnit",
-                "NearestStdErrorPct",
-                "ParallelStdValues",
-                "ParallelStdErrorPct",
-                "Eseries",
-            ]
-        )
+        header.extend(ESERIES_CSV_HEADER)
     if emit_toroids:
         header.extend(CSV_TOROID_HEADER)
-    lines = [",".join(header)]
+    output = StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(header)
 
     if primary_component == "capacitors":
         left = [("C", result["capacitors"], format_capacitance, "additive")]
@@ -211,18 +273,18 @@ def format_csv_result(
             # inductor-only; the other component type gets empty cells so
             # every row keeps the header's column count.
             if prefix == "C":
-                row.extend(_csv_match_fields(v, formatter, eseries, parallel_mode))
+                row.extend(csv_match_fields(v, formatter, eseries, parallel_mode))
             elif eseries:
-                row.extend([""] * 6)
+                row.extend([""] * len(ESERIES_CSV_HEADER))
             if emit_toroids:
                 if prefix == "L":
                     recs = recommend_cores(v, toroid_freq_hz)
                     row.extend(csv_columns_for_best(recs))
                 else:
                     row.extend([""] * n_toroid_cols)
-            lines.append(",".join(row))
+            writer.writerow(row)
 
-    return "\n".join(lines)
+    return output.getvalue().removesuffix("\n")
 
 
 def format_quiet_result(

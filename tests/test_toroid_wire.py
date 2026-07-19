@@ -79,15 +79,38 @@ def test_t25_2_n30_does_not_fit():
     assert m.fits is False
 
 
+def test_t25_6_awg26_uses_manufacturer_capacity_not_geometry_guess():
+    core = get_core("T25-6")
+
+    assert max_turns(core, 26) == 15
+    assert fit_wire(core, 14, awg=26).capacity_status == "manufacturer_full_winding"
+    assert fit_wire(core, 16, awg=26).capacity_status == "manufacturer_exceeded"
+
+
+def test_sourced_table_selects_thickest_single_layer_wire_that_fits():
+    fit = fit_wire(get_core("T50-2"), 17)
+
+    assert fit.awg == 20
+    assert fit.capacity_status == "manufacturer_single_layer"
+    assert fit.capacity_source_id == "micrometals-t50-2-datasheet"
+
+
+def test_unsourced_capacity_is_labeled_estimated():
+    fit = fit_wire(get_core("T37-2"), 10)
+
+    assert fit.capacity_status == "estimated"
+    assert fit.capacity_source_id is None
+
+
 def test_t200_2_has_plenty_of_room():
     """T200-2 AWG 22 should fit at least 100 turns."""
     assert max_turns(get_core("T200-2"), 22) >= 100
 
 
 def test_fit_wire_default_awg_applied():
-    """fit_wire uses default AWG for the core's family if awg not given."""
+    """fit_wire uses the thickest published single-layer gauge that fits."""
     m = fit_wire(get_core("T50-2"), 10)
-    assert m.awg == 22  # T50 family default
+    assert m.awg == 16
 
 
 def test_fit_wire_explicit_awg():
@@ -105,12 +128,49 @@ def test_fit_wire_result_shape():
     assert m.n_max > 0
 
 
-def test_max_turns_conservative_vs_theoretical():
-    """Our fill-factor conservatism keeps N_max ~0.9 of the bare theoretical."""
+def test_max_turns_prefers_published_capacity_over_geometry_estimate():
     import math
 
     c = get_core("T50-2")
     awg = 22
     d_insulated = awg_to_diameter_mm(awg) * 1.07
     theoretical = math.pi * c.id_mm / d_insulated
-    assert max_turns(c, awg) == pytest.approx(theoretical * 0.9, abs=1)
+    assert max_turns(c, awg) == 45
+    assert max_turns(c, awg) != pytest.approx(theoretical * 0.9, abs=1)
+
+
+@pytest.mark.parametrize("awg", [True, 20.5, "20", None])
+def test_wire_helpers_require_integer_awg(awg):
+    core = get_core("T50-2")
+    with pytest.raises(ValueError):
+        awg_to_diameter_mm(awg)
+    with pytest.raises(ValueError):
+        max_turns(core, awg)
+    with pytest.raises(ValueError):
+        wire_length_mm(core, 10, awg)
+    with pytest.raises(ValueError):
+        dc_resistance_ohms(100, awg)
+    if awg is not None:  # None intentionally selects the default/published gauge.
+        with pytest.raises(ValueError):
+            fit_wire(core, 10, awg)
+
+
+@pytest.mark.parametrize("turns", [True, 1.5, "10", None])
+def test_wire_helpers_require_positive_integer_turns(turns):
+    core = get_core("T50-2")
+    with pytest.raises(ValueError, match="positive integer"):
+        wire_length_mm(core, turns, 20)
+    with pytest.raises(ValueError, match="positive integer"):
+        fit_wire(core, turns)
+
+
+@pytest.mark.parametrize("length", [True, "100", None, float("inf"), float("nan")])
+def test_dc_resistance_requires_nonnegative_finite_length(length):
+    with pytest.raises(ValueError, match="non-negative and finite"):
+        dc_resistance_ohms(length, 20)
+
+
+@pytest.mark.parametrize("function,args", [(wire_length_mm, (10, 20)), (fit_wire, (10,))])
+def test_wire_helpers_reject_invalid_core_type(function, args):
+    with pytest.raises(ValueError, match="ToroidCore"):
+        function("T50-2", *args)

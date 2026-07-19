@@ -7,6 +7,31 @@ not supported). Values must parse to a positive, finite number.
 """
 
 import math
+from decimal import Decimal, InvalidOperation
+
+
+def _parse_scaled_positive(
+    number_text: str, multiplier: float, *, label: str, original: str
+) -> float:
+    """Scale in decimal space before materializing a binary64 result.
+
+    Parsing the numeric token directly as ``float`` can underflow or overflow
+    before a compensating unit suffix is applied (for example ``1e-325GHz``).
+    Decimal scaling preserves any final result that binary64 can represent.
+    """
+    try:
+        scaled = Decimal(number_text) * Decimal(str(multiplier))
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError(f"Invalid {label.lower()}: {original}") from error
+    if not scaled.is_finite() or scaled <= 0:
+        raise ValueError(f"{label} must be positive: {original}")
+    try:
+        result = float(scaled)
+    except (OverflowError, ValueError) as error:
+        raise ValueError(f"{label} must be positive and finite: {original}") from error
+    if not math.isfinite(result) or result <= 0:
+        raise ValueError(f"{label} must be positive and finite: {original}")
+    return result
 
 
 def parse_frequency(freq_str: str) -> float:
@@ -22,6 +47,8 @@ def parse_frequency(freq_str: str) -> float:
         ValueError: If the string cannot be parsed or the result is not
             positive and finite
     """
+    if not isinstance(freq_str, str):
+        raise ValueError("Frequency must be supplied as text")
     freq_str = freq_str.strip()
     freq_str_lower = freq_str.lower()
 
@@ -41,15 +68,9 @@ def parse_frequency(freq_str: str) -> float:
     for suffix, mult in suffixes:
         if freq_str_lower.endswith(suffix):
             num_part = freq_str[: -len(suffix)].strip()
-            result = float(num_part) * mult
-            if not math.isfinite(result) or result <= 0:
-                raise ValueError(f"Frequency must be positive: {freq_str}")
-            return result
+            return _parse_scaled_positive(num_part, mult, label="Frequency", original=freq_str)
 
-    result = float(freq_str)
-    if not math.isfinite(result) or result <= 0:
-        raise ValueError(f"Frequency must be positive: {freq_str}")
-    return result
+    return _parse_scaled_positive(freq_str, 1.0, label="Frequency", original=freq_str)
 
 
 def parse_impedance(z_str: str) -> float:
@@ -65,6 +86,8 @@ def parse_impedance(z_str: str) -> float:
         ValueError: If the string cannot be parsed or the result is not
             positive and finite
     """
+    if not isinstance(z_str, str):
+        raise ValueError("Impedance must be supplied as text")
     z_str = z_str.strip()
     # Handle Unicode omega symbols
     for omega_char in ["ω", "Ω"]:
@@ -77,12 +100,37 @@ def parse_impedance(z_str: str) -> float:
 
     for suffix, mult in multipliers.items():
         if z_str.endswith(suffix):
-            result = float(z_str[: -len(suffix)].strip()) * mult
-            if not math.isfinite(result) or result <= 0:
-                raise ValueError(f"Impedance must be positive: {z_str}")
-            return result
+            return _parse_scaled_positive(
+                z_str[: -len(suffix)].strip(),
+                mult,
+                label="Impedance",
+                original=z_str,
+            )
 
-    result = float(z_str)
-    if not math.isfinite(result) or result <= 0:
-        raise ValueError(f"Impedance must be positive: {z_str}")
-    return result
+    return _parse_scaled_positive(z_str, 1.0, label="Impedance", original=z_str)
+
+
+def parse_inductance(inductance_str: str) -> float:
+    """Parse an inductance with H, mH, uH/µH/μH, or nH units.
+
+    A value without a suffix is interpreted as Henries.  Unlike the RF
+    frequency shorthand, ``m`` here retains its SI meaning of milli because
+    the required trailing ``H`` makes the unit unambiguous.
+    """
+    if not isinstance(inductance_str, str):
+        raise ValueError("Inductance must be supplied as text")
+    original = inductance_str.strip()
+    normalized = original.replace("µ", "u").replace("μ", "u").lower()
+    suffixes = (("mh", 1e-3), ("uh", 1e-6), ("nh", 1e-9), ("h", 1.0))
+
+    for suffix, multiplier in suffixes:
+        if normalized.endswith(suffix):
+            number = normalized[: -len(suffix)].strip()
+            return _parse_scaled_positive(
+                number,
+                multiplier,
+                label="Inductance",
+                original=original,
+            )
+    else:
+        return _parse_scaled_positive(normalized, 1.0, label="Inductance", original=original)

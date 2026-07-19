@@ -5,6 +5,7 @@ import pytest
 from filter_lib.shared.toroid_core_data import (
     ToroidCore,
     get_core,
+    get_source,
     iter_cores_for_frequency,
     list_cores,
 )
@@ -26,8 +27,49 @@ def test_get_core_t50_2_al():
     """T50-2 canonical fixture: A_L=4.9 nH/turn^2."""
     c = get_core("T50-2")
     assert c.al_nh_per_turn2 == 4.9
-    assert c.freq_min_hz == 250_000
-    assert c.freq_max_hz == 10_000_000
+    assert c.freq_min_hz == 2_000_000
+    assert c.freq_max_hz == 30_000_000
+
+
+def test_mix_2_guidance_has_primary_source_provenance():
+    core = get_core("T50-2")
+
+    assert core.provenance_status == "primary_verified"
+    assert core.is_auto_selectable
+    source = get_source(core.frequency_source_id)
+    assert source.publisher == "Amidon Corp."
+    assert source.url == "https://www.amidoncorp.com/2ipt/"
+    assert source.accessed_on == "2026-07-19"
+
+
+def test_mix_2_material_guidance_is_correct_even_for_legacy_core_records():
+    mix_2_cores = [core for core in list_cores() if core.mix == "2"]
+
+    assert mix_2_cores
+    assert all(core.freq_min_hz == 2_000_000 for core in mix_2_cores)
+    assert all(core.freq_max_hz == 30_000_000 for core in mix_2_cores)
+    assert all(core.frequency_source_id == "amidon-mix-2-guidance" for core in mix_2_cores)
+    assert sum(core.is_auto_selectable for core in mix_2_cores) == 2
+
+
+def test_exact_core_datasheet_provenance_is_not_bulk_claimed():
+    verified = get_core("T68-2")
+    legacy = get_core("T37-2")
+
+    assert verified.core_source_id == "micrometals-t68-2-datasheet"
+    assert get_source(verified.core_source_id).source_type == "manufacturer_datasheet"
+    assert legacy.provenance_status == "legacy_unverified"
+    assert not legacy.is_auto_selectable
+
+
+def test_t25_6_has_sourced_awg26_winding_capacity():
+    core = get_core("T25-6")
+    row = core.winding_spec_for_awg(26)
+
+    assert row is not None
+    assert row.single_layer_turns == 13
+    assert row.full_winding_turns == 15
+    assert core.winding_source_id == "micrometals-t25-6-datasheet"
 
 
 def test_get_core_t37_17_temp_coeff():

@@ -13,10 +13,12 @@ import inspect
 from unittest.mock import Mock
 
 import pytest
-from textual.widgets import RadioSet, SelectionList
+from textual.widgets import Checkbox, Input, RadioSet, SelectionList
 
 from filter_lib.wizard.screens import bandpass as bandpass_screen_mod
 from filter_lib.wizard.screens import highpass as highpass_screen_mod
+from filter_lib.wizard.screens import lowpass as lowpass_screen_mod
+from filter_lib.wizard.screens import output_options as output_options_screen_mod
 from filter_lib.wizard.screens.output_options import OutputOptionsScreen
 from filter_lib.wizard.state import FilterState
 
@@ -49,6 +51,19 @@ def _make_output_options_screen_with_selections(
         sl.selected = list(selected)
         return sl
 
+    build_values = {
+        "#build-source-resistance": "",
+        "#build-load-resistance": "",
+        "#build-capacitor-tolerance": "5",
+        "#build-inductor-tolerance": "10",
+        "#build-inductor-q": "",
+        "#build-capacitor-q": "",
+        "#build-resonator-q": "",
+        "#build-sample-count": "0",
+        "#build-seed": "0",
+        "#build-grid-points": "601",
+    }
+
     def fake_query_one(selector: str, widget_type=None):
         if selector == "#eseries":
             return _radio_set(eseries_id)
@@ -58,6 +73,14 @@ def _make_output_options_screen_with_selections(
             return _selection_list(options_selected)
         if selector == "#export":
             return _radio_set(export_id)
+        if selector in {"#build-analysis-enabled", "#build-use-toroids"}:
+            checkbox = Mock(spec=Checkbox)
+            checkbox.value = selector == "#build-use-toroids"
+            return checkbox
+        if selector in build_values:
+            input_widget = Mock(spec=Input)
+            input_widget.value = build_values[selector]
+            return input_widget
         raise AssertionError(f"unexpected selector {selector!r}")
 
     screen.query_one = fake_query_one  # type: ignore[assignment]
@@ -97,16 +120,33 @@ def test_bandpass_wizard_exposes_bessel_radio_button():
 # ---------------------------------------------------------------------------
 
 
-def test_highpass_wizard_topology_labels_match_schematic():
-    """T highpass is C-L-C (series-C-first); Pi highpass is L-C-L (shunt-L-first)."""
-    source = inspect.getsource(highpass_screen_mod)
-    # T topology for highpass = series C + shunt L + series C = C-L-C
-    assert "T (C-L-C)" in source, "T label must say (C-L-C) for highpass"
-    # Pi topology for highpass = shunt L + series C + shunt L = L-C-L
-    assert "Pi (L-C-L)" in source, "Pi label must say (L-C-L) for highpass"
-    # The previous (swapped) labels must not exist
-    assert "T (L-C-L)" not in source
-    assert "Pi (C-L-C)" not in source
+def test_lp_hp_topology_labels_describe_arbitrary_order_ladders():
+    """Topology labels must remain true beyond the three-component case."""
+    lp_source = inspect.getsource(lowpass_screen_mod)
+    hp_source = inspect.getsource(highpass_screen_mod)
+    for source in (lp_source, hp_source):
+        assert "Shunt-first ladder" in source
+        assert "Series-first ladder" in source
+        assert "Pi (" not in source
+        assert "T (" not in source
+
+
+def test_bessel_wording_limits_flat_delay_claim_to_lowpass_prototype():
+    lp_source = inspect.getsource(lowpass_screen_mod)
+    hp_source = inspect.getsource(highpass_screen_mod)
+    bp_source = inspect.getsource(bandpass_screen_mod)
+    assert "Flat-delay low-pass prototype" in lp_source
+    assert "does not preserve flat group delay" in hp_source
+    assert "does not preserve flat group delay" in bp_source
+
+
+def test_eseries_labels_describe_preferred_value_density_not_tolerance():
+    source = inspect.getsource(output_options_screen_mod)
+    assert "E24 - 24 preferred values per decade" in source
+    assert "E12 - 12 preferred values per decade" in source
+    assert "E96 - 96 preferred values per decade" in source
+    assert "looser tolerance" not in source
+    assert "tighter tolerance" not in source
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +271,8 @@ def _make_bandpass_screen_with_coupling(coupling: str):
         "#impedance": _input("50"),
         "#resonators": _input("3"),
         "#ripple": _input("0.5"),
+        "#resonator-impedance": _input(""),
+        "#resonator-inductance": _input(""),
         "#filter-type": _radio_set("butterworth"),
         "#coupling": _radio_set(coupling),
     }

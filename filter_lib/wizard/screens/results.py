@@ -1,7 +1,6 @@
 """Results screen displaying calculated filter values."""
 
-import os
-from datetime import datetime
+from functools import partial
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
@@ -10,17 +9,17 @@ from textual.widgets import Button, Footer, RadioButton, RadioSet, Static
 from textual.worker import Worker
 
 from ..calculation_handler import calculate_and_format
-from ..state import FilterState
+from ..export_formatting import (
+    format_component_csv,
+    format_component_json,
+    format_response_export,
+    prepare_export_payloads,
+)
+from ..state import CalculationOutcome, FilterState
 
 
 class ResultsScreen(Screen):
-    """Screen displaying calculation results.
-
-    Final stop of the wizard flow. The calculation runs in a thread worker so
-    "Calculating..." paints immediately; Escape returns to output options for
-    tweaks without re-entering filter parameters, and "Design Another"
-    restarts the whole flow with fresh state.
-    """
+    """Final wizard screen with background calculation and guarded export."""
 
     BINDINGS = [
         ("escape", "back", "Back"),
@@ -30,6 +29,9 @@ class ResultsScreen(Screen):
     def __init__(self) -> None:
         super().__init__()
         self._result_text = ""
+        self._active_worker: Worker | None = None
+        self._calculation_revision: int | None = None
+        self._accept_worker_events = False
 
     def compose(self) -> ComposeResult:
         yield Static("Filter Results", classes="header")
@@ -51,7 +53,7 @@ class ResultsScreen(Screen):
 
             with Horizontal(classes="button-row"):
                 yield Button("Design Another", id="another-btn", variant="primary")
-                yield Button("Export", id="export-btn")
+                yield Button("Export", id="export-btn", disabled=True)
                 yield Button("Quit", id="quit-btn")
 
         yield Footer()
@@ -60,46 +62,109 @@ class ResultsScreen(Screen):
         """Start calculation when screen mounts."""
         # Export UI is opt-in via the Export button.
         self.query_one("#export-section").display = False
-        # Honour the export format the user picked on the Output Options screen.
         self._preselect_export_format()
+        state: FilterState = self.app.filter_state
+        # Clear old output before the worker is scheduled. This prevents an
+        # earlier success from remaining exportable during a recalculation.
+        self._calculation_revision = state.begin_calculation()
+        snapshot = state.calculation_copy()
+        self._result_text = ""
+        self._accept_worker_events = True
+        self.query_one("#export-btn", Button).disabled = True
         # thread=True keeps the event loop free (bandpass runs a netlist
         # sweep, which is not instant); exclusive=True guards against a
         # remount stacking a second calculation.
-        self.run_worker(self._calculate, exclusive=True, thread=True)
+        self._active_worker = self.run_worker(
+            partial(self._calculate, snapshot),
+            exclusive=True,
+            thread=True,
+        )
+
+    def on_unmount(self) -> None:
+        """Cancel the worker and prevent late events from publishing output."""
+        self._accept_worker_events = False
+        if self._active_worker is not None:
+            self._active_worker.cancel()
+        if self._calculation_revision is not None:
+            self.app.filter_state.cancel_calculation(self._calculation_revision)
 
     def _preselect_export_format(self) -> None:
-        """Pre-select the export-format radio that matches state.export_format.
-
-        Setting ``value=True`` on the target RadioButton prompts the parent
-        RadioSet to clear the other buttons automatically via its
-        Changed-event handling.
-        """
+        """Pre-select the valid component export format for the current result."""
         state: FilterState = self.app.filter_state
-        fmt = getattr(state, "export_format", None)
-        target_id = {"json": "export-json", "csv": "export-csv"}.get(fmt, "export-txt")
+        build_enabled = state.build_analysis_enabled or state.build_analysis is not None
+        target_id = {"json": "export-json", "csv": "export-csv"}.get(
+            state.output_format, "export-txt"
+        )
+        if build_enabled and target_id == "export-csv":
+            target_id = "export-txt"
         try:
             radio_set = self.query_one("#export-format", RadioSet)
             for button in radio_set.query(RadioButton):
+                button.disabled = build_enabled and button.id == "export-csv"
                 button.value = button.id == target_id
         except (AttributeError, LookupError):
             # Widget not mounted yet — safe to skip; default radio value stands.
             pass
 
-    def _calculate(self) -> str:
-        """Perform filter calculation and generate output text."""
+    def _calculate(self, snapshot: FilterState) -> CalculationOutcome:
+        """Perform filter calculation using only the captured state snapshot."""
+        return calculate_and_format(snapshot)
+
+    def _is_current_worker_event(self, event: Worker.StateChanged) -> bool:
+        """Return whether an event still belongs to this mounted revision."""
         state: FilterState = self.app.filter_state
-        return calculate_and_format(state)
+        return (
+            self._accept_worker_events
+            and event.worker is self._active_worker
+            and self._calculation_revision is not None
+            and state.calculation_revision == self._calculation_revision
+            and state.calculation_status == "pending"
+        )
+
+    def _show_calculation_error(self, message: str) -> None:
+        """Publish and render a calculation error for the current revision."""
+        if self._calculation_revision is None:
+            return
+        state: FilterState = self.app.filter_state
+        if not state.publish_error(self._calculation_revision, message):
+            return
+        self._result_text = ""
+        self.query_one("#export-btn", Button).disabled = True
+        self.query_one("#results-text", Static).update(
+            f"Calculation failed: {message}\n\nPress Esc to go back."
+        )
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
+        if not self._is_current_worker_event(event):
+            return
+
         if event.state.name == "SUCCESS":
-            self._result_text = event.worker.result
+            outcome = event.worker.result
+            if not isinstance(outcome, CalculationOutcome):
+                self._show_calculation_error("Calculation returned an invalid outcome")
+                return
+            if not outcome.succeeded:
+                self._show_calculation_error(outcome.error or "Calculation returned no result")
+                return
+
+            state: FilterState = self.app.filter_state
+            if state.build_analysis_enabled and outcome.build_analysis is None:
+                self._show_calculation_error("Calculation returned no realized-build analysis")
+                return
+            if not state.publish_success(
+                self._calculation_revision,
+                outcome.output_text,
+                outcome.result,
+                outcome.build_analysis,
+            ):
+                return
+            self._result_text = state.output_text
             self.query_one("#results-text", Static).update(self._result_text)
+            self.query_one("#export-btn", Button).disabled = False
         elif event.state.name == "ERROR":
-            # calculate_and_format catches calculation errors itself; this
-            # surfaces anything unexpected instead of hanging on "Calculating..."
-            self._result_text = f"Calculation failed: {event.worker.error}\n\nPress Esc to go back."
-            self.query_one("#results-text", Static).update(self._result_text)
+            error = event.worker.error
+            self._show_calculation_error(str(error).strip() or type(error).__name__)
 
     def action_back(self) -> None:
         """Go back to output options."""
@@ -137,6 +202,8 @@ class ResultsScreen(Screen):
 
     def _show_export_options(self) -> None:
         """Show the export format selection."""
+        if not self._guard_current_result():
+            return
         self.query_one("#export-section").display = True
         self.query_one("#export-format", RadioSet).focus()
 
@@ -152,45 +219,26 @@ class ResultsScreen(Screen):
         plot-data export format on the Output Options screen.
         """
         state: FilterState = self.app.filter_state
+        if not self._guard_current_result(state):
+            self._hide_export_options()
+            return
 
         radio_set = self.query_one("#export-format", RadioSet)
         format_id = radio_set.pressed_button.id if radio_set.pressed_button else "export-txt"
 
-        # Timestamped filenames keep repeated exports from clobbering each
-        # other within a session.
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        category = state.category or "filter"
-
-        if format_id == "export-txt":
-            filename = f"{category}-{timestamp}.txt"
-            content = self._result_text
-        elif format_id == "export-json":
-            filename = f"{category}-{timestamp}.json"
-            content = self._get_json_export(state)
-        else:  # CSV
-            filename = f"{category}-{timestamp}.csv"
-            content = self._get_csv_export(state)
-
-        # (path, content) pairs; the response file rides along when selected
-        files = [(os.path.join(os.getcwd(), filename), content)]
-        if state.export_format in ("json", "csv"):
-            # A calculation error leaves state.result empty — still save the
-            # component file, just skip the response data.
-            if state.result:
-                response_name = f"{category}-{timestamp}-response.{state.export_format}"
-                files.append(
-                    (
-                        os.path.join(os.getcwd(), response_name),
-                        self._get_response_export(state, state.export_format),
-                    )
-                )
-            else:
-                self.notify("No calculation result; skipping response export", severity="warning")
+        # Generate every requested payload before opening any file. A stale or
+        # malformed result therefore cannot leave a partial/error-text export.
+        try:
+            files = prepare_export_payloads(state, format_id)
+        except (KeyError, TypeError, ValueError) as e:
+            self.notify(f"Cannot export current result: {e}", severity="error")
+            self._hide_export_options()
+            return
 
         saved: list[str] = []
         for filepath, file_content in files:
             try:
-                with open(filepath, "w") as f:
+                with open(filepath, "w", encoding="utf-8", newline="") as f:
                     f.write(file_content)
                 saved.append(filepath)
             except OSError as e:
@@ -201,89 +249,37 @@ class ResultsScreen(Screen):
 
         self._hide_export_options()
 
+    def _has_current_result(self, state: FilterState | None = None) -> bool:
+        """Return whether the rendered text and state are the same success."""
+        current = state or self.app.filter_state
+        return current.is_exportable and self._result_text == current.output_text
+
+    def _guard_current_result(self, state: FilterState | None = None) -> bool:
+        """Notify and reject missing, failed, pending, or stale output."""
+        if self._has_current_result(state):
+            return True
+        self.notify("No current successful calculation is available to export", severity="warning")
+        return False
+
+    def _require_current_result(self, state: FilterState) -> None:
+        """Raise when a formatter is called without the current success."""
+        if not self._has_current_result(state):
+            raise ValueError("no current successful calculation")
+
     def _get_response_export(self, state: FilterState, fmt: str) -> str:
-        """Generate frequency-response data in the unified export schema.
-
-        Uses shared.response_export so wizard exports are byte-compatible
-        with the CLI's --plot-data output. Bandpass data comes from the
-        netlist simulation of the synthesized circuit; LP/HP from the
-        analytic transfer functions.
-        """
-        from filter_lib.shared.response_export import (
-            export_response_csv,
-            export_response_json,
-            response_meta,
-        )
-
-        if state.category == "bandpass":
-            from filter_lib.bandpass.transfer import netlist_frequency_sweep
-
-            sweep = netlist_frequency_sweep(state.result)
-            freqs = [f for f, _ in sweep]
-            response_db = [db for _, db in sweep]
-        else:
-            if state.category == "lowpass":
-                from filter_lib.lowpass.transfer import (
-                    frequency_response,
-                    generate_frequency_points,
-                )
-            else:
-                from filter_lib.highpass.transfer import (
-                    frequency_response,
-                    generate_frequency_points,
-                )
-
-            result = state.result
-            freqs = generate_frequency_points(result["freq_hz"])
-            response_db = frequency_response(
-                result["filter_type"],
-                freqs,
-                result["freq_hz"],
-                result["order"],
-                # Non-Chebyshev results store ripple=None; the response fn
-                # ignores it for those types, so any placeholder works — 0.5
-                # matches the wizard default.
-                result.get("ripple") or 0.5,
-            )
-
-        meta = response_meta(state.category, state.result)
-        if fmt == "json":
-            return export_response_json(freqs, response_db, meta)
-        return export_response_csv(freqs, response_db)
+        """Generate frequency-response data in the unified export schema."""
+        self._require_current_result(state)
+        return format_response_export(state, fmt)
 
     def _get_json_export(self, state: FilterState) -> str:
         """Get JSON export using existing formatters."""
-        eseries = None if state.eseries == "none" else state.eseries
-
-        if state.category == "lowpass":
-            from filter_lib.lowpass.display import format_json
-
-            return format_json(state.result, eseries=eseries)
-        elif state.category == "highpass":
-            from filter_lib.highpass.display import format_json
-
-            return format_json(state.result, eseries=eseries)
-        else:  # bandpass
-            from filter_lib.bandpass.formatters import format_json
-
-            return format_json(state.result, eseries=eseries)
+        self._require_current_result(state)
+        return format_component_json(state)
 
     def _get_csv_export(self, state: FilterState) -> str:
         """Get CSV export using existing formatters."""
-        eseries = None if state.eseries == "none" else state.eseries
-
-        if state.category == "lowpass":
-            from filter_lib.lowpass.display import format_csv
-
-            return format_csv(state.result, eseries=eseries)
-        elif state.category == "highpass":
-            from filter_lib.highpass.display import format_csv
-
-            return format_csv(state.result, eseries=eseries)
-        else:  # bandpass
-            from filter_lib.bandpass.formatters import format_csv
-
-            return format_csv(state.result, eseries=eseries)
+        self._require_current_result(state)
+        return format_component_csv(state)
 
     def _design_another(self) -> None:
         """Start a new design."""

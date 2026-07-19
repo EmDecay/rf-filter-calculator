@@ -80,6 +80,25 @@ class TestGValues:
         with pytest.raises(ValueError, match="Unknown filter type"):
             get_g_values("invalid", 3)
 
+    @pytest.mark.parametrize("order", [True, 3.0, "3", None])
+    @pytest.mark.parametrize(
+        "calculator",
+        [calculate_butterworth_g_values, get_bessel_g_values],
+    )
+    def test_public_g_value_helpers_reject_noninteger_orders(self, calculator, order):
+        with pytest.raises(ValueError):
+            calculator(order)
+
+    @pytest.mark.parametrize("order", [True, 3.0, "3", None])
+    def test_public_chebyshev_helper_rejects_noninteger_orders(self, order):
+        with pytest.raises(ValueError):
+            get_chebyshev_g_values(order, 0.5)
+
+    @pytest.mark.parametrize("ripple", [True, "0.5", None])
+    def test_public_chebyshev_helper_rejects_nonnumeric_ripple(self, ripple):
+        with pytest.raises(ValueError, match="positive and finite"):
+            get_chebyshev_g_values(3, ripple)
+
 
 # --- formatters ---
 
@@ -244,9 +263,9 @@ class TestCalculationsExtended:
         with pytest.raises(ValueError, match="Coupling must be"):
             _validate_inputs(14e6, 100e3, 50.0, 3, "butterworth", "invalid")
 
-    def test_fbw_warnings_above_validated_range(self):
+    def test_fbw_warnings_above_studied_edge_calibration_range(self):
         warnings = _get_fbw_warnings(0.15)
-        assert any("simulation-validated" in w for w in warnings)
+        assert any("studied edge-calibration range" in w for w in warnings)
 
     def test_fbw_warnings_very_wide(self):
         warnings = _get_fbw_warnings(0.45)

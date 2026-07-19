@@ -47,8 +47,7 @@ def calculate_chebyshev(
     Args:
         cutoff_hz: Ripple-band edge frequency in Hz
         impedance: Characteristic impedance in Ohms
-        ripple_db: Passband ripple in dB (> 0; the CLI adds a 3.0 dB cap for
-            bandpass/wizard but LP/HP accepts any positive finite value)
+        ripple_db: Passband ripple in dB, in (0, 3.0]
         num_components: Number of filter elements; odd only (3/5/7/9) because
             equal source/load terminations require odd Chebyshev order
         topology: 'pi' or 't'
@@ -57,8 +56,8 @@ def calculate_chebyshev(
         Tuple of (capacitors in Farads, inductors in Henries, order)
 
     Raises:
-        ValueError: If inputs are non-positive/non-finite, order is even or
-            outside 2-9, or topology is not 'pi'/'t'.
+        ValueError: If inputs are non-positive/non-finite, ripple is above
+            3.0 dB, order is even or outside 2-9, or topology is not 'pi'/'t'.
     """
     return calculate_lowpass_chebyshev(cutoff_hz, impedance, ripple_db, num_components, topology)
 

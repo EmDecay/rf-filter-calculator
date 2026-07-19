@@ -48,8 +48,7 @@ def calculate_chebyshev(
     Args:
         cutoff_hz: Ripple-band edge frequency in Hz
         impedance: Characteristic impedance in Ohms
-        ripple_db: Passband ripple in dB (> 0; the CLI adds a 3.0 dB cap for
-            bandpass/wizard but LP/HP accepts any positive finite value)
+        ripple_db: Passband ripple in dB, in (0, 3.0]
         num_components: Number of filter elements; odd only (3/5/7/9) because
             equal source/load terminations require odd Chebyshev order
         topology: 'pi' or 't'
@@ -59,8 +58,8 @@ def calculate_chebyshev(
         Note the inductors-first ordering — reversed from the lowpass API.
 
     Raises:
-        ValueError: If inputs are non-positive/non-finite, order is even or
-            outside 2-9, or topology is not 'pi'/'t'.
+        ValueError: If inputs are non-positive/non-finite, ripple is above
+            3.0 dB, order is even or outside 2-9, or topology is not 'pi'/'t'.
     """
     return calculate_highpass_chebyshev(cutoff_hz, impedance, ripple_db, num_components, topology)
 
@@ -68,9 +67,11 @@ def calculate_chebyshev(
 def calculate_bessel(
     cutoff_hz: float, impedance: float, num_components: int, topology: str
 ) -> tuple[list[float], list[float], int]:
-    """Calculate Bessel (Thomson) high-pass filter component values.
+    """Calculate Bessel-prototype high-pass filter component values.
 
-    Bessel filters provide maximally-flat group delay (linear phase response).
+    The transformed magnitude is smooth and monotonic. The low-pass
+    prototype's maximally-flat group delay is not preserved by the
+    low-pass-to-high-pass transformation.
     g-values come from the Zverev lookup table (orders 2-9 only). Note the
     LP-to-HP transformation does not preserve the flat group delay exactly.
 

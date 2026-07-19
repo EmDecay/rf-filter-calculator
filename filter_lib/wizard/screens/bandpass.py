@@ -1,7 +1,5 @@
 """Bandpass filter input screen."""
 
-import math
-
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -9,6 +7,12 @@ from textual.screen import Screen
 from textual.validation import Number
 from textual.widgets import Button, Footer, Input, RadioButton, RadioSet, Static
 
+from ..bandpass_form import (
+    BandpassFormError,
+    BandpassFormValues,
+    fractional_bandwidth_feedback,
+    parse_bandpass_form,
+)
 from ..filter_screen_navigation_mixin import FilterScreenNavigationMixin
 from ..radio_button_helpers import get_selected_radio
 from ..state import FilterState
@@ -40,7 +44,10 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                         "Butterworth - Maximally flat passband", value=True, id="butterworth"
                     )
                     yield RadioButton("Chebyshev - Sharper cutoff, passband ripple", id="chebyshev")
-                    yield RadioButton("Bessel - Best transient response", id="bessel")
+                    yield RadioButton(
+                        "Bessel - Band-pass transform does not preserve flat group delay",
+                        id="bessel",
+                    )
 
             # Single-option RadioSet on purpose: Top-C is the only coupling
             # that survived simulation validation (shunt coupling was
@@ -89,6 +96,18 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                         validators=[Number(minimum=0.01, maximum=3.0)],
                     )
 
+            with Vertical(classes="form-section"):
+                yield Static("Advanced Tank Choice (optional)", classes="form-section-title")
+                yield Static(
+                    "Use one setting only; blank uses the port impedance for each resonator."
+                )
+                yield Static("Tank impedance (e.g., 75ohm):")
+                yield Input(placeholder="blank = port impedance", id="resonator-impedance")
+                yield Static("Fixed tank inductance (e.g., 1uH):")
+                yield Input(
+                    placeholder="blank = calculate from impedance", id="resonator-inductance"
+                )
+
             with Horizontal(classes="button-row"):
                 yield Button("Next", id="next-btn", variant="primary")
                 yield Button("Reset", id="reset-btn")
@@ -103,6 +122,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
     @on(RadioSet.Changed, "#filter-type")
     def _on_filter_type_changed(self, event: RadioSet.Changed) -> None:
         """Show/hide ripple section and odd-count hint based on filter type."""
+        self._invalidate_previous_result()
         is_chebyshev = event.pressed.id == "chebyshev"
         self.query_one("#ripple-section").display = is_chebyshev
         resonators_label = self.query_one("#resonators-label", Static)
@@ -139,6 +159,16 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         """Auto-advance to calculate button after ripple entry."""
         self.query_one("#next-btn", Button).focus()
 
+    @on(Input.Submitted, "#resonator-impedance")
+    def _on_resonator_impedance_submitted(self, event: Input.Submitted) -> None:
+        """Advance between optional tank fields when reached by Tab."""
+        self.query_one("#resonator-inductance", Input).focus()
+
+    @on(Input.Submitted, "#resonator-inductance")
+    def _on_resonator_inductance_submitted(self, event: Input.Submitted) -> None:
+        """Advance from the optional tank fields to Next."""
+        self.query_one("#next-btn", Button).focus()
+
     def action_back(self) -> None:
         """Go back to welcome screen."""
         self.app.pop_screen()
@@ -148,31 +178,47 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
     def _update_fbw_display(self) -> None:
         """Update fractional bandwidth display when frequency or bandwidth changes.
 
-        Live feedback so the user sees an over-wide design before committing;
-        the synthesis itself warns again above the simulation-proven FBW.
+        Live feedback distinguishes the studied edge-calibration range from
+        the final response validation, which remains authoritative.
         """
-        from filter_lib.shared.parsing import parse_frequency
+        self._invalidate_previous_result()
 
         freq_input = self.query_one("#frequency", Input)
         bw_input = self.query_one("#bandwidth", Input)
         fbw_display = self.query_one("#fbw-display", Static)
 
-        try:
-            f0 = parse_frequency(freq_input.value)
-            bw = parse_frequency(bw_input.value)
-            fbw = (bw / f0) * 100
-            if fbw > 40:
-                fbw_display.update(f"Fractional BW: {fbw:.2f}% ⚠ Wide bandwidth")
-                fbw_display.remove_class("fbw-display")
-                fbw_display.add_class("fbw-warning")
-            else:
-                fbw_display.update(f"Fractional BW: {fbw:.2f}% ✓")
-                fbw_display.remove_class("fbw-warning")
-                fbw_display.add_class("fbw-display")
-        except (ValueError, ZeroDivisionError):
-            # Half-typed values are normal while editing — blank the readout
-            # rather than flashing errors on every keystroke.
+        feedback = fractional_bandwidth_feedback(freq_input.value, bw_input.value)
+        if feedback is None:
             fbw_display.update("")
+            return
+        text, class_name = feedback
+        for old_class in ("fbw-display", "fbw-warning", "fbw-danger"):
+            fbw_display.remove_class(old_class)
+        fbw_display.update(text)
+        fbw_display.add_class(class_name)
+
+    @on(Input.Changed, "#impedance")
+    @on(Input.Changed, "#resonators")
+    @on(Input.Changed, "#ripple")
+    @on(Input.Changed, "#resonator-impedance")
+    @on(Input.Changed, "#resonator-inductance")
+    def _on_design_input_changed(self, event: Input.Changed) -> None:
+        """Invalidate prior output as soon as any non-FBW input changes."""
+        self._invalidate_previous_result()
+
+    @on(RadioSet.Changed, "#coupling")
+    def _on_coupling_changed(self, event: RadioSet.Changed) -> None:
+        """Invalidate prior output when coupling selection changes."""
+        self._invalidate_previous_result()
+
+    def _invalidate_previous_result(self) -> None:
+        """Clear stale output when mounted; tolerate direct handler tests."""
+        try:
+            state = self.app.filter_state
+        except (AttributeError, RuntimeError):
+            return
+        if isinstance(state, FilterState):
+            state.invalidate_calculation()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -188,89 +234,49 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         style the field red — they don't block the Next button. On any
         failure, notify and refocus the offending field instead of advancing.
         """
-        from filter_lib.shared.parsing import parse_frequency, parse_impedance
-
         freq_input = self.query_one("#frequency", Input)
         bw_input = self.query_one("#bandwidth", Input)
         impedance_input = self.query_one("#impedance", Input)
         resonators_input = self.query_one("#resonators", Input)
         ripple_input = self.query_one("#ripple", Input)
-
-        # Empty frequency/bandwidth fall back to their placeholders so a user
-        # can Enter straight through the suggested defaults.
-        freq_value = freq_input.value.strip() or freq_input.placeholder
-        try:
-            f0 = parse_frequency(freq_value)
-        except ValueError as e:
-            self.notify(f"Invalid center frequency: {e}", severity="error")
-            freq_input.focus()
-            return
-
-        bw_value = bw_input.value.strip() or bw_input.placeholder
-        try:
-            bw = parse_frequency(bw_value)
-        except ValueError as e:
-            self.notify(f"Invalid bandwidth: {e}", severity="error")
-            bw_input.focus()
-            return
-
-        # Validate impedance (same suffixed forms as the CLI: 50, 50ohm, 1k)
-        try:
-            impedance = parse_impedance(impedance_input.value.strip() or "50")
-        except ValueError as e:
-            self.notify(f"Invalid impedance: {e}", severity="error")
-            impedance_input.focus()
-            return
-
-        try:
-            resonators = int(resonators_input.value)
-            if not 2 <= resonators <= 9:
-                raise ValueError("must be 2-9")
-        except ValueError as e:
-            self.notify(f"Invalid resonators: {e}", severity="error")
-            resonators_input.focus()
-            return
+        resonator_impedance_input = self.query_one("#resonator-impedance", Input)
+        resonator_inductance_input = self.query_one("#resonator-inductance", Input)
 
         filter_type = get_selected_radio(self, "filter-type")
         coupling = get_selected_radio(self, "coupling")
-
-        # Chebyshev requires an odd resonator count for equal source/load
-        # terminations (same constraint as the LP/HP odd-order rule).
-        if filter_type == "chebyshev" and resonators % 2 == 0:
-            self.notify("Chebyshev bandpass requires odd number of resonators", severity="warning")
-            resonators_input.focus()
+        try:
+            design = parse_bandpass_form(
+                BandpassFormValues(
+                    frequency=freq_input.value.strip() or freq_input.placeholder,
+                    bandwidth=bw_input.value.strip() or bw_input.placeholder,
+                    impedance=impedance_input.value.strip() or "50",
+                    resonators=resonators_input.value,
+                    ripple=ripple_input.value,
+                    resonator_impedance=resonator_impedance_input.value.strip(),
+                    resonator_inductance=resonator_inductance_input.value.strip(),
+                    filter_type=filter_type,
+                    coupling=coupling,
+                )
+            )
+        except BandpassFormError as error:
+            self.notify(str(error), severity=error.severity)
+            self.query_one(f"#{error.field_id}", Input).focus()
             return
 
-        # Ripple applies to Chebyshev only; the 3.0 dB cap matches the
-        # bandpass CLI's validation.
-        ripple = None
-        if filter_type == "chebyshev":
-            try:
-                ripple = float(ripple_input.value)
-                if not math.isfinite(ripple):
-                    raise ValueError("must be finite")
-                if ripple <= 0:
-                    raise ValueError("must be positive")
-                if ripple > 3.0:
-                    raise ValueError("must be <= 3.0 dB")
-            except ValueError as e:
-                self.notify(f"Invalid ripple: {e}", severity="error")
-                ripple_input.focus()
-                return
-
         state: FilterState = self.app.filter_state
+        state.invalidate_calculation()
         state.category = "bandpass"
-        state.filter_type = filter_type
+        state.filter_type = design.filter_type
         # FilterState reuses the topology field for the bandpass coupling id
         # ("top"); order likewise carries the resonator count.
-        state.topology = coupling
-        state.frequency_hz = f0
-        state.bandwidth_hz = bw
-        state.impedance = impedance
-        state.order = resonators
-        # Non-Chebyshev paths never read ripple_db; storing the default keeps
-        # a stale value from an earlier Chebyshev pass from lingering.
-        state.ripple_db = ripple if ripple else 0.5
+        state.topology = design.coupling
+        state.frequency_hz = design.frequency_hz
+        state.bandwidth_hz = design.bandwidth_hz
+        state.impedance = design.impedance
+        state.order = design.resonators
+        state.ripple_db = design.ripple_db
+        state.resonator_impedance = design.resonator_impedance
+        state.resonator_inductance = design.resonator_inductance
 
         from .output_options import OutputOptionsScreen
 
@@ -283,5 +289,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         self.query_one("#impedance", Input).value = "50"
         self.query_one("#resonators", Input).value = "3"
         self.query_one("#ripple", Input).value = "0.5"
+        self.query_one("#resonator-impedance", Input).value = ""
+        self.query_one("#resonator-inductance", Input).value = ""
         self.query_one("#fbw-display", Static).update("")
         self.query_one("#frequency", Input).focus()

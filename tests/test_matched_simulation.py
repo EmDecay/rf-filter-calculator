@@ -85,6 +85,41 @@ class TestSimulatePair:
         assert exact_cut == pytest.approx(10e6, rel=0.01)
         assert matched_cut == pytest.approx(exact_cut, rel=0.02)
 
+    def test_wrapper_is_deprecated_and_exposes_ideal_nominal_aliases(self):
+        summary = run_matched_simulation(_lp_result(), "lowpass", "E24")
+        assert summary.deprecated is True
+        assert summary.calculated is summary.exact
+        assert summary.nominal_build is summary.matched
+
+    def test_wrapper_threads_toroid_opt_out_to_build_analysis(self, monkeypatch):
+        captured = {}
+        measurement = CircuitMeasurement(1.0, 2.0, -3.0, False)
+
+        class Analysis:
+            calculated = measurement
+            nominal_build = measurement
+
+        def fake_analyze_build(result, category, config):
+            captured["config"] = config
+            return Analysis()
+
+        monkeypatch.setattr(
+            "filter_lib.shared.matched_simulation.analyze_build", fake_analyze_build
+        )
+
+        summary = run_matched_simulation(
+            _lp_result(), "lowpass", "E24", use_toroid_candidates=False
+        )
+
+        assert captured["config"].use_toroid_candidates is False
+        assert summary.uses_toroid_candidates is False
+
+    def test_bp_measurement_anchors_its_relative_peak_at_requested_center(self):
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=3.0)
+        summary = run_matched_simulation(result, "bandpass", "E24")
+        assert summary.exact.f_low < result["f0"] < summary.exact.f_high
+        assert summary.exact.f0 == pytest.approx(result["f0"], rel=0.03)
+
 
 class TestDisplayBlock:
     def test_bp_block_shows_edges_and_deltas(self):
@@ -93,7 +128,9 @@ class TestDisplayBlock:
         text = "\n".join(format_matched_sim_block(summary))
         for label in ("Center f0:", "-3 dB BW:", "Lower edge:", "Upper edge:", "%"):
             assert label in text
-        assert "inductors kept exact" in text
+        assert "Nominal Build Simulation" in text
+        assert "legacy --sim-matched" in text
+        assert "inductors kept exact" not in text
 
     def test_lp_block_shows_cutoff(self):
         summary = run_matched_simulation(_lp_result(), "lowpass", "E24")
@@ -107,7 +144,7 @@ class TestDisplayBlock:
         bad = CircuitMeasurement(None, None, -60.0, False)
         summary = MatchedSimSummary("bandpass", "E24", good, bad)
         text = "\n".join(format_matched_sim_block(summary))
-        assert "does not exhibit a clear passband" in text
+        assert "Nominal build does not exhibit a clear passband" in text
 
     def test_delta_blank_when_a_side_is_unmeasurable(self):
         """No delta is rendered against a missing or zero reference."""
@@ -129,21 +166,21 @@ class TestCliWiring:
         from filter_lib.cli.lowpass_cmd import run as lowpass_run
 
         lowpass_run(_lp)
-        assert "Matched-Value Simulation" in capsys.readouterr().out
+        assert "Nominal Build Simulation" in capsys.readouterr().out
 
     def test_hp_sim_matched_prints_block(self, capsys):
         _hp = _hp_args(quiet=False, no_match=False, sim_matched=True)
         from filter_lib.cli.highpass_cmd import run as highpass_run
 
         highpass_run(_hp)
-        assert "Matched-Value Simulation" in capsys.readouterr().out
+        assert "Nominal Build Simulation" in capsys.readouterr().out
 
     def test_bp_sim_matched_prints_block(self, capsys):
         _bp = _bp_args(quiet=False, no_match=False, sim_matched=True)
         from filter_lib.cli.bandpass_cmd import run as bandpass_run
 
         bandpass_run(_bp)
-        assert "Matched-Value Simulation" in capsys.readouterr().out
+        assert "Nominal Build Simulation" in capsys.readouterr().out
 
     @pytest.mark.parametrize("maker", [_lp_args, _hp_args, _bp_args])
     def test_sim_matched_with_no_match_is_usage_error(self, maker, capsys):
@@ -155,7 +192,9 @@ class TestCliWiring:
         with pytest.raises(SystemExit) as exc_info:
             runner(maker(no_match=True, sim_matched=True, quiet=False))
         assert exc_info.value.code == 2
-        assert "--sim-matched requires E-series matching" in capsys.readouterr().err
+        error = capsys.readouterr().err
+        assert "--sim-matched requires selected nominal capacitor values" in error
+        assert "remove --no-match" in error
 
     @pytest.mark.parametrize("maker", [_lp_args, _hp_args])
     def test_conflict_also_caught_on_plot_data_path(self, maker, capsys):
@@ -168,20 +207,52 @@ class TestCliWiring:
         with pytest.raises(SystemExit) as exc_info:
             runner(maker(no_match=True, sim_matched=True, quiet=False, plot_data="json"))
         assert exc_info.value.code == 2
-        assert "--sim-matched requires E-series matching" in capsys.readouterr().err
+        error = capsys.readouterr().err
+        assert "--plot-data" in error
+        assert "remove --sim-matched" in error
 
     def test_bp_json_matched_sim_schema(self, capsys):
-        _bp = _bp_args(quiet=False, no_match=False, sim_matched=True, format="json")
+        _bp = _bp_args(
+            quiet=False,
+            no_match=False,
+            no_toroids=False,
+            sim_matched=True,
+            format="json",
+        )
         from filter_lib.cli.bandpass_cmd import run as bandpass_run
 
         bandpass_run(_bp)
         payload = json.loads(capsys.readouterr().out)
         block = payload["matched_sim"]
         assert block["eseries"] == "E24"
-        assert block["inductors"] == "exact"
+        assert block["deprecated"] is True
+        assert block["replacement"] == "build_analysis"
+        assert block["inductors"] == "verified_integer_turn_candidate_or_explicit_fallback"
+        assert block["calculated"] == block["exact"]
+        assert block["nominal_build"] == block["matched"]
         for side in ("exact", "matched"):
             for key in ("f_low_hz", "f_high_hz", "f0_hz", "bw_hz", "worst_passband_db"):
                 assert key in block[side]
+
+    def test_no_toroids_is_reflected_in_legacy_json(self, capsys):
+        args = _lp_args(
+            quiet=False,
+            no_match=False,
+            no_toroids=True,
+            sim_matched=True,
+            format="json",
+        )
+        from filter_lib.cli.lowpass_cmd import run as lowpass_run
+
+        lowpass_run(args)
+
+        block = json.loads(capsys.readouterr().out)["matched_sim"]
+        assert block["inductors"] == "calculated_exact_value_toroid_selection_disabled"
+        for side in ("exact", "matched"):
+            assert block[side]["cutoff_hz"] == block[side]["f_high_hz"]
+            assert block[side]["f_low_hz"] is None
+            assert block[side]["f0_hz"] is None
+            assert block[side]["bw_hz"] is None
 
     def test_bp_json_without_flag_has_no_block(self, capsys):
         _bp = _bp_args(quiet=False, no_match=False, format="json")

@@ -82,8 +82,9 @@ FILTER_EXPLANATIONS_BANDPASS: dict[str, str] = {
 - Requires odd number of resonators
 - Better selectivity for same order""",
     "bessel": """Bessel Bandpass Filter
-- Best pulse response
-- Approximately linear passband phase for narrow fractional bandwidths
+- Smooth, gentle magnitude response
+- The low-pass prototype's flat group delay is not preserved by the
+  band-pass transformation
 - Gentlest rolloff""",
 }
 
@@ -94,9 +95,13 @@ def resolve_filter_type(alias: str) -> str:
     Unknown strings pass through unchanged — validity is enforced
     upstream by argparse choices, not here.
     """
+    if not isinstance(alias, str):
+        raise ValueError("filter type alias must be a string")
     return FILTER_TYPE_ALIASES.get(alias, alias)
 
 
 def resolve_coupling(alias: str) -> str:
     """Resolve coupling alias to canonical name (unknown values pass through)."""
+    if not isinstance(alias, str):
+        raise ValueError("coupling alias must be a string")
     return COUPLING_ALIASES.get(alias, alias)

@@ -86,22 +86,27 @@ class TestChebyshev3dBBandwidthSemantics:
         assert db == pytest.approx(-ripple_db, abs=1e-9)
 
     def test_synthesis_qe_scales_with_delta_3db(self):
-        """Chebyshev Qe should be tighter than Butterworth (narrower ripple BW)."""
+        """Chebyshev starts from its narrower ripple BW, then calibrates."""
         bw_args = dict(f0=14.175e6, bw=350e3, z0=50, n_resonators=3, coupling="top")
         bw_result = calculate_bandpass_filter(filter_type="butterworth", **bw_args)
         ch_result = calculate_bandpass_filter(filter_type="chebyshev", ripple_db=0.5, **bw_args)
 
-        # For equal fbw, Chebyshev Qe tightens by delta_3dB
+        requested_fbw = bw_args["bw"] / bw_args["f0"]
         scale = chebyshev_3db_deviation(3, 0.5)
+        assert bw_result["fbw_synth_initial"] == pytest.approx(requested_fbw)
+        assert ch_result["fbw_synth_initial"] == pytest.approx(requested_fbw / scale)
+
+        # Qe uses the closed-loop calibrated synthesis FBW. The calibrated
+        # ratio, rather than the raw delta-only estimate, is authoritative.
         ratio = ch_result["qe_in"] / bw_result["qe_in"]
-        # ratio = (g1_ch * scale / fbw) / (g1_bw / fbw) = g1_ch / g1_bw * scale
         g1_ch = ch_result["g_values"][0]
         g1_bw = bw_result["g_values"][0]
-        expected_ratio = (g1_ch / g1_bw) * scale
+        expected_ratio = (g1_ch / g1_bw) * (bw_result["fbw_synth"] / ch_result["fbw_synth"])
         assert ratio == pytest.approx(expected_ratio, rel=1e-9)
+        assert ch_result["synthesis_validation"]["edge_validated"] is True
 
     def test_butterworth_synthesis_unchanged(self):
-        """Butterworth delta_3dB = 1 so coupling/Qe formulas are unchanged."""
+        """Butterworth uses requested FBW as its calibration starting point."""
         result = calculate_bandpass_filter(
             f0=14.175e6,
             bw=350e3,
@@ -113,10 +118,12 @@ class TestChebyshev3dBBandwidthSemantics:
         fbw = 350e3 / 14.175e6
         # Butterworth g1 = 2·sin(pi/(2n)) for prototype with g0=g_{n+1}=1
         g1 = result["g_values"][0]
-        assert result["qe_in"] == pytest.approx(g1 / fbw, rel=1e-12)
+        assert result["fbw_synth_initial"] == pytest.approx(fbw, rel=1e-12)
+        assert result["qe_in"] == pytest.approx(g1 / result["fbw_synth"], rel=1e-12)
+        assert result["synthesis_validation"]["edge_validated"] is True
 
     def test_bessel_synthesis_unchanged(self):
-        """Bessel is pre-normalized to delta=1 → -3 dB so no scaling applied."""
+        """Bessel starts at requested FBW before closed-loop calibration."""
         result = calculate_bandpass_filter(
             f0=14.175e6,
             bw=350e3,
@@ -127,7 +134,9 @@ class TestChebyshev3dBBandwidthSemantics:
         )
         fbw = 350e3 / 14.175e6
         g1 = result["g_values"][0]
-        assert result["qe_in"] == pytest.approx(g1 / fbw, rel=1e-12)
+        assert result["fbw_synth_initial"] == pytest.approx(fbw, rel=1e-12)
+        assert result["qe_in"] == pytest.approx(g1 / result["fbw_synth"], rel=1e-12)
+        assert result["synthesis_validation"]["edge_validated"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -152,9 +161,9 @@ class TestWizardFormatEseriesRecsPolicy:
             show_plot=False,
         )
         output = "\n".join(calculate_highpass(state))
-        assert "Standard Capacitor Recommendations" in output
+        assert "Preferred-Value Capacitor Selection" in output
         assert "wind to value" in output
-        assert "Standard Inductor Recommendations" not in output
+        assert "Preferred-Value Inductor Selection" not in output
 
     def test_hp_calculator_matches_capacitors_only(self):
         """The wizard HP calculation path uses capacitor E-series matching."""
@@ -347,9 +356,10 @@ class TestValidatorsRejectNanInf:
 
 
 class TestResultsScreenPreselectsExportFormat:
-    def _make_screen_with_state(self, export_format):
+    def _make_screen_with_state(self, output_format, export_format=None):
         screen = ResultsScreen()
         state = FilterState()
+        state.output_format = output_format
         state.export_format = export_format
         app = Mock()
         app.filter_state = state
@@ -368,15 +378,15 @@ class TestResultsScreenPreselectsExportFormat:
         return btn
 
     @pytest.mark.parametrize(
-        "export_format, expected_target",
+        "output_format, expected_target",
         [
             ("json", "export-json"),
             ("csv", "export-csv"),
             (None, "export-txt"),
         ],
     )
-    def test_preselect_sets_correct_button(self, export_format, expected_target):
-        screen = self._make_screen_with_state(export_format)
+    def test_preselect_sets_correct_button(self, output_format, expected_target):
+        screen = self._make_screen_with_state(output_format)
         buttons = [self._make_button(i) for i in ("export-txt", "export-json", "export-csv")]
         radio_set = self._mock_radio_set(buttons)
         screen.query_one = lambda *_a, **_k: radio_set  # type: ignore[assignment]
@@ -396,3 +406,13 @@ class TestResultsScreenPreselectsExportFormat:
         screen.query_one = raising  # type: ignore[assignment]
         # No exception propagates
         screen._preselect_export_format()
+
+    def test_response_sidecar_does_not_change_component_format(self):
+        screen = self._make_screen_with_state("table", export_format="csv")
+        buttons = [self._make_button(i) for i in ("export-txt", "export-json", "export-csv")]
+        radio_set = self._mock_radio_set(buttons)
+        screen.query_one = lambda *_a, **_k: radio_set  # type: ignore[assignment]
+
+        screen._preselect_export_format()
+
+        assert next(button for button in buttons if button.id == "export-txt").value is True

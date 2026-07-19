@@ -1,6 +1,10 @@
 """Tests for display formatting modules."""
 
+import csv
+import io
 import json
+
+import pytest
 
 from filter_lib.highpass.display import (
     _primary_component as hp_primary,
@@ -29,6 +33,7 @@ from filter_lib.lowpass.display import (
     format_quiet,
 )
 from filter_lib.shared.display_common import (
+    build_standard_match,
     format_csv_result,
     format_json_result,
     format_quiet_result,
@@ -90,6 +95,40 @@ class TestFormatJsonResult:
         assert inds[0]["name"] == "L1"
         assert inds[0]["value_henries"] == 1e-6
 
+    def test_non_finite_component_is_rejected_instead_of_emitting_nan(self, lowpass_result):
+        lowpass_result["capacitors"][0] = float("nan")
+
+        with pytest.raises(ValueError, match=r"\$\.components\.capacitors\[0\]"):
+            format_json_result(lowpass_result, primary_component="capacitors")
+
+
+class TestStandardMatchRecommendationMetadata:
+    def test_single_within_one_percent_is_the_explicit_selection(self):
+        data = build_standard_match(100.9e-12, "E24", "value_farads", "additive")
+
+        assert data["status"] == "recommended"
+        assert data["selected"]["kind"] == "single"
+        assert "parallel" not in data
+        assert data["policy"] == {
+            "prefer_single_within_pct": 1.0,
+            "min_parallel_improvement_pct_points": 0.5,
+            "minimum_capacitance_f": 1e-12,
+            "allow_sub_pf": False,
+        }
+
+    def test_material_parallel_pair_is_the_explicit_selection(self):
+        data = build_standard_match(138.8e-12, "E24", "value_farads", "additive")
+
+        assert data["selected"]["kind"] == "parallel"
+        assert data["parallel"]["components"] == data["selected"]["components"]
+
+    def test_sub_pf_target_exports_warning_without_selection(self):
+        data = build_standard_match(0.62e-12, "E24", "value_farads", "additive")
+
+        assert data["status"] == "expert_override_required"
+        assert data["selected"] is None
+        assert data["warnings"]
+
 
 class TestFormatCsvResult:
     """Tests for CSV formatting."""
@@ -131,6 +170,20 @@ class TestFormatCsvResult:
         parts = lines[1].split(",")
         assert parts[0] == "C1"
         assert "pF" in parts[2] or "nF" in parts[2]
+
+    def test_csv_exposes_one_recommended_realization_and_policy(self, lowpass_result):
+        output = format_csv_result(
+            lowpass_result,
+            primary_component="capacitors",
+            eseries="E24",
+            include_toroids=False,
+        )
+        rows = list(csv.DictReader(io.StringIO(output)))
+
+        assert "RecommendedStdKind" in rows[0]
+        assert "RecommendationPolicy" in rows[0]
+        assert rows[0]["RecommendedStdKind"] in {"single", "parallel"}
+        assert "single<=1%" in rows[0]["RecommendationPolicy"]
 
 
 class TestFormatQuietResult:
@@ -417,37 +470,37 @@ class TestDisplayResultsTopology:
     """Tests for display_results with different topologies."""
 
     def test_lowpass_pi_display(self, lowpass_result, capsys):
-        """LPF Pi display shows Pi diagram and capacitor recommendations."""
+        """LPF Pi display shows its diagram and preferred-value selection."""
         lp_display(lowpass_result, show_plot=False, show_match=True)
         out = capsys.readouterr().out
 
         assert "Low Pass" in out
         assert "PI" in out
-        assert "Capacitor Recommendations" in out
+        assert "Preferred-Value Capacitor Selection" in out
 
     def test_lowpass_t_display(self, lowpass_t_result, capsys):
-        """LPF T display shows T diagram and capacitor recommendations."""
+        """LPF T display shows its preferred-value selection."""
         lp_display(lowpass_t_result, show_plot=False, show_match=True)
         out = capsys.readouterr().out
 
         assert "Low Pass" in out
-        assert "Capacitor Recommendations" in out
+        assert "Preferred-Value Capacitor Selection" in out
 
     def test_highpass_t_display(self, highpass_result, capsys):
-        """HPF T display shows T diagram and capacitor recommendations."""
+        """HPF T display shows its preferred-value selection."""
         hp_display(highpass_result, show_plot=False, show_match=True)
         out = capsys.readouterr().out
 
         assert "High Pass" in out
-        assert "Capacitor Recommendations" in out
+        assert "Preferred-Value Capacitor Selection" in out
 
     def test_highpass_pi_display(self, highpass_pi_result, capsys):
-        """HPF Pi display shows Pi diagram and capacitor recommendations."""
+        """HPF Pi display shows its preferred-value selection."""
         hp_display(highpass_pi_result, show_plot=False, show_match=True)
         out = capsys.readouterr().out
 
         assert "High Pass" in out
-        assert "Capacitor Recommendations" in out
+        assert "Preferred-Value Capacitor Selection" in out
 
     def test_lowpass_pi_json_format(self, lowpass_result, capsys):
         """LPF Pi JSON output works via display_results."""

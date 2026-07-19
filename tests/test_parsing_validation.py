@@ -2,7 +2,7 @@
 
 import pytest
 
-from filter_lib.shared.parsing import parse_frequency, parse_impedance
+from filter_lib.shared.parsing import parse_frequency, parse_impedance, parse_inductance
 
 
 class TestParseFrequency:
@@ -41,6 +41,9 @@ class TestParseFrequency:
         assert parse_frequency("1.5K") == 1.5e3
         assert parse_frequency("2.4G") == 2.4e9
         assert parse_frequency("1g") == 1e9
+
+    def test_suffix_scaling_preserves_representable_subnormal_token_result(self):
+        assert parse_frequency("1e-325GHz") == pytest.approx(1e-316)
 
     def test_negative_frequency_raises(self):
         """Negative frequency should raise ValueError."""
@@ -131,3 +134,35 @@ class TestParseImpedance:
         """Whitespace should be handled correctly."""
         assert parse_impedance("  50ohm  ") == 50.0
         assert parse_impedance("  100  ") == 100.0
+
+
+class TestParseInductance:
+    """Tests for the band-pass resonator-inductance parser."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("1H", 1.0),
+            ("2.2mH", 2.2e-3),
+            ("4.7uH", 4.7e-6),
+            ("4.7µH", 4.7e-6),
+            ("4.7μH", 4.7e-6),
+            ("330nH", 330e-9),
+            ("1e-6", 1e-6),
+        ],
+    )
+    def test_supported_units(self, text, expected):
+        assert parse_inductance(text) == pytest.approx(expected)
+
+    def test_suffix_scaling_preserves_representable_overflowing_token_result(self):
+        assert parse_inductance("1e309nH") == pytest.approx(1e300)
+
+    @pytest.mark.parametrize("text", ["0H", "-1uH", "nan", "inf"])
+    def test_non_positive_or_non_finite_rejected(self, text):
+        with pytest.raises(ValueError, match="Inductance must be positive"):
+            parse_inductance(text)
+
+    @pytest.mark.parametrize("text", ["", "abc", "10pF", "4.7u"])
+    def test_invalid_format_rejected(self, text):
+        with pytest.raises(ValueError):
+            parse_inductance(text)

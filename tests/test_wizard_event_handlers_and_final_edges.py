@@ -146,6 +146,8 @@ def _bp_handler_widgets(ripple_visible: bool = False):
     imp = Mock(spec=Input)
     reson = Mock(spec=Input)
     ripple = Mock(spec=Input)
+    resonator_impedance = Mock(spec=Input)
+    resonator_inductance = Mock(spec=Input)
     btn = Mock(spec=Button)
     ripple_section = Mock()
     ripple_section.display = ripple_visible
@@ -155,6 +157,8 @@ def _bp_handler_widgets(ripple_visible: bool = False):
         "#impedance": imp,
         "#resonators": reson,
         "#ripple": ripple,
+        "#resonator-impedance": resonator_impedance,
+        "#resonator-inductance": resonator_inductance,
         "#ripple-section": ripple_section,
         "#next-btn": btn,
     }
@@ -201,6 +205,20 @@ class TestBandpassEventHandlers:
         widgets = _bp_handler_widgets()
         _install_query_one(screen, widgets)
         screen._on_ripple_submitted(Mock())
+        widgets["#next-btn"].focus.assert_called_once()
+
+    def test_optional_tank_impedance_submitted_focuses_inductance(self):
+        screen = BandpassScreen()
+        widgets = _bp_handler_widgets()
+        _install_query_one(screen, widgets)
+        screen._on_resonator_impedance_submitted(Mock())
+        widgets["#resonator-inductance"].focus.assert_called_once()
+
+    def test_optional_tank_inductance_submitted_focuses_button(self):
+        screen = BandpassScreen()
+        widgets = _bp_handler_widgets()
+        _install_query_one(screen, widgets)
+        screen._on_resonator_inductance_submitted(Mock())
         widgets["#next-btn"].focus.assert_called_once()
 
     def test_filter_type_changed_shows_ripple_for_chebyshev(self):
@@ -254,6 +272,8 @@ class TestResultsScreenSaveCsv:
             "ripple": None,
             "topology": "pi",
         }
+        state.output_text = screen._result_text
+        state.calculation_status = "success"
         app = Mock()
         app.filter_state = state
         type(screen).app = property(lambda _self: app)  # type: ignore[misc]
@@ -305,6 +325,9 @@ class TestResultsScreenResponseExport:
     def _make_screen(state, tmp_path, monkeypatch, format_id="export-json"):
         screen = ResultsScreen()
         screen._result_text = "component results"
+        if state.result:
+            state.output_text = screen._result_text
+            state.calculation_status = "success"
         app = Mock()
         app.filter_state = state
         type(screen).app = property(lambda _self: app)  # type: ignore[misc]
@@ -362,8 +385,8 @@ class TestResultsScreenResponseExport:
         assert all(_os.path.isabs(p) for p in paths)
         assert paths[1].endswith("-response.csv")
 
-    def test_save_with_empty_result_skips_response_but_saves_component(self, tmp_path, monkeypatch):
-        """A failed calculation leaves state.result empty; component file still saves."""
+    def test_save_with_empty_result_writes_no_files(self, tmp_path, monkeypatch):
+        """A failed calculation must not write an error-text component file."""
         state = self._lp_state()
         state.export_format = "json"
         state.result = {}
@@ -371,9 +394,13 @@ class TestResultsScreenResponseExport:
 
         screen._save_export()
 
-        assert len(list(tmp_path.glob("lowpass-*.txt"))) == 1
+        assert not list(tmp_path.glob("lowpass-*.txt"))
         assert not list(tmp_path.glob("*-response.*"))
-        warnings = [c for c in screen.notify.call_args_list if "skipping" in c[0][0]]
+        warnings = [
+            c
+            for c in screen.notify.call_args_list
+            if "No current successful calculation" in c[0][0]
+        ]
         assert warnings
 
     def test_bandpass_response_export_uses_simulated_sweep(self, tmp_path, monkeypatch):
@@ -403,27 +430,26 @@ class TestResultsScreenResponseExport:
 
 
 # ---------------------------------------------------------------------------
-# E-series: ratio_limit < 1 forces the "no valid combo" branch
+# E-series: a ratio limit below one is physically impossible
 # ---------------------------------------------------------------------------
 
 
-class TestESeriesTightRatioLimit:
-    def test_find_parallel_combo_additive_returns_none_with_tight_limit(self):
-        """ratio_limit=0.5 filters out every combination in additive mode."""
-        result = find_parallel_combo(1e-9, "E24", mode="additive", ratio_limit=0.5)
-        assert result is None
+class TestESeriesRatioLimitValidation:
+    def test_find_parallel_combo_additive_rejects_impossible_limit(self):
+        with pytest.raises(ValueError, match=">= 1"):
+            find_parallel_combo(1e-9, "E24", mode="additive", ratio_limit=0.5)
 
-    def test_find_parallel_combo_harmonic_returns_none_with_tight_limit(self):
-        result = find_parallel_combo(1e-6, "E24", mode="harmonic", ratio_limit=0.5)
-        assert result is None
+    def test_find_parallel_combo_harmonic_rejects_impossible_limit(self):
+        with pytest.raises(ValueError, match=">= 1"):
+            find_parallel_combo(1e-6, "E24", mode="harmonic", ratio_limit=0.5)
 
-    def test_match_component_returns_none_parallel_when_combo_infeasible(self):
-        """Exercises the `parallel_result is None` fallthrough in match_component."""
-        match = match_component(47e-12, "E24", parallel_mode="additive", ratio_limit=0.5)
+    def test_match_component_requires_expert_override_below_cap_floor(self):
+        match = match_component(0.5e-12, "E24", parallel_mode="additive", ratio_limit=1.0)
         assert match.parallel is None
         assert match.parallel_value is None
         assert match.parallel_error_pct is None
-        assert match.single_value > 0
+        assert match.recommended_kind == "none"
+        assert match.status == "expert_override_required"
 
 
 # ---------------------------------------------------------------------------

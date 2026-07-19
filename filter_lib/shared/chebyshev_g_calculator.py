@@ -8,6 +8,8 @@ These normalized element values are derived from:
 
 import math
 
+from .numeric import is_finite_real
+
 # Conversion factor from dB to nepers for Chebyshev ripple calculation.
 # Derivation: dB = 20 * log10(x), nepers = ln(x)
 # Therefore: nepers = dB / (20 * log10(e)) = dB * ln(10) / 20
@@ -16,6 +18,10 @@ import math
 # epsilon = sqrt(10^(ripple_dB/10) - 1)
 # Reference: Matthaei, Young, Jones "Microwave Filters" Ch. 4
 CHEBYSHEV_DB_TO_NEPER_FACTOR = 40 / math.log(10)
+# Standalone prototype helpers intentionally support orders well beyond the
+# calculator's 2-9 element UI, but list-producing APIs still need a bounded
+# allocation contract for untrusted direct callers.
+MAX_PROTOTYPE_ORDER = 10_000
 
 
 def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
@@ -42,6 +48,11 @@ def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
         Callers that promise -3 dB semantics (e.g. bandpass) must apply
         their own edge correction.
     """
+    if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= MAX_PROTOTYPE_ORDER:
+        raise ValueError(f"n must be a positive integer no greater than {MAX_PROTOTYPE_ORDER:,}")
+    if not is_finite_real(ripple_db) or ripple_db <= 0:
+        raise ValueError("ripple_db must be positive and finite")
+
     # Matthaei, Young, Jones "Microwave Filters" Sec. 4.05, Eq. 4.13-4.16
     # (their beta/gamma/a_k/b_k recurrence for equal-ripple prototypes):
     #   beta  = ln(coth(L_Ar / 17.37)) with L_Ar the ripple in dB
@@ -51,10 +62,17 @@ def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
     #   g_1   = 2·a_1 / gamma
     #   g_k   = 4·a_{k-1}·a_k / (b_{k-1}·g_{k-1})
     # 17.37 is Matthaei's rounding of 40/ln(10); we keep it exact.
-    rr = ripple_db / CHEBYSHEV_DB_TO_NEPER_FACTOR
-    e2x = math.exp(2 * rr)
-    coth = (e2x + 1) / (e2x - 1)
-    bt = math.log(coth)
+    log_rr = math.log(ripple_db) - math.log(CHEBYSHEV_DB_TO_NEPER_FACTOR)
+    # log(coth(rr)) = -log(tanh(rr)). Below 1e-8, tanh(rr)/rr differs
+    # from one by less than floating precision, so use log(rr) directly;
+    # forming rr first would underflow for the smallest positive float.
+    if log_rr < math.log(1e-8):
+        bt = -log_rr
+    else:
+        rr = ripple_db / CHEBYSHEV_DB_TO_NEPER_FACTOR
+        bt = -math.log(math.tanh(rr))
+    if bt == 0.0:
+        raise ValueError("ripple_db is too large for finite prototype calculation")
     btn = bt / (2 * n)
     gn = math.sinh(btn)
 
@@ -65,8 +83,11 @@ def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
     for i in range(1, n + 1):
         k = (2 * i - 1) * math.pi / (2 * n)
         a[i] = math.sin(k)
-        k2 = math.pi * i / n
-        b[i] = gn**2 + math.sin(k2) ** 2
+        # The recurrence consumes only b[1]..b[n-1]. Avoiding the unused
+        # final square also keeps the order-one, minimum-ripple result finite.
+        if i < n:
+            k2 = math.pi * i / n
+            b[i] = gn**2 + math.sin(k2) ** 2
 
     g[1] = 2 * a[1] / gn
     for i in range(2, n + 1):

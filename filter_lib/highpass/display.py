@@ -57,9 +57,18 @@ def format_json(
     result: dict,
     eseries: str | None = None,
     include_toroids: bool = True,
+    matched_sim: dict | None = None,
+    build_analysis=None,
 ) -> str:
     """Format results as JSON."""
-    return format_json_for_config(result, HIGHPASS_DISPLAY_CONFIG, eseries, include_toroids)
+    return format_json_for_config(
+        result,
+        HIGHPASS_DISPLAY_CONFIG,
+        eseries,
+        include_toroids,
+        matched_sim,
+        build_analysis,
+    )
 
 
 def format_csv(
@@ -87,6 +96,8 @@ def display_results(
     include_toroids: bool = True,
     toroid_compact: bool = False,
     toroid_full: bool = False,
+    matched_sim: dict | None = None,
+    build_analysis=None,
 ) -> None:
     """Display calculated filter component values.
 
@@ -102,7 +113,7 @@ def display_results(
         show_plot: Show ASCII frequency response
         include_toroids: Include toroid winding recommendations
         toroid_compact: Use compact 1-line-per-rec toroid text format
-        toroid_full: Show top-3 cores in table output (default top-1)
+        toroid_full: Show up to three qualified cores in table output (default top-1)
     """
     display_results_for_config(
         result,
@@ -116,6 +127,8 @@ def display_results(
         include_toroids=include_toroids,
         toroid_compact=toroid_compact,
         toroid_full=toroid_full,
+        matched_sim=matched_sim,
+        build_analysis=build_analysis,
     )
 
 

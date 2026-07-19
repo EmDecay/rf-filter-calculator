@@ -38,6 +38,45 @@ class TestSharedTransferFunctions:
         with pytest.raises(ValueError, match="positive"):
             generate_frequency_points(-1)
 
+    @pytest.mark.parametrize("f0", [True, "10MHz", None])
+    def test_generate_frequency_points_rejects_non_real_center(self, f0):
+        with pytest.raises(ValueError, match="positive and finite"):
+            generate_frequency_points(f0, num_points=2)
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"num_points": 1},
+            {"num_points": 2.5},
+            {"decades": 0},
+            {"decades": True},
+            {"decades": "2"},
+            {"decades": float("inf")},
+            {"points_per_decade": 0},
+            {"points_per_decade": 2.5},
+            {"decades": 0.01, "points_per_decade": 25},
+        ],
+    )
+    def test_generate_frequency_points_rejects_invalid_grid_controls(self, kwargs):
+        with pytest.raises(ValueError):
+            generate_frequency_points(10e6, **kwargs)
+
+    def test_generate_frequency_points_rejects_overflowing_span(self):
+        with pytest.raises(ValueError, match="finite"):
+            generate_frequency_points(1e308, num_points=3)
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"decades": 1e308},
+            {"decades": 1e6, "points_per_decade": 2},
+            {"decades": 1.0, "points_per_decade": 10**400},
+        ],
+    )
+    def test_generate_frequency_points_rejects_impractical_grid_allocation(self, kwargs):
+        with pytest.raises(ValueError, match="too large|must not exceed"):
+            generate_frequency_points(1.0, **kwargs)
+
     def test_chebyshev_polynomial_base_cases(self):
         assert chebyshev_polynomial(0, 0.5) == pytest.approx(1.0)
         assert chebyshev_polynomial(1, 0.5) == pytest.approx(0.5)
@@ -88,6 +127,16 @@ class TestSharedTransferFunctions:
     def test_magnitude_to_db_half(self):
         assert magnitude_to_db(0.5) == pytest.approx(20 * math.log10(0.5))
 
+    @pytest.mark.parametrize("magnitude", [float("nan"), float("inf"), float("-inf")])
+    def test_magnitude_to_db_rejects_non_finite_input(self, magnitude):
+        with pytest.raises(ValueError, match="finite"):
+            magnitude_to_db(magnitude)
+
+    @pytest.mark.parametrize("magnitude", [True, "1", None])
+    def test_magnitude_to_db_rejects_non_real_input(self, magnitude):
+        with pytest.raises(ValueError, match="finite"):
+            magnitude_to_db(magnitude)
+
     def test_export_response_json_unified_schema_lowpass(self):
         """Golden test: LP/HP exports carry the unified filter block + data."""
         result = {
@@ -124,11 +173,128 @@ class TestSharedTransferFunctions:
         assert data["filter"]["category"] == "highpass"
         assert data["filter"]["ripple_db"] == 0.5
 
+    @pytest.mark.parametrize("category", ["not-a-category", "", None, [], {}])
+    def test_response_meta_rejects_unknown_category(self, category):
+        with pytest.raises(ValueError, match="category"):
+            response_meta(category, {})
+
+    @pytest.mark.parametrize("result", [None, [], "result"])
+    def test_response_meta_requires_mapping_result(self, result):
+        with pytest.raises(ValueError, match="result must be a mapping"):
+            response_meta("lowpass", result)
+
+    @pytest.mark.parametrize(
+        ("category", "result"),
+        [
+            ("lowpass", {}),
+            ("highpass", {"filter_type": "butterworth", "order": 3}),
+            (
+                "bandpass",
+                {"filter_type": "butterworth", "n_resonators": 3, "f0": 10e6},
+            ),
+        ],
+    )
+    def test_response_meta_rejects_missing_required_fields(self, category, result):
+        with pytest.raises(ValueError):
+            response_meta(category, result)
+
+    @pytest.mark.parametrize(
+        "meta",
+        [
+            [],
+            {"category": "not-a-category"},
+            {"category": []},
+            {
+                "category": "lowpass",
+                "response_type": [],
+                "order": 3,
+                "cutoff_hz": 1e6,
+            },
+            {"category": "lowpass"},
+            {
+                "category": "lowpass",
+                "response_type": "butterworth",
+                "order": 3,
+                "cutoff_hz": 1e6,
+                "f0_hz": 1e6,
+            },
+            {
+                "category": "lowpass",
+                "response_type": "chebyshev",
+                "order": 3,
+                "cutoff_hz": 1e6,
+                "ripple_db": 3.1,
+            },
+        ],
+    )
+    def test_response_json_rejects_schema_invalid_metadata(self, meta):
+        with pytest.raises(ValueError):
+            export_response_json([], [], meta)
+
     def test_export_response_csv(self):
         result = export_response_csv([1e6, 10e6], [-0.1, -3.0])
         lines = result.split("\n")
         assert lines[0] == "frequency_hz,magnitude_db"
         assert len(lines) == 3
+
+    @pytest.mark.parametrize("exporter", [export_response_json, export_response_csv])
+    def test_response_export_rejects_mismatched_array_lengths(self, exporter):
+        args = ([1e6, 10e6], [-0.1])
+        if exporter is export_response_json:
+            with pytest.raises(ValueError, match="same length"):
+                exporter(*args, {"category": "lowpass"})
+        else:
+            with pytest.raises(ValueError, match="same length"):
+                exporter(*args)
+
+    def test_response_json_rejects_non_finite_values(self):
+        with pytest.raises(ValueError, match=r"\$\.data\[0\]\.magnitude_db.*finite"):
+            export_response_json(
+                [1e6],
+                [float("nan")],
+                {"category": "lowpass", "cutoff_hz": 1e6},
+            )
+
+    def test_response_json_rejects_non_finite_metadata(self):
+        with pytest.raises(ValueError, match=r"\$\.filter\.cutoff_hz.*finite"):
+            export_response_json(
+                [1e6],
+                [-3.0],
+                {"category": "lowpass", "cutoff_hz": float("inf")},
+            )
+
+    @pytest.mark.parametrize(
+        "freqs,response_db",
+        [
+            ([float("inf")], [-3.0]),
+            ([1e6], [float("nan")]),
+        ],
+    )
+    def test_response_csv_rejects_non_finite_values(self, freqs, response_db):
+        with pytest.raises(ValueError, match="finite"):
+            export_response_csv(freqs, response_db)
+
+    @pytest.mark.parametrize("exporter", [export_response_json, export_response_csv])
+    @pytest.mark.parametrize(
+        "freqs,response_db",
+        [
+            ([True], [False]),
+            (["1MHz"], [0.0]),
+            ([0.0], [0.0]),
+            ([-1.0], [0.0]),
+            ([1e6], [True]),
+            ([1e6], ["-3"]),
+        ],
+    )
+    def test_response_export_requires_numeric_frequency_and_db_values(
+        self, exporter, freqs, response_db
+    ):
+        if exporter is export_response_json:
+            with pytest.raises(ValueError):
+                exporter(freqs, response_db, {"category": "lowpass"})
+        else:
+            with pytest.raises(ValueError):
+                exporter(freqs, response_db)
 
 
 # --- Lowpass transfer ---
@@ -183,6 +349,26 @@ class TestLowpassTransfer:
     def test_frequency_response_invalid_type(self):
         with pytest.raises(ValueError, match="Unknown filter type"):
             lp_transfer.frequency_response("invalid", [1e6], 10e6, 3)
+
+    @pytest.mark.parametrize("module", [lp_transfer, hp_transfer])
+    def test_frequency_response_validates_definition_on_empty_grid(self, module):
+        with pytest.raises(ValueError, match="Unknown filter type"):
+            module.frequency_response("invalid", [], 10e6, 3)
+        with pytest.raises(ValueError, match="positive and finite"):
+            module.frequency_response("bw", [], 0.0, 3)
+        with pytest.raises(ValueError, match="positive integer"):
+            module.frequency_response("bw", [], 10e6, 0)
+
+    @pytest.mark.parametrize("module", [lp_transfer, hp_transfer])
+    def test_frequency_response_rejects_non_string_type(self, module):
+        with pytest.raises(ValueError, match="must be a string"):
+            module.frequency_response(None, [1e6], 10e6, 3)
+
+    @pytest.mark.parametrize("module", [lp_transfer, hp_transfer])
+    @pytest.mark.parametrize("freqs", [None, 1, "1MHz", {"frequency": 1e6}])
+    def test_frequency_response_requires_frequency_sequence(self, module, freqs):
+        with pytest.raises(ValueError, match="freqs must be a sequence"):
+            module.frequency_response("bw", freqs, 10e6, 3)
 
 
 # --- Highpass transfer ---
@@ -250,6 +436,38 @@ class TestBandpassTransfer:
         with pytest.raises(ValueError, match="must be positive"):
             bp_transfer._bandpass_deviation(14e6, 14e6, -1)
 
+    @pytest.mark.parametrize(
+        "frequency,f0,bw",
+        [
+            (float("nan"), 14e6, 1e6),
+            (14e6, float("inf"), 1e6),
+            (14e6, 14e6, float("nan")),
+        ],
+    )
+    def test_bandpass_deviation_rejects_non_finite_inputs(self, frequency, f0, bw):
+        with pytest.raises(ValueError, match="finite"):
+            bp_transfer._bandpass_deviation(frequency, f0, bw)
+
+    def test_bandpass_deviation_is_stable_at_large_equal_frequencies(self):
+        assert bp_transfer._bandpass_deviation(1e308, 1e308, 1e307) == 0.0
+
+    def test_bandpass_deviation_extreme_ratio_returns_infinity_not_nan(self):
+        deviation = bp_transfer._bandpass_deviation(1e308, 1e-308, 1e-308)
+        assert math.isinf(deviation)
+        assert deviation > 0
+
+    @pytest.mark.parametrize("order", [True, 0, -1, 2.5, "3"])
+    def test_chebyshev_3db_deviation_rejects_invalid_order(self, order):
+        with pytest.raises(ValueError, match="order must be a positive integer"):
+            bp_transfer.chebyshev_3db_deviation(order, 0.5)
+
+    @pytest.mark.parametrize(
+        "ripple_db", [True, 0.0, -0.5, float("nan"), float("inf"), float("-inf")]
+    )
+    def test_chebyshev_3db_deviation_rejects_invalid_ripple(self, ripple_db):
+        with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
+            bp_transfer.chebyshev_3db_deviation(3, ripple_db)
+
     def test_magnitude_butterworth_at_center(self):
         assert bp_transfer.magnitude_butterworth(14e6, 14e6, 1e6, 3) == pytest.approx(1.0)
 
@@ -283,6 +501,86 @@ class TestBandpassTransfer:
         db = bp_transfer.magnitude_db(100e6, 14e6, 1e6, 5, "butterworth")
         assert db == -120.0
 
+    @pytest.mark.parametrize("order", [True, 0, -1, 2.5])
+    @pytest.mark.parametrize(
+        "function_name,extra_args",
+        [
+            ("magnitude_butterworth", ()),
+            ("magnitude_chebyshev", (0.5,)),
+            ("magnitude_bessel", ()),
+        ],
+    )
+    def test_public_magnitude_functions_reject_invalid_order(
+        self, function_name, extra_args, order
+    ):
+        function = getattr(bp_transfer, function_name)
+        with pytest.raises(ValueError, match="order must be a positive integer"):
+            function(14e6, 14e6, 1e6, order, *extra_args)
+
+    @pytest.mark.parametrize("order", [True, 0, -1, 2.5])
+    def test_public_db_and_sweep_functions_reject_invalid_order(self, order):
+        with pytest.raises(ValueError, match="order must be a positive integer"):
+            bp_transfer.magnitude_db(14e6, 14e6, 1e6, order, "butterworth")
+        with pytest.raises(ValueError, match="order must be a positive integer"):
+            bp_transfer.frequency_sweep(14e6, 1e6, order, "butterworth", points=3)
+        result = {
+            "f0": 14e6,
+            "bw": 1e6,
+            "n_resonators": order,
+            "filter_type": "butterworth",
+            "ripple_db": None,
+        }
+        with pytest.raises(ValueError, match="order must be a positive integer"):
+            bp_transfer.frequency_response(result, [])
+
+    @pytest.mark.parametrize("result", [None, 1, [], "result"])
+    def test_bandpass_frequency_response_requires_result_mapping(self, result):
+        with pytest.raises(ValueError, match="result must be a mapping"):
+            bp_transfer.frequency_response(result, [])
+
+    @pytest.mark.parametrize("freqs", [None, 1, "1MHz", {"frequency": 1e6}])
+    def test_bandpass_frequency_response_requires_frequency_sequence(self, freqs):
+        result = {
+            "f0": 14e6,
+            "bw": 1e6,
+            "n_resonators": 3,
+            "filter_type": "butterworth",
+            "ripple_db": None,
+        }
+        with pytest.raises(ValueError, match="freqs must be a sequence"):
+            bp_transfer.frequency_response(result, freqs)
+
+    @pytest.mark.parametrize("result", [None, 1, [], "result"])
+    def test_bandpass_netlist_sweep_requires_result_mapping(self, result):
+        with pytest.raises(ValueError, match="result must be a mapping"):
+            bp_transfer.netlist_frequency_sweep(result, points=3)
+
+    @pytest.mark.parametrize("ripple_db", [True, 0.0, float("nan"), float("inf")])
+    def test_chebyshev_magnitude_and_sweep_reject_invalid_ripple(self, ripple_db):
+        with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
+            bp_transfer.magnitude_chebyshev(14e6, 14e6, 1e6, 3, ripple_db)
+        with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
+            bp_transfer.magnitude_db(14e6, 14e6, 1e6, 3, "chebyshev", ripple_db)
+        with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
+            bp_transfer.frequency_sweep(14e6, 1e6, 3, "chebyshev", ripple_db, points=3)
+
+    @pytest.mark.parametrize("filter_type", ["butterworth", "chebyshev", "bessel"])
+    def test_extreme_deviation_returns_zero_magnitude_and_finite_db(self, filter_type):
+        ripple_db = 0.5
+        if filter_type == "butterworth":
+            magnitude = bp_transfer.magnitude_butterworth(1e308, 1e-308, 1e-308, 9)
+        elif filter_type == "chebyshev":
+            magnitude = bp_transfer.magnitude_chebyshev(1e308, 1e-308, 1e-308, 9, ripple_db)
+        else:
+            magnitude = bp_transfer.magnitude_bessel(1e308, 1e-308, 1e-308, 9)
+        assert magnitude == 0.0
+        assert bp_transfer.magnitude_db(1e308, 1e-308, 1e-308, 9, filter_type, ripple_db) == -120.0
+
+    @pytest.mark.parametrize("filter_type", ["butterworth", "chebyshev"])
+    def test_extreme_positive_order_does_not_overflow(self, filter_type):
+        huge_order = 10**400
+        assert bp_transfer.magnitude_db(2.0, 1.0, 1.0, huge_order, filter_type, 0.5) == -120.0
+
     def test_frequency_sweep_defaults(self):
         result = bp_transfer.frequency_sweep(14e6, 1e6, 3, "butterworth")
         assert len(result) == 61
@@ -291,6 +589,25 @@ class TestBandpassTransfer:
     def test_frequency_sweep_custom_points(self):
         result = bp_transfer.frequency_sweep(14e6, 1e6, 3, "butterworth", points=31)
         assert len(result) == 31
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"points": 1},
+            {"points": 2.5},
+            {"decades": 0},
+            {"decades": float("nan")},
+        ],
+    )
+    def test_frequency_sweep_rejects_invalid_grid_controls(self, kwargs):
+        with pytest.raises(ValueError):
+            bp_transfer.frequency_sweep(14e6, 1e6, 3, "butterworth", **kwargs)
+
+    def test_frequency_sweep_rejects_non_finite_or_overflowing_span(self):
+        with pytest.raises(ValueError, match="finite"):
+            bp_transfer.frequency_sweep(float("inf"), 1e6, 3, "butterworth")
+        with pytest.raises(ValueError, match="finite"):
+            bp_transfer.frequency_sweep(1e308, 1e307, 3, "butterworth")
 
     def test_generate_frequency_points_bandpass(self):
         points = bp_transfer.generate_frequency_points(14e6, 1e6, points=101)
@@ -356,6 +673,14 @@ class TestNetlistSweep:
         peak_db = max(db for _, db in sweep)
         assert peak_db == pytest.approx(0.0, abs=0.1)
 
+    def test_docstring_describes_ideal_component_simulation_limits(self):
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+        docstring = netlist_frequency_sweep.__doc__ or ""
+        assert "ideal-component circuit" in docstring
+        assert "not a measurement" in docstring
+        assert "parasitics" in docstring
+
     def test_3db_crossings_match_printed_cutoffs(self):
         """The -3 dB points of the simulated response agree with f_low/f_high."""
         from filter_lib.bandpass.transfer import netlist_frequency_sweep
@@ -400,3 +725,10 @@ class TestNetlistSweep:
 
         with pytest.raises(ValueError, match="points"):
             netlist_frequency_sweep(self._result(0.05), points=1)
+
+    @pytest.mark.parametrize("kwargs", [{"points": 2.5}, {"decades": 0}])
+    def test_netlist_sweep_rejects_invalid_grid_controls(self, kwargs):
+        from filter_lib.bandpass.transfer import netlist_frequency_sweep
+
+        with pytest.raises(ValueError):
+            netlist_frequency_sweep(self._result(0.05), **kwargs)

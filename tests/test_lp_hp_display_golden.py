@@ -1,6 +1,9 @@
 """Golden-string snapshots for LP/HP rendered display output."""
 
+import csv
+import json
 from contextlib import redirect_stdout
+from copy import deepcopy
 from io import StringIO
 
 import pytest
@@ -91,9 +94,9 @@ GOLDENS = {
         "└────────────────────────┴────────────────────────┘\n"
         "Inductors: wind to value\n"
         "\n"
-        "E24 Standard Capacitor Recommendations\n"
+        "E24 Preferred-Value Capacitor Selection\n"
         "---------------------------------------------\n"
-        "(Calculated values with nearest standard matches)\n"
+        "(Series density is not part tolerance; policy selects at most one realization; expert action may be required)\n"
         "\n"
         "C1 Calculated: 318.31 pF\n"
         "  Nearest Std:  330.00 pF (+3.7%)\n"
@@ -199,9 +202,9 @@ GOLDENS = {
         "└────────────────────────┴────────────────────────┘\n"
         "Inductors: wind to value\n"
         "\n"
-        "E24 Standard Capacitor Recommendations\n"
+        "E24 Preferred-Value Capacitor Selection\n"
         "---------------------------------------------\n"
-        "(Calculated values with nearest standard matches)\n"
+        "(Series density is not part tolerance; policy selects at most one realization; expert action may be required)\n"
         "\n"
         "C1 Calculated: 636.62 pF\n"
         "  Nearest Std:  620.00 pF (-2.6%)\n"
@@ -287,9 +290,9 @@ GOLDENS = {
         "└────────────────────────┴────────────────────────┘\n"
         "Inductors: wind to value\n"
         "\n"
-        "E24 Standard Capacitor Recommendations\n"
+        "E24 Preferred-Value Capacitor Selection\n"
         "---------------------------------------------\n"
-        "(Calculated values with nearest standard matches)\n"
+        "(Series density is not part tolerance; policy selects at most one realization; expert action may be required)\n"
         "\n"
         "C1 Calculated: 508.11 pF\n"
         "  Nearest Std:  510.00 pF (+0.4%)\n"
@@ -396,9 +399,9 @@ GOLDENS = {
         "└────────────────────────┴────────────────────────┘\n"
         "Inductors: wind to value\n"
         "\n"
-        "E24 Standard Capacitor Recommendations\n"
+        "E24 Preferred-Value Capacitor Selection\n"
         "---------------------------------------------\n"
-        "(Calculated values with nearest standard matches)\n"
+        "(Series density is not part tolerance; policy selects at most one realization; expert action may be required)\n"
         "\n"
         "C1 Calculated: 349.09 pF\n"
         "  Nearest Std:  360.00 pF (+3.1%)\n"
@@ -483,13 +486,12 @@ GOLDENS = {
         "└────────────────────────┴────────────────────────┘\n"
         "Inductors: wind to value\n"
         "\n"
-        "E24 Standard Capacitor Recommendations\n"
+        "E24 Preferred-Value Capacitor Selection\n"
         "---------------------------------------------\n"
-        "(Calculated values with nearest standard matches)\n"
+        "(Series density is not part tolerance; policy selects at most one realization; expert action may be required)\n"
         "\n"
         "C1 Calculated: 1.59 nF\n"
         "  Nearest Std:  1.60 nF (+0.5%)\n"
-        "  Parallel Std: 390.00 pF || 1.20 nF (-0.1%)\n"
         "\n",
         "json": "{\n"
         '  "filter_type": "butterworth",\n'
@@ -569,9 +571,9 @@ GOLDENS = {
         "└────────────────────────┴────────────────────────┘\n"
         "Inductors: wind to value\n"
         "\n"
-        "E24 Standard Capacitor Recommendations\n"
+        "E24 Preferred-Value Capacitor Selection\n"
         "---------------------------------------------\n"
-        "(Calculated values with nearest standard matches)\n"
+        "(Series density is not part tolerance; policy selects at most one realization; expert action may be required)\n"
         "\n"
         "C1 Calculated: 3.18 nF\n"
         "  Nearest Std:  3.30 nF (+3.7%)\n"
@@ -679,9 +681,9 @@ GOLDENS = {
         "└────────────────────────┴────────────────────────┘\n"
         "Inductors: wind to value\n"
         "\n"
-        "E24 Standard Capacitor Recommendations\n"
+        "E24 Preferred-Value Capacitor Selection\n"
         "---------------------------------------------\n"
-        "(Calculated values with nearest standard matches)\n"
+        "(Series density is not part tolerance; policy selects at most one realization; expert action may be required)\n"
         "\n"
         "C1 Calculated: 2.90 nF\n"
         "  Nearest Std:  3.00 nF (+3.4%)\n"
@@ -768,16 +770,14 @@ GOLDENS = {
         "└────────────────────────┴────────────────────────┘\n"
         "Inductors: wind to value\n"
         "\n"
-        "E24 Standard Capacitor Recommendations\n"
+        "E24 Preferred-Value Capacitor Selection\n"
         "---------------------------------------------\n"
-        "(Calculated values with nearest standard matches)\n"
+        "(Series density is not part tolerance; policy selects at most one realization; expert action may be required)\n"
         "\n"
         "C1 Calculated: 1.99 nF\n"
         "  Nearest Std:  2.00 nF (+0.3%)\n"
-        "  Parallel Std: 390.00 pF || 1.60 nF (-0.2%)\n"
         "C2 Calculated: 1.99 nF\n"
         "  Nearest Std:  2.00 nF (+0.3%)\n"
-        "  Parallel Std: 390.00 pF || 1.60 nF (-0.2%)\n"
         "\n",
         "json": "{\n"
         '  "filter_type": "chebyshev",\n'
@@ -864,7 +864,62 @@ def test_lp_hp_json_output_matches_golden(case: dict) -> None:
     module = lp_display if case["category"] == "lowpass" else hp_display
     result = _make_result(case["category"], case["filter_type"], case["topology"])
 
-    assert module.format_json(result, eseries="E24", include_toroids=False) == case["json"]
+    actual = json.loads(module.format_json(result, eseries="E24", include_toroids=False))
+    expected = json.loads(case["json"])
+
+    actual_core = deepcopy(actual)
+    expected_core = deepcopy(expected)
+    for capacitor in actual_core["components"]["capacitors"]:
+        capacitor.pop("standard_match")
+    for capacitor in expected_core["components"]["capacitors"]:
+        capacitor.pop("standard_match")
+    _assert_nested_approximately_equal(actual_core, expected_core)
+
+    for actual_cap, expected_cap in zip(
+        actual["components"]["capacitors"],
+        expected["components"]["capacitors"],
+        strict=True,
+    ):
+        actual_match = actual_cap["standard_match"]
+        expected_match = expected_cap["standard_match"]
+        assert actual_match["series"] == expected_match["series"]
+        assert actual_match["nearest"] == pytest.approx(expected_match["nearest"])
+        assert actual_match["policy"] == {
+            "prefer_single_within_pct": 1.0,
+            "min_parallel_improvement_pct_points": 0.5,
+            "minimum_capacitance_f": 1e-12,
+            "allow_sub_pf": False,
+        }
+        assert actual_match["status"] == "recommended"
+        assert actual_match["warnings"] == []
+
+        nearest_error = abs(expected_match["nearest"]["error_pct"])
+        parallel = expected_match.get("parallel")
+        parallel_improvement = (
+            nearest_error - abs(parallel["error_pct"]) if parallel is not None else 0.0
+        )
+        expected_kind = (
+            "single" if nearest_error <= 1.0 or parallel_improvement < 0.5 else "parallel"
+        )
+        selected = actual_match["selected"]
+        assert selected["kind"] == expected_kind
+        assert selected["value_farads"] == pytest.approx(
+            sum(component["value_farads"] for component in selected["components"])
+        )
+        assert selected["error_pct"] == pytest.approx(
+            (selected["value_farads"] / actual_cap["value_farads"] - 1.0) * 100.0
+        )
+
+        if expected_kind == "single":
+            assert "parallel" not in actual_match
+            assert selected["value_farads"] == pytest.approx(
+                expected_match["nearest"]["value_farads"]
+            )
+            assert actual_match["reason"] == "single_within_preferred_error"
+        else:
+            assert actual_match["parallel"] == pytest.approx(parallel)
+            assert selected["value_farads"] == pytest.approx(parallel["value_farads"])
+            assert actual_match["reason"] == "parallel_materially_improves_error"
 
 
 @pytest.mark.parametrize("case", GOLDENS.values(), ids=GOLDENS.keys())
@@ -872,4 +927,91 @@ def test_lp_hp_csv_output_matches_golden(case: dict) -> None:
     module = lp_display if case["category"] == "lowpass" else hp_display
     result = _make_result(case["category"], case["filter_type"], case["topology"])
 
-    assert module.format_csv(result, eseries="E24", include_toroids=False) == case["csv"]
+    actual_reader = csv.DictReader(
+        StringIO(module.format_csv(result, eseries="E24", include_toroids=False))
+    )
+    expected_reader = csv.DictReader(StringIO(case["csv"]))
+    actual_rows = list(actual_reader)
+    expected_rows = list(expected_reader)
+
+    assert actual_reader.fieldnames == [
+        "Component",
+        "Value",
+        "Unit",
+        "NearestStdValue",
+        "NearestStdUnit",
+        "NearestStdErrorPct",
+        "ParallelStdValues",
+        "ParallelStdErrorPct",
+        "Eseries",
+        "RecommendedStdKind",
+        "RecommendedStdValues",
+        "RecommendedStdErrorPct",
+        "RecommendationStatus",
+        "RecommendationReason",
+        "RecommendationWarnings",
+        "RecommendationPolicy",
+    ]
+    assert len(actual_rows) == len(expected_rows)
+
+    unchanged_columns = {
+        "Component",
+        "Value",
+        "Unit",
+        "NearestStdValue",
+        "NearestStdUnit",
+        "NearestStdErrorPct",
+        "Eseries",
+    }
+    for actual_row, expected_row in zip(actual_rows, expected_rows, strict=True):
+        assert {key: actual_row[key] for key in unchanged_columns} == {
+            key: expected_row[key] for key in unchanged_columns
+        }
+
+        if not actual_row["Component"].startswith("C"):
+            assert all(
+                not actual_row[key]
+                for key in actual_reader.fieldnames
+                if key not in {"Component", "Value", "Unit"}
+            )
+            continue
+
+        assert actual_row["RecommendationStatus"] == "recommended"
+        assert actual_row["RecommendationWarnings"] == ""
+        assert (
+            actual_row["RecommendationPolicy"]
+            == "single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF"
+        )
+        if abs(float(actual_row["NearestStdErrorPct"])) <= 1.0:
+            assert actual_row["RecommendedStdKind"] == "single"
+            assert actual_row["ParallelStdValues"] == ""
+            assert actual_row["ParallelStdErrorPct"] == ""
+            assert actual_row["RecommendedStdValues"] == (
+                f"{actual_row['NearestStdValue']} {actual_row['NearestStdUnit']}"
+            )
+            assert actual_row["RecommendedStdErrorPct"] == actual_row["NearestStdErrorPct"]
+            assert actual_row["RecommendationReason"] == "single_within_preferred_error"
+        else:
+            assert actual_row["RecommendedStdKind"] == "parallel"
+            assert actual_row["ParallelStdValues"] == expected_row["ParallelStdValues"]
+            assert actual_row["ParallelStdErrorPct"] == expected_row["ParallelStdErrorPct"]
+            assert actual_row["RecommendedStdValues"] == actual_row["ParallelStdValues"]
+            assert actual_row["RecommendedStdErrorPct"] == actual_row["ParallelStdErrorPct"]
+            assert actual_row["RecommendationReason"] == "parallel_materially_improves_error"
+
+
+def _assert_nested_approximately_equal(actual, expected) -> None:
+    """Compare a decoded JSON tree while tolerating harmless float roundoff."""
+    assert type(actual) is type(expected)
+    if isinstance(expected, dict):
+        assert actual.keys() == expected.keys()
+        for key in expected:
+            _assert_nested_approximately_equal(actual[key], expected[key])
+    elif isinstance(expected, list):
+        assert len(actual) == len(expected)
+        for actual_item, expected_item in zip(actual, expected, strict=True):
+            _assert_nested_approximately_equal(actual_item, expected_item)
+    elif isinstance(expected, float):
+        assert actual == pytest.approx(expected)
+    else:
+        assert actual == expected

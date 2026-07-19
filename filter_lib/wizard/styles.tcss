@@ -187,11 +187,17 @@ LoadingIndicator {
 
 /* Fractional bandwidth display (bandpass) */
 .fbw-display {
-    color: $secondary;
+    color: $muted;
     margin-left: 2;
 }
 
 .fbw-warning {
     color: $warning;
+    margin-left: 2;
+}
+
+.fbw-danger {
+    color: $error;
+    text-style: bold;
     margin-left: 2;
 }

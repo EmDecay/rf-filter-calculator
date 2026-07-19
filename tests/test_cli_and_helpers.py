@@ -47,9 +47,34 @@ class TestCliHelpers:
         with pytest.raises(ValueError, match="Components must be 2-9"):
             validate_filter_args(10e6, 50, 10)
 
+    @pytest.mark.parametrize("frequency", [float("nan"), float("inf")])
+    def test_validate_non_finite_frequency(self, frequency):
+        with pytest.raises(ValueError, match="Frequency must be positive and finite"):
+            validate_filter_args(frequency, 50, 3)
+
+    @pytest.mark.parametrize("impedance", [float("nan"), float("inf")])
+    def test_validate_non_finite_impedance(self, impedance):
+        with pytest.raises(ValueError, match="Impedance must be positive and finite"):
+            validate_filter_args(10e6, impedance, 3)
+
+    @pytest.mark.parametrize("frequency", [True, "10MHz", None])
+    def test_validate_non_numeric_frequency(self, frequency):
+        with pytest.raises(ValueError, match="Frequency must be positive and finite"):
+            validate_filter_args(frequency, 50, 3)
+
+    @pytest.mark.parametrize("impedance", [True, "50", None])
+    def test_validate_non_numeric_impedance(self, impedance):
+        with pytest.raises(ValueError, match="Impedance must be positive and finite"):
+            validate_filter_args(10e6, impedance, 3)
+
     def test_export_plot_data_json(self, capsys):
         args = Namespace(plot_data="json")
-        meta = {"category": "lowpass", "response_type": "butterworth", "order": 3}
+        meta = {
+            "category": "lowpass",
+            "response_type": "butterworth",
+            "order": 3,
+            "cutoff_hz": 1e6,
+        }
         exported = export_plot_data(args, [1e6], [-3.0], meta)
         assert exported is True
         out = json.loads(capsys.readouterr().out)
@@ -168,6 +193,11 @@ class TestFormatting:
 
     def test_format_capacitance_sub_ff(self):
         assert format_capacitance(0.1e-15) == "1.00e-16 F"
+
+    @pytest.mark.parametrize("value", [True, "1", None, 10**400])
+    def test_format_capacitance_rejects_non_finite_real_input(self, value):
+        with pytest.raises(ValueError, match="finite real"):
+            format_capacitance(value)
 
     def test_format_capacitance_nf(self):
         assert "nF" in format_capacitance(10e-9)
@@ -310,7 +340,16 @@ class TestLowpassCmd:
         assert "topology required" in capsys.readouterr().err
 
     def test_explain(self, capsys):
-        lowpass_run(_lp_args(explain=True))
+        lowpass_run(
+            _lp_args(
+                explain=True,
+                topology_pos=None,
+                frequency=None,
+                quiet=False,
+                no_match=False,
+                no_toroids=False,
+            )
+        )
         assert capsys.readouterr().out
 
     def test_json_output(self, capsys):
@@ -357,7 +396,16 @@ class TestHighpassCmd:
         assert "topology required" in capsys.readouterr().err
 
     def test_explain(self, capsys):
-        highpass_run(_hp_args(explain=True))
+        highpass_run(
+            _hp_args(
+                explain=True,
+                topology_pos=None,
+                frequency=None,
+                quiet=False,
+                no_match=False,
+                no_toroids=False,
+            )
+        )
         assert capsys.readouterr().out
 
     def test_chebyshev_ripple_at_ceiling_accepted(self, capsys):
@@ -430,7 +478,17 @@ class TestBandpassCmd:
             bandpass_run(_bp_args(filter_type="chebyshev", ripple=3.5))
 
     def test_explain(self, capsys):
-        bandpass_run(_bp_args(explain=True))
+        bandpass_run(
+            _bp_args(
+                explain=True,
+                coupling_pos=None,
+                frequency=None,
+                bandwidth=None,
+                quiet=False,
+                no_match=False,
+                no_toroids=False,
+            )
+        )
         assert capsys.readouterr().out
 
     def test_fl_fh_method(self, capsys):
@@ -442,7 +500,9 @@ class TestBandpassCmd:
         out = capsys.readouterr().out
         assert "Est. insertion loss (Cohn):" in out
         assert "Qu=100" in out and "Qu=250" in out
-        assert "Minimum usable Q (severe loss at this value):" in out
+        assert "complete-resonator unloaded Q" in out
+        assert "Minimum usable Q" not in out
+        assert "Q safety factor" not in out
         assert "Minimum Component Q" not in out
 
     def test_qu_adds_third_il_entry(self, capsys):
@@ -467,34 +527,25 @@ class TestBandpassCmd:
 class TestLowpassFlagCombinations:
     """Test lowpass CLI with various flag combinations."""
 
-    def test_plot_with_json_format(self, capsys):
-        """--plot + --format json (format takes precedence)"""
-        lowpass_run(_lp_args(plot=True, format="json", quiet=False))
-        out = capsys.readouterr().out
-        # JSON format takes precedence, plot is not shown
-        data = json.loads(out)
-        assert "capacitors" in data or "filter_type" in data
+    def test_plot_with_json_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            lowpass_run(_lp_args(plot=True, format="json", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_plot_with_csv_format(self, capsys):
-        """--plot + --format csv (format takes precedence)"""
-        lowpass_run(_lp_args(plot=True, format="csv", quiet=False))
-        out = capsys.readouterr().out
-        # CSV format takes precedence
-        assert "component" in out.lower() and "value" in out.lower()
+    def test_plot_with_csv_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            lowpass_run(_lp_args(plot=True, format="csv", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_raw_with_json_format(self, capsys):
-        """--raw + --format json"""
-        lowpass_run(_lp_args(raw=True, format="json", quiet=False))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "capacitors" in data or "filter_type" in data
+    def test_raw_with_json_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            lowpass_run(_lp_args(raw=True, format="json", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_quiet_with_plot(self, capsys):
-        """--quiet + --plot (quiet takes precedence)"""
-        lowpass_run(_lp_args(quiet=True, plot=True))
-        out = capsys.readouterr().out
-        # Quiet mode produces minimal output
-        assert out
+    def test_quiet_with_plot_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            lowpass_run(_lp_args(quiet=True, plot=True))
+        assert exc_info.value.code == 2
 
     def test_eseries_e12_with_raw(self, capsys):
         """--eseries E12 + --raw"""
@@ -517,24 +568,21 @@ class TestLowpassFlagCombinations:
 
     def test_plot_data_json(self, capsys):
         """--plot-data json"""
-        lowpass_run(_lp_args(plot_data="json"))
+        lowpass_run(_lp_args(plot_data="json", quiet=False))
         out = capsys.readouterr().out
         data = json.loads(out)
         assert "data" in data or "cutoff_hz" in data
 
     def test_plot_data_csv(self, capsys):
         """--plot-data csv"""
-        lowpass_run(_lp_args(plot_data="csv"))
+        lowpass_run(_lp_args(plot_data="csv", quiet=False))
         out = capsys.readouterr().out
         assert "frequency" in out.lower() and "magnitude" in out.lower()
 
-    def test_plot_with_plot_data_json(self, capsys):
-        """--plot + --plot-data json (plot-data takes precedence)"""
-        lowpass_run(_lp_args(plot=True, plot_data="json"))
-        out = capsys.readouterr().out
-        # plot_data returns early, so only data export
-        data = json.loads(out)
-        assert "data" in data or "cutoff_hz" in data
+    def test_plot_with_plot_data_json_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            lowpass_run(_lp_args(plot=True, plot_data="json", quiet=False))
+        assert exc_info.value.code == 2
 
     def test_plot_with_table_format(self, capsys):
         """--plot + --format table (both should work)"""
@@ -554,31 +602,25 @@ class TestLowpassFlagCombinations:
 class TestHighpassFlagCombinations:
     """Test highpass CLI with various flag combinations."""
 
-    def test_plot_with_json_format(self, capsys):
-        """--plot + --format json (format takes precedence)"""
-        highpass_run(_hp_args(plot=True, format="json", quiet=False))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "inductors" in data or "filter_type" in data
+    def test_plot_with_json_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            highpass_run(_hp_args(plot=True, format="json", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_plot_with_csv_format(self, capsys):
-        """--plot + --format csv (format takes precedence)"""
-        highpass_run(_hp_args(plot=True, format="csv", quiet=False))
-        out = capsys.readouterr().out
-        assert "component" in out.lower() and "value" in out.lower()
+    def test_plot_with_csv_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            highpass_run(_hp_args(plot=True, format="csv", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_raw_with_json_format(self, capsys):
-        """--raw + --format json"""
-        highpass_run(_hp_args(raw=True, format="json", quiet=False))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "inductors" in data or "filter_type" in data
+    def test_raw_with_json_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            highpass_run(_hp_args(raw=True, format="json", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_quiet_with_plot(self, capsys):
-        """--quiet + --plot (quiet takes precedence)"""
-        highpass_run(_hp_args(quiet=True, plot=True))
-        out = capsys.readouterr().out
-        assert out
+    def test_quiet_with_plot_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            highpass_run(_hp_args(quiet=True, plot=True))
+        assert exc_info.value.code == 2
 
     def test_eseries_e12_with_raw(self, capsys):
         """--eseries E12 + --raw"""
@@ -601,23 +643,21 @@ class TestHighpassFlagCombinations:
 
     def test_plot_data_json(self, capsys):
         """--plot-data json"""
-        highpass_run(_hp_args(plot_data="json"))
+        highpass_run(_hp_args(plot_data="json", quiet=False))
         out = capsys.readouterr().out
         data = json.loads(out)
         assert "data" in data or "cutoff_hz" in data
 
     def test_plot_data_csv(self, capsys):
         """--plot-data csv"""
-        highpass_run(_hp_args(plot_data="csv"))
+        highpass_run(_hp_args(plot_data="csv", quiet=False))
         out = capsys.readouterr().out
         assert "frequency" in out.lower() and "magnitude" in out.lower()
 
-    def test_plot_with_plot_data_json(self, capsys):
-        """--plot + --plot-data json (plot-data takes precedence)"""
-        highpass_run(_hp_args(plot=True, plot_data="json"))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "data" in data or "cutoff_hz" in data
+    def test_plot_with_plot_data_json_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            highpass_run(_hp_args(plot=True, plot_data="json", quiet=False))
+        assert exc_info.value.code == 2
 
     def test_plot_with_table_format(self, capsys):
         """--plot + --format table (both should work)"""
@@ -636,31 +676,25 @@ class TestHighpassFlagCombinations:
 class TestBandpassFlagCombinations:
     """Test bandpass CLI with various flag combinations."""
 
-    def test_plot_with_json_format(self, capsys):
-        """--plot + --format json (format takes precedence)"""
-        bandpass_run(_bp_args(plot=True, format="json", quiet=False))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "resonators" in data or "filter_type" in data
+    def test_plot_with_json_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(plot=True, format="json", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_plot_with_csv_format(self, capsys):
-        """--plot + --format csv (format takes precedence)"""
-        bandpass_run(_bp_args(plot=True, format="csv", quiet=False))
-        out = capsys.readouterr().out
-        assert "component" in out.lower() and "value" in out.lower()
+    def test_plot_with_csv_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(plot=True, format="csv", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_raw_with_json_format(self, capsys):
-        """--raw + --format json"""
-        bandpass_run(_bp_args(raw=True, format="json", quiet=False))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "resonators" in data or "filter_type" in data
+    def test_raw_with_json_format_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(raw=True, format="json", quiet=False))
+        assert exc_info.value.code == 2
 
-    def test_quiet_with_plot(self, capsys):
-        """--quiet + --plot (quiet takes precedence)"""
-        bandpass_run(_bp_args(quiet=True, plot=True))
-        out = capsys.readouterr().out
-        assert out
+    def test_quiet_with_plot_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(quiet=True, plot=True))
+        assert exc_info.value.code == 2
 
     def test_eseries_e12_with_raw(self, capsys):
         """--eseries E12 + --raw"""
@@ -683,23 +717,21 @@ class TestBandpassFlagCombinations:
 
     def test_plot_data_json(self, capsys):
         """--plot-data json"""
-        bandpass_run(_bp_args(plot_data="json"))
+        bandpass_run(_bp_args(plot_data="json", quiet=False))
         out = capsys.readouterr().out
         data = json.loads(out)
         assert "data" in data or "filter_type" in data
 
     def test_plot_data_csv(self, capsys):
         """--plot-data csv"""
-        bandpass_run(_bp_args(plot_data="csv"))
+        bandpass_run(_bp_args(plot_data="csv", quiet=False))
         out = capsys.readouterr().out
         assert "frequency" in out.lower() and "magnitude" in out.lower()
 
-    def test_plot_with_plot_data_json(self, capsys):
-        """--plot + --plot-data json (plot-data takes precedence)"""
-        bandpass_run(_bp_args(plot=True, plot_data="json"))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "data" in data or "filter_type" in data
+    def test_plot_with_plot_data_json_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(plot=True, plot_data="json", quiet=False))
+        assert exc_info.value.code == 2
 
     def test_plot_with_table_format(self, capsys):
         """--plot + --format table (both should work)"""

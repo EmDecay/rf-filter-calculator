@@ -9,18 +9,18 @@ def add_toroid_flags(parser: ArgumentParser) -> None:
         "--no-toroids",
         dest="no_toroids",
         action="store_true",
-        help="Skip toroid core recommendations in all output formats.",
+        help="Skip screened toroid winding candidates in all output formats.",
     )
     parser.add_argument(
         "--toroid-compact",
         dest="toroid_compact",
         action="store_true",
-        help="Compact 1-line-per-rec toroid text output (ignored for --format json/csv).",
+        help="Compact one-line-per-candidate table output.",
     )
     parser.add_argument(
         "--toroid-full",
         dest="toroid_full",
         action="store_true",
-        help="Show top-3 toroid cores per inductor in table output "
-        "(default is top-1; json/csv always include top-3).",
+        help="Show up to 3 qualified cores per inductor in table output "
+        "(default is top-1; JSON includes up to 3 and CSV the best available).",
     )

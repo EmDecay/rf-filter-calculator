@@ -25,9 +25,12 @@ def format_bandpass_eseries_recs(result: dict, eseries: str) -> list[str]:
     from filter_lib.shared.formatting import format_capacitance
 
     lines = []
-    lines.append(f"\n{eseries} Standard Capacitor Recommendations")
+    lines.append(f"\n{eseries} Preferred-Value Capacitor Selection")
     lines.append("-" * 45)
-    lines.append("(Calculated values with nearest standard matches)")
+    lines.append(
+        "(Series density is not part tolerance; policy selects at most one realization; "
+        "expert action may be required)"
+    )
     lines.append("")
 
     for i, ct in enumerate(result["c_tank"]):
@@ -87,6 +90,11 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
     lines.append(f"Resonators:          {result['n_resonators']}")
     if result.get("ripple_db"):
         lines.append(f"Ripple:              {result['ripple_db']} dB")
+    validation_status = result.get("response_validation_status")
+    if validation_status == "validated":
+        lines.append("Response validation: Passed synthesized-response checks")
+    elif validation_status == "outside_validated_envelope":
+        lines.append("Response validation: Outside validated envelope; see warnings")
     lines.append("=" * 60)
 
     if result.get("warnings"):
@@ -94,10 +102,9 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
         for w in result["warnings"]:
             lines.append(f"  ! {w}")
 
-    lines.append(f"\nMinimum usable Q (severe loss at this value): {result['q_min']:.0f}")
-    lines.append(f"  (Q safety factor: {result['q_safety']})")
+    from filter_lib.bandpass.display import format_insertion_loss_line, format_q_model_lines
 
-    from filter_lib.bandpass.display import format_insertion_loss_line
+    lines.extend(format_q_model_lines(result))
 
     il_line = format_insertion_loss_line(result)
     if il_line:

@@ -24,8 +24,10 @@ from .transfer import netlist_frequency_sweep
 # Type alias for filter result dict
 BandpassResult = dict[str, Any]
 
-# Default number of points for frequency sweep plots
-PLOT_POINTS = 61
+# A 1% FBW design spans only a small part of the minimum 0.1-decade plot
+# window. 601 points keeps both skirts represented while the renderer still
+# compresses the samples to terminal width.
+PLOT_POINTS = 601
 
 
 def display_results(
@@ -40,6 +42,7 @@ def display_results(
     toroid_compact: bool = False,
     toroid_full: bool = False,
     matched_sim: dict[str, Any] | None = None,
+    build_analysis=None,
 ) -> None:
     """Display calculated filter component values.
 
@@ -53,10 +56,12 @@ def display_results(
         plot_data: Export plot data as 'json' or 'csv'
         include_toroids: Include toroid recommendations in output
         toroid_compact: Use compact 1-line-per-rec text format
-        toroid_full: Show top-3 cores in table output (default top-1;
-            json/csv always carry top-3)
+        toroid_full: Show up to three qualified cores in table output (default top-1;
+            JSON carries up to three and CSV the best available)
         matched_sim: Optional matched-value simulation summary attached to
             JSON output as an additive ``matched_sim`` key
+        build_analysis: Optional realized-build analysis result attached to
+            JSON output; table rendering is handled by the command/wizard
     """
     # Handle plot data export (simulated from the synthesized circuit)
     if plot_data:
@@ -76,6 +81,7 @@ def display_results(
                 eseries=eseries,
                 include_toroids=include_toroids,
                 matched_sim=matched_sim,
+                build_analysis=build_analysis,
             )
         )
         return
@@ -123,8 +129,8 @@ def _print_table_output(
         for w in result["warnings"]:
             print(f"  ⚠ {w}")
 
-    print(f"\nMinimum usable Q (severe loss at this value): {result['q_min']:.0f}")
-    print(f"  (Q safety factor: {result['q_safety']})")
+    for line in format_q_model_lines(result):
+        print(line)
     il_line = format_insertion_loss_line(result)
     if il_line:
         print(il_line)
@@ -160,6 +166,24 @@ def format_insertion_loss_line(result: BandpassResult) -> str:
     return f"Est. insertion loss (Cohn): {', '.join(parts)}"
 
 
+def format_q_model_lines(result: BandpassResult) -> list[str]:
+    """Describe the authoritative complete-resonator Q interpretation."""
+    q_model = result.get("q_model", {})
+    resonator_qu = q_model.get("resonator_qu")
+    if resonator_qu is None:
+        return ["", "Loss examples use complete-resonator unloaded Q (not inductor Q alone)."]
+
+    lines = ["", f"Loss-model complete-resonator unloaded Q: {resonator_qu:.4g}"]
+    component_parts = []
+    if q_model.get("inductor_ql") is not None:
+        component_parts.append(f"QL={q_model['inductor_ql']:.4g}")
+    if q_model.get("capacitor_qc") is not None:
+        component_parts.append(f"QC={q_model['capacitor_qc']:.4g}")
+    if component_parts:
+        lines.append(f"  Derived from {' and '.join(component_parts)} at f₀")
+    return lines
+
+
 def _print_toroid_block(result: BandpassResult, compact: bool, top_n: int = 1) -> None:
     """Render shared-L_resonant toroid recommendations (full or compact)."""
     formatter = format_recommendation_block_compact if compact else format_recommendation_block
@@ -169,7 +193,7 @@ def _print_toroid_block(result: BandpassResult, compact: bool, top_n: int = 1) -
     recs = recommend_cores(L0, f0, top_n=top_n)
     label = f"L_resonant (applies to L1…L{n})"
     print()
-    print("Toroid Winding Recommendations (Iron-Powder T-Series)")
+    print("Screened Toroid Winding Candidates (Iron-Powder T-Series)")
     print("-" * 55)
     if not compact:
         print("(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)")
@@ -242,9 +266,12 @@ def _print_external_q(result: BandpassResult) -> None:
 
 def _print_eseries_matching(result: BandpassResult, eseries: str) -> None:
     """Print E-series matching recommendations."""
-    print(f"\n{eseries} Standard Capacitor Recommendations")
+    print(f"\n{eseries} Preferred-Value Capacitor Selection")
     print("─" * 45)
-    print("(Calculated values with nearest standard matches)")
+    print(
+        "(Series density is not part tolerance; policy selects at most one realization; "
+        "expert action may be required)"
+    )
     print()
     for i, ct in enumerate(result["c_tank"]):
         print(f"Cp{i + 1} Calculated: {format_capacitance(ct)}")
@@ -259,8 +286,8 @@ def _print_eseries_matching(result: BandpassResult, eseries: str) -> None:
 def _print_frequency_response(result: BandpassResult) -> None:
     """Print frequency response plot with zoomed passband and threshold table.
 
-    The response is simulated from the synthesized component values, not the
-    idealized prototype, so it shows what a built filter measures.
+    The response is an ideal-component circuit simulation of the synthesized
+    values; it does not predict layout, package, parasitic, or power effects.
     """
     from ..shared.transfer_response_dispatch import make_bp_netlist_response_db
 
@@ -275,5 +302,11 @@ def _print_frequency_response(result: BandpassResult) -> None:
     )
     freqs = [f for f, _ in sweep]
     dbs = [db for _, db in sweep]
-    thresholds = find_db_thresholds(freqs, dbs, filter_type="bandpass")
+    thresholds = find_db_thresholds(
+        freqs,
+        dbs,
+        filter_type="bandpass",
+        reference_frequency=result["f0"],
+        relative_to_peak=True,
+    )
     print(format_threshold_table(thresholds, filter_type="bandpass"))

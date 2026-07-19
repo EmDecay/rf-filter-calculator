@@ -15,6 +15,7 @@ from collections.abc import Callable
 
 from .chebyshev_g_calculator import calculate_chebyshev_g_values
 from .constants import BESSEL_G_VALUES
+from .numeric import is_finite_real
 
 
 def _validate_topology(topology: str) -> None:
@@ -25,11 +26,15 @@ def _validate_topology(topology: str) -> None:
 
 def _validate_lp_hp_inputs(cutoff_hz: float, impedance: float, num_components: int) -> None:
     """Validate shared LP/HP numeric inputs. Rejects NaN and inf explicitly."""
-    if not math.isfinite(cutoff_hz) or cutoff_hz <= 0:
+    if not is_finite_real(cutoff_hz) or cutoff_hz <= 0:
         raise ValueError("Cutoff frequency must be positive and finite")
-    if not math.isfinite(impedance) or impedance <= 0:
+    if not is_finite_real(impedance) or impedance <= 0:
         raise ValueError("Impedance must be positive and finite")
-    if not 2 <= num_components <= 9:
+    if (
+        isinstance(num_components, bool)
+        or not isinstance(num_components, int)
+        or not 2 <= num_components <= 9
+    ):
         raise ValueError("Number of components must be between 2 and 9")
 
 
@@ -40,6 +45,22 @@ def _component_kind(position_1based: int, topology: str, is_lowpass: bool) -> st
     starts_with_cap = (topology == "pi") if is_lowpass else (topology == "t")
     is_odd_position = position_1based % 2 == 1
     return "cap" if starts_with_cap == is_odd_position else "ind"
+
+
+def _evaluate_component_formula(
+    formula: Callable[[float, float, float], float],
+    g_value: float,
+    impedance: float,
+    cutoff_hz: float,
+) -> float:
+    """Evaluate one scaled prototype value without leaking float overflow."""
+    try:
+        value = formula(g_value, impedance, cutoff_hz)
+    except (OverflowError, ZeroDivisionError) as error:
+        raise ValueError("Inputs do not produce finite positive component values") from error
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError("Inputs do not produce finite positive component values")
+    return value
 
 
 def _calculate_butterworth_base(
@@ -58,8 +79,8 @@ def _calculate_butterworth_base(
         impedance: Characteristic impedance in Ohms
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
-        cap_formula: Function(g, impedance, omega) -> capacitor value
-        ind_formula: Function(g, impedance, omega) -> inductor value
+        cap_formula: Function(g, impedance, cutoff_hz) -> capacitor value
+        ind_formula: Function(g, impedance, cutoff_hz) -> inductor value
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
@@ -69,8 +90,6 @@ def _calculate_butterworth_base(
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
     n = num_components
-    omega = 2 * math.pi * cutoff_hz
-
     capacitors = []
     inductors = []
 
@@ -81,13 +100,10 @@ def _calculate_butterworth_base(
         k = (2 * i - 1) * math.pi / (2 * n)
         g = 2 * math.sin(k)
 
-        cap_value = cap_formula(g, impedance, omega)
-        ind_value = ind_formula(g, impedance, omega)
-
         if _component_kind(i, topology, is_lowpass) == "cap":
-            capacitors.append(cap_value)
+            capacitors.append(_evaluate_component_formula(cap_formula, g, impedance, cutoff_hz))
         else:
-            inductors.append(ind_value)
+            inductors.append(_evaluate_component_formula(ind_formula, g, impedance, cutoff_hz))
 
     return capacitors, inductors, n
 
@@ -114,8 +130,8 @@ def _calculate_chebyshev_base(
         ripple_db: Passband ripple in dB
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
-        cap_formula: Function(g, impedance, omega) -> capacitor value
-        ind_formula: Function(g, impedance, omega) -> inductor value
+        cap_formula: Function(g, impedance, cutoff_hz) -> capacitor value
+        ind_formula: Function(g, impedance, cutoff_hz) -> inductor value
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
@@ -124,8 +140,8 @@ def _calculate_chebyshev_base(
     """
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
-    if not math.isfinite(ripple_db) or ripple_db <= 0:
-        raise ValueError("ripple_db must be positive and finite for Chebyshev")
+    if not is_finite_real(ripple_db) or ripple_db <= 0 or ripple_db > 3.0:
+        raise ValueError("ripple_db must be positive, finite, and at most 3.0 dB for Chebyshev")
     n = num_components
     # Even-order Chebyshev designs cannot meet equal source/load terminations
     # (ripple does not return to 0 dB at DC for LP / at infinity for HP),
@@ -135,8 +151,6 @@ def _calculate_chebyshev_base(
             "Chebyshev LP/HP requires odd order for equal source/load terminations "
             "(use 3, 5, 7, or 9)"
         )
-    omega = 2 * math.pi * cutoff_hz
-
     # Get g-values from shared calculator
     g = calculate_chebyshev_g_values(n, ripple_db)
 
@@ -144,13 +158,10 @@ def _calculate_chebyshev_base(
     inductors = []
 
     for i in range(1, n + 1):
-        cap_value = cap_formula(g[i], impedance, omega)
-        ind_value = ind_formula(g[i], impedance, omega)
-
         if _component_kind(i, topology, is_lowpass) == "cap":
-            capacitors.append(cap_value)
+            capacitors.append(_evaluate_component_formula(cap_formula, g[i], impedance, cutoff_hz))
         else:
-            inductors.append(ind_value)
+            inductors.append(_evaluate_component_formula(ind_formula, g[i], impedance, cutoff_hz))
 
     return capacitors, inductors, n
 
@@ -171,8 +182,8 @@ def _calculate_bessel_base(
         impedance: Characteristic impedance in Ohms
         num_components: Number of filter elements (2-9)
         topology: 'pi' or 't'
-        cap_formula: Function(g, impedance, omega) -> capacitor value
-        ind_formula: Function(g, impedance, omega) -> inductor value
+        cap_formula: Function(g, impedance, cutoff_hz) -> capacitor value
+        ind_formula: Function(g, impedance, cutoff_hz) -> inductor value
         is_lowpass: True for lowpass, False for highpass
 
     Returns:
@@ -185,44 +196,53 @@ def _calculate_bessel_base(
     if n not in BESSEL_G_VALUES:
         raise ValueError(f"Bessel filter supports 2-9 components, got {n}")
 
-    omega = 2 * math.pi * cutoff_hz
     g_values = BESSEL_G_VALUES[n]
 
     capacitors = []
     inductors = []
 
     for position, g in enumerate(g_values, start=1):
-        cap_value = cap_formula(g, impedance, omega)
-        ind_value = ind_formula(g, impedance, omega)
-
         if _component_kind(position, topology, is_lowpass) == "cap":
-            capacitors.append(cap_value)
+            capacitors.append(_evaluate_component_formula(cap_formula, g, impedance, cutoff_hz))
         else:
-            inductors.append(ind_value)
+            inductors.append(_evaluate_component_formula(ind_formula, g, impedance, cutoff_hz))
 
     return capacitors, inductors, n
 
 
 # Strategy functions for lowpass filter component calculations
-def _lp_cap_formula(g: float, impedance: float, omega: float) -> float:
+def _component_from_log(log_value: float) -> float:
+    """Exponentiate a component formula only after cancelling factor scales."""
+    return math.exp(log_value)
+
+
+def _lp_cap_formula(g: float, impedance: float, cutoff_hz: float) -> float:
     """Lowpass capacitor formula: C = g / (Z * ω)"""
-    return g / (impedance * omega)
+    return _component_from_log(
+        math.log(g) - math.log(impedance) - math.log(2 * math.pi) - math.log(cutoff_hz)
+    )
 
 
-def _lp_ind_formula(g: float, impedance: float, omega: float) -> float:
+def _lp_ind_formula(g: float, impedance: float, cutoff_hz: float) -> float:
     """Lowpass inductor formula: L = g * Z / ω"""
-    return g * impedance / omega
+    return _component_from_log(
+        math.log(g) + math.log(impedance) - math.log(2 * math.pi) - math.log(cutoff_hz)
+    )
 
 
 # Strategy functions for highpass filter component calculations
-def _hp_cap_formula(g: float, impedance: float, omega: float) -> float:
+def _hp_cap_formula(g: float, impedance: float, cutoff_hz: float) -> float:
     """Highpass capacitor formula: C = 1 / (g * ω * Z)"""
-    return 1.0 / (g * omega * impedance)
+    return _component_from_log(
+        -math.log(g) - math.log(2 * math.pi) - math.log(cutoff_hz) - math.log(impedance)
+    )
 
 
-def _hp_ind_formula(g: float, impedance: float, omega: float) -> float:
+def _hp_ind_formula(g: float, impedance: float, cutoff_hz: float) -> float:
     """Highpass inductor formula: L = Z / (ω * g)"""
-    return impedance / (omega * g)
+    return _component_from_log(
+        math.log(impedance) - math.log(2 * math.pi) - math.log(cutoff_hz) - math.log(g)
+    )
 
 
 # Public API: Lowpass filter calculations

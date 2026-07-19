@@ -1,12 +1,10 @@
 """Bandpass subcommand handler."""
 
-import math
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import SUPPRESS, ArgumentParser, Namespace
 
 from ..bandpass import calculate_bandpass_filter, display_results
 from ..shared.cli_aliases import (
-    DEFAULT_ESERIES,
     DEFAULT_IMPEDANCE,
     DEFAULT_Q_SAFETY,
     DEFAULT_RESONATORS,
@@ -15,14 +13,21 @@ from ..shared.cli_aliases import (
     resolve_coupling,
     resolve_filter_type,
 )
+from ..shared.cli_bandpass_output_validation import validate_bandpass_output_args
 from ..shared.cli_helpers import (
     FREQ_SUFFIX_HELP,
+    add_build_analysis_args,
+    add_eseries_args,
     add_sim_matched_arg,
     get_filter_type_arg,
+    make_build_config,
+    resolve_alternative_arg,
     resolve_ripple_arg,
     usage_error,
+    validate_output_mode_args,
 )
-from ..shared.parsing import parse_frequency, parse_impedance
+from ..shared.numeric import is_finite_real, positive_geometric_mean
+from ..shared.parsing import parse_frequency, parse_impedance, parse_inductance
 from .toroid_flags import add_toroid_flags
 
 BP_EXAMPLE = "try: filter-calc bp bw top -f 14.2MHz -b 500kHz"
@@ -97,14 +102,40 @@ def setup_parser(parser: ArgumentParser) -> None:
         "--q-safety",
         type=float,
         default=DEFAULT_Q_SAFETY,
-        help=f"Q safety factor (default: {DEFAULT_Q_SAFETY})",
+        help=SUPPRESS,
     )
     parser.add_argument(
         "--qu",
         type=float,
         default=None,
-        help="Unloaded component Q for the insertion-loss estimate "
+        help="Unloaded Q of the complete resonator for the insertion-loss estimate "
         "(estimates at Qu=100/250 are always shown)",
+    )
+    parser.add_argument(
+        "--ql",
+        type=float,
+        default=None,
+        help="Inductor Q at the center frequency; combines with --qc as 1/Qu=1/QL+1/QC",
+    )
+    parser.add_argument(
+        "--qc",
+        type=float,
+        default=None,
+        help="Capacitor Q at the center frequency; combines with --ql as 1/Qu=1/QL+1/QC",
+    )
+    parser.add_argument(
+        "--resonator-impedance",
+        "--tank-impedance",
+        dest="resonator_impedance",
+        default=None,
+        help="Tank reactance sqrt(L/C), independent of the equal design terminations",
+    )
+    parser.add_argument(
+        "--resonator-inductance",
+        "--tank-inductance",
+        dest="resonator_inductance",
+        default=None,
+        help="Fix the tank inductance (for example 1.2uH); mutually exclusive with tank impedance",
     )
 
     parser.add_argument(
@@ -112,19 +143,20 @@ def setup_parser(parser: ArgumentParser) -> None:
     )
     parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output")
     parser.add_argument(
-        "--format", choices=["table", "json", "csv"], default="table", help="Output format"
+        "--format",
+        choices=["table", "json", "csv", "spice"],
+        default="table",
+        help="Output format (SPICE supports calculated or nominal-build decks)",
     )
-    parser.add_argument("--explain", action="store_true", help="Explain filter type")
-
     parser.add_argument(
-        "-e",
-        "--eseries",
-        choices=["E12", "E24", "E96"],
-        default=DEFAULT_ESERIES,
-        help=f"E-series (default: {DEFAULT_ESERIES})",
+        "--explain",
+        action="store_true",
+        help="Print a standalone filter-type explanation and exit",
     )
-    parser.add_argument("--no-match", action="store_true", help="Disable E-series matching")
+
+    add_eseries_args(parser)
     add_sim_matched_arg(parser)
+    add_build_analysis_args(parser)
 
     parser.add_argument("--plot", action="store_true", help="Show ASCII frequency response")
     parser.add_argument(
@@ -150,13 +182,15 @@ def run(args: Namespace) -> None:
             argparse's usage error instead.
     """
     filter_type = get_filter_type_arg(args)
-    coupling = args.coupling_pos or args.coupling_flag
+    coupling = resolve_alternative_arg(args, "coupling_pos", "coupling_flag", "coupling")
 
     if args.explain:
         if not filter_type:
             usage_error(
                 args, "filter type required for --explain (try: filter-calc bp bw --explain)"
             )
+        validate_output_mode_args(args)
+        validate_bandpass_output_args(args)
         resolved = resolve_filter_type(filter_type)
         print(FILTER_EXPLANATIONS_BANDPASS[resolved])
         return
@@ -166,23 +200,38 @@ def run(args: Namespace) -> None:
     if not coupling:
         usage_error(args, f"coupling topology required: top ({BP_EXAMPLE})")
 
+    validate_output_mode_args(args)
+
     filter_type = resolve_filter_type(filter_type)
     coupling = resolve_coupling(coupling)
     ripple_db = resolve_ripple_arg(args, filter_type)
 
-    f0, bw = _validate_frequencies(args)
+    f0, bw, requested_f_low, requested_f_high = _validate_frequencies(args)
     z0 = parse_impedance(args.impedance)
 
     if args.q_safety <= 0:
         raise ValueError("Q safety factor must be positive")
-    if args.qu is not None and (not math.isfinite(args.qu) or args.qu <= 0):
-        raise ValueError("Qu must be positive and finite")
+    if args.q_safety != DEFAULT_Q_SAFETY:
+        print(
+            "Warning: --q-safety is deprecated and retained only for the legacy Q heuristic",
+            file=sys.stderr,
+        )
+    ql = getattr(args, "ql", None)
+    qc = getattr(args, "qc", None)
+    resonator_impedance_arg = getattr(args, "resonator_impedance", None)
+    resonator_inductance_arg = getattr(args, "resonator_inductance", None)
+    resonator_impedance = (
+        parse_impedance(resonator_impedance_arg) if resonator_impedance_arg is not None else None
+    )
+    resonator_inductance = (
+        parse_inductance(resonator_inductance_arg) if resonator_inductance_arg is not None else None
+    )
     if filter_type == "chebyshev":
         if args.resonators % 2 == 0:
             raise ValueError("Chebyshev requires odd resonator count")
         # The 3.0 dB ripple ceiling is enforced upstream by resolve_ripple_arg
         # (shared with LP/HP); only NaN/non-positive can reach this point.
-        if not math.isfinite(ripple_db) or ripple_db <= 0:
+        if not is_finite_real(ripple_db) or ripple_db <= 0:
             raise ValueError("Ripple must be positive and finite")
 
     result = calculate_bandpass_filter(
@@ -197,23 +246,63 @@ def run(args: Namespace) -> None:
         ripple_db=ripple_db if filter_type == "chebyshev" else DEFAULT_RIPPLE_DB,
         q_safety=args.q_safety,
         qu=args.qu,
+        ql=ql,
+        qc=qc,
+        resonator_impedance=resonator_impedance,
+        resonator_inductance=resonator_inductance,
     )
+    if requested_f_low is not None and requested_f_high is not None:
+        result["requested_parameters"].update(
+            {
+                "frequency_specification": "edge_frequencies",
+                "f_low_hz": requested_f_low,
+                "f_high_hz": requested_f_high,
+            }
+        )
+    validate_bandpass_output_args(args)
 
     for w in result.get("warnings", []):
         print(f"Warning: {w}", file=sys.stderr)
 
-    if args.sim_matched and args.no_match:
-        usage_error(args, "--sim-matched requires E-series matching; remove --no-match")
-
+    build_config = None
+    build_analysis = None
+    matched_summary = None
     matched_sim = None
-    # --plot-data short-circuits display_results before JSON formatting, so
-    # skip the (expensive) matched simulation on that path.
-    if args.sim_matched and args.format == "json" and not args.plot_data:
+    if args.format == "spice":
+        from ..shared.spice_export import export_spice_deck
+
+        build_config = make_build_config(args)
+        realization = (getattr(args, "spice_realization", None) or "nominal-build").replace(
+            "-", "_"
+        )
+        print(
+            export_spice_deck(
+                result,
+                "bandpass",
+                realization=realization,
+                config=build_config,
+            ),
+            end="",
+        )
+        return
+
+    if getattr(args, "sim_build", False):
+        from ..shared.build_simulation import analyze_build
+
+        build_config = make_build_config(args)
+        build_analysis = analyze_build(result, "bandpass", build_config)
+    elif getattr(args, "sim_matched", False):
         from ..shared.matched_simulation import matched_sim_json_payload, run_matched_simulation
 
-        matched_sim = matched_sim_json_payload(
-            run_matched_simulation(result, "bandpass", args.eseries)
+        print("Warning: --sim-matched is deprecated; use --sim-build", file=sys.stderr)
+        matched_summary = run_matched_simulation(
+            result,
+            "bandpass",
+            args.eseries,
+            use_toroid_candidates=not args.no_toroids,
         )
+        if args.format == "json":
+            matched_sim = matched_sim_json_payload(matched_summary)
 
     display_results(
         result,
@@ -227,41 +316,55 @@ def run(args: Namespace) -> None:
         toroid_compact=args.toroid_compact,
         toroid_full=args.toroid_full,
         matched_sim=matched_sim,
+        build_analysis=build_analysis,
     )
 
-    if args.sim_matched and args.format == "table" and not args.quiet and not args.plot_data:
-        from ..shared.matched_simulation import format_matched_sim_block, run_matched_simulation
+    if build_analysis is not None and args.format == "table" and not args.quiet:
+        from ..shared.build_output import format_build_analysis_block
 
-        summary = run_matched_simulation(result, "bandpass", args.eseries)
-        print("\n".join(format_matched_sim_block(summary)))
+        print("\n".join(format_build_analysis_block(build_analysis)))
+    elif matched_summary is not None and args.format == "table" and not args.quiet:
+        from ..shared.matched_simulation import format_matched_sim_block
+
+        print("\n".join(format_matched_sim_block(matched_summary)))
 
 
-def _validate_frequencies(args: Namespace) -> tuple[float, float]:
-    """Validate and compute f0, bw from input method.
+def _validate_frequencies(args: Namespace) -> tuple[float, float, float | None, float | None]:
+    """Validate inputs and return derived f0/BW plus parsed requested edges.
 
     Returns f0 (geometric center) and bw (passband width). f0 = sqrt(fl*fh)
     rather than the arithmetic mean because the bandpass transfer function is
-    geometrically symmetric about f0 — with this choice the user's --fl/--fh
-    land exactly on the -3 dB edges recomputed downstream by
-    compute_bandpass_3db_edges.
+    geometrically symmetric about f0. Recomputed realized edges agree with the
+    user's ``--fl``/``--fh`` values to floating-point precision; the parsed
+    values are also returned so requested-parameter metadata remains exact.
     """
-    has_center_bw = args.frequency and args.bandwidth
-    has_low_high = args.f_low and args.f_high
+    center_bw = (args.frequency, args.bandwidth)
+    low_high = (args.f_low, args.f_high)
+    any_center_bw = any(value is not None for value in center_bw)
+    any_low_high = any(value is not None for value in low_high)
+    has_center_bw = all(value is not None for value in center_bw)
+    has_low_high = all(value is not None for value in low_high)
 
-    if has_center_bw and has_low_high:
+    if any_center_bw and any_low_high:
         usage_error(args, "use (-f + -b) OR (--fl + --fh), not both")
-    if not has_center_bw and not has_low_high:
+    if not any_center_bw and not any_low_high:
         usage_error(args, f"frequency required: (-f + -b) or (--fl + --fh) ({BP_EXAMPLE})")
+    if any_center_bw and not has_center_bw:
+        usage_error(args, "-f/--frequency and -b/--bandwidth must be supplied together")
+    if any_low_high and not has_low_high:
+        usage_error(args, "--fl and --fh must be supplied together")
 
     if has_center_bw:
         f0 = parse_frequency(args.frequency)
         bw = parse_frequency(args.bandwidth)
+        f_low = None
+        f_high = None
     else:
         f_low = parse_frequency(args.f_low)
         f_high = parse_frequency(args.f_high)
         if f_low >= f_high:
             raise ValueError("Lower frequency must be less than upper")
-        f0 = math.sqrt(f_low * f_high)
+        f0 = positive_geometric_mean(f_low, f_high)
         bw = f_high - f_low
 
-    return f0, bw
+    return f0, bw, f_low, f_high

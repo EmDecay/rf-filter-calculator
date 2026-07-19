@@ -14,6 +14,7 @@ from ..shared.lp_hp_base_transfer_functions import (
 from ..shared.transfer_functions import (
     generate_frequency_points,  # noqa: F401
     magnitude_to_db,
+    validate_frequency_sequence,
 )
 
 
@@ -60,16 +61,27 @@ def frequency_response(
     Raises:
         ValueError: If filter_type is not one of the accepted names/aliases.
     """
+    if not isinstance(filter_type, str):
+        raise ValueError("filter_type must be a string")
+    freqs = validate_frequency_sequence(freqs)
     filter_type = filter_type.lower()
+    if filter_type in ("butterworth", "bw"):
 
-    def response_fn(f: float) -> float:
-        if filter_type in ("butterworth", "bw"):
+        def response_fn(f: float) -> float:
             return butterworth_response(f, cutoff_hz, order)
-        elif filter_type in ("chebyshev", "ch"):
-            return chebyshev_response(f, cutoff_hz, order, ripple_db)
-        elif filter_type in ("bessel", "bs"):
-            return bessel_response(f, cutoff_hz, order)
-        else:
-            raise ValueError(f"Unknown filter type: {filter_type}")
 
+    elif filter_type in ("chebyshev", "ch"):
+
+        def response_fn(f: float) -> float:
+            return chebyshev_response(f, cutoff_hz, order, ripple_db)
+
+    elif filter_type in ("bessel", "bs"):
+
+        def response_fn(f: float) -> float:
+            return bessel_response(f, cutoff_hz, order)
+
+    else:
+        raise ValueError(f"Unknown filter type: {filter_type}")
+
+    response_fn(1.0)
     return [magnitude_to_db(response_fn(f)) for f in freqs]

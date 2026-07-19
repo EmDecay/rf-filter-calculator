@@ -155,6 +155,36 @@ class TestChebychevEdgeCases:
         # Should still compute valid values
         assert all(g[i] > 0 for i in range(1, 4))
 
+    def test_tiny_positive_ripple_avoids_exp_cancellation(self):
+        """exp(2x)-1 used to round to zero and divide by zero here."""
+        g = calculate_chebyshev_g_values(3, 1e-20)
+
+        assert all(math.isfinite(value) and value > 0 for value in g[1:])
+
+    @pytest.mark.parametrize("ripple_db", [1e-320, 5e-324])
+    def test_subnormal_positive_ripple_remains_finite(self, ripple_db):
+        g = calculate_chebyshev_g_values(3, ripple_db)
+
+        assert all(math.isfinite(value) and value > 0 for value in g[1:])
+
+    def test_minimum_positive_ripple_order_one_remains_finite(self):
+        g = calculate_chebyshev_g_values(1, 5e-324)
+
+        assert math.isfinite(g[1]) and g[1] > 0
+
+    @pytest.mark.parametrize(
+        "ripple_db",
+        [0.0, -0.1, float("nan"), float("inf"), True, "0.5", None],
+    )
+    def test_invalid_ripple_is_rejected(self, ripple_db):
+        with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
+            calculate_chebyshev_g_values(3, ripple_db)
+
+    @pytest.mark.parametrize("order", [True, 3.0, "3", None])
+    def test_noninteger_order_is_rejected(self, order):
+        with pytest.raises(ValueError, match="positive integer"):
+            calculate_chebyshev_g_values(order, 0.5)
+
     def test_large_ripple(self):
         """Test large ripple (aggressive response)."""
         g = calculate_chebyshev_g_values(3, 5.0)

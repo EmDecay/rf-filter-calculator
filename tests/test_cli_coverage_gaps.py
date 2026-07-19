@@ -15,6 +15,7 @@ from filter_lib.cli import bandpass_cmd, highpass_cmd, lowpass_cmd, toroid_flags
 from filter_lib.cli.bandpass_cmd import run as bandpass_run
 from filter_lib.cli.highpass_cmd import run as highpass_run
 from filter_lib.cli.lowpass_cmd import run as lowpass_run
+from filter_lib.shared.cli_aliases import FILTER_EXPLANATIONS_BANDPASS
 from filter_lib.shared.cli_helpers import (
     add_common_filter_args,
     add_eseries_args,
@@ -340,6 +341,11 @@ class TestWizardCmd:
 
 
 class TestCliHelperBuilders:
+    def test_bandpass_bessel_explanation_does_not_claim_flat_delay(self):
+        explanation = FILTER_EXPLANATIONS_BANDPASS["bessel"]
+        assert "not preserved" in explanation
+        assert "linear passband phase" not in explanation
+
     def test_add_filter_type_args_lowpass_has_topology_pos(self):
         parser = argparse.ArgumentParser()
         add_filter_type_args(parser, "lowpass")
@@ -404,9 +410,16 @@ class TestCliHelperBuilders:
         assert args.plot is False
         assert args.plot_data is None
 
-    def test_get_filter_type_arg_prefers_positional(self):
-        ns = Namespace(filter_type="butterworth", type_flag="chebyshev")
-        assert get_filter_type_arg(ns) == "butterworth"
+    def test_get_filter_type_arg_rejects_duplicate_forms(self, capsys):
+        ns = Namespace(
+            filter_type="butterworth",
+            type_flag="chebyshev",
+            _parser=argparse.ArgumentParser(prog="filter-calc lowpass"),
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            get_filter_type_arg(ns)
+        assert exc_info.value.code == 2
+        assert "filter type" in capsys.readouterr().err
 
     def test_get_filter_type_arg_falls_back_to_flag(self):
         ns = Namespace(filter_type=None, type_flag="chebyshev")
@@ -516,7 +529,15 @@ def _bp_args(**overrides):
 class TestLowpassExtraValidation:
     def test_explain_without_filter_type_exits(self, capsys):
         with pytest.raises(SystemExit) as exc_info:
-            lowpass_run(_lp_args(filter_type=None, explain=True))
+            lowpass_run(
+                _lp_args(
+                    filter_type=None,
+                    explain=True,
+                    quiet=False,
+                    no_match=False,
+                    no_toroids=False,
+                )
+            )
         assert exc_info.value.code == 2
         assert "filter type required for --explain" in capsys.readouterr().err
 
@@ -538,11 +559,33 @@ class TestLowpassExtraValidation:
         lowpass_run(_lp_args(topology_pos=None, topology_flag="t"))
         assert capsys.readouterr().out
 
+    @pytest.mark.parametrize(
+        ("overrides", "label"),
+        [
+            ({"type_flag": "chebyshev"}, "filter type"),
+            ({"freq_flag": "5MHz"}, "frequency"),
+            ({"topology_flag": "t"}, "topology"),
+        ],
+    )
+    def test_duplicate_positional_and_flag_forms_exit(self, overrides, label, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            lowpass_run(_lp_args(**overrides))
+        assert exc_info.value.code == 2
+        assert label in capsys.readouterr().err
+
 
 class TestHighpassExtraValidation:
     def test_explain_without_filter_type_exits(self, capsys):
         with pytest.raises(SystemExit) as exc_info:
-            highpass_run(_hp_args(filter_type=None, explain=True))
+            highpass_run(
+                _hp_args(
+                    filter_type=None,
+                    explain=True,
+                    quiet=False,
+                    no_match=False,
+                    no_toroids=False,
+                )
+            )
         assert exc_info.value.code == 2
         assert "filter type required for --explain" in capsys.readouterr().err
 
@@ -560,11 +603,33 @@ class TestHighpassExtraValidation:
         highpass_run(_hp_args(topology_pos=None, topology_flag="pi"))
         assert capsys.readouterr().out
 
+    @pytest.mark.parametrize(
+        ("overrides", "label"),
+        [
+            ({"type_flag": "chebyshev"}, "filter type"),
+            ({"freq_flag": "5MHz"}, "frequency"),
+            ({"topology_flag": "pi"}, "topology"),
+        ],
+    )
+    def test_duplicate_positional_and_flag_forms_exit(self, overrides, label, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            highpass_run(_hp_args(**overrides))
+        assert exc_info.value.code == 2
+        assert label in capsys.readouterr().err
+
 
 class TestBandpassExtraValidation:
     def test_explain_without_filter_type_exits(self, capsys):
         with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(filter_type=None, explain=True))
+            bandpass_run(
+                _bp_args(
+                    filter_type=None,
+                    explain=True,
+                    quiet=False,
+                    no_match=False,
+                    no_toroids=False,
+                )
+            )
         assert exc_info.value.code == 2
         assert "filter type required for --explain" in capsys.readouterr().err
 
@@ -586,6 +651,19 @@ class TestBandpassExtraValidation:
     def test_type_flag_used_when_positional_missing(self, capsys):
         bandpass_run(_bp_args(filter_type=None, type_flag="bw"))
         assert capsys.readouterr().out
+
+    @pytest.mark.parametrize(
+        ("overrides", "label"),
+        [
+            ({"type_flag": "chebyshev"}, "filter type"),
+            ({"coupling_flag": "top"}, "coupling"),
+        ],
+    )
+    def test_duplicate_positional_and_flag_forms_exit(self, overrides, label, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(**overrides))
+        assert exc_info.value.code == 2
+        assert label in capsys.readouterr().err
 
     def test_q_safety_non_positive_raises(self):
         with pytest.raises(ValueError, match="Q safety factor must be positive"):
@@ -616,6 +694,34 @@ class TestBandpassExtraValidation:
             bandpass_run(_bp_args(frequency=None, bandwidth=None, f_low=None, f_high=None))
         assert exc_info.value.code == 2
         assert "frequency required" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"frequency": "14MHz", "bandwidth": None},
+            {"frequency": None, "bandwidth": "1MHz"},
+            {"frequency": None, "bandwidth": None, "f_low": "13MHz", "f_high": None},
+            {"frequency": None, "bandwidth": None, "f_low": None, "f_high": "15MHz"},
+        ],
+    )
+    def test_partial_frequency_pair_exits(self, overrides, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(**overrides))
+        assert exc_info.value.code == 2
+        assert "must be supplied together" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"f_low": "13MHz"},
+            {"f_high": "15MHz"},
+        ],
+    )
+    def test_mixed_frequency_forms_exit_even_when_one_pair_is_partial(self, overrides, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            bandpass_run(_bp_args(**overrides))
+        assert exc_info.value.code == 2
+        assert "not both" in capsys.readouterr().err
 
     def test_fl_ge_fh_raises(self):
         with pytest.raises(ValueError, match="must be less than upper"):

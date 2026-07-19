@@ -1,4 +1,76 @@
-[
+{
+  "schema_version": 2,
+  "dataset": {
+    "name": "iron-powder-toroid-core-data",
+    "core_count": 43,
+    "accessed_on": "2026-07-19"
+  },
+  "sources": {
+    "legacy-research-snapshot": {
+      "publisher": "EmDecay/toroid-calc-research",
+      "source_type": "legacy_secondary_snapshot",
+      "title": "Toroid calculator research snapshot",
+      "url": "https://github.com/EmDecay/toroid-calc-research",
+      "accessed_on": "2026-02-03"
+    },
+    "amidon-mix-2-guidance": {
+      "publisher": "Amidon Corp.",
+      "source_type": "official_distributor_material_guide",
+      "title": "2 Material Iron Powder Toroids",
+      "url": "https://www.amidoncorp.com/2ipt/",
+      "accessed_on": "2026-07-19"
+    },
+    "amidon-mix-6-guidance": {
+      "publisher": "Amidon Corp.",
+      "source_type": "official_distributor_material_guide",
+      "title": "6 Material Iron Powder Toroids",
+      "url": "https://amidoncorp.com/6ipt/",
+      "accessed_on": "2026-07-19"
+    },
+    "micrometals-rf-materials": {
+      "publisher": "Micrometals, Inc.",
+      "source_type": "manufacturer_material_table",
+      "title": "Radio Frequency Iron Powders - General Material Properties",
+      "url": "https://new.micrometals.com/products/materials/rf/",
+      "accessed_on": "2026-07-19"
+    },
+    "micrometals-t25-6-datasheet": {
+      "publisher": "Micrometals, Inc.",
+      "source_type": "manufacturer_datasheet",
+      "title": "T25-6 DataSheet, revision 20190524",
+      "url": "https://datasheets.micrometals.com/T25-6-DataSheet.pdf",
+      "accessed_on": "2026-07-19"
+    },
+    "micrometals-t50-2-datasheet": {
+      "publisher": "Micrometals, Inc.",
+      "source_type": "manufacturer_datasheet",
+      "title": "T50-2 DataSheet, revision 20190524",
+      "url": "https://datasheets.micrometals.com/T50-2-DataSheet.pdf",
+      "accessed_on": "2026-07-19"
+    },
+    "micrometals-t68-2-datasheet": {
+      "publisher": "Micrometals, Inc.",
+      "source_type": "manufacturer_datasheet",
+      "title": "T68-2 DataSheet, revision 20190524",
+      "url": "https://datasheets.micrometals.com/T68-2-DataSheet.pdf",
+      "accessed_on": "2026-07-19"
+    }
+  },
+  "materials": {
+    "2": {
+      "freq_min_hz": 2000000.0,
+      "freq_max_hz": 30000000.0,
+      "frequency_source_id": "amidon-mix-2-guidance",
+      "guidance_kind": "official_distributor_application_range"
+    },
+    "6": {
+      "freq_min_hz": 10000000.0,
+      "freq_max_hz": 50000000.0,
+      "frequency_source_id": "amidon-mix-6-guidance",
+      "guidance_kind": "official_distributor_application_range"
+    }
+  },
+  "cores": [
   {
     "name": "T106-0",
     "mix": "0",
@@ -22,8 +94,8 @@
     "al_nh_per_turn2": 13.5,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T106-6",
@@ -35,8 +107,8 @@
     "al_nh_per_turn2": 11.6,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T130-0",
@@ -74,8 +146,8 @@
     "al_nh_per_turn2": 11.0,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T130-6",
@@ -87,8 +159,8 @@
     "al_nh_per_turn2": 9.6,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T157-17",
@@ -113,8 +185,8 @@
     "al_nh_per_turn2": 14.0,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T184-17",
@@ -139,8 +211,8 @@
     "al_nh_per_turn2": 12.0,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T200-2B",
@@ -152,8 +224,8 @@
     "al_nh_per_turn2": 21.8,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T200-6",
@@ -165,8 +237,8 @@
     "al_nh_per_turn2": 10.4,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T225-2B",
@@ -178,8 +250,8 @@
     "al_nh_per_turn2": 21.5,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T25-2",
@@ -191,8 +263,8 @@
     "al_nh_per_turn2": 3.4,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T25-6",
@@ -204,8 +276,44 @@
     "al_nh_per_turn2": 2.7,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0,
+    "manufacturer": "Micrometals, Inc.",
+    "manufacturer_part_number": "T25-6",
+    "provenance_status": "primary_verified",
+    "core_source_id": "micrometals-t25-6-datasheet",
+    "frequency_source_id": "amidon-mix-6-guidance",
+    "winding_source_id": "micrometals-t25-6-datasheet",
+    "field_sources": {
+      "dimensions": "micrometals-t25-6-datasheet",
+      "al": "micrometals-t25-6-datasheet",
+      "al_tolerance": "micrometals-t25-6-datasheet",
+      "temperature_coefficient": "micrometals-rf-materials",
+      "frequency_guidance": "amidon-mix-6-guidance",
+      "winding_table": "micrometals-t25-6-datasheet",
+      "q_test": "micrometals-t25-6-datasheet"
+    },
+    "al_test": {
+      "turns": 29,
+      "awg": 30,
+      "frequency_hz": 1000000.0,
+      "voltage_v": 0.48
+    },
+    "q_test": {
+      "turns": 29,
+      "awg": 30,
+      "frequency_hz": 11500000.0,
+      "minimum_q": 152.0,
+      "instrument": "HP4342A"
+    },
+    "winding_table": {
+      "awg": [24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44],
+      "wire_diameter_mm": [0.5, 0.4, 0.315, 0.25, 0.2, 0.16, 0.125, 0.1, 0.08, 0.063, 0.05],
+      "single_layer_turns": [10, 13, 17, 22, 28, 36, 45, 57, 72, 90, 112],
+      "single_layer_dcr_ohm": [0.0096, 0.0199, 0.0413, 0.085, 0.1721, 0.3519, 0.6996, 1.4, 2.8, 5.6, 11.1],
+      "full_winding_turns": [10, 15, 23, 36, 55, 86, 132, 205, 317, 491, 760],
+      "full_winding_dcr_ohm": [0.0096, 0.0229, 0.0559, 0.1391, 0.3381, 0.8407, 2.1, 5.1, 12.5, 30.7, 75.6]
+    }
   },
   {
     "name": "T30-2",
@@ -217,8 +325,8 @@
     "al_nh_per_turn2": 4.3,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T30-6",
@@ -230,8 +338,8 @@
     "al_nh_per_turn2": 3.6,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T37-0",
@@ -282,8 +390,8 @@
     "al_nh_per_turn2": 4.0,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T37-6",
@@ -295,8 +403,8 @@
     "al_nh_per_turn2": 3.0,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T44-2",
@@ -308,8 +416,8 @@
     "al_nh_per_turn2": 5.2,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T44-6",
@@ -321,8 +429,8 @@
     "al_nh_per_turn2": 4.2,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T50-1",
@@ -373,8 +481,44 @@
     "al_nh_per_turn2": 4.9,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0,
+    "manufacturer": "Micrometals, Inc.",
+    "manufacturer_part_number": "T50-2",
+    "provenance_status": "primary_verified",
+    "core_source_id": "micrometals-t50-2-datasheet",
+    "frequency_source_id": "amidon-mix-2-guidance",
+    "winding_source_id": "micrometals-t50-2-datasheet",
+    "field_sources": {
+      "dimensions": "micrometals-t50-2-datasheet",
+      "al": "micrometals-t50-2-datasheet",
+      "al_tolerance": "micrometals-t50-2-datasheet",
+      "temperature_coefficient": "micrometals-rf-materials",
+      "frequency_guidance": "amidon-mix-2-guidance",
+      "winding_table": "micrometals-t50-2-datasheet",
+      "q_test": "micrometals-t50-2-datasheet"
+    },
+    "al_test": {
+      "turns": 100,
+      "awg": 32,
+      "frequency_hz": 1000000.0,
+      "voltage_v": 1.0
+    },
+    "q_test": {
+      "turns": 100,
+      "awg": 32,
+      "frequency_hz": 1800000.0,
+      "minimum_q": 156.0,
+      "instrument": "HP4342A"
+    },
+    "winding_table": {
+      "awg": [16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36],
+      "wire_diameter_mm": [1.25, 1.0, 0.8, 0.63, 0.5, 0.4, 0.315, 0.25, 0.2, 0.16, 0.125],
+      "single_layer_turns": [12, 15, 20, 25, 32, 41, 51, 64, 81, 101, 127],
+      "single_layer_dcr_ohm": [0.0032, 0.0064, 0.0135, 0.0268, 0.0546, 0.1113, 0.2202, 0.4394, 0.8845, 1.8, 3.5],
+      "full_winding_turns": [12, 19, 29, 45, 70, 108, 168, 259, 401, 621, 962],
+      "full_winding_dcr_ohm": [0.0032, 0.0081, 0.0196, 0.0483, 0.1195, 0.2932, 0.7253, 1.8, 4.4, 10.8, 26.6]
+    }
   },
   {
     "name": "T50-3",
@@ -399,8 +543,8 @@
     "al_nh_per_turn2": 4.0,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T50-7",
@@ -451,8 +595,44 @@
     "al_nh_per_turn2": 5.7,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0,
+    "manufacturer": "Micrometals, Inc.",
+    "manufacturer_part_number": "T68-2",
+    "provenance_status": "primary_verified",
+    "core_source_id": "micrometals-t68-2-datasheet",
+    "frequency_source_id": "amidon-mix-2-guidance",
+    "winding_source_id": "micrometals-t68-2-datasheet",
+    "field_sources": {
+      "dimensions": "micrometals-t68-2-datasheet",
+      "al": "micrometals-t68-2-datasheet",
+      "al_tolerance": "micrometals-t68-2-datasheet",
+      "temperature_coefficient": "micrometals-rf-materials",
+      "frequency_guidance": "amidon-mix-2-guidance",
+      "winding_table": "micrometals-t68-2-datasheet",
+      "q_test": "micrometals-t68-2-datasheet"
+    },
+    "al_test": {
+      "turns": 100,
+      "awg": 30,
+      "frequency_hz": 1000000.0,
+      "voltage_v": 1.0
+    },
+    "q_test": {
+      "turns": 100,
+      "awg": 30,
+      "frequency_hz": 2000000.0,
+      "minimum_q": 166.0,
+      "instrument": "HP4342A"
+    },
+    "winding_table": {
+      "awg": [14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34],
+      "wire_diameter_mm": [1.6, 1.25, 1.0, 0.8, 0.63, 0.5, 0.4, 0.315, 0.25, 0.2, 0.16],
+      "single_layer_turns": [12, 15, 20, 25, 32, 40, 51, 64, 80, 101, 126],
+      "single_layer_dcr_ohm": [0.0024, 0.0048, 0.0101, 0.0202, 0.0411, 0.0817, 0.1656, 0.3304, 0.6569, 1.3, 2.6],
+      "full_winding_turns": [12, 19, 29, 45, 69, 107, 166, 256, 397, 614, 950],
+      "full_winding_dcr_ohm": [0.0024, 0.0061, 0.0147, 0.0363, 0.0886, 0.2184, 0.5389, 1.3, 3.3, 8.0, 19.7]
+    }
   },
   {
     "name": "T68-6",
@@ -464,8 +644,8 @@
     "al_nh_per_turn2": 4.7,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T80-10",
@@ -503,8 +683,8 @@
     "al_nh_per_turn2": 5.5,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T80-6",
@@ -516,8 +696,8 @@
     "al_nh_per_turn2": 4.5,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   },
   {
     "name": "T94-10",
@@ -542,8 +722,8 @@
     "al_nh_per_turn2": 8.4,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 95.0,
-    "freq_min_hz": 250000.0,
-    "freq_max_hz": 10000000.0
+    "freq_min_hz": 2000000.0,
+    "freq_max_hz": 30000000.0
   },
   {
     "name": "T94-6",
@@ -555,7 +735,8 @@
     "al_nh_per_turn2": 7.0,
     "al_tolerance_pct": 5.0,
     "temp_coeff_ppm_per_c": 35.0,
-    "freq_min_hz": 3000000.0,
-    "freq_max_hz": 40000000.0
+    "freq_min_hz": 10000000.0,
+    "freq_max_hz": 50000000.0
   }
-]
+  ]
+}

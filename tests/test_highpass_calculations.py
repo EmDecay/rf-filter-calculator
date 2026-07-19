@@ -130,6 +130,10 @@ class TestChebychevHighpass:
         # Different ripples should produce different values
         assert inds_01 != inds_10
 
+    def test_ripple_above_three_db_is_rejected(self):
+        with pytest.raises(ValueError, match="at most 3.0"):
+            hp.calculate_chebyshev(10e6, 50, 3.01, 3, topology="t")
+
     def test_order_range(self):
         """Test all valid Chebyshev orders (odd only for equal terminations)."""
         for order in (3, 5, 7, 9):

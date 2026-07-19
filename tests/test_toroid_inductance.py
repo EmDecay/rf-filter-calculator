@@ -38,8 +38,24 @@ def test_compute_integer_turns_t50_2():
 
 
 def test_compute_integer_turns_sub_half_turn_none():
-    """Target L smaller than N=0.5 turn produces None."""
-    assert compute_integer_turns(1e-12, 4.9) is None
+    """A physical winding bottoms out at one turn and exposes the error."""
+    assert compute_integer_turns(1e-12, 4.9) == 1
+
+
+def test_integer_turns_compares_actual_inductance_not_python_rounding():
+    """At N_ideal=11.5, eleven turns is closer in L even though round gives 12."""
+    al = 4.9
+    target = al * 1e-9 * 11.5**2
+
+    assert round(11.5) == 12
+    assert compute_integer_turns(target, al) == 11
+
+
+def test_integer_turns_exact_l_error_tie_prefers_fewer_turns():
+    al = 4.9
+    target = al * 1e-9 * ((10**2 + 11**2) / 2)
+
+    assert compute_integer_turns(target, al) == 10
 
 
 def test_compute_integer_turns_neg_l_raises():
@@ -98,9 +114,12 @@ def test_t68_2_regression_not_66():
 
 
 def test_solve_winding_returns_none_below_half_turn():
-    """Extremely low target L on a big core returns None."""
+    """Extremely low target L returns the honest one-turn realization."""
     w = solve_winding(1e-15, get_core("T200-2"))
-    assert w is None
+    assert w is not None
+    assert w.n_turns == 1
+    assert w.turn_options[0].n_turns == 1
+    assert "minimum absolute inductance error" in w.selected_reason
 
 
 def test_solve_winding_error_pct_signed():
@@ -124,3 +143,45 @@ def test_solve_winding_includes_tolerance_range():
 def test_solve_winding_raises_on_neg_l():
     with pytest.raises(ValueError):
         solve_winding(-1, get_core("T50-2"))
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_turn_math_rejects_nonfinite_inputs(value):
+    with pytest.raises(ValueError, match="finite"):
+        compute_ideal_turns(value, 4.9)
+    with pytest.raises(ValueError, match="finite"):
+        compute_ideal_turns(1e-6, value)
+
+
+def test_subnormal_target_rejects_nonfinite_winding_error():
+    with pytest.raises(ValueError, match="winding error"):
+        solve_winding(5e-324, get_core("T50-2"))
+
+
+def test_huge_finite_target_does_not_leak_overflow():
+    from filter_lib.shared.toroid_selection import find_core_candidates
+
+    assert find_core_candidates(1e300, 10e6) == []
+
+
+@pytest.mark.parametrize("value", [True, "1e-6", None, 10**400])
+def test_turn_math_rejects_non_real_or_nonfinite_scalars(value):
+    with pytest.raises(ValueError):
+        compute_ideal_turns(value, 4.9)
+    with pytest.raises(ValueError):
+        compute_ideal_turns(1e-6, value)
+    with pytest.raises(ValueError):
+        l_tolerance_range(1e-6, value)
+
+
+def test_solve_winding_rejects_invalid_target_and_core_types():
+    with pytest.raises(ValueError):
+        solve_winding(True, get_core("T50-2"))
+    with pytest.raises(ValueError, match="ToroidCore"):
+        solve_winding(1e-6, "T50-2")
+
+
+@pytest.mark.parametrize("turns", [True, 1.5, "2"])
+def test_inductance_requires_integer_turns(turns):
+    with pytest.raises(ValueError, match="integer"):
+        inductance_from_turns(turns, 4.9)

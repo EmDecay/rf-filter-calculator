@@ -6,6 +6,18 @@ between submodules doesn't break callers. New public names should be
 added to both the import block and ``__all__``.
 """
 
+from .build_simulation import (
+    BuildAnalysisResult,
+    BuildConfig,
+    CircuitMeasurement,
+    ComponentSubstitution,
+    MetricSummary,
+    NominalRealization,
+    ScreeningCase,
+    analyze_build,
+    derive_series_resistance,
+    realize_nominal_build,
+)
 from .chebyshev_g_calculator import CHEBYSHEV_DB_TO_NEPER_FACTOR, calculate_chebyshev_g_values
 from .cli_aliases import (
     COUPLING_ALIASES,
@@ -44,10 +56,23 @@ from .display_common import (
 from .display_helpers import format_component_value, format_eseries_match, split_value_unit
 from .eseries import ESeriesMatch, find_closest_single, match_component
 from .formatting import format_capacitance, format_frequency, format_impedance, format_inductance
-from .netlist_builders import build_bandpass_top_c_netlist, build_hp_netlist, build_lp_netlist
-from .netlist_simulation import find_3db_edges, passband_ripple_db, solve_s21
-from .parsing import parse_frequency, parse_impedance
+from .netlist_builders import (
+    CircuitElement,
+    NamedCircuit,
+    build_bandpass_top_c_netlist,
+    build_hp_netlist,
+    build_lp_netlist,
+    build_named_circuit,
+)
+from .netlist_simulation import (
+    find_3db_edges,
+    passband_ripple_db,
+    solve_s21,
+    solve_transducer_power_gain,
+)
+from .parsing import parse_frequency, parse_impedance, parse_inductance
 from .response_export import export_response_csv, export_response_json, response_meta
+from .spice_export import export_spice_deck
 from .transfer_functions import (
     BESSEL_COEFFS,
     BESSEL_SCALE,
@@ -60,6 +85,7 @@ __all__ = [
     # Parsing
     "parse_frequency",
     "parse_impedance",
+    "parse_inductance",
     # Formatting
     "format_frequency",
     "format_capacitance",
@@ -109,12 +135,28 @@ __all__ = [
     "print_header",
     "print_component_table",
     # Netlist simulation
+    "CircuitElement",
+    "NamedCircuit",
     "solve_s21",
+    "solve_transducer_power_gain",
     "find_3db_edges",
     "passband_ripple_db",
+    "build_named_circuit",
     "build_lp_netlist",
     "build_hp_netlist",
     "build_bandpass_top_c_netlist",
+    # Build realization and SPICE
+    "BuildConfig",
+    "ComponentSubstitution",
+    "NominalRealization",
+    "CircuitMeasurement",
+    "ScreeningCase",
+    "MetricSummary",
+    "BuildAnalysisResult",
+    "derive_series_resistance",
+    "realize_nominal_build",
+    "analyze_build",
+    "export_spice_deck",
     # Transfer functions
     "BESSEL_COEFFS",
     "BESSEL_SCALE",

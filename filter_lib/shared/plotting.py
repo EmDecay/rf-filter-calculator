@@ -14,8 +14,10 @@ from .plot_ascii_renderers import (  # noqa: F401
     render_bandpass_plot,
 )
 from .plot_threshold_analysis import (  # noqa: F401
+    ThresholdRegion,
     _find_3db_frequency,
     find_db_thresholds,
+    find_threshold_regions,
     format_threshold_table,
 )
 from .plot_zoom_pairs import (  # noqa: F401

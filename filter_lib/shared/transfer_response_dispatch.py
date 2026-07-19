@@ -12,6 +12,7 @@ module at load time, so top-level imports here would be circular.
 from collections.abc import Callable
 
 from .cli_aliases import FILTER_TYPE_ALIASES
+from .numeric import require_positive_finite
 from .transfer_functions import magnitude_to_db
 
 _CANONICAL_LP_HP_TYPES = ("butterworth", "chebyshev", "bessel")
@@ -26,6 +27,8 @@ def _canonicalize_filter_type(filter_type: str, valid: tuple[str, ...]) -> str:
     """
     if filter_type is None:
         raise ValueError("Filter type must be provided, got None")
+    if not isinstance(filter_type, str):
+        raise ValueError("filter_type must be a string")
     ft = filter_type.lower()
     canonical = FILTER_TYPE_ALIASES.get(ft, ft)
     if canonical not in valid:
@@ -142,7 +145,8 @@ def make_bp_netlist_response_db(result: dict) -> Callable[[float], float]:
     from .netlist_simulation import solve_s21
 
     n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
-    z0 = result["z0"]
+    z0 = result.get("z0")
+    require_positive_finite(z0, "result z0")
 
     def response_db(f: float) -> float:
         (mag,) = solve_s21(n_nodes, branches, z0, z0, in_node, out_node, [f])

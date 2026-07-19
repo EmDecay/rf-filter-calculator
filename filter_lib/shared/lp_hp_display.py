@@ -110,6 +110,8 @@ def format_json_for_config(
     config: LpHpDisplayConfig,
     eseries: str | None = None,
     include_toroids: bool = True,
+    matched_sim: dict | None = None,
+    build_analysis=None,
 ) -> str:
     """Format an LP/HP result as JSON."""
     return format_json_result(
@@ -118,6 +120,8 @@ def format_json_for_config(
         eseries=eseries,
         toroid_freq_hz=result["freq_hz"],
         include_toroids=include_toroids,
+        matched_sim=matched_sim,
+        build_analysis=build_analysis,
     )
 
 
@@ -193,6 +197,8 @@ def display_results_for_config(
     include_toroids: bool = True,
     toroid_compact: bool = False,
     toroid_full: bool = False,
+    matched_sim: dict | None = None,
+    build_analysis=None,
 ) -> None:
     """Print LP/HP result output."""
     if output_format == "json":
@@ -202,6 +208,8 @@ def display_results_for_config(
                 config,
                 eseries=eseries if show_match else None,
                 include_toroids=include_toroids,
+                matched_sim=matched_sim,
+                build_analysis=build_analysis,
             )
         )
         return
@@ -236,9 +244,12 @@ def display_results_for_config(
 
 def _extend_match_lines(lines: list[str], result: dict, match: MatchConfig, eseries: str) -> None:
     """Append the E-series standard-value recommendation section in place."""
-    lines.append(f"\n{eseries} Standard {match.display_name} Recommendations")
+    lines.append(f"\n{eseries} Preferred-Value {match.display_name} Selection")
     lines.append("-" * 45)
-    lines.append("(Calculated values with nearest standard matches)")
+    lines.append(
+        "(Series density is not part tolerance; policy selects at most one realization; "
+        "expert action may be required)"
+    )
     lines.append("")
     for i, value in enumerate(result[match.component_key]):
         lines.append(f"{match.prefix}{i + 1} Calculated: {match.formatter(value)}")
@@ -257,7 +268,7 @@ def _toroid_lines(result: dict, compact: bool, top_n: int) -> list[str]:
     formatter = format_recommendation_block_compact if compact else format_recommendation_block
     lines = [
         "",
-        "Toroid Winding Recommendations (Iron-Powder T-Series)",
+        "Screened Toroid Winding Candidates (Iron-Powder T-Series)",
         "-" * 55,
     ]
     if not compact:

@@ -256,7 +256,6 @@ wheels = [
 
 [[package]]
 name = "rf-filter-calculator"
-version = "2.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "textual" },
@@ -267,6 +266,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
 [package.metadata]
@@ -277,6 +277,7 @@ dev = [
     { name = "pytest", specifier = ">=7.0" },
     { name = "pytest-cov", specifier = ">=4.0" },
     { name = "ruff", specifier = ">=0.8" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0" },
 ]
 
 [[package]]

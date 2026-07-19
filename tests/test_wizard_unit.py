@@ -13,20 +13,42 @@ separated from the Textual UI rendering logic.
 import json
 from unittest.mock import Mock
 
+import pytest
+
 from filter_lib.wizard.calculation_handler import calculate_and_format
 from filter_lib.wizard.filter_type_calculators import (
+    BANDPASS_WIZARD_RESPONSE_POINTS,
     calculate_bandpass,
     calculate_highpass,
     calculate_lowpass,
 )
-from filter_lib.wizard.formatting_helpers import format_bandpass_table
+from filter_lib.wizard.formatting_helpers import (
+    format_bandpass_eseries_recs,
+    format_bandpass_table,
+)
 from filter_lib.wizard.radio_button_helpers import get_selected_radio
 from filter_lib.wizard.screens.results import ResultsScreen
-from filter_lib.wizard.state import FilterState
+from filter_lib.wizard.state import CalculationOutcome, FilterState
 
 # ============================================================================
 # Tests for filter_type_calculators.py
 # ============================================================================
+
+
+def test_wizard_eseries_output_surfaces_expert_action_for_sub_pf_target():
+    result = {
+        "c_tank": [1e-15],
+        "c_coupling": [],
+        "c_end_in": None,
+        "c_end_out": None,
+    }
+
+    output = "\n".join(format_bandpass_eseries_recs(result, "E24"))
+
+    assert "policy selects at most one realization; expert action may be required" in output
+    assert "Nearest Std (reference only)" in output
+    assert "EXPERT ACTION REQUIRED; no part selected" in output
+    assert "below the 1 pF automatic-selection floor" in output
 
 
 class TestCalculateLowpass:
@@ -457,8 +479,8 @@ class TestCalculateHighpass:
         lines = calculate_highpass(state)
 
         output = "\n".join(lines)
-        assert "E24 Standard Capacitor Recommendations" in output
-        assert "Standard Inductor Recommendations" not in output
+        assert "E24 Preferred-Value Capacitor Selection" in output
+        assert "Preferred-Value Inductor Selection" not in output
         assert "Inductors: wind to value" in output
 
     def test_highpass_with_plot(self):
@@ -517,6 +539,7 @@ class TestCalculateBandpass:
         output = "\n".join(lines)
         assert "Butterworth" in output
         assert "Band-Pass" in output or "Bandpass" in output
+        assert "Response validation: Passed synthesized-response checks" in output
 
     def test_chebyshev_bandpass(self):
         """Test Chebyshev bandpass calculation."""
@@ -669,6 +692,27 @@ class TestCalculateBandpass:
         output = "\n".join(lines)
         assert len(output) > 200
 
+    def test_one_percent_bandpass_plot_finds_both_threshold_skirts(self):
+        state = FilterState(
+            category="bandpass",
+            filter_type="butterworth",
+            frequency_hz=10e6,
+            bandwidth_hz=100e3,
+            impedance=50.0,
+            order=3,
+            topology="top",
+            output_format="table",
+            show_plot=True,
+            eseries="none",
+        )
+
+        output = "\n".join(calculate_bandpass(state))
+        threshold_row = next(line for line in output.splitlines() if "│ -3 dB" in line)
+
+        assert BANDPASS_WIZARD_RESPONSE_POINTS >= 601
+        assert "N/A" not in threshold_row
+        assert threshold_row.count("│") >= 3
+
     def test_bandpass_with_eseries(self):
         """Test bandpass includes capacitor E-series recommendations."""
         state = FilterState(
@@ -689,9 +733,28 @@ class TestCalculateBandpass:
         lines = calculate_bandpass(state)
 
         output = "\n".join(lines)
-        assert "E24 Standard Capacitor Recommendations" in output
+        assert "E24 Preferred-Value Capacitor Selection" in output
         assert "Cp1 Calculated:" in output
         assert "Cs12 Calculated:" in output
+
+    def test_bandpass_passes_optional_fixed_inductance_to_engine(self):
+        state = FilterState(
+            category="bandpass",
+            filter_type="butterworth",
+            frequency_hz=14.175e6,
+            bandwidth_hz=350e3,
+            impedance=50.0,
+            order=3,
+            topology="top",
+            output_format="table",
+            show_plot=False,
+            resonator_inductance=1e-6,
+        )
+
+        calculate_bandpass(state)
+
+        assert state.result["L_resonant"] == 1e-6
+        assert state.result["resonator_selection"] == "fixed_inductance"
 
 
 # ============================================================================
@@ -749,8 +812,8 @@ class TestWizardLpHpRendering:
 
         lines = calculate_highpass(self._state(category="highpass", topology="t", eseries="E24"))
         output = "\n".join(lines)
-        assert "Standard Capacitor Recommendations" in output
-        assert "Standard Inductor Recommendations" not in output
+        assert "Preferred-Value Capacitor Selection" in output
+        assert "Preferred-Value Inductor Selection" not in output
         assert "wind to value" in output
 
 
@@ -777,6 +840,9 @@ class TestFormatBandpassTable:
         assert "Inductors" in output
         assert "Coupling Capacitors" in output
         assert "External Q" in output
+        assert "complete-resonator unloaded Q" in output
+        assert "Minimum usable Q" not in output
+        assert "Q safety factor" not in output
 
     def test_format_bandpass_is_top_c_only(self):
         """Bandpass formatting always renders Top-C (shunt-C was removed)."""
@@ -824,6 +890,7 @@ class TestFormatBandpassTable:
             "q_min": 100,
             "q_safety": 2.0,
             "ripple_db": None,
+            "response_validation_status": "outside_validated_envelope",
             "warnings": ["Bandwidth too large", "Q values may be unrealistic"],
         }
         state = FilterState(raw_units=False)
@@ -832,6 +899,7 @@ class TestFormatBandpassTable:
 
         output = "\n".join(lines)
         assert "Warnings:" in output
+        assert "Response validation: Outside validated envelope" in output
         assert "Bandwidth too large" in output
         assert "Q values may be unrealistic" in output
 
@@ -900,6 +968,9 @@ class TestResultsScreenExport:
             show_plot=False,
         )
         calculate_bandpass(state)
+        state.output_text = "current result"
+        state.calculation_status = "success"
+        screen._result_text = state.output_text
 
         output = screen._get_json_export(state)
         data = json.loads(output)
@@ -925,6 +996,9 @@ class TestResultsScreenExport:
             show_plot=False,
         )
         calculate_bandpass(state)
+        state.output_text = "current result"
+        state.calculation_status = "success"
+        screen._result_text = state.output_text
 
         output = screen._get_csv_export(state)
         header = output.splitlines()[0]
@@ -955,14 +1029,16 @@ class TestCalculateAndFormat:
             eseries="none",
         )
 
-        output = calculate_and_format(state)
+        outcome = calculate_and_format(state)
 
-        assert isinstance(output, str)
-        assert len(output) > 0
-        assert "Butterworth" in output
-        assert "Low Pass" in output
-        # State should be updated
-        assert state.result is not None
+        assert isinstance(outcome, CalculationOutcome)
+        assert outcome.succeeded
+        assert "Butterworth" in outcome.output_text
+        assert "Low Pass" in outcome.output_text
+        assert outcome.result["filter_type"] == "butterworth"
+        # The worker-facing orchestrator must never mutate shared state.
+        assert state.result == {}
+        assert state.output_text == ""
 
     def test_calculate_highpass_end_to_end(self):
         """Test complete highpass calculation flow."""
@@ -980,11 +1056,12 @@ class TestCalculateAndFormat:
             eseries="none",
         )
 
-        output = calculate_and_format(state)
+        outcome = calculate_and_format(state)
 
-        assert isinstance(output, str)
-        assert "Chebyshev" in output
-        assert "High Pass" in output
+        assert outcome.succeeded
+        assert "Chebyshev" in outcome.output_text
+        assert "High Pass" in outcome.output_text
+        assert state.result == {}
 
     def test_calculate_bandpass_end_to_end(self):
         """Test complete bandpass calculation flow."""
@@ -1001,11 +1078,12 @@ class TestCalculateAndFormat:
             show_plot=False,
         )
 
-        output = calculate_and_format(state)
+        outcome = calculate_and_format(state)
 
-        assert isinstance(output, str)
-        assert "Butterworth" in output
-        assert "Band-Pass" in output or "Bandpass" in output
+        assert outcome.succeeded
+        assert "Butterworth" in outcome.output_text
+        assert "Band-Pass" in outcome.output_text or "Bandpass" in outcome.output_text
+        assert state.result == {}
 
     def test_unknown_category_error(self):
         """Test handling of unknown filter category."""
@@ -1014,9 +1092,11 @@ class TestCalculateAndFormat:
             filter_type="butterworth",
         )
 
-        output = calculate_and_format(state)
+        outcome = calculate_and_format(state)
 
-        assert "Unknown filter category" in output
+        assert outcome.status == "error"
+        assert outcome.error == "Unknown filter category"
+        assert outcome.result == {}
 
     def test_calculation_exception_handling(self):
         """Test error handling for calculation exceptions."""
@@ -1029,10 +1109,151 @@ class TestCalculateAndFormat:
             topology="pi",
         )
 
-        output = calculate_and_format(state)
+        outcome = calculate_and_format(state)
 
-        # Should catch exception and return error message
-        assert "error" in output.lower() or len(output) > 0
+        assert outcome.status == "error"
+        assert outcome.error
+        assert outcome.result == {}
+        assert state.result == {}
+
+    def test_table_build_analysis_uses_detached_successful_outcome(self):
+        state = FilterState(
+            category="lowpass",
+            filter_type="butterworth",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            topology="pi",
+            output_format="table",
+            show_plot=False,
+            eseries="E24",
+            build_analysis_enabled=True,
+            build_grid_points=51,
+            build_use_toroid_candidates=False,
+        )
+
+        outcome = calculate_and_format(state)
+
+        assert outcome.succeeded
+        assert outcome.build_analysis is not None
+        assert outcome.build_analysis.config.grid_points == 51
+        assert "Synthesis target" in outcome.output_text
+        assert "Calculated exact values" in outcome.output_text
+        assert "Selected nominal build" in outcome.output_text
+        assert "Tolerance screening" in outcome.output_text
+        assert "simulation, not a measurement" in outcome.output_text
+        assert state.result == {}
+        assert state.build_analysis is None
+
+    def test_json_build_analysis_uses_shared_four_block_schema(self):
+        state = FilterState(
+            category="highpass",
+            filter_type="butterworth",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            topology="t",
+            output_format="json",
+            show_plot=False,
+            eseries="E24",
+            build_analysis_enabled=True,
+            build_grid_points=51,
+            build_use_toroid_candidates=False,
+        )
+
+        outcome = calculate_and_format(state)
+        payload = json.loads(outcome.output_text)
+
+        assert outcome.succeeded
+        assert outcome.build_analysis is not None
+        assert payload["target"]["category"] == "highpass"
+        assert payload["simulated"]["realization"] == "calculated_exact_values"
+        assert (
+            payload["nominal_build"]["realization"]
+            == "selected_nominal_parts_and_calculated_exact_fallbacks"
+        )
+        assert payload["tolerance_analysis"]["grid_points"] == 51
+
+    def test_later_json_export_reuses_the_worker_analysis(self, monkeypatch):
+        from filter_lib.shared.build_output import build_analysis_fields
+
+        state = FilterState(
+            category="lowpass",
+            filter_type="butterworth",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            topology="pi",
+            output_format="table",
+            show_plot=False,
+            eseries="E24",
+            build_analysis_enabled=True,
+            build_grid_points=51,
+            build_use_toroid_candidates=False,
+        )
+        outcome = calculate_and_format(state)
+        assert outcome.succeeded and outcome.build_analysis is not None
+
+        revision = state.begin_calculation()
+        assert state.publish_success(
+            revision,
+            outcome.output_text,
+            outcome.result,
+            outcome.build_analysis,
+        )
+        screen = ResultsScreen()
+        screen._result_text = state.output_text
+        monkeypatch.setattr(
+            "filter_lib.shared.build_simulation.analyze_build",
+            Mock(side_effect=AssertionError("export recomputed analysis")),
+        )
+
+        payload = json.loads(screen._get_json_export(state))
+        expected = build_analysis_fields(outcome.result, outcome.build_analysis)
+
+        for key in ("target", "simulated", "nominal_build", "tolerance_analysis"):
+            assert payload[key] == expected[key]
+
+    def test_component_csv_rejects_realized_build_analysis(self):
+        state = FilterState(
+            category="lowpass",
+            output_text="current build result",
+            result={"ok": True},
+            calculation_status="success",
+            build_analysis_enabled=True,
+            build_analysis={"same_worker": True},
+        )
+        screen = ResultsScreen()
+        screen._result_text = state.output_text
+
+        with pytest.raises(ValueError, match="not supported in component CSV"):
+            screen._get_csv_export(state)
+
+    @pytest.mark.parametrize(
+        "output_format, quiet, expected",
+        [
+            ("csv", False, "table or JSON"),
+            ("table", True, "quiet"),
+        ],
+    )
+    def test_build_analysis_rejects_unsupported_worker_modes(self, output_format, quiet, expected):
+        state = FilterState(
+            category="lowpass",
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=3,
+            topology="pi",
+            output_format=output_format,
+            quiet=quiet,
+            eseries="E24",
+            build_analysis_enabled=True,
+        )
+
+        outcome = calculate_and_format(state)
+
+        assert outcome.status == "error"
+        assert expected in outcome.error
+        assert outcome.build_analysis is None
 
 
 # ============================================================================

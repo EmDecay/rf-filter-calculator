@@ -11,6 +11,10 @@ return display lines for the requested output format.
 
 from .state import FilterState
 
+# Dense enough to resolve both skirts of narrow wizard band-pass designs.
+# Shared by the on-screen plot/threshold table and response-data export.
+BANDPASS_WIZARD_RESPONSE_POINTS = 601
+
 
 def calculate_lowpass(state: FilterState) -> list[str]:
     """Calculate lowpass filter and return formatted output lines.
@@ -194,6 +198,8 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         filter_type=state.filter_type,
         coupling=state.topology,
         ripple_db=state.ripple_db,
+        resonator_impedance=state.resonator_impedance,
+        resonator_inductance=state.resonator_inductance,
     )
     # Keep the raw result so the results screen can export JSON/CSV/response
     # data later without re-running the synthesis.
@@ -221,7 +227,7 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         # 0.5 dB default. The plot itself is netlist-simulated from the
         # synthesized circuit, not an idealized prototype curve.
         ripple_val = result.get("ripple_db") or 0.5
-        sweep = netlist_frequency_sweep(result, points=61)
+        sweep = netlist_frequency_sweep(result, points=BANDPASS_WIZARD_RESPONSE_POINTS)
         title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"
         response_fn = make_bp_netlist_response_db(result)
         lines.append("")
@@ -239,7 +245,13 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         )
         freqs = [f for f, _ in sweep]
         dbs = [db for _, db in sweep]
-        thresholds = find_db_thresholds(freqs, dbs, filter_type="bandpass")
+        thresholds = find_db_thresholds(
+            freqs,
+            dbs,
+            filter_type="bandpass",
+            reference_frequency=result["f0"],
+            relative_to_peak=True,
+        )
         lines.append(format_threshold_table(thresholds, filter_type="bandpass"))
 
     return lines

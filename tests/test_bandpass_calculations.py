@@ -9,12 +9,15 @@ import pytest
 
 from filter_lib.bandpass import calculate_bandpass_filter, compute_bandpass_3db_edges
 from filter_lib.bandpass.calculations import (
+    BANDPASS_EDGE_CALIBRATION_FBW_MAX,
+    BANDPASS_LUMPED_MODEL_CAUTION_FBW,
     calculate_coupling_capacitors,
     calculate_coupling_coefficients,
     calculate_end_coupling,
     calculate_external_q,
     calculate_resonator_components,
     calculate_tank_capacitors,
+    combine_resonator_q,
     estimate_insertion_loss,
 )
 from filter_lib.bandpass.transfer import magnitude_db
@@ -110,15 +113,12 @@ class TestCouplingCoefficients:
         assert len(k_values) == 4
         assert all(k > 0 for k in k_values)
 
-    def test_coupling_zero_fbw_warning(self):
-        """Test behavior with zero bandwidth."""
+    def test_coupling_zero_fbw_is_rejected(self):
+        """Zero fractional bandwidth cannot produce a realizable coupling."""
         g_values = [1.0, 1.3, 2.0]
-        fbw = 0  # Zero bandwidth
 
-        k_values = calculate_coupling_coefficients(g_values, fbw)
-
-        # Zero bandwidth -> zero coupling
-        assert all(k == 0 for k in k_values)
+        with pytest.raises(ValueError, match="positive and finite"):
+            calculate_coupling_coefficients(g_values, 0)
 
 
 class TestExternalQ:
@@ -243,6 +243,29 @@ class TestResonatorComponents:
         expected_lc = 1 / (4 * math.pi**2 * f0**2)
 
         assert abs(lc_product - expected_lc) < 1e-25
+
+    def test_explicit_resonator_impedance(self):
+        f0 = 10e6
+        ind, cap = calculate_resonator_components(f0, 50, resonator_impedance=200)
+        omega0 = 2 * math.pi * f0
+        assert ind == pytest.approx(200 / omega0)
+        assert cap == pytest.approx(1 / (omega0 * 200))
+
+    def test_fixed_inductance_is_preserved(self):
+        f0 = 10e6
+        chosen_l = 2.2e-6
+        ind, cap = calculate_resonator_components(f0, 50, resonator_inductance=chosen_l)
+        assert ind == chosen_l
+        assert cap == pytest.approx(1 / ((2 * math.pi * f0) ** 2 * chosen_l))
+
+    def test_resonator_choice_inputs_are_mutually_exclusive(self):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            calculate_resonator_components(
+                10e6,
+                50,
+                resonator_impedance=100,
+                resonator_inductance=1e-6,
+            )
 
 
 class TestCouplingCapacitors:
@@ -448,9 +471,10 @@ class TestInsertionLoss:
             calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=0.0)
 
     def test_fbw_synth_butterworth_equals_fbw(self):
-        """Butterworth |delta|=1 is already the -3 dB edge, so no rescaling."""
+        """Butterworth starts at user FBW, then calibration may correct it."""
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top")
-        assert result["fbw_synth"] == pytest.approx(result["fbw"])
+        assert result["fbw_synth_initial"] == pytest.approx(result["fbw"])
+        assert result["fbw_synth"] > 0
 
     def test_fbw_synth_chebyshev_narrower_than_fbw(self):
         """Chebyshev ripple edge is narrower than the -3 dB BW (delta_3dB > 1)."""
@@ -462,6 +486,40 @@ class TestInsertionLoss:
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=0.5)
         expected = 4.343 * sum(result["g_values"]) / (result["fbw_synth"] * 100.0)
         assert result["il_estimates"]["100"] == pytest.approx(expected)
+
+    def test_separate_component_q_values_combine_as_resonator_q(self):
+        assert combine_resonator_q(ql=200, qc=400) == pytest.approx(1 / (1 / 200 + 1 / 400))
+        assert combine_resonator_q(ql=200) == 200
+        assert combine_resonator_q(qc=400) == 400
+
+    def test_component_q_combination_avoids_reciprocal_overflow(self):
+        combined = combine_resonator_q(ql=1e-309, qc=1e-309)
+        assert combined is not None and combined > 0
+        assert combined == pytest.approx(5e-310, rel=1e-12, abs=0)
+
+    def test_direct_qu_is_mutually_exclusive_with_component_q(self):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            combine_resonator_q(qu=100, ql=200)
+
+    def test_result_records_truthful_q_model(self):
+        result = calculate_bandpass_filter(
+            10e6,
+            0.5e6,
+            50,
+            3,
+            "butterworth",
+            "top",
+            ql=200,
+            qc=400,
+        )
+        assert result["q_model"]["resonator_qu"] == pytest.approx(133.3333333333)
+        assert result["q_model"]["definition"] == "complete_resonator_unloaded_q"
+        assert result["q_model"]["combination"] == "reciprocal_component_loss_sum"
+        assert result["q_model"]["inductor_ql"] == 200
+        assert result["q_model"]["capacitor_qc"] == 400
+        assert result["q_min_resonator"] == result["q_min"]
+        assert result["q_min_is_heuristic"] is True
+        assert result["q_safety_compatibility_only"] is True
 
 
 class TestBandpass3dBEdges:
@@ -530,3 +588,243 @@ class TestBandpass3dBEdges:
         # Sanity: arithmetic shortcut would be 800 kHz / 1.2 MHz — these are not that
         assert abs(result["f_low"] - 800e3) > 10e3
         assert abs(result["f_high"] - 1.2e6) > 10e3
+
+    def test_stays_finite_near_float_limit(self):
+        f_low, f_high = compute_bandpass_3db_edges(1e308, 1e307)
+        assert math.isfinite(f_low)
+        assert math.isfinite(f_high)
+        assert math.sqrt(f_low / f_high) * f_high == pytest.approx(1e308)
+
+    @pytest.mark.parametrize(
+        ("f0", "bw", "z0"),
+        [(1e307, 1e305, 10.0), (3e307, 1e305, 1.0), (1e308, 1e307, 50.0)],
+    )
+    def test_filter_accepts_extreme_frequency_when_final_components_are_finite(self, f0, bw, z0):
+        result = calculate_bandpass_filter(f0, bw, z0, 3, "butterworth", "top")
+
+        component_values = [
+            result["L_resonant"],
+            result["C_resonant"],
+            result["c_end_in"],
+            result["c_end_out"],
+            *result["c_tank"],
+            *result["c_coupling"],
+        ]
+        assert all(math.isfinite(value) and value > 0 for value in component_values)
+
+    def test_filter_rejects_frequency_that_cannot_make_finite_components(self):
+        with pytest.raises(ValueError, match="numeric range"):
+            calculate_bandpass_filter(1e308, 1e307, 1e308, 3, "butterworth", "top")
+
+
+class TestCalibratedBandpassSynthesis:
+    @pytest.mark.parametrize("filter_type", ["butterworth", "bessel"])
+    def test_monotonic_responses_do_not_mislabel_edge_variation_as_ripple(self, filter_type):
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, filter_type, "top")
+        validation = result["synthesis_validation"]
+
+        assert validation["measured_passband_variation_db"] > 0
+        assert "measured_ripple_db" not in validation
+
+    def test_chebyshev_validation_reports_equal_ripple_band_variation(self):
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=0.5)
+        validation = result["synthesis_validation"]
+
+        assert validation["measured_ripple_db"] == validation["measured_passband_variation_db"]
+
+    def test_requested_and_internal_parameters_are_distinct_and_verified(self):
+        result = calculate_bandpass_filter(10e6, 1e6, 50, 9, "chebyshev", "top", ripple_db=0.5)
+        validation = result["synthesis_validation"]
+        assert result["f_low"] != result["f_high"]
+        assert result["f_tank_hz"] != pytest.approx(result["f0"], rel=1e-4)
+        assert result["fbw_synth_initial"] != pytest.approx(result["fbw_synth"], rel=1e-4)
+        assert abs(validation["lower_edge_error_rel"]) <= 1e-3
+        assert abs(validation["upper_edge_error_rel"]) <= 1e-3
+        assert validation["connected_region_count"] >= 1
+        assert validation["iterations"] <= 12
+        assert validation["calibration_converged"] is True
+        assert validation["calibration_method"] == "bounded_log_newton"
+        assert validation["calibration_tolerance"] == 2e-5
+        assert validation["calibration_max_iterations"] == 12
+
+    def test_fixed_l_survives_calibration(self):
+        chosen_l = 1.8e-6
+        result = calculate_bandpass_filter(
+            10e6,
+            0.5e6,
+            50,
+            3,
+            "butterworth",
+            "top",
+            resonator_inductance=chosen_l,
+        )
+        assert result["L_resonant"] == chosen_l
+        assert result["resonator_selection"] == "fixed_inductance"
+        assert abs(result["synthesis_validation"]["lower_edge_error_rel"]) <= 1e-3
+        assert abs(result["synthesis_validation"]["upper_edge_error_rel"]) <= 1e-3
+
+    def test_custom_resonator_impedance_survives_calibration(self):
+        result = calculate_bandpass_filter(
+            10e6,
+            0.5e6,
+            50,
+            3,
+            "butterworth",
+            "top",
+            resonator_impedance=200,
+        )
+        assert result["resonator_selection"] == "fixed_impedance"
+        assert result["resonator_impedance"] == pytest.approx(200)
+        assert math.sqrt(result["L_resonant"] / result["C_resonant"]) == pytest.approx(200)
+        assert result["internal_synthesis_parameters"]["resonator_impedance_ohms"] == 200
+        assert abs(result["synthesis_validation"]["lower_edge_error_rel"]) <= 1e-3
+        assert abs(result["synthesis_validation"]["upper_edge_error_rel"]) <= 1e-3
+
+
+class TestBandpassFbwGuidance:
+    def test_public_guidance_boundaries_match_engine_contract(self):
+        assert BANDPASS_EDGE_CALIBRATION_FBW_MAX == 0.10
+        assert BANDPASS_LUMPED_MODEL_CAUTION_FBW == 0.40
+
+    @pytest.mark.parametrize(
+        "fbw, validation_warning, lumped_warning",
+        [
+            (BANDPASS_EDGE_CALIBRATION_FBW_MAX, False, False),
+            (BANDPASS_EDGE_CALIBRATION_FBW_MAX + 1e-6, True, False),
+            (BANDPASS_LUMPED_MODEL_CAUTION_FBW, True, False),
+            (BANDPASS_LUMPED_MODEL_CAUTION_FBW + 1e-6, True, True),
+        ],
+    )
+    def test_warning_boundaries_are_strict(self, fbw, validation_warning, lumped_warning):
+        result = calculate_bandpass_filter(10e6, 10e6 * fbw, 50, 3, "butterworth", "top")
+        warnings = result["warnings"]
+        assert (
+            any("studied edge-calibration range" in warning for warning in warnings)
+            is validation_warning
+        )
+        assert any("transmission-line design" in warning for warning in warnings) is lumped_warning
+
+
+class TestBandpassPublicInputTypes:
+    """Public synthesis inputs reject bools and non-integral resonator counts."""
+
+    @staticmethod
+    def _arguments() -> dict:
+        return {
+            "f0": 10e6,
+            "bw": 0.5e6,
+            "z0": 50.0,
+            "n_resonators": 3,
+            "filter_type": "butterworth",
+            "coupling": "top",
+        }
+
+    @pytest.mark.parametrize("n_resonators", [True, False, 3.0, 3.5, "3"])
+    def test_rejects_non_integer_resonator_count(self, n_resonators):
+        arguments = self._arguments()
+        arguments["n_resonators"] = n_resonators
+        with pytest.raises(ValueError, match="integer between 2 and 9"):
+            calculate_bandpass_filter(**arguments)
+
+    @pytest.mark.parametrize(
+        "name,error",
+        [
+            ("q_safety", "q_safety"),
+            ("qu", "Qu"),
+            ("ql", "QL"),
+            ("qc", "QC"),
+            ("resonator_impedance", "resonator_impedance"),
+            ("resonator_inductance", "resonator_inductance"),
+        ],
+    )
+    def test_rejects_bool_advanced_numeric_input(self, name, error):
+        arguments = self._arguments()
+        arguments[name] = True
+        with pytest.raises(ValueError, match=error):
+            calculate_bandpass_filter(**arguments)
+
+    @pytest.mark.parametrize(
+        "name,error",
+        [
+            ("f0", "Center frequency"),
+            ("bw", "Bandwidth"),
+            ("z0", "Impedance"),
+        ],
+    )
+    def test_rejects_bool_core_numeric_input(self, name, error):
+        arguments = self._arguments()
+        arguments[name] = True
+        with pytest.raises(ValueError, match=error):
+            calculate_bandpass_filter(**arguments)
+
+    def test_rejects_bool_chebyshev_ripple(self):
+        arguments = self._arguments()
+        arguments.update(filter_type="chebyshev", ripple_db=True)
+        with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
+            calculate_bandpass_filter(**arguments)
+
+
+class TestBandpassCompatibilityFacades:
+    """Legacy calculation and transfer import surfaces remain available."""
+
+    def test_calculations_facade_keeps_existing_names(self):
+        from filter_lib.bandpass import calculations
+
+        expected_names = (
+            "math",
+            "Any",
+            "BandpassResult",
+            "BANDPASS_EDGE_CALIBRATION_FBW_MAX",
+            "BANDPASS_LUMPED_MODEL_CAUTION_FBW",
+            "STANDARD_QU_VALUES",
+            "calculate_coupling_coefficients",
+            "calculate_external_q",
+            "_resolve_resonator_components",
+            "calculate_resonator_components",
+            "calculate_coupling_capacitors",
+            "calculate_tank_capacitors",
+            "calculate_end_coupling",
+            "combine_resonator_q",
+            "estimate_insertion_loss",
+            "calculate_min_q",
+            "compute_bandpass_3db_edges",
+            "_validate_inputs",
+            "_get_fbw_warnings",
+            "_synthesize_top_c_raw",
+            "_calibrate_top_c",
+            "calculate_bandpass_filter",
+        )
+        assert all(hasattr(calculations, name) for name in expected_names)
+
+    def test_transfer_facade_keeps_existing_names(self):
+        from filter_lib.bandpass import transfer
+
+        expected_names = (
+            "math",
+            "Any",
+            "lowpass_bessel_response",
+            "chebyshev_polynomial",
+            "magnitude_to_db",
+            "BANDPASS_EDGE_CALIBRATION_FBW_MAX",
+            "THREE_DB_DOWN",
+            "EDGE_ERROR_LIMIT_REL",
+            "PASSBAND_SHAPE_ERROR_LIMIT_DB",
+            "CHEBYSHEV_RIPPLE_ALLOWANCE_DB",
+            "STOPBAND_SAMPLE_ERROR_LIMIT_DB",
+            "chebyshev_3db_deviation",
+            "_bandpass_deviation",
+            "frequency_from_deviation",
+            "_deviation_grid",
+            "measure_netlist_passband",
+            "validate_netlist_shape",
+            "magnitude_butterworth",
+            "magnitude_chebyshev",
+            "magnitude_bessel",
+            "magnitude_db",
+            "frequency_sweep",
+            "netlist_frequency_sweep",
+            "generate_frequency_points",
+            "_log_sweep_frequencies",
+            "frequency_response",
+        )
+        assert all(hasattr(transfer, name) for name in expected_names)

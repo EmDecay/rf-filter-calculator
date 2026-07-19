@@ -1,5 +1,6 @@
 """Lowpass subcommand handler."""
 
+import sys
 from argparse import ArgumentParser, Namespace
 
 from ..lowpass import (
@@ -15,6 +16,7 @@ from ..shared.cli_aliases import (
     resolve_filter_type,
 )
 from ..shared.cli_helpers import (
+    add_build_analysis_args,
     add_common_filter_args,
     add_eseries_args,
     add_filter_type_args,
@@ -23,9 +25,12 @@ from ..shared.cli_helpers import (
     add_sim_matched_arg,
     export_plot_data,
     get_filter_type_arg,
+    make_build_config,
+    resolve_alternative_arg,
     resolve_ripple_arg,
     usage_error,
     validate_filter_args,
+    validate_output_mode_args,
 )
 from ..shared.parsing import parse_frequency, parse_impedance
 from ..shared.response_export import response_meta
@@ -39,6 +44,7 @@ def setup_parser(parser: ArgumentParser) -> None:
     add_output_args(parser)
     add_eseries_args(parser)
     add_sim_matched_arg(parser)
+    add_build_analysis_args(parser)
     add_plot_args(parser)
     add_toroid_flags(parser)
     # Make the subparser reachable from run() so missing-argument problems
@@ -58,13 +64,15 @@ def run(args: Namespace) -> None:
             frequency, or topology) exit via argparse's usage error instead.
     """
     filter_type = get_filter_type_arg(args)
-    freq_input = args.frequency or args.freq_flag
+    freq_input = resolve_alternative_arg(args, "frequency", "freq_flag", "frequency")
+    topology = resolve_alternative_arg(args, "topology_pos", "topology_flag", "topology")
 
     if args.explain:
         if not filter_type:
             usage_error(
                 args, "filter type required for --explain (try: filter-calc lp bw --explain)"
             )
+        validate_output_mode_args(args)
         resolved = resolve_filter_type(filter_type)
         print(FILTER_EXPLANATIONS[resolved])
         return
@@ -77,8 +85,8 @@ def run(args: Namespace) -> None:
     if not freq_input:
         usage_error(args, "frequency required (try: filter-calc lp bw pi 10MHz)")
 
-    # Resolve topology from positional or flag
-    topology = getattr(args, "topology_pos", None) or getattr(args, "topology_flag", None)
+    validate_output_mode_args(args)
+
     if not topology:
         usage_error(
             args, "topology required: pi or t, positional or -T (try: filter-calc lp bw pi 10MHz)"
@@ -121,10 +129,45 @@ def run(args: Namespace) -> None:
         "topology": topology,
     }
 
-    # Validate the flag conflict before any output path (including --plot-data)
-    # so the usage error is consistent regardless of output mode.
-    if args.sim_matched and args.no_match:
-        usage_error(args, "--sim-matched requires E-series matching; remove --no-match")
+    build_config = None
+    build_analysis = None
+    matched_summary = None
+    matched_payload = None
+    if args.format == "spice":
+        from ..shared.spice_export import export_spice_deck
+
+        build_config = make_build_config(args)
+        realization = (getattr(args, "spice_realization", None) or "nominal-build").replace(
+            "-", "_"
+        )
+        print(
+            export_spice_deck(
+                result,
+                "lowpass",
+                realization=realization,
+                config=build_config,
+            ),
+            end="",
+        )
+        return
+
+    if getattr(args, "sim_build", False):
+        from ..shared.build_simulation import analyze_build
+
+        build_config = make_build_config(args)
+        build_analysis = analyze_build(result, "lowpass", build_config)
+    elif getattr(args, "sim_matched", False):
+        from ..shared.matched_simulation import matched_sim_json_payload, run_matched_simulation
+
+        print("Warning: --sim-matched is deprecated; use --sim-build", file=sys.stderr)
+        matched_summary = run_matched_simulation(
+            result,
+            "lowpass",
+            args.eseries,
+            use_toroid_candidates=not args.no_toroids,
+        )
+        if args.format == "json":
+            matched_payload = matched_sim_json_payload(matched_summary)
 
     if args.plot_data:
         freqs = generate_frequency_points(freq_hz)
@@ -143,10 +186,15 @@ def run(args: Namespace) -> None:
         include_toroids=not args.no_toroids,
         toroid_compact=args.toroid_compact,
         toroid_full=args.toroid_full,
+        matched_sim=matched_payload,
+        build_analysis=build_analysis,
     )
 
-    if args.sim_matched and args.format == "table" and not args.quiet:
-        from ..shared.matched_simulation import format_matched_sim_block, run_matched_simulation
+    if build_analysis is not None and args.format == "table" and not args.quiet:
+        from ..shared.build_output import format_build_analysis_block
 
-        summary = run_matched_simulation(result, "lowpass", args.eseries)
-        print("\n".join(format_matched_sim_block(summary)))
+        print("\n".join(format_build_analysis_block(build_analysis)))
+    elif matched_summary is not None and args.format == "table" and not args.quiet:
+        from ..shared.matched_simulation import format_matched_sim_block
+
+        print("\n".join(format_matched_sim_block(matched_summary)))

@@ -39,7 +39,9 @@ def test_full_block_contains_q_label():
     recs = _recs()
     lines = format_recommendation_block("L1", 1.457e-6, 10e6, recs)
     text = "\n".join(lines)
-    assert "Q (DC est, upper bound)" in text
+    assert "Wire-only ωL/Rdc ceiling" in text
+    assert "RF Q: not assessed" in text
+    assert "SRF/power: not assessed" in text
 
 
 def test_compact_block_line_count():
@@ -52,7 +54,8 @@ def test_compact_block_line_count():
 def test_compact_block_has_q_shorthand():
     recs = _recs()
     lines = format_recommendation_block_compact("L1", 1.457e-6, 10e6, recs)
-    assert any("Q≈" in ln for ln in lines)
+    assert all("Q≈" not in ln for ln in lines)
+    assert any("ωL/Rdc≤" in ln for ln in lines)
 
 
 def test_compact_block_empty_recs_two_lines():
@@ -74,27 +77,41 @@ def test_build_json_recommendations_shape():
     data = build_json_recommendations(recs)
     assert data
     entry = data[0]
-    assert {"rank", "core", "winding", "wire", "q_dc_upper_bound", "design_freq_hz"}.issubset(
-        entry.keys()
-    )
+    assert {
+        "rank",
+        "candidate_status",
+        "core",
+        "winding",
+        "wire",
+        "assessments",
+        "wire_dcr_reactance_ratio_ceiling",
+        "design_freq_hz",
+    }.issubset(entry.keys())
     assert "name" in entry["core"]
     assert "turns" in entry["winding"]
     assert "awg" in entry["wire"]
+    assert entry["assessments"]["rf_q"]["status"] == "not_assessed"
+    assert entry["assessments"]["srf"]["status"] == "not_assessed"
+    assert entry["assessments"]["power"]["status"] == "not_assessed"
+    assert entry["core"]["provenance_status"] == "primary_verified"
 
 
 def test_csv_columns_count_matches_header():
     """CSV row length == header length (10)."""
     recs = _recs()
     cols = csv_columns_for_best(recs)
-    assert len(cols) == len(CSV_TOROID_HEADER) == 10
+    assert len(cols) == len(CSV_TOROID_HEADER)
 
 
 def test_csv_columns_empty_returns_blanks():
     """With no recs, all 10 CSV columns are empty strings."""
     cols = csv_columns_for_best([])
-    assert cols == [""] * 10
+    assert cols == [""] * len(CSV_TOROID_HEADER)
 
 
-def test_csv_header_constant_length():
-    """CSV_TOROID_HEADER is exactly 10 columns."""
-    assert len(CSV_TOROID_HEADER) == 10
+def test_csv_header_exposes_truthful_assessment_semantics():
+    assert "ToroidWireDCRReactanceRatioCeiling" in CSV_TOROID_HEADER
+    assert "ToroidRFQStatus" in CSV_TOROID_HEADER
+    assert "ToroidSRFStatus" in CSV_TOROID_HEADER
+    assert "ToroidPowerStatus" in CSV_TOROID_HEADER
+    assert "ToroidQ_DC_Upper" not in CSV_TOROID_HEADER

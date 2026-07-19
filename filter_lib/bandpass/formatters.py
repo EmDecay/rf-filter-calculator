@@ -5,14 +5,17 @@ Provides JSON, CSV, and quiet text formatting.
 
 import csv
 import io
-import json
 from collections.abc import Callable
 from typing import Any
 
-from ..shared.display_common import build_standard_match
+from ..shared.display_common import (
+    ESERIES_CSV_HEADER,
+    build_standard_match,
+    csv_match_fields,
+)
 from ..shared.display_helpers import format_eseries_match as _shared_format_eseries
-from ..shared.eseries import match_component
 from ..shared.formatting import format_capacitance, format_inductance
+from ..shared.strict_json import dumps_strict, validate_finite_tree
 from ..shared.toroid_display import (
     CSV_TOROID_HEADER,
     build_json_recommendations,
@@ -47,6 +50,7 @@ def format_json(
     eseries: str | None = None,
     include_toroids: bool = True,
     matched_sim: dict[str, Any] | None = None,
+    build_analysis=None,
 ) -> str:
     """Format results as JSON.
 
@@ -56,6 +60,7 @@ def format_json(
         include_toroids: Attach resonator_toroid_recommendations top-level field
         matched_sim: Optional matched-value simulation summary (additive
             top-level ``matched_sim`` key when present)
+        build_analysis: Optional realized-build analysis result
 
     Returns:
         JSON formatted string
@@ -70,8 +75,18 @@ def format_json(
         "fractional_bw": result["fbw"],
         "impedance_ohms": result["z0"],
         "n_resonators": result["n_resonators"],
+        # Retained as an explicitly labeled compatibility heuristic. The Q
+        # model below is the authoritative interpretation for loss estimates.
         "q_min": result["q_min"],
+        "q_min_is_heuristic": result.get("q_min_is_heuristic", True),
+        "q_safety_compatibility_only": result.get("q_safety_compatibility_only", True),
+        "q_model": result.get("q_model"),
         "il_estimates": result.get("il_estimates", {}),
+        "response_validation_status": result.get("response_validation_status"),
+        "synthesis_validation": result.get("synthesis_validation"),
+        "requested_parameters": result.get("requested_parameters"),
+        "internal_synthesis_parameters": result.get("internal_synthesis_parameters"),
+        "warnings": list(result.get("warnings", [])),
         "components": {
             "tank_capacitors": [
                 _bandpass_json_component(f"Cp{i + 1}", v, "value_farads", eseries, "additive")
@@ -109,10 +124,18 @@ def format_json(
         output["ripple_db"] = result["ripple_db"]
     if include_toroids:
         recs = recommend_cores(result["L_resonant"], result["f0"])
-        output["resonator_toroid_recommendations"] = build_json_recommendations(recs)
+        candidates = build_json_recommendations(recs)
+        output["resonator_toroid_candidates"] = candidates
+        # Additive compatibility alias for consumers of the pre-2.1 schema.
+        # Candidate records themselves explicitly deny RF suitability claims.
+        output["resonator_toroid_recommendations"] = candidates
     if matched_sim is not None:
         output["matched_sim"] = matched_sim
-    return json.dumps(output, indent=2)
+    if build_analysis is not None:
+        from ..shared.build_output import build_analysis_fields
+
+        output.update(build_analysis_fields(result, build_analysis))
+    return dumps_strict(output, indent=2)
 
 
 def _bandpass_json_component(
@@ -130,37 +153,6 @@ def _bandpass_json_component(
     return component
 
 
-def _csv_match_fields(
-    value: float, formatter, eseries: str | None, parallel_mode: str
-) -> list[str]:
-    """Build optional E-series columns for CSV."""
-    if not eseries:
-        return []
-
-    match = match_component(value, eseries, parallel_mode=parallel_mode)
-    # Shared formatters always emit "<number> <unit>" (e.g. "3.3 nF"), so
-    # rsplit on the final space splits value from unit for separate columns.
-    nearest_fmt = formatter(match.single_value)
-    nearest_val, nearest_unit = nearest_fmt.rsplit(" ", 1)
-
-    parallel_vals = ""
-    parallel_err = ""
-    if match.parallel and match.parallel_error_pct is not None:
-        p1_fmt = formatter(match.parallel[0])
-        p2_fmt = formatter(match.parallel[1])
-        parallel_vals = f"{p1_fmt} || {p2_fmt}"
-        parallel_err = f"{match.parallel_error_pct:.1f}"
-
-    return [
-        nearest_val,
-        nearest_unit,
-        f"{match.single_error_pct:.1f}",
-        parallel_vals,
-        parallel_err,
-        eseries,
-    ]
-
-
 def format_csv(
     result: BandpassResult,
     eseries: str | None = None,
@@ -176,20 +168,21 @@ def format_csv(
     Returns:
         CSV formatted string
     """
+    validate_finite_tree(
+        {
+            "center_frequency_hz": result["f0"],
+            "tank_capacitors": result["c_tank"],
+            "inductance_henries": result["L_resonant"],
+            "coupling_capacitors": result["c_coupling"],
+            "end_capacitor_input": result.get("c_end_in"),
+            "end_capacitor_output": result.get("c_end_out"),
+        }
+    )
     output = io.StringIO()
     writer = csv.writer(output)
     header = ["Component", "Value", "Unit"]
     if eseries:
-        header.extend(
-            [
-                "NearestStdValue",
-                "NearestStdUnit",
-                "NearestStdErrorPct",
-                "ParallelStdValues",
-                "ParallelStdErrorPct",
-                "Eseries",
-            ]
-        )
+        header.extend(ESERIES_CSV_HEADER)
     if include_toroids:
         header.extend(CSV_TOROID_HEADER)
     writer.writerow(header)
@@ -208,7 +201,7 @@ def format_csv(
         formatted = format_capacitance(v)
         val, unit = formatted.rsplit(" ", 1)
         row = [f"Cp{i + 1}", val, unit]
-        row.extend(_csv_match_fields(v, format_capacitance, eseries, "additive"))
+        row.extend(csv_match_fields(v, format_capacitance, eseries, "additive"))
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
@@ -217,7 +210,7 @@ def format_csv(
         val, unit = formatted.rsplit(" ", 1)
         row = [f"L{i + 1}", val, unit]
         if eseries:
-            row.extend([""] * 6)
+            row.extend([""] * len(ESERIES_CSV_HEADER))
         if include_toroids:
             row.extend(toroid_cols)
         writer.writerow(row)
@@ -225,7 +218,7 @@ def format_csv(
         formatted = format_capacitance(v)
         val, unit = formatted.rsplit(" ", 1)
         row = [f"Cs{i + 1}{i + 2}", val, unit]
-        row.extend(_csv_match_fields(v, format_capacitance, eseries, "additive"))
+        row.extend(csv_match_fields(v, format_capacitance, eseries, "additive"))
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
@@ -233,7 +226,7 @@ def format_csv(
         formatted = format_capacitance(value)
         val, unit = formatted.rsplit(" ", 1)
         row = [name, val, unit]
-        row.extend(_csv_match_fields(value, format_capacitance, eseries, "additive"))
+        row.extend(csv_match_fields(value, format_capacitance, eseries, "additive"))
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)

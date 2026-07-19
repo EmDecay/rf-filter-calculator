@@ -30,7 +30,18 @@ def format_eseries_match(
     lines: list[str] = []
     formatted = unit_formatter(match.single_value)
     error_sign = "+" if match.single_error_pct > 0 else ""
-    lines.append(f"  Nearest Std:  {formatted} ({error_sign}{match.single_error_pct:.1f}%)")
+    if match.selected_value is None:
+        lines.append(
+            "  Nearest Std (reference only): "
+            f"{formatted} ({error_sign}{match.single_error_pct:.1f}%)"
+        )
+    else:
+        lines.append(f"  Nearest Std:  {formatted} ({error_sign}{match.single_error_pct:.1f}%)")
+
+    if match.status == "expert_override_required":
+        lines.append("  Selection:                    EXPERT ACTION REQUIRED; no part selected")
+        lines.extend(f"  Warning: {warning}" for warning in match.warnings)
+        return lines
 
     if match.prefers_parallel:
         p1, p2 = match.parallel

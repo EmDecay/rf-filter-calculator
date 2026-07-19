@@ -1,20 +1,17 @@
-"""Simulate the E-series matched realization of a synthesized filter.
+"""Compatibility facade for the legacy ``--sim-matched`` workflow.
 
-Replaces every capacitor with the standard-value realization the component
-table highlights (single or parallel, whichever has smaller |error|) and
-re-runs the netlist simulation, so builders see how far the circuit they
-actually solder lands from the exact design. Inductors are kept exact —
-the repo convention is that builders wind inductors to value.
-
-Parallel combinations are simulated as their combined value in a single
-branch; for ideal capacitors two parallel branches and one combined branch
-are electrically identical.
+``run_matched_simulation`` now delegates to build-realization analysis, which
+preserves selected physical capacitor branches, uses a verified integer-turn
+toroid candidate when available, records explicit fallbacks, and applies any
+declared loss model.  Older helper functions remain for callers that need the
+former capacitor-only dictionary transformation.
 """
 
 import copy
 import math
 from dataclasses import dataclass
 
+from .build_simulation import BuildConfig, CircuitMeasurement, analyze_build
 from .eseries import match_component
 from .netlist_builders import (
     build_bandpass_top_c_netlist,
@@ -35,43 +32,25 @@ _BUILDERS = {
 
 
 @dataclass(frozen=True)
-class CircuitMeasurement:
-    """Simulated -3 dB summary of one circuit realization.
-
-    ``f_low``/``f_high`` are None when the response never reaches within
-    3 dB of its own peak on the grid (no passband found). ``at_grid_edge``
-    is True when an edge sits on a grid boundary, meaning the true edge
-    lies outside the simulated span.
-    """
-
-    f_low: float | None
-    f_high: float | None
-    worst_passband_db: float
-    at_grid_edge: bool
-
-    @property
-    def f0(self) -> float | None:
-        """Geometric center of the measured passband (bandpass semantics)."""
-        if self.f_low is None or self.f_high is None:
-            return None
-        return math.sqrt(self.f_low * self.f_high)
-
-    @property
-    def bw(self) -> float | None:
-        """Measured -3 dB bandwidth."""
-        if self.f_low is None or self.f_high is None:
-            return None
-        return self.f_high - self.f_low
-
-
-@dataclass(frozen=True)
 class MatchedSimSummary:
-    """Exact-vs-matched simulation comparison for one filter design."""
+    """Deprecated calculated-vs-nominal comparison for one filter design."""
 
     category: str  # 'lowpass', 'highpass', or 'bandpass'
     series: str  # E-series used for the matched realization
     exact: CircuitMeasurement
     matched: CircuitMeasurement
+    deprecated: bool = True
+    uses_toroid_candidates: bool = True
+
+    @property
+    def calculated(self) -> CircuitMeasurement:
+        """Preferred name for the legacy ``exact`` field."""
+        return self.exact
+
+    @property
+    def nominal_build(self) -> CircuitMeasurement:
+        """Preferred name for the legacy ``matched`` field."""
+        return self.matched
 
 
 def _best_cap(value: float, series: str) -> float:
@@ -129,14 +108,19 @@ def _measure(
     z0 = result["z0"] if category == "bandpass" else result["impedance"]
     mags = solve_s21(n_nodes, branches, z0, z0, in_node, out_node, freqs)
 
-    f_low, f_high = find_3db_edges(freqs, mags)
-    at_grid_edge = f_low == freqs[0] or f_high == freqs[-1]
+    reference = result["f0"] if category == "bandpass" else None
+    measured_low, measured_high = find_3db_edges(freqs, mags, reference_frequency=reference)
+    at_grid_edge = measured_low == freqs[0] or measured_high == freqs[-1]
     if category == "lowpass":
         # The passband extends to DC, so the low "edge" is just the grid start.
-        at_grid_edge = f_high == freqs[-1]
+        at_grid_edge = measured_high == freqs[-1]
+        f_low, f_high = None, measured_high
     elif category == "highpass":
         # The passband extends upward, so the high "edge" is the grid end.
-        at_grid_edge = f_low == freqs[0]
+        at_grid_edge = measured_low == freqs[0]
+        f_low, f_high = measured_low, None
+    else:
+        f_low, f_high = measured_low, measured_high
 
     lo, hi = passband
     in_band = [m for f, m in zip(freqs, mags) if lo <= f <= hi]
@@ -169,9 +153,30 @@ def simulate_pair(result: dict, matched: dict, category: str, series: str) -> Ma
     )
 
 
-def run_matched_simulation(result: dict, category: str, series: str) -> MatchedSimSummary:
-    """One-shot: build the matched realization and simulate both circuits."""
-    return simulate_pair(result, matched_result(result, category, series), category, series)
+def run_matched_simulation(
+    result: dict,
+    category: str,
+    series: str,
+    *,
+    use_toroid_candidates: bool = True,
+) -> MatchedSimSummary:
+    """Deprecated wrapper over calculated/nominal build-realization analysis."""
+    analysis = analyze_build(
+        result,
+        category,
+        BuildConfig(
+            eseries=series,
+            grid_points=GRID_POINTS,
+            use_toroid_candidates=use_toroid_candidates,
+        ),
+    )
+    return MatchedSimSummary(
+        category=category,
+        series=series,
+        exact=analysis.calculated,
+        matched=analysis.nominal_build,
+        uses_toroid_candidates=use_toroid_candidates,
+    )
 
 
 def _fmt_delta_pct(exact: float | None, matched: float | None) -> str:
@@ -186,15 +191,22 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
 
     lines = [
         "",
-        f"Matched-Value Simulation ({summary.series})",
+        f"Nominal Build Simulation (legacy --sim-matched; {summary.series})",
         "-" * 55,
-        "(Capacitors use the recommended standard match; inductors kept exact)",
+        "(Calculated ideal circuit versus selected nominal physical realization)",
     ]
     exact, matched = summary.exact, summary.matched
 
-    if matched.f_low is None or matched.f_high is None or matched.at_grid_edge:
+    has_required_edges = (
+        matched.f_low is not None and matched.f_high is not None
+        if summary.category == "bandpass"
+        else matched.f_high is not None
+        if summary.category == "lowpass"
+        else matched.f_low is not None
+    )
+    if not has_required_edges or matched.at_grid_edge:
         lines.append(
-            "Matched circuit does not exhibit a clear passband on the simulated "
+            "Nominal build does not exhibit a clear passband on the simulated "
             "grid; try a finer E-series (e.g. E96)."
         )
         return lines
@@ -204,7 +216,7 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
         m_str = fmt(m) if m is not None else "n/a"
         return f"{label:<22}{e_str:>14}{m_str:>14}  {delta}"
 
-    lines.append(f"{'':<22}{'Exact':>14}{'Matched':>14}  {'Delta':<8}")
+    lines.append(f"{'':<22}{'Calculated':>14}{'Nominal':>14}  {'Delta':<8}")
     if summary.category == "bandpass":
         lines.append(
             row(
@@ -265,7 +277,7 @@ def matched_sim_json_payload(summary: MatchedSimSummary) -> dict:
     """JSON-friendly exact/matched summary (additive ``matched_sim`` block)."""
 
     def measurement(m: CircuitMeasurement) -> dict:
-        return {
+        payload = {
             "f_low_hz": m.f_low,
             "f_high_hz": m.f_high,
             "f0_hz": m.f0,
@@ -273,10 +285,25 @@ def matched_sim_json_payload(summary: MatchedSimSummary) -> dict:
             "worst_passband_db": m.worst_passband_db,
             "at_grid_edge": m.at_grid_edge,
         }
+        if summary.category == "lowpass":
+            payload["cutoff_hz"] = m.f_high
+        elif summary.category == "highpass":
+            payload["cutoff_hz"] = m.f_low
+        return payload
 
+    calculated = measurement(summary.calculated)
+    nominal_build = measurement(summary.nominal_build)
     return {
         "eseries": summary.series,
-        "inductors": "exact",
-        "exact": measurement(summary.exact),
-        "matched": measurement(summary.matched),
+        "deprecated": True,
+        "replacement": "build_analysis",
+        "inductors": (
+            "verified_integer_turn_candidate_or_explicit_fallback"
+            if summary.uses_toroid_candidates
+            else "calculated_exact_value_toroid_selection_disabled"
+        ),
+        "exact": calculated,
+        "matched": nominal_build,
+        "calculated": calculated,
+        "nominal_build": nominal_build,
     }

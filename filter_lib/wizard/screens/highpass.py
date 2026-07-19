@@ -39,7 +39,10 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                         "Butterworth - Maximally flat passband", value=True, id="butterworth"
                     )
                     yield RadioButton("Chebyshev - Sharper cutoff, passband ripple", id="chebyshev")
-                    yield RadioButton("Bessel - Best transient response", id="bessel")
+                    yield RadioButton(
+                        "Bessel - High-pass transform does not preserve flat group delay",
+                        id="bessel",
+                    )
 
             # T is the default here (lowpass defaults to Pi): for the same
             # order, the highpass T needs fewer inductors than the shunt-L
@@ -47,8 +50,12 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             with Vertical(classes="form-section"):
                 yield Static("Topology", classes="form-section-title")
                 with RadioSet(id="topology"):
-                    yield RadioButton("T (C-L-C) - Series C first", value=True, id="t")
-                    yield RadioButton("Pi (L-C-L) - Shunt L first", id="pi")
+                    yield RadioButton(
+                        "Series-first ladder - C first, then alternating L/C",
+                        value=True,
+                        id="t",
+                    )
+                    yield RadioButton("Shunt-first ladder - L first, then alternating C/L", id="pi")
 
             with Vertical(classes="form-section"):
                 yield Static("Parameters", classes="form-section-title")
@@ -91,6 +98,7 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
     @on(RadioSet.Changed, "#filter-type")
     def _on_filter_type_changed(self, event: RadioSet.Changed) -> None:
         """Show/hide ripple section and odd-order hint based on filter type."""
+        self._invalidate_previous_result()
         is_chebyshev = event.pressed.id == "chebyshev"
         self.query_one("#ripple-section").display = is_chebyshev
         order_label = self.query_one("#order-label", Static)
@@ -121,6 +129,28 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
     def _on_ripple_submitted(self, event: Input.Submitted) -> None:
         """Auto-advance to calculate button after ripple entry."""
         self.query_one("#next-btn", Button).focus()
+
+    @on(Input.Changed, "#frequency")
+    @on(Input.Changed, "#impedance")
+    @on(Input.Changed, "#order")
+    @on(Input.Changed, "#ripple")
+    def _on_design_input_changed(self, event: Input.Changed) -> None:
+        """Invalidate prior output as soon as a design value changes."""
+        self._invalidate_previous_result()
+
+    @on(RadioSet.Changed, "#topology")
+    def _on_topology_changed(self, event: RadioSet.Changed) -> None:
+        """Invalidate prior output when the ladder orientation changes."""
+        self._invalidate_previous_result()
+
+    def _invalidate_previous_result(self) -> None:
+        """Clear stale output when mounted; tolerate direct handler tests."""
+        try:
+            state = self.app.filter_state
+        except (AttributeError, RuntimeError):
+            return
+        if isinstance(state, FilterState):
+            state.invalidate_calculation()
 
     def action_back(self) -> None:
         """Go back to welcome screen."""
@@ -180,7 +210,8 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
         # Chebyshev LP/HP requires odd order for equal source/load terminations
         if filter_type == "chebyshev" and order % 2 == 0:
             self.notify(
-                "Chebyshev highpass requires odd order (3, 5, 7, or 9)",
+                "With equal source/load terminations, Chebyshev highpass requires odd "
+                "order (3, 5, 7, or 9)",
                 severity="warning",
             )
             order_input.focus()
@@ -204,6 +235,7 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                 return
 
         state: FilterState = self.app.filter_state
+        state.invalidate_calculation()
         state.category = "highpass"
         state.filter_type = filter_type
         state.topology = topology

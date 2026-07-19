@@ -5,30 +5,50 @@ code (split_value_unit in display_helpers.py) splits on that space to
 separate value from unit for CSV columns.
 """
 
+import math
 
-def _format_with_units(value: float, units: list[tuple[float, str]], precision: str = ".4g") -> str:
+from .numeric import require_finite_real
+
+
+def _format_with_units(
+    value: float,
+    units: list[tuple[float, str]],
+    precision: str = ".4g",
+    *,
+    base_unit: str,
+) -> str:
     """Format value using the first unit whose threshold it meets.
 
     `units` must be ordered largest threshold first; the scan picks the
     first (threshold, suffix) with abs(value) >= threshold, so unsorted
     entries would select the wrong prefix.
     """
-    for threshold, suffix in units:
-        if abs(value) >= threshold:
-            return f"{value / threshold:{precision}} {suffix}"
-    # Below every threshold (including exactly 0): scale by the smallest
-    # unit rather than fail, e.g. 0.4 nH renders as "0.40 nH".
-    _, suffix = units[-1]
-    return f"{value / units[-1][0]:{precision}} {suffix}"
+    require_finite_real(value, "formatted value")
+
+    threshold, suffix = units[-1]
+    for candidate_threshold, candidate_suffix in units:
+        if abs(value) >= candidate_threshold:
+            threshold, suffix = candidate_threshold, candidate_suffix
+            break
+    scaled = value / threshold
+    rendered = f"{scaled:{precision}}"
+    if not math.isfinite(scaled) or (value != 0 and float(rendered) == 0):
+        return f"{value:.6e} {base_unit}"
+    return f"{rendered} {suffix}"
 
 
 def format_frequency(freq_hz: float) -> str:
     """Format frequency with appropriate unit (GHz, MHz, kHz, Hz)."""
-    return _format_with_units(freq_hz, [(1e9, "GHz"), (1e6, "MHz"), (1e3, "kHz"), (1, "Hz")])
+    return _format_with_units(
+        freq_hz,
+        [(1e9, "GHz"), (1e6, "MHz"), (1e3, "kHz"), (1, "Hz")],
+        base_unit="Hz",
+    )
 
 
 def format_capacitance(value_farads: float) -> str:
     """Format capacitance with appropriate unit (mF, µF, nF, pF, fF)."""
+    require_finite_real(value_farads, "formatted value")
     # Below 1 fF the smallest suffix would print a misleading "0.00 fF";
     # scientific notation in plain Farads keeps sub-fF values readable.
     if abs(value_farads) < 1e-15:
@@ -37,16 +57,20 @@ def format_capacitance(value_farads: float) -> str:
         value_farads,
         [(1e-3, "mF"), (1e-6, "µF"), (1e-9, "nF"), (1e-12, "pF"), (1e-15, "fF")],
         ".2f",
+        base_unit="F",
     )
 
 
 def format_inductance(value_henries: float) -> str:
     """Format inductance with appropriate unit (H, mH, µH, nH)."""
     return _format_with_units(
-        value_henries, [(1, "H"), (1e-3, "mH"), (1e-6, "µH"), (1e-9, "nH")], ".2f"
+        value_henries,
+        [(1, "H"), (1e-3, "mH"), (1e-6, "µH"), (1e-9, "nH")],
+        ".2f",
+        base_unit="H",
     )
 
 
 def format_impedance(value_ohms: float) -> str:
     """Format impedance with appropriate unit (MΩ, kΩ, Ω)."""
-    return _format_with_units(value_ohms, [(1e6, "MΩ"), (1e3, "kΩ"), (1, "Ω")])
+    return _format_with_units(value_ohms, [(1e6, "MΩ"), (1e3, "kΩ"), (1, "Ω")], base_unit="Ω")

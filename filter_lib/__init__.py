@@ -1,5 +1,5 @@
 """Unified Filter Calculator Library."""
 
-# Fallback version for source checkouts where the distribution isn't installed;
-# cli._package_version() prefers the installed package metadata over this.
-__version__ = "2.0.0"
+# Authoritative project version. Setuptools reads this literal when building
+# distribution metadata, and the CLI uses it as the source-checkout fallback.
+__version__ = "2.1.0"

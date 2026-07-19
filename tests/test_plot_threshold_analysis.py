@@ -17,9 +17,11 @@ from filter_lib.lowpass.transfer import (
     magnitude_to_db,
 )
 from filter_lib.shared.plot_threshold_analysis import (
+    ThresholdRegion,
     _find_3db_frequency,
     _find_db_crossing,
     find_db_thresholds,
+    find_threshold_regions,
     format_threshold_table,
 )
 
@@ -236,6 +238,72 @@ class TestFindDbThresholds:
         # Both should be not None for bandpass
         if result[-3][0] is not None and result[-3][1] is not None:
             assert result[-3][0] < result[-3][1]
+
+    def test_bandpass_selects_region_containing_reference_frequency(self):
+        """An earlier disconnected spur must not donate the lower skirt."""
+        freqs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        response_db = [-20, -1, -20, -20, -6, -1, -1, -6, -20]
+
+        result = find_db_thresholds(
+            freqs,
+            response_db,
+            levels=[-3],
+            filter_type="bandpass",
+            reference_frequency=6.5,
+        )
+
+        assert result[-3][0] is not None and 5 < result[-3][0] < 6
+        assert result[-3][1] is not None and 7 < result[-3][1] < 8
+
+    def test_peak_relative_bandpass_ignores_higher_disconnected_spur(self):
+        freqs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        response_db = [-20, 0, -20, -20, -12, -5, -5, -12, -20]
+
+        result = find_db_thresholds(
+            freqs,
+            response_db,
+            levels=[-3],
+            filter_type="bandpass",
+            reference_frequency=6.5,
+            relative_to_peak=True,
+        )
+
+        assert result[-3][0] is not None and 5 < result[-3][0] < 6
+        assert result[-3][1] is not None and 7 < result[-3][1] < 8
+
+
+class TestThresholdRegions:
+    def test_returns_every_connected_region_and_open_grid_edges(self):
+        freqs = [1, 2, 3, 4, 5, 6, 7]
+        response_db = [-1, -1, -10, -1, -1, -10, -1]
+
+        regions = find_threshold_regions(freqs, response_db, -3)
+
+        assert len(regions) == 3
+        assert all(isinstance(region, ThresholdRegion) for region in regions)
+        assert regions[0].f_low is None
+        assert 2 < regions[0].f_high < 3
+        assert 3 < regions[1].f_low < 4
+        assert 5 < regions[1].f_high < 6
+        assert regions[2].f_high is None
+
+    def test_exact_threshold_samples_belong_to_region(self):
+        regions = find_threshold_regions([1, 2, 3, 4], [-10, -3, -3, -10], -3)
+        assert len(regions) == 1
+        assert regions[0].start_index == 1
+        assert regions[0].end_index == 2
+        assert regions[0].f_low == 2
+        assert regions[0].f_high == 3
+
+    def test_rejects_mismatched_or_nonincreasing_grids(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="same length"):
+            find_threshold_regions([1, 2], [-1], -3)
+        with pytest.raises(ValueError, match="strictly increasing"):
+            find_threshold_regions([1, 1], [-1, -5], -3)
+        with pytest.raises(ValueError, match="positive"):
+            find_threshold_regions([0, 1], [-5, -1], -3)
 
     def test_custom_levels(self):
         """Custom threshold levels work."""

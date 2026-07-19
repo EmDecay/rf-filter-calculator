@@ -7,12 +7,24 @@ HPF response is derived from LPF response using frequency transformation:
 """
 
 import math
+import sys
 
+from .numeric import is_finite_real, magnitude_from_log_gain, ripple_log_epsilon
 from .transfer_functions import (
     BESSEL_COEFFS,
     BESSEL_SCALE,
     chebyshev_polynomial,
 )
+
+
+def _validate_response_inputs(freq_hz: float, cutoff_hz: float, order: int) -> None:
+    """Validate the numeric contract shared by every LP/HP response."""
+    if not is_finite_real(freq_hz) or freq_hz < 0:
+        raise ValueError("Frequency must be non-negative and finite")
+    if not is_finite_real(cutoff_hz) or cutoff_hz <= 0:
+        raise ValueError("Cutoff frequency must be positive and finite")
+    if isinstance(order, bool) or not isinstance(order, int) or order <= 0:
+        raise ValueError("Order must be a positive integer")
 
 
 def _butterworth_response_base(
@@ -29,6 +41,7 @@ def _butterworth_response_base(
     Returns:
         Magnitude response (0 to 1)
     """
+    _validate_response_inputs(freq_hz, cutoff_hz, order)
     if not is_lowpass and freq_hz == 0:
         return 0.0  # HPF blocks DC
 
@@ -40,10 +53,12 @@ def _butterworth_response_base(
     # For |ratio| >> 1, ratio**(2n) may overflow double precision. The limit
     # of 1/sqrt(1 + ratio^(2n)) as that term overflows is 0, so clamp.
     try:
-        h_squared = 1.0 / (1.0 + ratio ** (2 * order))
+        powered_ratio = abs(ratio) ** order
     except OverflowError:
         return 0.0
-    return math.sqrt(h_squared)
+    if powered_ratio > math.sqrt(sys.float_info.max):
+        return 0.0
+    return 1.0 / math.hypot(1.0, powered_ratio)
 
 
 def _chebyshev_response_base(
@@ -66,10 +81,13 @@ def _chebyshev_response_base(
     Returns:
         Magnitude response (0 to 1)
     """
+    _validate_response_inputs(freq_hz, cutoff_hz, order)
+    if not is_finite_real(ripple_db) or ripple_db <= 0:
+        raise ValueError("ripple_db must be positive and finite")
     if not is_lowpass and freq_hz == 0:
         return 0.0  # HPF blocks DC
 
-    epsilon = math.sqrt(10 ** (ripple_db / 10) - 1)
+    log_epsilon = ripple_log_epsilon(ripple_db)
 
     if is_lowpass:
         ratio = freq_hz / cutoff_hz
@@ -77,8 +95,10 @@ def _chebyshev_response_base(
         ratio = cutoff_hz / freq_hz  # Inverted for HPF; freq_hz == 0 returned above
 
     tn = chebyshev_polynomial(order, ratio)
-    h_squared = 1.0 / (1.0 + epsilon**2 * tn**2)
-    return math.sqrt(h_squared)
+    if tn == 0:
+        return 1.0
+    log_polynomial = math.inf if math.isinf(tn) else math.log(abs(tn))
+    return magnitude_from_log_gain(log_epsilon + log_polynomial)
 
 
 def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpass: bool) -> float:
@@ -101,9 +121,9 @@ def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpa
     Raises:
         ValueError: If order is outside 2-9.
     """
-    if order < 2 or order > 9:
+    _validate_response_inputs(freq_hz, cutoff_hz, order)
+    if not 2 <= order <= 9:
         raise ValueError("Order must be between 2 and 9")
-
     if not is_lowpass and freq_hz == 0:
         return 0.0  # HPF blocks DC
 
@@ -123,22 +143,24 @@ def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpa
     w_power = 1.0
 
     for k, c in enumerate(coeffs):
+        if not math.isfinite(w_power):
+            return 0.0
         if k % 2 == 0:
             sign = (-1) ** (k // 2)
             real_part += sign * c * w_power
         else:
             sign = (-1) ** (k // 2)
             imag_part += sign * c * w_power
+        if not math.isfinite(real_part) or not math.isfinite(imag_part):
+            return 0.0
         w_power *= w
 
-    dc_gain_squared = coeffs[0] ** 2
-    denom_squared = real_part**2 + imag_part**2
-    if denom_squared == 0:
+    denominator = math.hypot(real_part, imag_part)
+    if denominator == 0:
         return 1.0 if is_lowpass else 0.0  # LP passes DC, HP blocks DC
-    h_squared = dc_gain_squared / denom_squared
     # |theta_n(jw)| >= theta_n(0) analytically, so clamp only guards float
     # rounding near w = 0 from pushing the magnitude a hair above unity.
-    return math.sqrt(min(h_squared, 1.0))
+    return min(coeffs[0] / denominator, 1.0)
 
 
 # Lowpass public API

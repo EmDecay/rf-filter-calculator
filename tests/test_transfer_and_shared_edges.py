@@ -174,18 +174,21 @@ class TestToroidSelectionValidation:
 
 
 # ---------------------------------------------------------------------------
-# toroid_inductance.solve_winding: None when target < half a turn
+# toroid_inductance.solve_winding: expose the physical one-turn floor
 # ---------------------------------------------------------------------------
 
 
 class TestSolveWindingEdge:
-    def test_solve_winding_returns_none_for_tiny_target(self):
+    def test_solve_winding_exposes_one_turn_for_tiny_target(self):
         """Choosing a large-A_L core with a tiny L target drives N_ideal below 0.5."""
         # Pick any real core, then give a ridiculously small L target
         core = get_core("T106-2")  # A_L = 13.5 nH/turn^2
         # 1 fH target => N_ideal = sqrt(1e-15 / 13.5e-9) ≈ 2.7e-4 turns
         result = solve_winding(1e-15, core)
-        assert result is None
+        assert result.n_turns == 1
+        assert result.l_actual_h == pytest.approx(core.al_nh_per_turn2 * 1e-9)
+        assert result.error_pct > 1e6
+        assert [option.n_turns for option in result.turn_options] == [1]
 
     def test_solve_winding_gives_valid_solution_for_normal_target(self):
         core = get_core("T50-2")

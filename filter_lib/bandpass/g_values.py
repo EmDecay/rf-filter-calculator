@@ -14,8 +14,15 @@ References:
 
 import math
 
-from ..shared.chebyshev_g_calculator import calculate_chebyshev_g_values
+from ..shared.chebyshev_g_calculator import MAX_PROTOTYPE_ORDER, calculate_chebyshev_g_values
 from ..shared.constants import BESSEL_G_VALUES
+from ..shared.numeric import is_finite_real
+
+
+def _validate_positive_integer_order(n: int) -> None:
+    """Require an actual positive integer; booleans are not filter orders."""
+    if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= MAX_PROTOTYPE_ORDER:
+        raise ValueError(f"n must be a positive integer no greater than {MAX_PROTOTYPE_ORDER:,}")
 
 
 def calculate_butterworth_g_values(n: int) -> list[float]:
@@ -31,6 +38,7 @@ def calculate_butterworth_g_values(n: int) -> list[float]:
     Returns:
         List of g-values [g1, g2, ..., gn]
     """
+    _validate_positive_integer_order(n)
     return [2 * math.sin((2 * i - 1) * math.pi / (2 * n)) for i in range(1, n + 1)]
 
 
@@ -51,11 +59,12 @@ def get_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
     Raises:
         ValueError: If n is even or ripple_db is outside (0, 3.0]
     """
-    if not math.isfinite(ripple_db) or ripple_db <= 0:
+    if not is_finite_real(ripple_db) or ripple_db <= 0:
         raise ValueError("ripple_db must be positive and finite")
     if ripple_db > 3.0:
         raise ValueError(f"Ripple {ripple_db} dB not supported. Must be at most 3.0 dB")
-    if n < 1 or n % 2 == 0:
+    _validate_positive_integer_order(n)
+    if n % 2 == 0:
         raise ValueError(
             f"Chebyshev requires an odd resonator count for equal terminations. "
             f"Got {n}. Use Butterworth for even counts."
@@ -76,7 +85,7 @@ def get_bessel_g_values(n: int) -> list[float]:
     Raises:
         ValueError: If n not in table (2-9)
     """
-    if n not in BESSEL_G_VALUES:
+    if isinstance(n, bool) or not isinstance(n, int) or n not in BESSEL_G_VALUES:
         raise ValueError(f"Bessel g-values only available for 2-9 resonators, got {n}")
     return BESSEL_G_VALUES[n].copy()
 

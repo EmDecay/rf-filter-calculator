@@ -3,10 +3,14 @@
 Tests verify correct standard component value matching and parallel combinations.
 """
 
+import math
+
 import pytest
 
 from filter_lib.shared.eseries import (
+    DEFAULT_MATCH_POLICY,
     ESeriesMatch,
+    MatchPolicy,
     _denormalize,
     _error_pct,
     _normalize,
@@ -51,6 +55,13 @@ class TestNormalization:
         reconstructed = _denormalize(mantissa, decade)
         assert abs(reconstructed - original) < 1e-20
 
+    def test_minimum_subnormal_normalizes_and_roundtrips(self):
+        mantissa, decade = _normalize(5e-324)
+
+        assert 1.0 <= mantissa < 10.0
+        assert decade == -324
+        assert _denormalize(mantissa, decade) == 5e-324
+
     def test_normalize_negative_raises(self):
         """Test that negative values raise error."""
         with pytest.raises(ValueError):
@@ -60,6 +71,55 @@ class TestNormalization:
         """Test that zero raises error."""
         with pytest.raises(ValueError):
             _normalize(0)
+
+    @pytest.mark.parametrize("target", [True, "1e-12", None])
+    def test_public_matchers_reject_non_real_targets(self, target):
+        with pytest.raises(ValueError, match="positive and finite"):
+            find_closest_single(target)
+        with pytest.raises(ValueError, match="positive and finite"):
+            match_component(target, parallel_mode="additive")
+
+    @pytest.mark.parametrize("series", [[], None, 24])
+    def test_public_matchers_reject_non_string_series(self, series):
+        with pytest.raises(ValueError, match="Unknown series"):
+            find_closest_single(1e-12, series)
+        with pytest.raises(ValueError, match="Unknown series"):
+            match_component(1e-12, series, parallel_mode="additive")
+
+
+class TestMatchPolicyValidation:
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("prefer_single_within_pct", True),
+            ("prefer_single_within_pct", "1"),
+            ("min_parallel_improvement_pct_points", True),
+            ("minimum_capacitance_f", True),
+            ("allow_sub_pf", 1),
+        ],
+    )
+    def test_policy_rejects_wrong_types(self, field, value):
+        with pytest.raises(ValueError):
+            MatchPolicy(**{field: value})
+
+    @pytest.mark.parametrize("policy", [0, object()])
+    def test_match_component_requires_policy_instance(self, policy):
+        with pytest.raises(ValueError, match="MatchPolicy"):
+            match_component(1e-12, parallel_mode="additive", policy=policy)
+
+    @pytest.mark.parametrize("ratio_limit", [True, "10", None])
+    def test_parallel_ratio_limit_rejects_wrong_types(self, ratio_limit):
+        with pytest.raises(ValueError, match="ratio_limit"):
+            match_component(1e-12, parallel_mode="additive", ratio_limit=ratio_limit)
+
+    @pytest.mark.parametrize("minimum_value", [True, "1e-12"])
+    def test_parallel_minimum_value_rejects_wrong_types(self, minimum_value):
+        with pytest.raises(ValueError, match="minimum_value"):
+            find_parallel_combo(
+                1e-12,
+                mode="additive",
+                minimum_value=minimum_value,
+            )
 
 
 class TestErrorCalculation:
@@ -155,6 +215,16 @@ class TestClosestSingle:
         """Test that invalid series raises error."""
         with pytest.raises(ValueError, match="Unknown series"):
             find_closest_single(100e-12, "E48")
+
+    @pytest.mark.parametrize("target", [1e-320, 1e308])
+    def test_extreme_finite_targets_never_leak_non_finite_matches(self, target):
+        try:
+            matched, error = find_closest_single(target, "E24")
+        except ValueError as exc:
+            assert "finite" in str(exc) or "range" in str(exc)
+        else:
+            assert math.isfinite(matched) and matched > 0
+            assert math.isfinite(error)
 
 
 class TestParallelCombinations:
@@ -308,6 +378,87 @@ class TestComponentMatching:
         """Test invalid series raises error."""
         with pytest.raises(ValueError):
             match_component(150e-12, "E48", parallel_mode="additive")
+
+
+class TestRecommendationPolicy:
+    """Builder-facing selection is stricter than raw nearest-value search."""
+
+    def test_default_policy_contract(self):
+        assert DEFAULT_MATCH_POLICY == MatchPolicy(
+            prefer_single_within_pct=1.0,
+            min_parallel_improvement_pct_points=0.5,
+            minimum_capacitance_f=1e-12,
+            allow_sub_pf=False,
+        )
+
+    def test_single_part_wins_when_already_within_one_percent(self):
+        match = match_component(100.9e-12, "E24", parallel_mode="additive")
+
+        assert abs(match.single_error_pct) < 1.0
+        assert match.recommended_kind == "single"
+        assert match.prefers_parallel is False
+        assert match.selected_value == match.single_value
+
+    def test_parallel_requires_half_percentage_point_improvement(self):
+        # 240 pF is +1.091%; 36 pF + 200 pF is -0.594%.  The pair improves
+        # absolute error by only 0.497 percentage points, below policy.
+        match = match_component(237.41e-12, "E24", parallel_mode="additive")
+
+        assert match.parallel is None
+        assert match.parallel_improvement_pct_points == pytest.approx(0.49703, abs=1e-4)
+        assert match.recommended_kind == "single"
+
+    def test_materially_better_parallel_pair_is_selected(self):
+        match = match_component(138.8e-12, "E24", parallel_mode="additive")
+
+        assert match.recommended_kind == "parallel"
+        assert match.prefers_parallel is True
+        assert match.selected_value == match.parallel_value
+
+    def test_sub_pf_target_has_no_automatic_recommendation(self):
+        match = match_component(0.62e-12, "E24", parallel_mode="additive")
+
+        assert match.recommended_kind == "none"
+        assert match.selected_value is None
+        assert match.best_value == match.target  # legacy nominal-substitution fallback
+        assert "below the 1 pF automatic-selection floor" in " ".join(match.warnings)
+
+    def test_minimum_subnormal_target_requests_expert_override_without_substitution(self):
+        match = match_component(5e-324, "E24", parallel_mode="additive")
+
+        assert match.status == "expert_override_required"
+        assert match.selected_value is None
+        assert match.best_value == 5e-324
+
+    def test_sub_pf_expert_override_is_explicit(self):
+        match = match_component(
+            0.62e-12,
+            "E24",
+            parallel_mode="additive",
+            policy=MatchPolicy(allow_sub_pf=True),
+        )
+
+        assert match.recommended_kind == "single"
+        assert match.selected_value == pytest.approx(0.62e-12)
+
+    def test_parallel_parts_below_floor_are_not_considered_by_default(self):
+        match = match_component(1.2e-12, "E24", parallel_mode="additive")
+
+        if match.parallel is not None:
+            assert min(match.parallel) >= 1e-12
+
+    @pytest.mark.parametrize("target", [1e-320, 1e308])
+    def test_extreme_full_match_is_finite_or_descriptively_rejected(self, target):
+        try:
+            match = match_component(target, "E24", parallel_mode="additive")
+        except ValueError as exc:
+            assert "finite" in str(exc) or "range" in str(exc)
+        else:
+            assert math.isfinite(match.single_value) and match.single_value > 0
+            assert math.isfinite(match.single_error_pct)
+            if match.parallel_value is not None:
+                assert math.isfinite(match.parallel_value) and match.parallel_value > 0
+                assert math.isfinite(match.parallel_error_pct)
 
 
 class TestMatchingPhysicalReality:

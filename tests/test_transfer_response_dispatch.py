@@ -163,6 +163,11 @@ class TestMakeLpResponseDb:
         with pytest.raises(ValueError, match="must be provided"):
             make_lp_response_db(None, 10e6, 5)  # type: ignore[arg-type]
 
+    @pytest.mark.parametrize("filter_type", [1, [], {}])
+    def test_non_string_filter_type_raises_value_error(self, filter_type):
+        with pytest.raises(ValueError, match="must be a string"):
+            make_lp_response_db(filter_type, 10e6, 5)
+
     def test_ripple_parameter_passed_to_response(self):
         """Ripple parameter affects Chebyshev response."""
         cutoff_hz = 10e6
@@ -304,6 +309,11 @@ class TestMakeHpResponseDb:
         with pytest.raises(ValueError, match="must be provided"):
             make_hp_response_db(None, 10e6, 5)  # type: ignore[arg-type]
 
+    @pytest.mark.parametrize("filter_type", [1, [], {}])
+    def test_non_string_filter_type_raises_value_error(self, filter_type):
+        with pytest.raises(ValueError, match="must be a string"):
+            make_hp_response_db(filter_type, 10e6, 5)
+
     def test_ripple_parameter_passed_to_response(self):
         """Ripple parameter affects Chebyshev response."""
         cutoff_hz = 10e6
@@ -383,6 +393,11 @@ class TestMakeBpResponseDb:
         """None bandpass filter type raises ValueError, not AttributeError."""
         with pytest.raises(ValueError, match="must be provided"):
             make_bp_response_db(1e6, 100e3, 3, None)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("filter_type", [1, [], {}])
+    def test_non_string_filter_type_raises_value_error(self, filter_type):
+        with pytest.raises(ValueError, match="must be a string"):
+            make_bp_response_db(1e6, 100e3, 3, filter_type)
 
     def test_alias_routing_bw_to_butterworth(self):
         """Bandpass 'bw' alias routes to Butterworth via canonicalization."""

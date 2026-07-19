@@ -39,13 +39,17 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
                         "Butterworth - Maximally flat passband", value=True, id="butterworth"
                     )
                     yield RadioButton("Chebyshev - Sharper cutoff, passband ripple", id="chebyshev")
-                    yield RadioButton("Bessel - Best transient response", id="bessel")
+                    yield RadioButton("Bessel - Flat-delay low-pass prototype", id="bessel")
 
             with Vertical(classes="form-section"):
                 yield Static("Topology", classes="form-section-title")
                 with RadioSet(id="topology"):
-                    yield RadioButton("Pi (C-L-C) - Shunt C first", value=True, id="pi")
-                    yield RadioButton("T (L-C-L) - Series L first", id="t")
+                    yield RadioButton(
+                        "Shunt-first ladder - C first, then alternating L/C",
+                        value=True,
+                        id="pi",
+                    )
+                    yield RadioButton("Series-first ladder - L first, then alternating C/L", id="t")
 
             with Vertical(classes="form-section"):
                 yield Static("Parameters", classes="form-section-title")
@@ -88,6 +92,7 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
     @on(RadioSet.Changed, "#filter-type")
     def _on_filter_type_changed(self, event: RadioSet.Changed) -> None:
         """Show/hide ripple section and odd-order hint based on filter type."""
+        self._invalidate_previous_result()
         is_chebyshev = event.pressed.id == "chebyshev"
         self.query_one("#ripple-section").display = is_chebyshev
         order_label = self.query_one("#order-label", Static)
@@ -118,6 +123,28 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
     def _on_ripple_submitted(self, event: Input.Submitted) -> None:
         """Auto-advance to calculate button after ripple entry."""
         self.query_one("#next-btn", Button).focus()
+
+    @on(Input.Changed, "#frequency")
+    @on(Input.Changed, "#impedance")
+    @on(Input.Changed, "#order")
+    @on(Input.Changed, "#ripple")
+    def _on_design_input_changed(self, event: Input.Changed) -> None:
+        """Invalidate prior output as soon as a design value changes."""
+        self._invalidate_previous_result()
+
+    @on(RadioSet.Changed, "#topology")
+    def _on_topology_changed(self, event: RadioSet.Changed) -> None:
+        """Invalidate prior output when the ladder orientation changes."""
+        self._invalidate_previous_result()
+
+    def _invalidate_previous_result(self) -> None:
+        """Clear stale output when mounted; tolerate direct handler tests."""
+        try:
+            state = self.app.filter_state
+        except (AttributeError, RuntimeError):
+            return
+        if isinstance(state, FilterState):
+            state.invalidate_calculation()
 
     def action_back(self) -> None:
         """Go back to welcome screen."""
@@ -177,7 +204,8 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
         # Chebyshev LP/HP requires odd order for equal source/load terminations
         if filter_type == "chebyshev" and order % 2 == 0:
             self.notify(
-                "Chebyshev lowpass requires odd order (3, 5, 7, or 9)",
+                "With equal source/load terminations, Chebyshev lowpass requires odd "
+                "order (3, 5, 7, or 9)",
                 severity="warning",
             )
             order_input.focus()
@@ -201,6 +229,7 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
                 return
 
         state: FilterState = self.app.filter_state
+        state.invalidate_calculation()
         state.category = "lowpass"
         state.filter_type = filter_type
         state.topology = topology
