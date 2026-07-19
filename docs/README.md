@@ -17,16 +17,18 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 
 - **Filter Types**: Lowpass (Pi/T), Highpass (Pi/T), Bandpass (coupled resonator)
 - **Response Types**: Butterworth, Chebyshev, Bessel
-- **E-Series Matching**: E12/E24/E96 standard values with parallel combinations
-- **ASCII Plots**: Terminal-based frequency response visualization
-- **Multiple Outputs**: Table, JSON, CSV formats
-- **Interactive Wizard**: Guided filter design mode
+- **Preferred-Value Selection**: Auditable E12/E24/E96 capacitor policy; E-series is value density, not tolerance
+- **Realized-Build Analysis**: Selected physical branches, explicit exact fallbacks, finite-Q loss, deterministic corners, and optional seeded screening
+- **Verified Bandpass Results**: Calibrated Top-C synthesis with per-design response status rather than a blanket support claim
+- **Screened Toroid Candidates**: Primary-sourced integer turns and winding capacity, with RF-Q/SRF/power limitations stated explicitly
+- **Outputs**: Table, strict JSON, rectangular CSV, response data, ASCII plots, and generic exact or nominal-build SPICE decks
+- **Interactive Wizard**: Guided design and build-analysis controls with safe export behavior
 
 ## Requirements
 
 - Python 3.10 or higher
 - `textual` library (for interactive TUI wizard)
-- `pytest` (for running tests)
+- The development dependency group supplies pytest, coverage, and Ruff
 
 ## Installation
 

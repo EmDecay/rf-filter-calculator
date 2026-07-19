@@ -26,24 +26,26 @@ Get the most out of RF Filter Calculator.
 - Timing-critical applications
 - When phase linearity is important
 - Accept that rolloff will be gentler
+- For bandpass, the LP→BP transformation does not preserve maximally flat group delay;
+  verify phase/group delay externally
 
 ---
 
 ## E-Series Selection
 
-### E12 (±10%)
+### E12 (12 values per decade)
 
 - Fewest choices, easiest to source
 - Good for prototyping
 - Acceptable when exact values aren't critical
 
-### E24 (±5%)
+### E24 (24 values per decade)
 
 - Default, good balance of availability and precision
 - Suitable for most RF applications
 - Recommended starting point
 
-### E96 (±1%)
+### E96 (96 values per decade)
 
 - Best accuracy
 - Use for critical filters
@@ -52,7 +54,10 @@ Get the most out of RF Filter Calculator.
 
 ### Parallel Combinations
 
-The calculator suggests parallel capacitor combinations that can achieve tighter tolerances than single components (values add directly). Inductors are not E-series matched — wind them to value using the toroid recommendations.
+E-series density is not component tolerance. The calculator selects a single capacitor when
+it is within 1% of target and selects a parallel pair only when it improves absolute error
+by at least 0.5 percentage points. Below 1 pF it withholds automatic selection. Inductors
+are not E-series matched; a screened toroid candidate is an option, not a suitability claim.
 
 Example: Need 196.73 pF
 - Single E24: 200 pF (+1.7% error)
@@ -83,12 +88,16 @@ Example: Need 196.73 pF
 - Odd numbers required for Chebyshev
 - More resonators = narrower transition band but more loss
 
-### Q Safety Factor
+### Q and Loss
 
-Default is 2.0. Consider increasing to 3.0 or higher when:
-- Using low-Q components
-- Filter is narrowband (fractional BW < 5%)
-- Operating at higher frequencies
+The historical Q-safety field is only a compatibility heuristic; it does not determine
+stability or select parts. For a real loss model:
+
+- use `--qu` for complete bandpass resonator Q, or `--ql` and `--qc` for separate
+  inductor and tank-capacitor Q;
+- use `--inductor-q` / `--capacitor-q` in build analysis for explicit component loss;
+- remember that Q is converted to constant series resistance at one reference frequency;
+- verify insertion loss and bandwidth on a VNA after construction.
 
 ---
 
@@ -104,7 +113,8 @@ Default is 2.0. Consider increasing to 3.0 or higher when:
 ### Inductors
 
 - Air-core for highest Q at RF
-- Toroidal ferrites for lower frequencies
+- Choose core material from manufacturer frequency/loss data; the built-in automatic
+  screen currently covers only primary-sourced T25-6, T50-2, and T68-2 iron-powder cores
 - Consider using adjustable cores for tuning
 - Minimize lead length
 
@@ -155,6 +165,12 @@ Best for:
 uv run filter-calc lp bw pi 10MHz --format csv > bom.csv
 ```
 
+### SPICE
+
+Best for reviewing the exact or selected nominal circuit in another simulator. The deck
+does not include layout, package parasitics, measured core loss, SRF, or nonlinear power
+behavior unless you add suitable models.
+
 ---
 
 ## Workflow Recommendations
@@ -166,6 +182,8 @@ uv run filter-calc lp bw pi 10MHz --format csv > bom.csv
 3. Try different orders: `uv run filter-calc lp bw pi 10MHz -n 3` vs `-n 5`
 4. Compare Butterworth vs Chebyshev at same order
 5. Use `--plot` to visualize response
+6. Run `--sim-build --format json` with actual tolerances and Q assumptions
+7. Export nominal-build SPICE if useful, then build and measure the hardware
 
 ### Documentation
 

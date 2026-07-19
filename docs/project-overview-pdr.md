@@ -21,21 +21,24 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 2.0.0 (Production ready; accuracy remediation release)
-- 1227 comprehensive tests (94% coverage)
+**Version**: 2.1.0 (real-world build-analysis and accuracy release)
+- More than 2,000 collected tests, with a 90% CI coverage floor
 - Full CLI and interactive modes with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
-- Automated CI/CD with GitHub Actions
+- Automated CI with GitHub Actions
 - Code quality enforced via ruff linting
 - Bandpass external Q realized by series end-coupling capacitors; shunt-C coupling removed
-- Bandpass plots netlist-simulated from the synthesized circuit (simulation-proven ≤10% fractional BW)
+- Bandpass Top-C synthesis calibrated and independently verified per design; 128-cell maintained acceptance matrix
 - Chebyshev g-values computed by formula for arbitrary ripple; capacitors-only E-series matching
 - Graph enhancements (GH-7): dB threshold tables + zoomed plots
-- Toroid inductor recommendations (GH-6): 43-core iron-powder T-series database; top-3 per inductor with turns, AWG, wire length, DCR, DC-Q upper bound; `--no-toroids` / `--toroid-compact` / `--toroid-full` flags
-- Comprehensive coverage: CLI subcommands, wizard screens (67-85% via Mock pattern), input validation error paths
+- Automatic toroid screen restricted to primary-sourced T25-6, T50-2, and T68-2; RF Q, SRF, core loss, thermal rise, saturation, and power are explicitly not assessed
+- Nominal-build analysis with selected parts or explicit exact fallbacks, finite-Q loss, unequal-port transducer gain, deterministic corners, and optional seeded screening
+- Generic exact and nominal-build SPICE export; strict JSON and rectangular quoted CSV
+- Comprehensive coverage: CLI subcommands, wizard screen units, real Textual pilot flows,
+  worker revision/lifecycle behavior, and input-validation error paths
 - Filter-type alias canonicalization & Chebyshev odd-order constraint enforcement
-- Bandpass true -3 dB edges via quadratic formula
+- Bandpass true -3 dB edges via cancellation-resistant quadratic roots
 
 ---
 
@@ -73,7 +76,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - **Acceptance Criteria**:
   - ✓ Normalized g-values per Matthaei/Young/Jones standard
   - ✓ Coupling capacitor values calculated correctly
-  - ✓ Netlist simulation acceptance: measured -3 dB BW within 3% of design, f₀ within 0.5% (≤10% fractional BW)
+  - ✓ Per-design checks for requested/outer skirts, connected passband, center, bandwidth, ripple, passband shape, and representative stopband shape
+  - ✓ Maintained 128-cell matrix: 106 validated, 17 explicit `outside_validated_envelope`, 5 rejected as known-unrealizable
 
 #### 1.2 Response Type Support
 
@@ -93,20 +97,23 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Maximally flat group delay
 - Smooth passband response
 - Better pulse response than Butterworth
+- The flat-delay property applies to the lowpass prototype; HP/BP transformations require external phase/group-delay verification
 
 #### 1.3 Component Matching
 
 **FR-1.3.1: E-Series Matching (Capacitors Only)**
 - **Scope**: Capacitor values matched to E-series standards; inductors shown as raw calculated values
-- **E12 Series**: 12 values per decade (±10% tolerance)
-- **E24 Series**: 24 values per decade (±5% tolerance) - default
-- **E96 Series**: 96 values per decade (±1% tolerance)
+- **E12 Series**: 12 preferred values per decade
+- **E24 Series**: 24 preferred values per decade (default)
+- **E96 Series**: 96 preferred values per decade
+- **Tolerance**: independent build input; an E-series name is not a tolerance declaration
 - **Matching Strategies**:
-  - Single value: Nearest E-series standard with error %
-  - Parallel combination: Two values in parallel for better accuracy
+  - Single value: selected when within 1% of target
+  - Parallel combination: selected only when it improves absolute error by at least 0.5 percentage points
+  - Below 1 pF: automatic selection withheld pending expert override
 - **Acceptance Criteria**:
-  - ✓ Single value matches nearest standard ±2%
-  - ✓ Parallel combinations provide <0.5% error when possible
+  - ✓ Exactly one selected realization, or an explicit expert-action status
+  - ✓ Policy and selection reason exported in table, JSON, and CSV
   - ✓ All three E-series selections work correctly
   - ✓ Inductors always shown as raw values (no matching)
 
@@ -172,7 +179,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 **FR-1.6.3: Output Options**
 - E-series selection menu (E12/E24/E96/None)
-- Output format selection (table/json/csv)
+- Output format selection (table/json/csv) and independent response-data export
+- Advanced realized-build controls for tolerances, Q/loss, evaluation ports, screening count/seed, grid size, and toroid use
 - Export frequency response data option
 - Toggleable flags: raw units, quiet mode
 - Async calculation with loading indicator
@@ -180,7 +188,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 **FR-1.6.4: Parameter Defaults**
 - Impedance: 50Ω (standard RF)
 - Ripple: 0.5 dB (Chebyshev)
-- E-series: E24 (standard tolerance)
+- E-series: E24 (preferred-value density; not tolerance)
 - Components/Resonators: 3 (user configurable)
 - Placeholders show defaults in input fields
 
@@ -206,7 +214,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 **NFR-2.2.1: Calculation Precision**
 - Component values: ±0.1% relative to normalized values
 - Frequency response: ±0.5 dB max deviation
-- Group delay: ±5% for Bessel filters
+- Bessel lowpass magnitude/normalization is regression tested; transformed HP/BP phase and group delay require external verification
 
 **NFR-2.2.2: Mathematical Correctness**
 - Normalized g-values from standard references
@@ -234,16 +242,18 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - No silent failures
 
 **NFR-2.4.2: Testing**
-- 1227 tests covering all filter types
-- 94% code coverage
-- Automated GitHub Actions CI (lint → format → test on push/PR)
+- More than 2,000 collected tests covering calculations, outputs, build analysis,
+  packaging, and the Textual wizard
+- Coverage must remain at or above 90%
+- GitHub Actions CI runs lint, format, Python 3.10–3.13 tests, coverage, and
+  distribution smoke checks on push/PR
 
 #### 2.5 Maintainability
 
 **NFR-2.5.1: Code Quality**
-- All functions have docstrings
-- Type hints on all parameters and returns
-- Modular design with <200 line files
+- Public functions have useful docstrings, boundary units, and type hints
+- Modules are split when doing so reduces real complexity or matches an existing boundary;
+  line count alone is not a design requirement
 - Comments explain non-obvious logic
 - Ruff linting enforced (E/F/I/UP/B rules, py310+ target)
 - Code formatting standardized via ruff format
@@ -273,39 +283,41 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 #### 3.1 Algorithm Constraints
 
 **TC-3.1.1: Normalized Prototypes**
-- All designs use normalized prototype theory
-- Scaling to actual frequency/impedance must preserve response characteristics
-- Validation: Prototype response = designed response
+- LP/HP ladders scale normalized prototypes to the requested frequency and impedance
+- Top-C bandpass starts from normalized prototype values, then calibrates internal tank
+  frequency and synthesis bandwidth against the generated circuit
+- Independent circuit-response gates compare the bandpass result with the selected prototype;
+  prototype shape is not assumed merely because edge calibration converged
 
 **TC-3.1.2: Transfer Function Stability**
-- All poles must be in left half-plane
-- No unstable or marginally stable designs
-- Validation: Butterworth stable by definition, Chebyshev/Bessel validated
+- Passive synthesized networks are evaluated with finite scale-safe AC nodal analysis
+- Non-finite inputs and non-finite serialized results are rejected
+- Per-design response validation, not an abstract pole-stability heuristic, gates bandpass claims
 
 #### 3.2 Component Value Constraints
 
 **TC-3.2.1: Practical Component Ranges**
-- Capacitors: 0.1 pF to 100 µF (feasible in practice)
-- Inductors: 0.1 nH to 10 µH (feasible in practice)
-- Impedance: 1Ω to 10 kΩ (standard RF range)
+- The numerical APIs accept positive finite values when the derived circuit remains representable
+- Practicality is not inferred from numeric representability; package parasitics, SRF, voltage/current rating, layout, and available parts must be checked separately
+- Automatic preferred-value selection is intentionally withheld below 1 pF
 
 **TC-3.2.2: Frequency Range**
-- Lower bound: 100 Hz (extremely low RF)
-- Upper bound: 10 GHz (microwave)
-- Validation: Values remain practical within this range
+- No arbitrary numeric 100 Hz–10 GHz gate is imposed
+- Lumped-element and component-model validity must be assessed for the actual frequency and construction
 
 #### 3.3 Chebyshev-Specific Constraints
 
 **TC-3.3.1: Order and Ripple Constraints**
 - Chebyshev filters with equal source/load terminations require odd order (3, 5, 7, 9) — enforced for LP, HP, and BP
-- Ripple supported in (0, 3.0] dB via formula-based g-value computation (wizard and bandpass CLI enforce the 3.0 dB cap; LP/HP CLI validates only ripple > 0)
+- Ripple supported in (0, 3.0] dB across CLI, wizard, and LP/HP/BP public synthesis APIs
 
 #### 3.4 Bandpass-Specific Constraints
 
 **TC-3.4.1: Q Requirements**
-- Component Q must exceed minimum Q for stability
-- Provides warning if component Q too low
-- Q safety factor: 2.0 (user adjustable)
+- `q_min = (f0/bw) * q_safety` is retained only as a labeled compatibility heuristic, not a stability threshold
+- `--qu` means complete resonator unloaded Q; `--ql` and `--qc` combine reciprocally
+- Build analysis converts Q to constant series resistance at an explicit reference frequency
+- Q inputs are estimates and do not replace measured insertion loss or component characterization
 
 **TC-3.4.2: Frequency Specification**
 - Either (center freq + bandwidth) OR (low + high cutoff)
@@ -338,14 +350,12 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 #### 4.2 Display Design
 
-**DD-4.2.1: Primary Component Concept**
-- Each topology has "primary" components shown in E-series recommendations
-- Lowpass Pi: Capacitors (shunt positions, closest to ports)
-- Lowpass T: Inductors (series positions)
-- Highpass T: Capacitors (series positions, inverted)
-- Highpass Pi: Inductors (shunt positions, inverted)
-- Rationale: Shows components most critical for impedance matching
-- Simplification: Always show capacitor recommendations (consistent display)
+**DD-4.2.1: Capacitor and Winding Guidance**
+- E-series preferred-value selection applies to capacitors in every topology
+- Inductors remain calculated winding targets rather than E-series substitutions
+- Screened toroid candidates may provide integer-turn construction options when exact
+  primary-source eligibility and frequency/tolerance gates are met
+- Displays distinguish calculated, selected, exact-fallback, and expert-action states
 
 **DD-4.2.2: ASCII Plots vs Graphical**
 - ASCII plots in terminal (no external dependencies)
@@ -383,9 +393,9 @@ Status: ✓ Verified against multiple sources
 
 **AC-5.1.2: Bandpass Component Values**
 ```
-Test: Calculate 3-resonator Butterworth bandpass 14-14.35MHz
-Expected: Component Q > 50, coupling capacitors reasonable
-Status: ✓ Verified with Q safety factor validation
+Test: Calculate and independently sweep 3-resonator Butterworth bandpass 14-14.35MHz
+Expected: requested and outer skirts, connected passband, center/BW, and response-shape gates pass
+Status: ✓ Verified by calibrated circuit synthesis and independent nodal-analysis checks
 ```
 
 **AC-5.1.3: Frequency Response Accuracy**
@@ -449,7 +459,7 @@ Status: ✓ ValueError messages tested
 
 **AC-5.5.1: CLI Response Time**
 ```
-Test: Time "uv run filter-calc lp bw 10MHz"
+Test: Time "uv run filter-calc lp bw pi 10MHz"
 Expected: <500ms total
 Status: ✓ Measured ~200ms on reference machine
 ```
@@ -461,10 +471,9 @@ Status: ✓ Measured ~200ms on reference machine
 #### 6.1 Potential Features
 - [ ] Multi-stage filters (cascade designs)
 - [ ] Impedance matching networks (L-networks)
-- [ ] Component tolerance stackup analysis
 - [ ] PCB layout recommendations
-- [ ] Interactive circuit editor / simulation integration
-- [ ] Filter performance degradation with component Q
+- [ ] Interactive circuit editor
+- [ ] Import measured component models or S-parameters
 - [ ] Manufacturing cost estimation
 
 #### 6.2 Potential Platforms
@@ -485,8 +494,8 @@ Status: ✓ Measured ~200ms on reference machine
 #### 7.1 Quality Metrics
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
-| Test Coverage | >90% | 94% | ✓ Met |
-| Test Count | >300 | 1227 | ✓ Exceeded |
+| Test Coverage | ≥90% | Enforced by CI | ✓ Met |
+| Test Count | >300 | >2,000 collected | ✓ Exceeded |
 | Documentation Files | >6 | 14 | ✓ Exceeded |
 | Code Issues | 0 critical | 0 | ✓ Met |
 | Response Time | <500ms | ~200ms | ✓ Met |
@@ -518,6 +527,7 @@ Status: ✓ Measured ~200ms on reference machine
 | 1.2+ | Apr 2 2026 | Documentation sync (updated PDR, success metrics, code standards, architecture notes) |
 | 1.4+ | Apr 24 2026 | Coverage pass: 826→1046 tests (94% coverage); CLI/wizard/validation full testing; filter-type alias canonicalization; bandpass true -3dB edges; Chebyshev odd-order constraint |
 | 2.0.0 | Jun 11-12 2026 | Accuracy remediation: bandpass series end-coupling (shunt-C removed); netlist-simulated bandpass plots; formula-based Chebyshev g-values for arbitrary ripple; capacitors-only E-series matching; unified --plot-data export schema; coordinated breaking CLI cleanup; 1046→1227 tests |
+| 2.1.0 | Jul 19 2026 | Per-design calibrated bandpass validation; deterministic preferred-value policy; primary-sourced toroid screening; realized-build loss/tolerance analysis; generic SPICE; strict machine output; numeric/API hardening; wizard/export lifecycle fixes; Python 3.10–3.13 packaging and CI gates |
 
 ---
 
@@ -532,7 +542,7 @@ Status: ✓ Measured ~200ms on reference machine
 
 ## Document Control
 
-**Last Updated**: June 12, 2026
+**Last Updated**: July 19, 2026
 **Author**: Matt N3AR
 **Status**: Active (Production)
 **Next Review**: Q3 2026

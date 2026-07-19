@@ -5,15 +5,17 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 ## Features
 
 - **Filter Types**: Lowpass (Pi/T topology), Highpass (Pi/T topology), Bandpass (top-C series coupling, netlist-simulated)
-- **Response Types**: Butterworth, Chebyshev (arbitrary 0–3 dB ripple), Bessel. Chebyshev LP/HP cutoff is the ripple-band edge (ARRL/Elsie/Zverev convention), not the −3 dB point; bandpass `bw` is the true −3 dB bandwidth
-- **E-Series Matching**: Capacitors matched to E12/E24/E96 standard values with parallel combinations; inductors show design values with toroid recommendations
+- **Response Types**: Butterworth, Chebyshev (arbitrary ripple in (0, 3] dB), Bessel. Chebyshev LP/HP cutoff is the ripple-band edge (ARRL/Elsie/Zverev convention), not the −3 dB point; bandpass `bw` is the true −3 dB bandwidth
+- **Buildable Capacitor Selection**: E12/E24/E96 is treated as preferred-value density, not tolerance. The default policy keeps a single part within 1%, uses a two-part parallel value only when it improves absolute error by at least 0.5 percentage points, and requires expert action below 1 pF
 - **End-Coupling Realization**: Bandpass external Q realized by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
-- **Netlist-Simulated Plots**: Bandpass frequency response generated from the synthesized circuit netlist with the built-in nodal-analysis solver (simulation-proven ≤10% FBW)
-- **Toroid Recommendations**: Amidon T-series core suggestions on by default (top-1 in table, top-3 in JSON, best match in CSV); 43-core database; `--no-toroids` to suppress, `--toroid-compact` for one-line recommendations, `--toroid-full` for top-3 in table
+- **Calibrated, Verified Bandpass Synthesis**: Each Top-C design is calibrated to both requested −3 dB skirts and independently checked for connected passband, outer skirts, passband shape, ripple, and representative stopband behavior. JSON reports whether the individual design is inside the validated envelope
+- **Realized-Build Analysis**: `--sim-build` selects nominal physical parts, optionally adds finite-Q loss, evaluates deterministic tolerance cases plus repeatable samples, and keeps synthesis targets separate from simulated results
+- **Generic SPICE Export**: Exact or nominal-build passive decks use the same named circuit and physical-part realization as the internal analysis
+- **Screened Toroid Candidates**: Automatic selection is limited to exact parts with primary-source core data (currently T25-6, T50-2, and T68-2), published material guidance, acceptable integer-turn error, and winding-capacity checks. RF Q, SRF, core loss, saturation, temperature rise, and power suitability are explicitly not assessed
 - **ASCII Plots**: Visualize frequency response (LP/HP analytic, BP simulated)
-- **Multiple Outputs**: Table, JSON, CSV formats
+- **Multiple Outputs**: Table, JSON, CSV, generic SPICE, and standalone response-data exports
 - **Interactive Wizard**: Guided TUI design mode with error surface
-- **--version Support**: Print version and exit
+- **Root --version Support**: `filter-calc --version` prints the installed version and exits
 
 ## Installation
 
@@ -40,6 +42,10 @@ uv sync --group dev
 ### Breaking Changes (v2.0.0)
 
 **Migration from v1.x:** `-t` short flag removed (use `--type` instead); `--verify` removed from bandpass; `-r` now warns if used with non-Chebyshev filters; ripple validation changed from hardcoded tiers to 0 < r ≤ 3.0; wizard resonator default changed to 3. See [docs/project-changelog.md](docs/project-changelog.md) for full details and migration path.
+
+### Accuracy and Build Remediation (v2.1.0)
+
+Version 2.1.0 makes calculated, nominal-build, tolerance-screening, and SPICE results explicit. It also replaces blanket bandpass support claims with per-design validation metadata, hardens finite-number handling, adds independent tank L/impedance controls and complete-resonator Q semantics, restricts automatic toroid selection to primary-sourced parts, and makes E-series selection deterministic. `--sim-matched` remains as a deprecated compatibility alias; use `--sim-build` for new workflows.
 
 ## Quick Start
 
@@ -94,29 +100,7 @@ uv run filter-calc lp <type> -T pi|t -f <frequency> [options]
 uv run filter-calc lp bw pi 7.1MHz -n 5 --plot
 ```
 
-```
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                        LOW-PASS FILTER DESIGN                                ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  Type: Butterworth (5th order)        Cutoff: 7.1 MHz       Z₀: 50Ω          ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-
-  Topology: Pi (shunt C - series L - shunt C - series L - shunt C)
-
-         ┌────[L1]────┬────[L2]────┐
-    IN ──┤            │            ├── OUT
-        C1           C2           C3
-         │            │            │
-        GND          GND          GND
-
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  Capacitors                      │  Inductors                                │
-├──────────────────────────────────┼───────────────────────────────────────────┤
-│  C1: 138.8 pF  (150pF -7.5%)     │  L1: 1.457 µH  (1.5µH -2.9%)              │
-│  C2: 449.0 pF  (470pF -4.5%)     │  L2: 1.457 µH  (1.5µH -2.9%)              │
-│  C3: 138.8 pF  (150pF -7.5%)     │                                           │
-└──────────────────────────────────┴───────────────────────────────────────────┘
-```
+See [sample output](docs/sample-output.md) for current table, JSON, build-analysis, and SPICE examples.
 
 ### Highpass Filter
 
@@ -142,8 +126,8 @@ uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 ```
 
 When using `--fl` and `--fh`, the calculator synthesizes around the geometric center
-`f₀ = √(f_low × f_high)`. Output tables and bandpass plot labels preserve the exact
-`f_low` and `f_high` values you entered.
+`f₀ = √(f_low × f_high)`. The reported edges are reconstructed from that center and
+bandwidth and agree with the requested values to floating-point precision.
 
 **Coupling topologies:**
 - `top` / `t` — Top-coupled series capacitors (Ce_in/Ce_out for external Q, Cs12/Cs23 for inter-resonator coupling; the only supported kind)
@@ -159,8 +143,8 @@ Running with no arguments starts a Textual TUI wizard with screen-based navigati
 
 1. **Welcome Screen** - Select filter type (lowpass, highpass, bandpass)
 2. **Filter Configuration** - Set response type, topology, frequency, impedance, order
-3. **Output Options** - Choose E-series matching, output format, export settings
-4. **Results** - View calculated component values and frequency response
+3. **Output Options** - Choose E-series matching, output/export settings, and optional realized-build controls
+4. **Results** - View the current calculation; stale or canceled workers cannot overwrite a newer result, and Save exports the component format independently of an optional response-data sidecar
 
 **Keyboard shortcuts:**
 - `Tab` / `Shift+Tab` - Navigate between fields
@@ -176,25 +160,37 @@ Default values shown as placeholders; press Enter with empty field to use defaul
 |--------|-------------|
 | `-T, --topology` | Filter topology: pi or t (required for lowpass/highpass) |
 | `--type` | Filter response: butterworth, chebyshev, bessel (or bw/ch/bs aliases) |
-| `-n, --components` | Number of components/resonators (2–9, default: 3) |
-| `-f, --frequency` | Center/cutoff frequency (or `-fl`/`--fh` for bandpass limits) |
+| `-n, --components` | LP/HP reactive component count (2–9, default: 3) |
+| `-n, --resonators` | Bandpass resonator count (2–9, default: 3; Chebyshev requires odd) |
+| `-f, --freq` | LP/HP cutoff frequency |
+| `-f, --frequency` | Bandpass center frequency (or use `--fl`/`--fh`) |
 | `-z, --impedance` | System impedance (default: 50Ω; accepts 50, 50ohm, 1k, 1M, etc.) |
 | `-r, --ripple` | Chebyshev passband ripple in dB, 0 < r ≤ 3.0 (default: 0.5; warns if used with non-Chebyshev) |
-| `-b, --bandwidth` | Bandpass bandwidth (or use -fl/-fh for explicit edges) |
+| `-b, --bandwidth` | Bandpass bandwidth (or use `--fl`/`--fh` for explicit edges) |
 | `-e, --eseries` | E-series for matching: E12, E24, E96 (default: E24) |
 | `--no-match` | Disable E-series matching |
 | `--raw` | Show raw values (Farads/Henries) |
 | `-q, --quiet` | Minimal output |
-| `--format` | Output format: table, json, csv (default: table) |
+| `--format` | Output format: table, json, csv, spice (default: table) |
 | `--plot` | Show ASCII frequency response |
 | `--plot-data` | Export response data: json, csv |
 | `--explain` | Explain filter type characteristics |
 | `--no-toroids` | Suppress toroid recommendations in all output formats |
-| `--toroid-compact` | One-line-per-recommendation toroid text output (ignored for JSON/CSV) |
-| `--toroid-full` | Show top-3 toroid cores per inductor in table output (default top-1; JSON always top-3, CSV best match) |
-| `--sim-matched` | Re-simulate circuit with E-series matched capacitor values (inductors kept exact); displays matched vs exact comparison block |
-| `--qu` | Custom unloaded Q for Cohn insertion-loss estimate (bandpass only; default estimates at Qu=100, 250) |
-| `--version` | Print version and exit |
+| `--toroid-compact` | One-line-per-candidate toroid output; valid only with table output |
+| `--toroid-full` | Show up to three qualified toroid candidates per inductor in table output (default top-1; JSON includes up to three, CSV the best available) |
+| `--sim-matched` | Deprecated nominal-build comparison alias; use `--sim-build` |
+| `--sim-build` | Compare calculated and selected nominal circuits; add bounded tolerance screening and optional finite-Q loss |
+| `--capacitor-tolerance`, `--inductor-tolerance` | Independent bounds used by `--sim-build`; these are not inferred from the selected E-series |
+| `--inductor-q`, `--capacitor-q` | Component Q at the loss-reference frequency for build analysis or nominal SPICE |
+| `--loss-reference-frequency` | Reference used to convert supplied Q to constant series resistance; requires an effective Q |
+| `--source-resistance`, `--load-resistance` | Evaluation ports for transducer gain; synthesis remains equal-termination |
+| `--sample-count`, `--seed`, `--analysis-points` | Repeatable bounded screening and frequency-grid controls |
+| `--no-toroid-build` | Keep exact inductance as an explicit nominal fallback instead of selecting a screened winding |
+| `--spice-realization` | Select `exact` or `nominal-build` for `--format spice` (default: `nominal-build`) |
+| `--qu` | Complete resonator unloaded Q for bandpass loss estimates/build realization |
+| `--ql`, `--qc` | Bandpass inductor/capacitor Q; combined as `1/Qu = 1/QL + 1/QC` |
+| `--resonator-impedance`, `--resonator-inductance` | Choose tank reactance or L independently of the termination impedance |
+| `--version` | Root option: `filter-calc --version` |
 
 ## Filter Type Aliases
 
@@ -233,6 +229,22 @@ uv run filter-calc lp bw pi 10MHz --plot-data json > response.json
 uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 ```
 
+**Realized-build analysis:**
+```bash
+uv run filter-calc lp bw pi 10MHz --sim-build --inductor-q 100 \
+  --capacitor-q 500 --sample-count 100 --seed 73 --format json > build.json
+```
+
+The generated cases are a deterministic engineering screen, not a guaranteed worst case, Monte Carlo yield estimate, or measurement.
+
+**SPICE deck:**
+```bash
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz \
+  --format spice --spice-realization nominal-build --qu 200 > filter.cir
+```
+
+The deck prints load-node voltage. Its comment gives the transducer-gain expression; the printed voltage is not itself gain in dB.
+
 ## Testing & CI
 
 Run the test suite with pytest:
@@ -245,7 +257,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** 1274 tests (95% coverage) covering filter calculations, transfer functions, topology diagrams, E-series matching, input validation, CLI commands, output formatting, the interactive wizard, toroid recommendations, and netlist-simulated bandpass validation. See [docs/testing.md](docs/testing.md) for details.
+**Test suite:** More than 2,000 collected cases, with a CI coverage floor of 90%, including an exhaustive 128-cell bandpass study, independent response verification, build/tolerance/loss contracts, strict JSON, generic SPICE, Python 3.10–3.13, wheel/sdist inspection, installed-wheel smoke tests, and real Textual pilot tests. See [docs/testing.md](docs/testing.md) for current details.
 
 ### Linting
 
@@ -258,7 +270,7 @@ uv run ruff format --check .  # Check formatting
 
 ### Continuous Integration
 
-GitHub Actions runs lint, format check, and the full test suite on every push and PR to `main`.
+GitHub Actions runs Ruff, the full coverage-gated suite on Python 3.10–3.13, and wheel/sdist build plus installed-wheel smoke checks on every push and PR to `main`.
 
 ## Project Structure
 
@@ -270,9 +282,9 @@ rf-filter-calculator/
     ├── cli/                # Subcommand handlers
     ├── lowpass/            # Lowpass calculations (Pi/T)
     ├── highpass/           # Highpass calculations (Pi/T)
-    ├── bandpass/           # Coupled resonator calculations
+    ├── bandpass/           # Calibrated Top-C synthesis and independent verification
     ├── wizard/             # Interactive design mode
-    └── shared/             # Common utilities (parsing, E-series, plotting)
+    └── shared/             # Parsing, realization, loss/tolerance analysis, SPICE, plotting
 ```
 
 ## Documentation

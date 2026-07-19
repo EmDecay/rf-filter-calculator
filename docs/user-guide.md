@@ -24,7 +24,7 @@ Designs low-pass filters with Pi or T topology.
 
 ```bash
 uv run filter-calc lowpass <filter_type> <topology> <frequency> [options]
-uv run filter-calc lp <filter_type> <frequency> --topology pi|t [options]
+uv run filter-calc lp <filter_type> -T pi|t -f <frequency> [options]
 ```
 
 ### Positional Arguments
@@ -43,18 +43,19 @@ uv run filter-calc lp <filter_type> <frequency> --topology pi|t [options]
 | `-n, --components` | 3 | Number of reactive components (2-9) |
 | `-z, --impedance` | 50 | System impedance in ohms |
 | `-r, --ripple` | 0.5 | Chebyshev passband ripple in dB |
-| `-e, --eseries` | E24 | E-series for component matching (E12, E24, E96) |
-| `--no-match` | - | Disable E-series matching display |
+| `-e, --eseries` | E24 | Preferred-value density for capacitor selection (E12, E24, E96) |
+| `--no-match` | - | Keep calculated capacitor values; disable preferred-value selection |
 | `--raw` | - | Show raw values (Farads/Henries) |
 | `-q, --quiet` | - | Minimal output |
-| `--format` | table | Output format: `table`, `json`, `csv` |
+| `--format` | table | Output format: `table`, `json`, `csv`, `spice` |
 | `--plot` | - | Show ASCII frequency response |
 | `--plot-data` | - | Export response data: `json` or `csv` |
 | `--explain` | - | Display filter type characteristics |
 | `--no-toroids` | - | Suppress toroid recommendations |
 | `--toroid-compact` | - | Compact 1-line-per-rec toroid output (text only) |
-| `--toroid-full` | - | Show top-3 toroids in table (default top-1) |
-| `--sim-matched` | - | Re-simulate with E-series matched capacitor values |
+| `--toroid-full` | - | Show up to three qualified candidates (default: best available) |
+| `--sim-build` | - | Analyze the selected nominal build, loss, and bounded tolerance cases |
+| `--sim-matched` | - | Deprecated compatibility alias for a nominal-build comparison |
 
 ### Examples
 
@@ -63,7 +64,7 @@ uv run filter-calc lp <filter_type> <frequency> --topology pi|t [options]
 uv run filter-calc lp bw pi 7.1MHz -n 5
 
 # T topology lowpass
-uv run filter-calc lp bw 10MHz -n 5 --topology t
+uv run filter-calc lp bw -f 10MHz -n 5 --topology t
 
 # Chebyshev with 1 dB ripple at 28 MHz
 uv run filter-calc lp ch pi 28MHz -r 1.0 -n 7
@@ -79,7 +80,32 @@ uv run filter-calc lp bw pi 10MHz -e E96
 
 # Export frequency response data
 uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
+
+# Analyze a nominal build with explicit finite-Q and tolerance assumptions
+uv run filter-calc lp bw pi 10MHz --sim-build \
+  --inductor-q 100 --capacitor-q 500 \
+  --capacitor-tolerance 5 --inductor-tolerance 10 --format json
 ```
+
+### Build Analysis and SPICE Controls
+
+These controls are shared by lowpass, highpass, and bandpass commands:
+
+| Option | Meaning |
+|--------|---------|
+| `--sim-build` | Compare calculated values, selected nominal branches, and bounded tolerance cases |
+| `--capacitor-tolerance PCT` | Capacitor bound for deterministic corners (default 5%) |
+| `--inductor-tolerance PCT` | Inductor bound for deterministic corners (default 10%) |
+| `--inductor-q Q`, `--capacitor-q Q` | Convert Q to constant series resistance at the reference frequency |
+| `--source-resistance`, `--load-resistance` | Evaluate transducer gain with unequal ports; synthesis remains equal-termination |
+| `--loss-reference-frequency` | Frequency at which supplied Q is converted to series resistance |
+| `--sample-count N`, `--seed S` | Add repeatable uniform-bound screening cases; not a yield/probability model |
+| `--analysis-points N` | Response grid size (default 601) |
+| `--no-toroid-build` | Use calculated inductance as an explicit fallback in the nominal realization |
+| `--format spice --spice-realization exact` | Generic lossless deck with calculated values |
+| `--format spice --spice-realization nominal-build` | Generic deck with selected parts/fallbacks and configured loss |
+
+Tolerance analysis is a bounded simulation, not a measurement or guaranteed worst case.
 
 ---
 
@@ -94,7 +120,7 @@ Designs high-pass filters with Pi or T topology.
 
 ```bash
 uv run filter-calc highpass <filter_type> <topology> <frequency> [options]
-uv run filter-calc hp <filter_type> <frequency> --topology pi|t [options]
+uv run filter-calc hp <filter_type> -T pi|t -f <frequency> [options]
 ```
 
 ### Arguments and Options
@@ -108,7 +134,7 @@ Same options as lowpass command, with topology required (`pi` or `t`).
 uv run filter-calc hp bw t 14MHz -n 5
 
 # Pi topology highpass
-uv run filter-calc hp bw 14MHz -n 5 --topology pi
+uv run filter-calc hp bw -f 14MHz -n 5 --topology pi
 
 # Steep Chebyshev rolloff
 uv run filter-calc hp ch t 3.5MHz -r 0.5 -n 7
@@ -149,8 +175,10 @@ Two methods available (use one, not both):
 ```
 
 When `--fl` and `--fh` are used, the calculator derives the synthesis center from the
-geometric mean `f₀ = √(f_low × f_high)`. The displayed and exported `f_low` / `f_high`
-values, and the bandpass plot labels, remain the exact edge frequencies you entered.
+geometric mean `f₀ = √(f_low × f_high)`. JSON `requested_parameters` and the build-analysis
+`target` block preserve the parsed edge values exactly and mark the edge-frequency input mode.
+Top-level calculated edges and plot labels are reconstructed from center/bandwidth and agree
+with the request to floating-point precision.
 
 ### Options
 
@@ -163,21 +191,23 @@ values, and the bandpass plot labels, remain the exact edge frequencies you ente
 | `-n, --resonators` | 3 | Number of resonators (2-9) |
 | `-z, --impedance` | 50 | System impedance |
 | `-r, --ripple` | 0.5 | Chebyshev ripple in dB |
-| `--q-safety` | 2.0 | Q safety factor for component selection |
 | `-e, --eseries` | E24 | E-series for matching |
 | `--no-match` | - | Disable E-series matching |
 | `--raw` | - | Raw scientific notation |
 | `-q, --quiet` | - | Minimal output |
-| `--format` | table | Output format: `table`, `json`, `csv` |
+| `--format` | table | Output format: `table`, `json`, `csv`, `spice` |
 | `--plot` | - | Show ASCII frequency response |
 | `--plot-data` | - | Export response data (json or csv) |
 | `--explain` | - | Explain filter characteristics |
 | `--no-toroids` | - | Suppress toroid recommendations |
 | `--toroid-compact` | - | Compact 1-line-per-rec toroid output (text only) |
-| `--toroid-full` | - | Show top-3 toroids in table (default top-1) |
-| `--qu` | - | Custom unloaded Q for Cohn IL estimate (e.g., `--qu 150`) |
-| `--sim-matched` | - | Re-simulate with E-series matched capacitor values |
-| `--version` | - | Print version and exit |
+| `--toroid-full` | - | Show up to three qualified toroid candidates |
+| `--qu` | - | Complete resonator unloaded Q; used for Cohn estimate and nominal-build loss |
+| `--ql`, `--qc` | - | Inductor and tank-capacitor Q; combined as `1/Qu = 1/QL + 1/QC` |
+| `--resonator-impedance` | design Z | Select tank reactance `sqrt(L/C)` independently of terminations |
+| `--resonator-inductance` | - | Fix tank inductance; mutually exclusive with tank impedance |
+| `--sim-build` | - | Analyze nominal parts, effective loss, and tolerance cases |
+| `--sim-matched` | - | Deprecated compatibility alias |
 
 ### Bandpass Coupling Topologies
 
@@ -196,7 +226,15 @@ uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 
 # 5-resonator Chebyshev (odd count required)
 uv run filter-calc bp ch top -f 7.15MHz -b 200kHz -n 5 -r 0.5
+
+# Choose 1.2 µH tanks and model separate inductor/tank-capacitor Q
+uv run filter-calc bp bw top -f 14.2MHz -b 500kHz \
+  --resonator-inductance 1.2uH --ql 180 --qc 500 --sim-build
 ```
+
+The calculator calibrates each Top-C circuit to the requested −3 dB skirts and reports
+`response_validation_status`. Some designs within 10% fractional bandwidth remain outside
+the validated response envelope, and some combinations are unrealizable; inspect each result.
 
 ---
 
@@ -222,7 +260,8 @@ The wizard is a **Terminal User Interface (TUI)** built with Textual framework, 
 
 ### Design Flow
 
-The wizard guides you through a 4-screen sequence (5 if frequency plot selected):
+The wizard guides you through four screens. A selected frequency plot is rendered in Results;
+it is not a separate screen.
 
 #### 1. Welcome Screen
 Select your filter category:
@@ -308,9 +347,9 @@ Configure output format and display options:
 │ Output Options               │
 ├──────────────────────────────┤
 │ E-Series Matching:           │
-│ ❯ E24 (±5% tolerance)       │
-│   E12 (±10% tolerance)      │
-│   E96 (±1% tolerance)       │
+│ ❯ E24 (24 values/decade)    │
+│   E12 (12 values/decade)    │
+│   E96 (96 values/decade)    │
 │   None (calculated only)    │
 │                              │
 │ Output Format:               │
@@ -327,6 +366,12 @@ Configure output format and display options:
 │ ☑ Show frequency plot       │
 │ ☐ Raw units (Farads/Henries)│
 │ ☐ Quiet mode (minimal)      │
+│                              │
+│ Realized-Build Analysis:     │
+│ ☐ Analyze nominal parts and │
+│   bounded tolerances         │
+│   (reveals ports, tolerance, │
+│    Q, sample, and grid input)│
 │                              │
 │ [Space] toggle [Enter] next  │
 └──────────────────────────────┘
@@ -349,9 +394,16 @@ View calculated filter components:
 │ - Frequency plot (if chosen  │
 │   on Output Options screen)  │
 │                              │
-│ [Esc] exit wizard            │
+│ [Design Another] [Export]    │
+│ [Quit]                       │
+│ Esc: back · Q: quit          │
 └──────────────────────────────┘
 ```
+
+Output choices that would silently hide selected information are rejected. Raw table output
+may use an E-series only when realized-build analysis consumes it for nominal part selection;
+quiet output cannot hide build analysis. Export offers Text, JSON, or CSV as applicable, and
+Save can also write the selected response-data sidecar.
 
 ### Keyboard Reference
 
@@ -426,19 +478,36 @@ Structured output for programmatic use:
 }
 ```
 
+JSON is strict: non-finite numbers are rejected instead of emitting `NaN` or `Infinity`.
+With `--sim-build`, the schema separates the synthesis target, calculated response,
+nominal realization, exact fallbacks, effective loss model, tolerance cases, evaluation
+ports, and limitations. LP/HP measurements expose one cutoff; bandpass exposes two skirts,
+center, and bandwidth.
+
 ### CSV
 
 ```bash
 uv run filter-calc lp bw pi 10MHz --format csv
 ```
 
-Spreadsheet-compatible format. The header includes E-series match and toroid columns:
+Spreadsheet-compatible, RFC-style quoted CSV. Every row has the same number of columns,
+including when warning text contains commas. Preferred-value columns identify the one
+selected realization and its policy; toroid columns identify the best qualified candidate
+and explicitly mark RF Q, SRF, and power as not assessed.
+
+### SPICE
+
+```bash
+# Calculated, lossless values
+uv run filter-calc lp bw pi 10MHz --format spice --spice-realization exact
+
+# Selected nominal branches, exact fallbacks, and optional Q-derived series loss
+uv run filter-calc lp bw pi 10MHz --format spice \
+  --spice-realization nominal-build --inductor-q 100 --capacitor-q 500
 ```
-Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidQ_DC_Upper,ToroidTempCoeff_ppm
-C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,,,,,,,,,,
-C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,,,,,,,,,,
-L1,1.59,µH,,,,,,,T80-2,2,17,20,1.5895,-0.13,376.2,12.21,8178,95
-```
+
+The deck is generic SPICE. It prints load voltage and comments the exact transducer-gain
+relationship; it does not claim the voltage trace itself is transducer gain.
 
 ---
 
@@ -448,17 +517,22 @@ The calculator automatically finds the nearest standard component values for cap
 
 ### Available Series
 
-| Series | Tolerance | Values per Decade |
-|--------|-----------|-------------------|
-| E12 | ±10% | 12 |
-| E24 | ±5% | 24 |
-| E96 | ±1% | 96 |
-| None | - | Calculated values only |
+| Series | Preferred Values per Decade |
+|--------|-----------------------------|
+| E12 | 12 |
+| E24 | 24 |
+| E96 | 96 |
+| None | Calculated values only |
+
+An E-series name is not a tolerance declaration. For example, an E24-valued capacitor
+may be sold in multiple tolerances. Enter the actual tolerance separately in build analysis.
 
 ### Matching Modes
 
-- **Single value**: Closest E-series value
-- **Parallel combination**: Two values in parallel for better accuracy (additive for capacitors: C_total = C1 + C2)
+- **Single value**: selected when its absolute target error is at most 1%
+- **Parallel combination**: selected only when it improves the single-part error by at least
+  0.5 percentage points (capacitors add in parallel)
+- **Below 1 pF**: automatic selection is withheld; the output asks for an expert override
 
 **Note**: E-series matching recommendations are provided for capacitors only. Inductors are shown as raw design values — they are typically custom-wound (see toroid recommendations below).
 
@@ -467,7 +541,7 @@ The calculator automatically finds the nearest standard component values for cap
 ```
 C1 Calculated: 196.73 pF
   Nearest Std:  200.00 pF (+1.7%)
-  Parallel Std: 47.00 || 150.00 pF (+0.1%)
+  Parallel Std: 47.00 pF || 150.00 pF (+0.1%)
 ```
 
 ---
@@ -478,11 +552,11 @@ Add `--plot` to visualize filter response in the terminal. Both lowpass and high
 
 ### Full-Range and Zoomed Plots
 
-Two side-by-side ASCII plots appear automatically:
+Two vertically stacked ASCII plots appear automatically:
 
 1. **Full-Range Plot**: Shows complete response from 1 MHz to 100+ MHz or sweep range
    - Logarithmic frequency axis
-   - Full dynamic range (0 dB to max attenuation)
+   - Automatic range from 0 dB, with the lower plot limit clamped at -60 dB
    - Cutoff frequency marked with (fc)
    - Works for all filter types
 
@@ -505,8 +579,9 @@ For **Lowpass** and **Highpass**: Single column with direction arrows:
 
 For **Bandpass**: Dual columns (f_low / f_high) showing where response crosses thresholds
 
-If the bandpass filter was specified with `--fl` / `--fh`, the bandpass plot labels use
-those exact entered edge frequencies rather than reconstructing them from `f₀ ± BW/2`.
+If the bandpass filter was specified with `--fl` / `--fh`, the requested values remain in
+machine-readable metadata. Plot labels use the calculator's geometrically centered edge values,
+which reproduce the entered edges to floating-point precision.
 
 Shows "N/A" when a threshold is not reached within the sweep frequency range.
 
@@ -522,14 +597,22 @@ uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 
 ## Toroid Winding Recommendations
 
-For every inductor produced by the calculator, the tool **auto-shows** toroid recommendations for iron-powder T-series cores. Default text output shows the top-1 core (highest accuracy). Use `--toroid-full` to show top-3 in the table; JSON always includes top-3, and CSV carries the best match in each inductor row. For each recommendation you see: core name + colour, integer turn count + AWG, actual L after N rounding (plus signed error %), A_L-tolerance-derived L range, bare-copper wire length + DC resistance, DC-based Q upper bound, and core dimensions.
+For every inductor, the calculator may show a **screened winding candidate**. Automatic
+selection is intentionally limited to T25-6, T50-2, and T68-2 because those records have
+primary-sourced core, frequency, and winding-capacity data. A candidate must cover the
+design frequency, fit the published winding capacity, and keep integer-turn error within
+the core's published A_L tolerance.
+
+Default table output shows the best qualified candidate. `--toroid-full` shows up to three,
+JSON includes up to three, and CSV carries the best available candidate. “Up to” matters:
+the calculator does not fill the list with unqualified cores.
 
 ### Default text output (top-1 core)
 
 ```
-Toroid Winding Recommendations (Iron-Powder T-Series)
+Screened Toroid Winding Candidates (Iron-Powder T-Series)
 -------------------------------------------------------
-(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)
+(Integer turns, published frequency guidance, and winding capacity only)
 
   L1 target: 1.29 µH  (design freq 10 MHz)
   ────────────────────────────────────────────────────────────
@@ -537,32 +620,33 @@ Toroid Winding Recommendations (Iron-Powder T-Series)
      Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
      L range (A_L ±5%): 1.22 µH – 1.35 µH
      Wire: 294 mm of AWG 20 (0.812 mm)   DCR: 9.5 mΩ
-     Q (DC est, upper bound): 8,450 @ 10 MHz
+     Wire-only ωL/Rdc diagnostic ceiling: 8,450 @ 10 MHz
+     RF Q / SRF / power: not assessed
      Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
 ```
 
 ### Full output: show top-3 (`--toroid-full`)
 
-Use `--toroid-full` to show top-3 cores in table format (JSON always includes top-3 regardless; CSV carries the best match).
+Use `--toroid-full` to show up to three qualified cores in table format.
 
 ### Compact output (`--toroid-compact`)
 
 ```
   L1 target: 1.29 µH @ 10 MHz
-  1. T68-2    N=15 AWG20 L=1.283µH (-0.40%) R=10mΩ Q≈8,450
-  2. T50-6    N=18 AWG22 L=1.296µH (+0.65%) R=15mΩ Q≈5,463
-  3. T37-2    N=18 AWG24 L=1.296µH (+0.65%) R=18mΩ Q≈4,629
+  1. T68-2    N=15 AWG20 L=1.283µH (-0.40%) Rdc=10mΩ ωL/Rdc≤8,450
 ```
 
-Use `--toroid-compact` to show all three cores in condensed text format (ignored for JSON/CSV).
+Use `--toroid-compact` for one line per qualified candidate in table output.
 
 ### Disable toroid output (`--no-toroids`)
 
-`--no-toroids` skips toroid computation entirely and keeps the output schema (text, JSON, CSV) backward-compatible with pre-feature consumers. `--no-toroids` overrides `--toroid-compact` if both are given.
+`--no-toroids` skips candidate computation. Contradictory combinations such as
+`--no-toroids --toroid-full` are usage errors rather than silently ignored controls.
 
 ### Bandpass behaviour
 
-All N resonators share the same `L_resonant`, so bandpass prints a single toroid block labelled `L_resonant (applies to L1…Ln)`. JSON output adds the top-level field `resonator_toroid_recommendations`; CSV writes N duplicate inductor rows, each carrying the same best-match toroid columns.
+All N resonators share the chosen tank inductance, so bandpass prints one candidate block
+that applies to L1…Ln. JSON retains candidate provenance and assessment status.
 
 ### Design frequency used
 
@@ -571,7 +655,9 @@ All N resonators share the same `L_resonant`, so bandpass prints a single toroid
 
 ### Important caveats
 
-- **Q is an upper bound**: computed from DC resistance only. Skin effect, core loss, and proximity effect are not modelled. Actual Q at HF is typically 5–10× lower.
-- **Frequency gating is a hard filter**: cores whose published range does not cover the design freq are excluded outright, not penalised.
-- **Wire-fit is conservative**: 0.9 fill factor × 1.07 enamel factor. Expect real windings to match or exceed the reported N_max.
-- See `docs/caveats-and-known-issues.md` for the full deferred list (FT ferrite, SRF, saturation, etc.).
+- **No RF suitability claim**: RF Q, core loss, SRF, saturation, temperature rise, and
+  power handling are not modeled. `ωL/Rdc` is only a wire-loss diagnostic ceiling.
+- **Frequency guidance is a hard screen**: a core outside its published range is excluded.
+- **Published winding tables are authoritative** where available; geometric estimates are
+  labeled and are not used to promote unverified legacy records into automatic selection.
+- Measure the built filter and consult the manufacturer data before applying power.

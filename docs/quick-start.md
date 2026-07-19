@@ -35,8 +35,30 @@ uv run filter-calc bandpass butterworth top -f 14.175MHz -b 350kHz
 uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 ```
 
-With `--fl` / `--fh`, the calculator uses the geometric center internally and keeps your
-exact low/high edge values in the output and bandpass plot labels.
+With `--fl` / `--fh`, the calculator uses the geometric center internally. Reported
+edges are reconstructed from that center and bandwidth and agree with the requested
+values to floating-point precision.
+
+Every bandpass result includes a per-design response status. Inspect warnings and
+`response_validation_status` before treating a design as build-ready.
+
+### Analyze a Realized Build
+
+```bash
+# Select nominal capacitor branches, screen toroids, apply component Q,
+# and run deterministic tolerance corners plus two repeatable sample cases.
+uv run filter-calc lp bw pi 10MHz --sim-build \
+  --inductor-q 100 --capacitor-q 500 \
+  --cap-tolerance 5 --ind-tolerance 10 \
+  --samples 2 --seed 73 --format json
+
+# Export the same nominal-build circuit as a generic SPICE deck.
+uv run filter-calc lp bw pi 10MHz --format spice \
+  --spice-realization nominal-build
+```
+
+Build analysis is a finite circuit simulation, not a measurement, guaranteed worst
+case, yield prediction, or substitute for a VNA check.
 
 ### Interactive Wizard
 
@@ -55,7 +77,14 @@ Running with no arguments starts the interactive wizard.
 | `-r` | Chebyshev ripple in dB |
 | `--plot` | Show ASCII frequency response |
 | `--format json` | Output as JSON |
-| `-e E96` | Use E96 series for matching |
+| `-e E96` | Use E96 preferred-value density for capacitor selection |
+| `--no-match` | Keep calculated capacitor values; do not select preferred values |
+| `--no-toroids` | Disable screened toroid candidates |
+| `--sim-build` | Compare calculated and realized circuits with tolerance screening |
+| `--format spice` | Export a generic exact or nominal-build SPICE deck |
+
+E12/E24/E96 do not specify part tolerance. Enter capacitor and inductor tolerances
+separately when using build analysis.
 
 ## Filter Type Aliases
 

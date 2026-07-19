@@ -1,423 +1,213 @@
 # Testing Guide
 
-Comprehensive test suite for the RF Filter Calculator.
+**Last updated:** July 19, 2026
+**Applies to:** RF Filter Calculator 2.1.0
 
----
+## Quality gates
 
-## Running Tests
+The repository has more than 2,000 collected pytest cases. CI requires at least 90% line
+coverage and runs the complete suite on Python 3.10, 3.11, 3.12, and 3.13. A skipped test
+is reported as a skip; failures, lint errors, format errors, and coverage shortfalls are
+not hidden.
 
-### Quick Start
-
-```bash
-# Run all tests
-uv run pytest tests/
-
-# Run with verbose output
-uv run pytest tests/ -v
-
-# Run specific test file
-uv run pytest tests/test_lowpass_calculations.py
-
-# Run with coverage report
-uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
-```
-
-### Requirements
-
-Install with the dev dependency group:
+Run the same primary gates locally:
 
 ```bash
-uv sync --group dev
+uv sync --locked --group dev
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked pytest tests/ \
+  --cov=filter_lib \
+  --cov-report=term-missing \
+  --cov-fail-under=90
 ```
 
----
+For a quick count without executing tests:
 
-## Test Suite Overview
-
-| Test File | Tests | Description |
-|-----------|-------|-------------|
-| `test_wizard_screens_coverage.py` | 102 | FilterScreenNavigationMixin, screen navigation, validation via Mock pattern |
-| `test_cli_and_helpers.py` | 97 | CLI commands, plotting, and formatting helpers (includes `_lp_args`/`_hp_args`/`_bp_args` Namespace builders) |
-| `test_plotting_edge_cases.py` | 81 | ASCII plot edge cases |
-| `test_plot_zoomed.py` | 68 | Zoomed passband plot computation and rendering |
-| `test_netlist_simulation.py` | 68 | AC nodal-analysis solver, netlist builders, bandpass simulation acceptance matrix |
-| `test_plot_threshold_analysis.py` | 63 | dB threshold detection and summary tables |
-| `test_transfer_functions.py` | 56 | Frequency response (shared + LPF/HPF/BPF) |
-| `test_cli_coverage_gaps.py` | 52 | CLI main(), setup_parser wiring, CLI helpers, validation error paths |
-| `test_transfer_response_dispatch.py` | 51 | Response function factory |
-| `test_bandpass_modules.py` | 50 | Bandpass g-values, formatters, display, diagrams |
-| `test_display_modules.py` | 49 | Output formatting (JSON/CSV/table/topology) |
-| `test_wizard_unit.py` | 47 | Wizard module unit tests |
-| `test_bandpass_calculations.py` | 47 | Coupled resonator calculations, end-coupling, -3 dB edges |
-| `test_eseries_matching.py` | 40 | E12/E24/E96 component matching (capacitors only) |
-| `test_codex_review_fixes.py` | 38 | Chebyshev BP 3dB semantics, wizard HP harmonic parallel, NaN/inf validation |
-| `test_wizard_event_handlers_and_final_edges.py` | 33 | Input.Submitted handlers, _on_filter_type_changed, csv export, wizard entry |
-| `test_lowpass_calculations.py` | 27 | Pi/T topology lowpass calculations |
-| `test_chebyshev_calculator.py` | 27 | Chebyshev g-value computation |
-| `test_transfer_and_shared_edges.py` | 25 | HP transfer alias dispatch, E-series edge cases, toroid validation |
-| `test_toroid_integration.py` | 24 | End-to-end LP/HP/BP × flag matrix |
-| `test_lp_hp_display_golden.py` | 24 | Golden snapshots of LP/HP rendered table, JSON, and CSV output |
-| `test_highpass_calculations.py` | 21 | Pi/T topology highpass calculations |
-| `test_toroid_inductance.py` | 20 | L↔N math + T68-2 unit-mismatch regression |
-| `test_parsing_validation.py` | 20 | Input parsing and validation |
-| `test_topology_calculations.py` | 19 | Pi/T topology formulas and component counts |
-| `test_toroid_wire.py` | 18 | AWG, wire length, DCR, mechanical fit |
-| `test_toroid_selection.py` | 12 | Freq-range gate + ranking algorithm |
-| `test_toroid_display.py` | 12 | Full/compact text, JSON, CSV formatters |
-| `test_toroid_core_data.py` | 12 | Iron-powder T-series core database |
-| `test_wizard_topology_diagrams.py` | 11 | Wizard topology diagram rendering |
-| `test_wizard_screens_regressions.py` | 11 | Wizard screen regressions via Mock pattern |
-| `test_wizard_state.py` | 2 | FilterState dataclass |
-| `conftest.py` | - | Shared pytest fixtures and configuration |
-
-**Total: 1227 tests** (94% coverage)
-
-**New Modules** (tested and integrated):
-- `filter_lib/shared/lp_hp_base_calculations.py` - Shared LP/HP strategy calculations
-- `filter_lib/shared/lp_hp_base_transfer_functions.py` - Shared LP/HP transfer functions
-- `filter_lib/shared/plot_ascii_renderers.py` - ASCII plot rendering with db_floor
-- `filter_lib/shared/plot_zoom_pairs.py` - Zoomed passband plot pairs
-- `filter_lib/shared/plot_threshold_analysis.py` - dB threshold detection
-- `filter_lib/shared/response_export.py` - unified JSON/CSV response export
-- `filter_lib/shared/transfer_response_dispatch.py` - Response function factory
-- `filter_lib/wizard/filter_type_calculators.py` - Wizard calculation logic
-- `filter_lib/wizard/formatting_helpers.py` - Wizard formatting utilities
-- `filter_lib/wizard/filter_screen_navigation_mixin.py` - Screen navigation mixin
-- `filter_lib/shared/toroid_core_data.py` - 43-core iron-powder T-series database (Apr 2026)
-- `filter_lib/shared/toroid_inductance.py` - Turns ↔ inductance math (Apr 2026)
-- `filter_lib/shared/toroid_wire.py` - AWG, wire length, DCR, mechanical fit (Apr 2026)
-- `filter_lib/shared/toroid_selection.py` - Top-3 recommendation ranking (Apr 2026)
-- `filter_lib/shared/toroid_display.py` - Full/compact text, JSON, CSV formatters (Apr 2026)
-- `filter_lib/cli/toroid_flags.py` - Shared `--no-toroids` / `--toroid-compact` flags (Apr 2026)
-- `filter_lib/wizard/radio_button_helpers.py` - Radio button utilities
-- `filter_lib/shared/netlist_simulation.py` - Stdlib AC nodal-analysis solver (Jun 2026)
-- `filter_lib/shared/netlist_builders.py` - Component synthesis for simulation (Jun 2026)
-- `filter_lib/shared/lp_hp_display.py` - Single LP/HP table renderer for CLI and wizard (Jun 2026)
-
----
-
-## Test Categories
-
-### Calculation Tests
-
-Verify mathematical correctness of filter component calculations.
-
-**Lowpass (Pi/T Topology)**
-- Butterworth coefficient verification against Zverev formulas
-- Chebyshev g-value computation for arbitrary ripple
-- Bessel filter constants from Thomson filter theory
-- Impedance and frequency scaling relationships
-- Component count ranges (2-9 elements)
-
-**Highpass (Pi/T Topology)**
-- HPF derived from lowpass prototype via 1/g transformation
-- T: series capacitors at odd positions, shunt inductors at even positions
-- Pi: shunt inductors at odd positions, series capacitors at even positions
-- Scaling verification across frequency/impedance ranges
-
-**Bandpass (Coupled Resonator)**
-- Coupling coefficient calculations
-- External Q computations
-- Resonator component sizing
-- Tank and coupling capacitor values
-
-### Validation Tests
-
-Verify input validation and error handling.
-
-```python
-# Example: Negative impedance rejection
-def test_negative_impedance_raises():
-    with pytest.raises(ValueError, match="must be positive"):
-        parse_impedance("-50ohm")
-
-# Example: Zero frequency rejection
-def test_zero_frequency_raises():
-    with pytest.raises(ValueError, match="must be positive"):
-        parse_frequency("0Hz")
+```bash
+uv run --locked pytest --collect-only -q
 ```
 
-**Validated Inputs:**
-- Frequency: Must be positive and finite (NaN/inf rejected), supports suffixes (MHz, kHz, M, k, G)
-- Impedance: Must be positive and finite (> 0)
-- Component count: Must be 2-9
-- Chebyshev ripple: Must be positive and finite; wizard and bandpass CLI additionally cap ripple at 3.0 dB (LP/HP CLI enforces only > 0)
+## Narrow-first workflow
 
-### Display Tests
+Run the smallest relevant file or test first, then broaden when a shared contract changed:
 
-Verify output formatting for all export formats.
+```bash
+# One file
+uv run pytest tests/test_bandpass_calculations.py
 
-**JSON Output**
-- Correct structure with filter_type, frequency, impedance
-- Component arrays with proper naming (C1, L1, etc.)
-- Ripple included for Chebyshev filters
+# One class or test
+uv run pytest tests/test_eseries_matching.py::TestRecommendationPolicy
 
-**CSV Output**
-- Header row starts `Component,Value,Unit,...` followed by E-series match columns (`NearestStdValue`, `ParallelStdValues`, ...) and toroid columns (`ToroidCore`, `ToroidTurns`, ...)
-- Proper component ordering (capacitors first for lowpass)
-- Engineering notation units (pF, nF, µH)
+# Related feature cluster
+uv run pytest \
+  tests/test_build_simulation.py \
+  tests/test_build_output.py \
+  tests/test_spice_export.py
 
-**Quiet Mode**
-- Minimal output format
-- Raw SI values when requested
-
----
-
-## Coverage Report
-
-### Fully Covered Modules (100%)
-
-| Module | Description |
-|--------|-------------|
-| `filter_lib/lowpass/calculations.py` | Lowpass component formulas |
-| `filter_lib/highpass/calculations.py` | Highpass component formulas |
-| `filter_lib/bandpass/calculations.py` | Coupled-resonator and end-coupling formulas |
-| `filter_lib/shared/chebyshev_g_calculator.py` | Chebyshev g-value math |
-| `filter_lib/shared/constants.py` | Butterworth/Bessel constants |
-| `filter_lib/shared/parsing.py` | Input parsing/validation |
-| `filter_lib/shared/transfer_functions.py` | Transfer function entry points |
-
-### Partially Covered Modules
-
-| Module | Coverage | Notes |
-|--------|----------|-------|
-| `filter_lib/shared/display_common.py` | 99% | Core formatting tested |
-| `filter_lib/shared/eseries.py` | 98% | Matching algorithms tested |
-| `filter_lib/shared/lp_hp_base_calculations.py` | 99% | Strategy logic tested |
-| `filter_lib/shared/lp_hp_base_transfer_functions.py` | 98% | Transfer functions tested |
-
-### Wizard Screen Coverage (Mock-Based Testing)
-
-| Module | Coverage | Testing Method |
-|--------|----------|-----------------|
-| `filter_lib/wizard/screens/lowpass.py` | 78% | Mock(spec=RadioSet/Input/...); `type(screen).app = property(...)` pattern |
-| `filter_lib/wizard/screens/highpass.py` | 78% | Mock pattern + state injection |
-| `filter_lib/wizard/screens/bandpass.py` | 80% | Mock pattern + validation error paths |
-| `filter_lib/wizard/screens/welcome.py` | 76% | Mock pattern + category selection |
-| `filter_lib/wizard/screens/output_options.py` | 67% | Mock pattern + option transitions |
-| `filter_lib/wizard/screens/results.py` | 85% | Mock pattern + async worker testing |
-| `filter_lib/wizard/app.py` | 57% | Screen stack, filter_state access (compose/on_mount uncovered) |
-
-**Coverage Method**: Mock Textual widgets (RadioSet, Input, etc.) with spec enforcement. Override `type(screen).app` via property to inject mock FilterWizardApp. Call screen handler methods directly. Covers all validation paths, state updates, and navigation transitions.
-
-**Deferred**: Full `compose()`/`on_mount` coverage (requires Textual pilot harness for widget mount/layout testing). Core calculation and event logic is fully tested.
-
----
-
-## Mathematical Verification
-
-### Butterworth Coefficients
-
-Tests verify g-values match published Zverev formulas:
-
-```
-g_k = 2 * sin((2k-1) * π / (2n))
+# Full suite and coverage before handoff
+uv run pytest tests/ --cov=filter_lib --cov-report=term-missing --cov-fail-under=90
 ```
 
-For n=3: g = [1.0, 2.0, 1.0]
+Do not weaken assertions or exclude code merely to restore a green gate. A numeric bug
+should normally get a regression that reproduces the original values.
 
-### Chebyshev G-Values
+## What the suite covers
 
-Computed using closed-form expressions:
+### Synthesis and public APIs
 
-```python
-epsilon = sqrt(10^(ripple_db/10) - 1)
-gamma = sinh(asinh(1/epsilon) / n)
-```
+- Butterworth, Chebyshev, and Bessel LP/HP ladder values and scaling laws
+- Pi/T topology placement and public tuple return contracts
+- Chebyshev formula-based g-values over `(0, 3]` dB, including minimum-subnormal ripple
+- Top-C series-coupled bandpass synthesis, end coupling, tank compensation, and custom
+  tank impedance/inductance
+- Public type/range validation, including bool rejection and finite-result behavior at
+  floating-point extremes
 
-Tests verify against standard tables for 0.1, 0.5, 1.0, 3.0 dB ripple.
+### Independent bandpass verification
 
-### Bessel Constants
+The bandpass tests do not rely only on synthesis internals. They build the produced
+passive circuit, run a dense nodal sweep, locate the center-connected −3 dB region and
+outer skirts, and compare measured center, bandwidth, shape, ripple, and stopband points.
 
-Pre-computed from Thomson filter theory for maximally flat group delay. Verified for orders 2-9.
+An exhaustive 128-cell study spans:
 
-### Scaling Laws
+- Butterworth and Bessel orders 2–9;
+- Chebyshev odd orders 3, 5, 7, and 9;
+- multiple fractional bandwidths and Chebyshev ripple values.
 
-Tests verify proper frequency and impedance scaling:
+The matrix locks the documented validated/outside/unsupported classifications and checks
+that each individual result reports its own status.
 
-```
-Lowpass:  C = g / (2π * f * Z0),   L = g * Z0 / (2π * f)
-Highpass: C = 1 / (g * 2π * f * Z0), L = Z0 / (g * 2π * f)
-```
+### Physical realization
 
----
+- E12/E24/E96 preferred-value search and deterministic selection policy
+- one-part preference, material two-part improvement threshold, and sub-1 pF expert action
+- toroid primary-source eligibility, frequency guidance, integer-turn error, winding
+  capacity, deterministic ranking, and empty-candidate behavior
+- truthful fallbacks when a nominal part or screened winding is unavailable
 
-## Testing CLI Subcommands
+### Circuit and build analysis
 
-### Namespace Builder Pattern
+- exact and nominal named circuit construction
+- unequal source/load transducer power gain
+- scale-normalized nodal solution across normal, extreme, and subnormal impedances
+- category-aware LP/HP cutoff and BP center/bandwidth measurements
+- Q-derived series loss at an explicit reference frequency
+- deterministic tolerance corners and repeatable seeded bounded samples
+- build-output truthfulness: actual physical elements, fallback disclosure, loss model,
+  generated case counts, and limits
 
-CLI subcommands are tested by constructing `argparse.Namespace` objects directly, without re-parsing argv:
+### Output contracts
 
-```python
-# From tests/test_cli_and_helpers.py
-from filter_lib.cli.lowpass_cmd import run as lowpass_run
+- table wording for calculated, estimated, and simulated quantities
+- strict JSON rejection of non-finite values and stable machine-field semantics
+- rectangular quoted CSV, including warning text containing commas
+- exact and nominal-build generic SPICE topology/value consistency
+- analytic LP/HP and nodal BP response-data schemas
+- CLI rejection of accepted-but-ignored or contradictory flags
 
-def test_lowpass_cli_butterworth():
-    """Test lowpass CLI command with Namespace builder."""
-    args = _lp_args(filter_type="butterworth", components=5)
-    lowpass_run(args)  # prints the result table
-```
+SPICE tests verify the generated generic deck structurally and numerically against the
+internal named circuit. An external simulator is not a test-suite dependency.
 
-**Builders** (`_lp_args`, `_hp_args`, `_bp_args`) are helper functions in `tests/test_cli_and_helpers.py`. Each returns a properly configured Namespace with all required fields and defaults; pass overrides as kwargs to exercise validation branches.
+### Wizard and lifecycle
 
-### Direct setup_parser() Invocation
+- parameter validation and state propagation
+- category forms, output/build controls, and help labels
+- real Textual pilot navigation where event-loop behavior matters
+- calculation revisioning: stale, cancelled, or popped-screen workers cannot publish
+- failure clearing, pending-save blocking, component export preselection, and independent
+  response sidecars
 
-Parser setup can also be tested directly:
+### Packaging and CI
 
-```python
-def test_lowpass_parser_setup():
-    """Verify lowpass subcommand parser configuration."""
-    parser = argparse.ArgumentParser()
-    lowpass_cmd.setup_parser(parser)
-    # Verify parser has expected arguments
-    args = parser.parse_args([...])
-    assert args.filter_type is not None
-```
+- dynamic version and project metadata
+- wheel/sdist contents, including `toroid_core_data.json` and `styles.tcss`
+- installed-wheel CLI/API smoke checks from an isolated environment
+- locked dependency resolution
 
----
+## Coverage reports
 
-## Coverage Reports
-
-### Terminal Summary
+Terminal report:
 
 ```bash
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-### JSON Report (for CI/analysis)
+JSON report for analysis:
 
 ```bash
-uv run pytest tests/ --cov=filter_lib --cov-report=json:/tmp/rf-cov.json
+uv run pytest tests/ \
+  --cov=filter_lib \
+  --cov-report=json:/tmp/rf-filter-coverage.json
 ```
 
-Produces JSON with per-module coverage percentages for programmatic analysis.
-
----
-
-## Adding New Tests
-
-### Test Structure
-
-```python
-import pytest
-from filter_lib.module import function_to_test
-
-class TestFeatureName:
-    """Tests for specific feature."""
-
-    def test_basic_case(self):
-        """Describe what this tests."""
-        result = function_to_test(args)
-        assert result == expected
-
-    def test_edge_case(self):
-        """Test boundary conditions."""
-        with pytest.raises(ValueError):
-            function_to_test(invalid_args)
-```
-
-### Fixtures
-
-Common test data is provided via pytest fixtures:
-
-```python
-@pytest.fixture
-def lowpass_result():
-    """Sample lowpass filter result."""
-    return {
-        'filter_type': 'butterworth',
-        'freq_hz': 10e6,
-        'impedance': 50.0,
-        'order': 5,
-        'capacitors': [1e-10, 2e-10, 1e-10],
-        'inductors': [1e-6, 1e-6],
-        'ripple': None,
-    }
-```
-
-### Naming Conventions
-
-- Test files: `test_<module_name>.py`
-- Test classes: `Test<FeatureName>`
-- Test methods: `test_<specific_behavior>`
-
----
-
-## Continuous Integration
-
-### GitHub Actions CI Pipeline
-
-Tests run automatically on every push and PR to `main` via `.github/workflows/ci.yml`:
-
-**Pipeline stages:**
-1. **Lint** - Ruff linting checks (errors fail fast)
-2. **Format** - Ruff format verification
-3. **Test** - Full pytest suite with coverage reporting
-
-**Environment:**
-- Python 3.13
-- ubuntu-latest runner
-- Full dev dependencies group
-
-### Running Tests Locally
+HTML report:
 
 ```bash
-# Standard test run
-uv run pytest tests/ -v
-
-# With coverage threshold
-uv run pytest tests/ --cov=filter_lib --cov-fail-under=80
-
-# Generate HTML coverage report
 uv run pytest tests/ --cov=filter_lib --cov-report=html
+open htmlcov/index.html       # macOS
 ```
 
-### Code Linting
+The project targets useful branch and contract coverage, not an artificial 100% number.
+New code should keep the repository above the enforced floor and should directly exercise
+its meaningful success and failure paths.
 
-[Ruff](https://docs.astral.sh/ruff/) enforces code quality:
+## Multi-version checks
+
+CI is authoritative for all four supported Python versions. Locally, uv can select an
+installed interpreter explicitly:
 
 ```bash
-# Check for linting issues
-uv run ruff check .
-
-# Format code
-uv run ruff format .
-
-# Check formatting without changes
-uv run ruff format --check .
+uv run --python 3.10 --locked pytest tests/
+uv run --python 3.13 --locked pytest tests/
 ```
 
-**Configuration** (pyproject.toml):
-- Target: Python 3.10+
-- Line length: 100 chars
-- Rules: E (errors), F (pyflakes), I (imports), UP (upgrades), B (flake8-bugbear)
-- Ignored: E501 (line too long - handled by formatter), B905
+Do not update the lock file during a verification-only run. Use `uv lock --check` to
+confirm it matches `pyproject.toml`.
 
----
+## Distribution verification
+
+```bash
+uv build
+RF_FILTER_DIST_DIR="$PWD/dist" uv run pytest tests/test_packaging.py
+python tests/wheel_smoke.py dist/*.whl
+```
+
+The smoke script installs the wheel into a temporary isolated environment and exercises
+the installed command and package data rather than importing the source checkout.
+
+## Adding tests
+
+- Name files `test_<behavior>.py` and tests `test_<observable_contract>`.
+- Prefer reference values, identities, or independently computed expectations over
+  repeating the implementation formula.
+- Parameterize boundary families instead of copying nearly identical tests.
+- Assert both the result and the claim: status fields, warnings, units, and output labels
+  are part of an engineering calculator's correctness.
+- For randomized screening, always supply a fixed seed and assert repeatability; do not
+  describe bounded samples as yield or Monte Carlo statistics.
+- Keep fixtures small and real. Avoid mocks where a fast deterministic calculation can be
+  exercised directly.
+
+## CI workflow
+
+`.github/workflows/ci.yml` contains three jobs:
+
+1. **Ruff quality** — lint and format check.
+2. **Python matrix** — full suite with coverage on 3.10–3.13.
+3. **Build and smoke distributions** — build, inspect, install, smoke, and upload
+   artifacts after quality/tests pass.
+
+The workflow uses read-only repository permissions and cancels an older in-progress run
+for the same ref. It performs CI and artifact upload; it does not deploy a release.
 
 ## Troubleshooting
 
-### Import Errors
-
-Ensure the package is installed in development mode:
-
-```bash
-uv sync --group dev
-```
-
-### Coverage Not Detected
-
-Run from repository root:
-
-```bash
-cd /path/to/rf-filter-calculator
-uv run pytest tests/ --cov=filter_lib
-```
-
-### Specific Test Failures
-
-Run individual test with verbose output:
-
-```bash
-uv run pytest tests/test_lowpass_calculations.py::TestButterworthLowpass::test_basic_2component_50ohm_1mhz -v
-```
+- If imports resolve to the wrong checkout, use `uv run python -c 'import filter_lib; print(filter_lib.__file__)'`.
+- If coverage is unexpectedly low, confirm the command includes `--cov=filter_lib` and
+  that tests are not being run from an installed copy outside the checkout.
+- If a failure appears only under one Python version, reproduce with `uv run --python X.Y
+  --locked ...` before changing compatibility code.
+- If a Textual pilot hangs, run the single pilot with `-vv -s` and inspect worker
+  completion/state revisioning; do not replace it with arbitrary sleeps.

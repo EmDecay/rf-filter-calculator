@@ -1,153 +1,89 @@
 # Sample Output
 
-Example outputs for all filter types and formats.
+These examples reflect version 2.1.0. Long machine-readable payloads are shown as
+selected valid fragments; run the command to obtain the complete schema.
 
----
-
-## Lowpass Filter (Butterworth, 5th Order, Pi Topology)
+## Lowpass Table
 
 ```bash
-uv run filter-calc lp bw pi 10MHz -n 5 --plot
+uv run filter-calc lp bw pi 10MHz --no-toroids
 ```
 
-```
+```text
 Butterworth PI Low Pass Filter
 ==================================================
 Cutoff Frequency:    10 MHz
 Impedance Z0:        50 Ohm
-Order:               5
+Order:               3
 ==================================================
 
 Topology:
-  IN ───┬───┤ L1 ├───┬───┤ L2 ├───┬─── OUT
-        │            │            │       
-       ===          ===          ===      
-       C1           C2           C3       
-        │            │            │       
-       GND          GND          GND      
+  IN ───┬───┤ L1 ├───┬─── OUT
+        │            │
+       ===          ===
+       C1           C2
+        │            │
+       GND          GND
 
-                 Component Values                 
+                 Component Values
 ┌────────────────────────┬────────────────────────┐
 │       Capacitors       │       Inductors        │
 ├────────────────────────┼────────────────────────┤
-│ C1: 196.73 pF          │ L1: 1.29 µH            │
-│ C2: 636.62 pF          │ L2: 1.29 µH            │
-│ C3: 196.73 pF          │                        │
-└────────────────────────┴────────────────────────┘
-Inductors: wind to value (see toroid recommendations)
-
-E24 Standard Capacitor Recommendations
----------------------------------------------
-(Calculated values with nearest standard matches)
-
-C1 Calculated: 196.73 pF
-  Nearest Std:  200.00 pF (+1.7%)
-  Parallel Std: 47.00 pF || 150.00 pF (+0.1%)
-C2 Calculated: 636.62 pF
-  Nearest Std:  620.00 pF (-2.6%)
-  Parallel Std: 75.00 pF || 560.00 pF (-0.3%)
-C3 Calculated: 196.73 pF
-  Nearest Std:  200.00 pF (+1.7%)
-  Parallel Std: 47.00 pF || 150.00 pF (+0.1%)
-
-Toroid Winding Recommendations (Iron-Powder T-Series)
--------------------------------------------------------
-(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)
-
-  L1 target: 1.29 µH  (design freq 10 MHz)
-  ────────────────────────────────────────────────────────────
-  1. T68-2  (Red/Clear, mix 2, 95 ppm/°C)
-     Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
-     L range (A_L ±5%): 1.22 µH – 1.35 µH
-     Wire: 308 mm of AWG 20 (0.812 mm)   DCR: 10.0 mΩ
-     Q (DC est, upper bound): 8,072 @ 10 MHz
-     Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
-
-  L2 target: 1.29 µH  (design freq 10 MHz)
-  ────────────────────────────────────────────────────────────
-  1. T68-2  (Red/Clear, mix 2, 95 ppm/°C)
-     Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
-     L range (A_L ±5%): 1.22 µH – 1.35 µH
-     Wire: 308 mm of AWG 20 (0.812 mm)   DCR: 10.0 mΩ
-     Q (DC est, upper bound): 8,072 @ 10 MHz
-     Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
-
-Frequency Response (dB)
-
-    0 │███████████████████████████                         
-      │█████████████████████████████                       
-      │██████████████████████████████                      
-      │████████████████████████████████                    
-      │██████████████████████████████████                  
-  -30 │███████████████████████████████████                 
-      │█████████████████████████████████████               
-      │███████████████████████████████████████             
-      │████████████████████████████████████████            
-  -60 │██████████████████████████████████████████████████ █
-      +┼──────┼─────────┼───────┼───────┼─────────┼───────┼
-       1M                     10M(fc)                   100M
-```
-
----
-
-## Highpass Filter (Chebyshev, 5th Order, T Topology, 0.5 dB Ripple)
-
-```bash
-uv run filter-calc hp ch t 14MHz -r 0.5 -n 5
-```
-
-```
-Chebyshev T High Pass Filter
-==================================================
-Cutoff Frequency:    14 MHz
-Impedance Z0:        50 Ohm
-Ripple:              0.5 dB
-Order:               5
-==================================================
-
-Topology:
-       IN ────┤ L1 ├────┬────┤ L2 ├────┬──── OUT
-              │         │            │         
-              L3        L4          L5        
-              │         │            │         
-             GND   ┌────┴────┐      GND      
-                   C1        C2             
-                   │         │              
-                  GND       GND             
-
-                 Component Values                 
-┌────────────────────────┬────────────────────────┐
-│       Capacitors       │       Inductors        │
-├────────────────────────┼────────────────────────┤
-│ C1: 31.82 pF           │ L1: 169.63 nH          │
-│ C2: 31.82 pF           │ L2: 169.63 nH          │
-│                        │ L3: 506.77 nH          │
-│                        │ L4: 506.77 nH          │
-│                        │ L5: 506.77 nH          │
+│ C1: 318.31 pF          │ L1: 1.59 µH            │
+│ C2: 318.31 pF          │                        │
 └────────────────────────┴────────────────────────┘
 Inductors: wind to value
 
-E24 Standard Capacitor Recommendations
+E24 Preferred-Value Capacitor Selection
 ---------------------------------------------
-(Calculated values with nearest standard matches)
+(Series density is not part tolerance; policy selects at most one realization;
+expert action may be required)
 
-C1 Calculated: 31.82 pF
-  Nearest Std:  33.00 pF (+3.6%)
-  Parallel Std: 12.00 pF || 22.00 pF (-0.4%)
-C2 Calculated: 31.82 pF
-  Nearest Std:  33.00 pF (+3.6%)
-  Parallel Std: 12.00 pF || 22.00 pF (-0.4%)
+C1 Calculated: 318.31 pF
+  Nearest Std:  330.00 pF (+3.7%)
+  Parallel Std: 47.00 pF || 270.00 pF (-0.4%)
+C2 Calculated: 318.31 pF
+  Nearest Std:  330.00 pF (+3.7%)
+  Parallel Std: 47.00 pF || 270.00 pF (-0.4%)
 ```
 
----
+The parallel row appears only when policy selects it: it must improve absolute error by
+at least 0.5 percentage points. A target below 1 pF is instead labeled
+`EXPERT ACTION REQUIRED`; the nearest enumerated value is reference-only and is not
+silently selected.
 
-## Bandpass Filter (Butterworth, 3 Resonators, Top-C Series Coupling)
+## Highpass Table
 
 ```bash
-uv run filter-calc bp bw top -f 14.175MHz -b 350kHz -n 3
+uv run filter-calc hp bw t 10MHz --no-toroids
 ```
 
+```text
+Butterworth T High Pass Filter
+==================================================
+Cutoff Frequency:    10 MHz
+Impedance Z0:        50 Ohm
+Order:               3
+==================================================
+
+Topology:
+  IN ───┤C1├───┬───┤C2├─── OUT
+               │
+              ===
+              L1
+               │
+              GND
+
+Component values: C1 = C2 = 318.31 pF; L1 = 397.89 nH
 ```
+
+## Calibrated Bandpass Table
+
+```bash
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz --no-toroids --no-match
+```
+
+```text
 Butterworth Coupled Resonator Bandpass Filter
 ==================================================
 Center Frequency f₀: 14.18 MHz
@@ -160,80 +96,26 @@ Resonators:          3
 Coupling:            Top-C (Series)
 ==================================================
 
-Minimum usable Q (severe loss at this value): 81
-  (Q safety factor: 2.0)
+Loss examples use complete-resonator unloaded Q (not inductor Q alone).
 Est. insertion loss (Cohn): 7.0 dB @ Qu=100, 2.8 dB @ Qu=250
 
-Topology:
-      Ce_in     Cs12           Cs23      Ce_out     
-  IN ──┤├──┬──────┤├──────┬──────┤├──────┬──┤├── OUT
-           │              │              │          
-        ┌──┴──┐        ┌──┴──┐        ┌──┴──┐       
-        │     │        │     │        │     │       
-        Cp1  L1        Cp2  L2        Cp3  L3       
-        │     │        │     │        │     │       
-        └──┬──┘        └──┬──┘        └──┬──┘       
-           │              │              │          
-          GND            GND            GND         
-
-                 Component Values                 
-┌────────────────────────┬────────────────────────┐
-│    Tank Capacitors     │       Inductors        │
-├────────────────────────┼────────────────────────┤
-│ Cp1: 185.79 pF         │ L1: 561.39 nH          │
-│ Cp2: 216.72 pF         │ L2: 561.39 nH          │
-│ Cp3: 185.79 pF         │ L3: 561.39 nH          │
-└────────────────────────┴────────────────────────┘
-Inductors: wind to value (see toroid recommendations)
-
-┌────────────────────────┐
-│  Coupling Capacitors   │
-├────────────────────────┤
-│ Ce_in: 35.73 pF        │
-│ Cs12: 3.92 pF          │
-│ Cs23: 3.92 pF          │
-│ Ce_out: 35.73 pF       │
-└────────────────────────┘
-
-External Q (input):  40.50 (realized by Ce_in)
-External Q (output): 40.50 (realized by Ce_out)
-
-E24 Standard Capacitor Recommendations
-─────────────────────────────────────────────
-(Calculated values with nearest standard matches)
-
-Cp1 Calculated: 185.79 pF
-  Nearest Std:  180.00 pF (-3.1%)
-  Parallel Std: 36.00 pF || 150.00 pF (+0.1%)
-Cp2 Calculated: 216.72 pF
-  Nearest Std:  220.00 pF (+1.5%)
-  Parallel Std: 36.00 pF || 180.00 pF (-0.3%)
-Cp3 Calculated: 185.79 pF
-  Nearest Std:  180.00 pF (-3.1%)
-  Parallel Std: 36.00 pF || 150.00 pF (+0.1%)
-Ce_in Calculated: 35.73 pF
-  Nearest Std:  36.00 pF (+0.8%)
-  Parallel Std: 5.60 pF || 30.00 pF (-0.4%)
-Cs12 Calculated: 3.92 pF
-  Nearest Std:  3.90 pF (-0.5%)
-  Parallel Std: 620.00 fF || 3.30 pF (-0.0%)
-Cs23 Calculated: 3.92 pF
-  Nearest Std:  3.90 pF (-0.5%)
-  Parallel Std: 620.00 fF || 3.30 pF (-0.0%)
-Ce_out Calculated: 35.73 pF
-  Nearest Std:  36.00 pF (+0.8%)
-  Parallel Std: 5.60 pF || 30.00 pF (-0.4%)
+Tank capacitors: Cp1 = 185.84 pF, Cp2 = 216.75 pF, Cp3 = 185.84 pF
+Tank inductors:  L1 = L2 = L3 = 561.45 nH
+End coupling:    Ce_in = Ce_out = 35.71 pF
+Interstage:      Cs12 = Cs23 = 3.92 pF
+External Q:      40.55 at each port, realized by Ce_in/Ce_out
 ```
 
-**Note:** External Q values shown indicate the series end-coupling capacitors (Ce_in/Ce_out) realize the designed external Q at the specified impedance. See [filter-theory.md](filter-theory.md) for design details.
+The full table includes the physical Top-C diagram. Bandpass values are calibrated against
+the circuit netlist, and every result carries its own `response_validation_status`.
 
----
-
-## JSON Output
+## Strict JSON
 
 ```bash
-uv run filter-calc lp bw pi 10MHz -n 3 --format json
+uv run filter-calc lp bw pi 10MHz --format json --no-toroids
 ```
+
+A selected component fragment is:
 
 ```json
 {
@@ -241,146 +123,176 @@ uv run filter-calc lp bw pi 10MHz -n 3 --format json
   "cutoff_frequency_hz": 10000000.0,
   "impedance_ohms": 50.0,
   "order": 3,
+  "topology": "pi",
   "components": {
     "capacitors": [
       {
         "name": "C1",
-        "value_farads": 3.1830988618379065e-10,
+        "value_farads": 3.183098861837907e-10,
         "standard_match": {
-          "series": "E24",
-          "nearest": {"value_farads": 3.3e-10, "error_pct": 3.67},
-          "parallel": {
-            "components": [{"value_farads": 4.7e-11}, {"value_farads": 2.7e-10}],
-            "value_farads": 3.17e-10,
-            "error_pct": -0.41
-          }
+          "status": "recommended",
+          "selected": {
+            "kind": "parallel",
+            "components": [
+              {"value_farads": 4.7e-11},
+              {"value_farads": 2.7000000000000005e-10}
+            ],
+            "value_farads": 3.1700000000000004e-10,
+            "error_pct": -0.41151288120355006
+          },
+          "reason": "parallel_materially_improves_error",
+          "warnings": []
         }
       }
-    ],
-    "inductors": [
-      {
-        "name": "L1",
-        "value_henries": 1.59e-06,
-        "toroid_recommendations": ["... top-3 cores with turns, AWG, DCR, etc. ..."]
-      }
     ]
-  },
-  "topology": "pi"
+  }
 }
 ```
 
-(Abridged — capacitor entries carry full `standard_match` data and inductor entries carry top-3 `toroid_recommendations` unless `--no-toroids` is given.)
+The complete result includes all components and match-policy fields. JSON serialization is
+strict: `NaN` and infinities are never emitted.
 
----
+For explicit bandpass edges, `requested_parameters` and the `--sim-build` `target` block
+retain the parsed requested values exactly and mark
+`"frequency_specification": "edge_frequencies"`.
 
-## CSV Output
-
-```bash
-uv run filter-calc lp bw pi 10MHz -n 3 --format csv
-```
-
-```
-Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidQ_DC_Upper,ToroidTempCoeff_ppm
-C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,,,,,,,,,,
-C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,,,,,,,,,,
-L1,1.59,µH,,,,,,,T80-2,2,17,20,1.5895,-0.13,376.2,12.21,8178,95
-```
-
-Capacitor rows carry E-series match columns; inductor rows carry the best-match toroid columns (one row per inductor).
-
----
-
-## Frequency Response Data Export
-
-**JSON export (analytic for LP/HP, netlist-simulated for BP):**
+## Rectangular CSV
 
 ```bash
-uv run filter-calc lp bw pi 10MHz --plot-data json
+uv run filter-calc lp bw pi 10MHz --format csv --no-toroids
 ```
+
+```csv
+Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy
+C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_materially_improves_error,,single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF
+C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_materially_improves_error,,single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF
+L1,1.59,µH,,,,,,,,,,,,,
+```
+
+All rows have the same column count. Warning fields are CSV-quoted when necessary.
+
+## Screened Toroid Candidates
+
+```bash
+uv run filter-calc lp bw pi 10MHz --toroid-compact
+```
+
+```text
+Screened Toroid Winding Candidates (Iron-Powder T-Series)
+-------------------------------------------------------
+  L1 target: 1.59 µH @ 10 MHz
+  1. T50-2    N=18 AWG20 L=1.588µH (-0.25%) Rdc=12mΩ ωL/Rdc≤8,210 [RF Q/SRF/power not assessed]
+```
+
+This is a candidate screen, not a claim of RF suitability. Automatic candidates are limited
+to the exact primary-sourced T25-6, T50-2, and T68-2 records and do not predict RF Q, SRF,
+core loss, saturation, thermal rise, or power handling.
+
+## Realized-Build Analysis
+
+```bash
+uv run filter-calc lp bw pi 10MHz --sim-build --no-toroids \
+  --inductor-q 100 --capacitor-q 500 \
+  --sample-count 20 --seed 73 --format json > build.json
+```
+
+The complete component JSON is augmented with these top-level blocks:
 
 ```json
 {
-  "filter": {
+  "target": {
     "category": "lowpass",
     "response_type": "butterworth",
     "order": 3,
-    "cutoff_hz": 10000000.0,
-    "topology": "pi"
+    "cutoff_frequency_hz": 10000000.0,
+    "design_impedance_ohm": 50.0,
+    "equal_termination_synthesis": true
   },
-  "data": [
-    {"frequency_hz": 1000000.0, "magnitude_db": -0.0},
-    {"frequency_hz": 1096478.196143185, "magnitude_db": -0.0},
-    {"frequency_hz": 10000000.0, "magnitude_db": -3.01},
-    {"frequency_hz": 100000000.0, "magnitude_db": -60.0}
-  ]
+  "simulated": {
+    "realization": "calculated_exact_values"
+  },
+  "nominal_build": {
+    "realization": "selected_nominal_parts_and_calculated_exact_fallbacks"
+  },
+  "tolerance_analysis": {
+    "method": "deterministic_corners_plus_seeded_uniform_screening",
+    "sample_count": 20,
+    "seed": 73,
+    "grid_points": 601
+  },
+  "evaluation": {
+    "source_resistance_ohm": 50.0,
+    "load_resistance_ohm": 50.0,
+    "gain_metric": "transducer_power_gain_db",
+    "unequal_loads_change_evaluation_not_synthesis": true
+  }
 }
 ```
 
-(Abridged — the `data` array contains the full log-spaced sweep. Bandpass exports use the same schema with bandpass-specific `filter` fields.)
+The omitted fields include substitutions, exact fallbacks, physical branches, measurements,
+all bounded cases, metric summaries, the effective loss model, warnings, and limitations.
+This analysis is a simulation, not a measurement, yield estimate, or guaranteed worst case.
 
-**CSV export:**
+## Generic SPICE
+
+```bash
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz \
+  --format spice --spice-realization exact
+```
+
+```spice
+* RF Filter Calculator generic AC deck
+* category: bandpass
+* realization: calculated_exact
+* printed trace: vm(5) is load-node voltage, not gain in dB
+* transducer gain: Gt=4*Rs/Rl*|V(5)/V(NSOURCE)|^2
+* limitations: ideal values omit layout, parasitics, SRF, temperature, and power behavior
+* ports: input=4 output=5 ground=0 source=NSOURCE
+VINPUT NSOURCE 0 AC 1
+RSOURCE NSOURCE 4 50
+CT1 1 0 1.85835651098e-10
+LT1 1 0 5.61451636781e-07
+CT2 2 0 2.16748717175e-10
+LT2 2 0 5.61451636781e-07
+CT3 3 0 1.85835651098e-10
+LT3 3 0 5.61451636781e-07
+CK1 1 2 3.91596876867e-12
+CK2 2 3 3.91596876867e-12
+CIN 4 1 3.57096111503e-11
+COUT 3 5 3.57096111503e-11
+RLOAD 5 0 50
+.ac dec 200 11368069.3069 17675000
+.print ac vm(5)
+.end
+```
+
+`nominal-build` is the default SPICE realization. It uses the same selected physical branches
+and Q-derived constant-series-resistance model as build analysis. The `.print` trace is load
+voltage; use the commented expression for transducer power gain.
+
+## Response-Data Export
 
 ```bash
 uv run filter-calc lp bw pi 10MHz --plot-data csv
 ```
 
-```
+```csv
 frequency_hz,magnitude_db
 1e+06,-0.00
 1.09648e+06,-0.00
 1.20226e+06,-0.00
-1.31826e+06,-0.00
-...
 ```
 
----
+JSON response export uses a `filter` metadata object and a parallel `data` array. Frequencies
+must be positive finite numbers and magnitudes must be finite real dB values.
 
-## Filter Explanation
+## Wizard and Version
 
 ```bash
-uv run filter-calc lp ch --explain
-```
-
-```
-Chebyshev Filter (Equiripple)
-- Steeper rolloff than Butterworth for same order
-- Ripple in passband (specified in dB)
-- Better stopband attenuation
-- Good for RF applications requiring sharp cutoff
-```
-
----
-
-## Wizard Mode
-
-Start the interactive wizard:
-
-```bash
-uv run filter-calc
-# or
-uv run filter-calc wizard
-# or (short alias)
-uv run filter-calc w
-```
-
-The wizard guides you through:
-
-1. **Filter Selection** — Choose lowpass, highpass, or bandpass
-2. **Configuration** — Set response type, frequency, impedance, order, ripple (if Chebyshev)
-3. **Output Options** — Choose E-series matching, output format, export settings
-4. **Results** — View calculated components and (optionally) frequency response plot
-
-All screens include keyboard navigation help and accept default values via Enter.
-
----
-
-## Version Information
-
-```bash
+uv run filter-calc       # wizard
 uv run filter-calc --version
 ```
 
-```
-filter-calc 2.0.0
-```
-
+The wizard uses four screens: Welcome, one filter form, Output Options, and Results. The
+Results screen renders a selected plot in place and offers Design Another, Save/Export, and
+Quit. Escape navigates back; Ctrl+C exits.

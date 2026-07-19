@@ -1,560 +1,226 @@
-# Code Standards & Architecture Guidelines
+# Code Standards and Architecture Guidelines
 
-**Last Updated**: June 12, 2026
+**Last updated:** July 19, 2026
 
-Standards and patterns for maintaining code quality in RF Filter Calculator.
+This document records the conventions that matter for the current calculator. Follow the
+repository-level `AGENTS.md`, then these project-specific rules and nearby code patterns.
 
-## Naming Conventions
+## Priorities
 
-### Files & Modules
-- **Python files**: snake_case with descriptive names
-  - `chebyshev_g_calculator.py` - describes function clearly
-  - `display_common.py` - obvious purpose
-  - `topology_diagrams.py` - explicit intent
-- **Avoid**: Abbreviations (e.g., don't use `calc.py`, use `calculations.py`)
-- **Exception**: `__init__.py` for Python package structure
+1. Correct electrical behavior and truthful limitations.
+2. Simple, readable code with explicit contracts.
+3. Compatibility unless a deliberate release changes a public contract.
+4. Performance only where measurement shows it matters.
 
-### Functions & Variables
-- **Functions**: snake_case (lowercase with underscores)
-  - `format_capacitance()` - clear purpose
-  - `_primary_component()` - leading underscore = internal only
-- **Constants**: UPPER_SNAKE_CASE
-  - `E24_VALUES = [...]`
-  - `DEFAULT_IMPEDANCE = 50`
-- **Classes**: PascalCase
-  - `FilterResult`, `ChebyshevCalculator`
-- **Variables**: snake_case
-  - `capacitors`, `impedance_ohms`, `filter_type`
+Do not make a numerical test pass by weakening an engineering invariant, hiding a failure,
+or substituting a mock result for real circuit behavior.
 
-### Modules & Packages
-- **Lowercase with underscores**: `lowpass`, `highpass`, `bandpass`, `shared`, `wizard`
-- **Purpose-driven**: Module names should indicate what they contain
+## Python Style
 
-## Code Organization
+- Python modules and functions use `snake_case`; classes use `PascalCase`; constants use
+  `UPPER_SNAKE_CASE`.
+- Use Python 3.10 syntax, including `T | None` and `A | B` rather than legacy
+  `Optional[T]`/`Union[A, B]` spellings.
+- Ruff is authoritative: target `py310`, line length 100, rules `E`, `F`, `I`, `UP`, and
+  `B`, with the exceptions recorded in `pyproject.toml`.
+- Keep imports in standard-library, third-party, then local groups.
+- Comments explain invariants, units, limitations, or non-obvious choices—not the syntax.
+- Public functions need useful type hints and docstrings. Document units at the boundary.
 
-### File Structure
+Run:
 
-**Calculation modules** (e.g., `lowpass/calculations.py`):
-```python
-"""Module docstring describing purpose."""
-
-# Imports
-from ..shared.constants import ...
-from ..shared.parsing import ...
-
-# Main functions
-def calculate_lowpass_pi(...) -> dict:
-    """Calculate lowpass Pi topology values.
-
-    Args:
-        freq_hz: Cutoff frequency in Hz
-        impedance: System impedance in ohms
-        order: Filter order (2-9)
-        ...
-
-    Returns:
-        dict with keys: filter_type, freq_hz, impedance, order,
-                        capacitors, inductors, topology
-    """
-```
-
-**Display modules** (e.g., `lowpass/display.py`):
-```python
-"""Display functions for low-pass filters."""
-
-from ..shared.formatting import format_capacitance, ...
-from ..shared.display_common import format_json_result, ...
-
-def _primary_component(result: dict) -> str:
-    """Internal helper for identifying primary component."""
-
-def display_results(result: dict, raw: bool = False, ...) -> None:
-    """Main display function - called by CLI."""
-```
-
-### Import Organization
-1. Standard library imports
-2. Third-party imports (Textual, in wizard modules)
-3. Local relative imports (`..shared`, etc.)
-4. Blank line between groups
-
-Example:
-```python
-import json
-from io import StringIO
-
-from textual.screen import Screen
-from textual.widgets import Input
-
-from ..shared.formatting import format_capacitance
-from ..shared.parsing import parse_frequency
-```
-
-## Code Quality & Linting Standards
-
-### Ruff Linting
-
-[Ruff](https://docs.astral.sh/ruff/) enforces code quality across the project:
-
-**Configuration** (pyproject.toml):
-```toml
-[tool.ruff]
-target-version = "py310"
-line-length = 100
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
-ignore = ["E501", "B905"]
-```
-
-**Rules enforced:**
-- `E` - PEP 8 errors (indentation, whitespace, imports)
-- `F` - Pyflakes (undefined names, unused imports, duplicates)
-- `I` - isort (import sorting)
-- `UP` - pyupgrade (Python 3.10+ syntax upgrades, f-strings)
-- `B` - flake8-bugbear (likely bugs: `lambda x: ...` should be `def`, etc.)
-
-**Ignored:**
-- `E501` - Line too long (handled by formatter instead)
-- `B905` - `zip()` without strict (Python 3.10 compat)
-
-**Running linting locally:**
 ```bash
-uv run ruff check .          # Report issues
-uv run ruff check . --fix    # Auto-fix issues
-uv run ruff format .         # Format code
-uv run ruff format --check . # Check without changes
+uv run ruff check .
+uv run ruff format --check .
 ```
 
-**Recent reformatting** (all 67 affected files):
-- Lambda functions converted to `def` (E731)
-- F-string syntax upgraded for py310+ compatibility
-- Unused variable cleanup
-- Import organization standardized
+## Calculation Contracts
 
-### Docstrings
-- **Module level**: Brief description of module purpose
-- **Functions**: Include Args, Returns, Raises sections
-- **Classes**: Document init parameters and key methods
-
-```python
-def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
-    """Calculate normalized g-values for Chebyshev filter.
-
-    Uses standard formulas from Matthaei/Young/Jones.
-
-    Args:
-        n: Filter order (3-9; equal terminations require odd order)
-        ripple_db: Passband ripple in dB (typically 0.5 or 1.0)
-
-    Returns:
-        list of normalized g-values
-
-    Raises:
-        ValueError: If ripple is not positive and finite
-    """
-```
-
-### Type Hints
-- All functions should have type hints for parameters and return values
-- Use `Optional[T]` for nullable types
-- Use `Union[A, B]` for multiple types
-
-```python
-def format_frequency(freq_hz: float, decimals: int = 2) -> str:
-    """Format frequency in Hz to human-readable form."""
-
-def match_component(value: float,
-                    series: str = 'E24',
-                    parallel_mode: str | None = None) -> dict:
-    """Find E-series component matches."""
-```
-
-### Error Handling
-- Use descriptive error messages
-- Validate inputs early with clear validation errors
-- Use `ValueError` for invalid parameters
-- Use `RuntimeError` for unexpected conditions
-
-```python
-def parse_frequency(freq_str: str) -> float:
-    """Parse frequency string to Hz."""
-    try:
-        value = float(freq_str)
-    except ValueError:
-        raise ValueError(f"Invalid frequency: {freq_str}")
-
-    if value <= 0:
-        raise ValueError(f"Frequency must be positive, got {value}")
-
-    return value
-```
-
-### Function Length
-- **Target**: 30-50 lines per function
-- **Guideline**: Extract subroutines if function exceeds 80 lines
-- **Exception**: Data structure initialization or complex conditionals
-
-### Comments
-- Explain **why**, not **what** (code shows what)
-- Focus on non-obvious logic or design decisions
-- Keep comments updated with code changes
-
-```python
-# ✓ Good - explains non-obvious calculation
-# Series inductors in Pi topology are symmetrical for equal ripple
-L1 = L2 = Z0 / (2 * pi * fc)
-
-# ✗ Poor - repeats what code obviously does
-# Calculate L1
-L1 = Z0 / (2 * pi * fc)
-```
-
-## Patterns & Best Practices
-
-### Calculation Return Shapes
-LP/HP calculation functions return a tuple; display layers assemble result dicts:
+LP/HP calculation functions return a tuple:
 
 ```python
 capacitors, inductors, order = calculate_butterworth(
-    cutoff_hz=10e6, impedance=50.0, num_components=5, topology="pi"
+    cutoff_hz, impedance, num_components, topology
 )
-# capacitors: list[float] in Farads, inductors: list[float] in Henries
 ```
 
-Bandpass returns a dict with synthesis and coupling fields (`f0`, `bw`, `fbw`,
-`g_values`, `qe_in`/`qe_out`, `c_tank`, `c_coupling`, `c_end_in`/`c_end_out`, ...).
+The CLI and wizard assemble the user-facing result dictionaries. Bandpass synthesis returns a
+dictionary because it carries calibrated component values, requested/internal parameters,
+Q-model metadata, warnings, and per-design validation evidence.
 
-### Primary Component Concept
-Functions identify which component type is "primary" (shown in E-series matching):
+Keep these meanings distinct:
+
+- LP/HP Chebyshev cutoff is the ripple-band edge.
+- Butterworth/Bessel LP/HP cutoff is the −3 dB point.
+- Bandpass bandwidth is the true requested −3 dB skirt-to-skirt bandwidth.
+- Equal source/load termination is a synthesis assumption. Separate build-analysis ports
+  change evaluation, not synthesis.
+- `q_min` is a compatibility heuristic. It is not a build guarantee.
+
+## Numeric Validation
+
+Public numeric boundaries reject booleans, wrong types, NaN/infinity, arbitrary-size integers
+outside binary64, and invalid signs with a stable `ValueError`. Do not use bare
+`math.isfinite(value)` as a type check: booleans pass it, strings leak `TypeError`, and very large
+Python integers leak `OverflowError`.
+
+Use a shared validator or finite-real predicate:
 
 ```python
-def _primary_component(result: dict) -> str:
-    """Return primary component type based on topology.
+from filter_lib.shared.numeric import is_finite_real
 
-    Lowpass Pi: Capacitors are in shunt (odd positions)
-    Lowpass T: Inductors are in series (odd positions)
-    Highpass T: Capacitors are in series (odd positions)
-    Highpass Pi: Inductors are in shunt (odd positions)
-    """
-    if result['filter_type'] == 'lowpass':
-        return 'capacitors' if result['topology'] == 'pi' else 'inductors'
-    else:  # highpass
-        return 'inductors' if result['topology'] == 'pi' else 'capacitors'
+if not is_finite_real(value) or value <= 0:
+    raise ValueError("value must be positive and finite")
 ```
 
-### Display Module Interface
-Each filter type implements consistent display interface:
+For a simple positive or non-negative boundary, prefer `require_positive_finite` or
+`require_nonnegative_finite` so the error contract stays consistent.
 
-```python
-def display_results(result: dict, raw: bool = False,
-                    output_format: str = 'table', quiet: bool = False,
-                    eseries: str = 'E24', show_match: bool = True,
-                    show_plot: bool = False) -> None:
-    """Display calculated filter component values."""
-    # Router pattern: delegate to format function
-    if output_format == 'json':
-        print(format_json(result))
-        return
-    if output_format == 'csv':
-        print(format_csv(result), end='')
-        return
-    if quiet:
-        print(format_quiet(result, raw))
-        return
+Integer inputs require an exact non-boolean `int`; do not silently truncate floats. Validate
+arrays element-by-element before zipping or serializing them. A public invalid-input path must
+not leak `TypeError`, `OverflowError`, `ZeroDivisionError`, or non-standard JSON.
 
-    # Main table display logic
-    print_header(result, ...)
-    print_topology_diagram(...)
-    print_component_table(...)
-    if show_match:
-        print_eseries_recommendations(...)
-    if show_plot:
-        print_frequency_response(...)
+For multiplicative formulas, avoid rejecting valid final values because an intermediate
+overflows or underflows. Prefer log-domain scaling, cancellation-resistant identities, or
+decimal parsing when unit suffixes compensate for an extreme textual exponent. Reject the
+request cleanly when the final result is not positive finite binary64.
+
+## Filter and Circuit Architecture
+
+The maintained boundaries are:
+
+- `filter_lib/lowpass/` and `filter_lib/highpass/`: public calculation/display/response
+  adapters over shared prototype logic.
+- `filter_lib/bandpass/`: Top-C synthesis, calibration, independent shape verification,
+  ideal response, and display adapters.
+- `filter_lib/shared/`: parsing, prototypes, E-series policy, named circuits, nodal solving,
+  realization, loss/tolerance analysis, export, plotting, and toroid screening.
+- `filter_lib/cli/`: argument definitions and thin command orchestration.
+- `filter_lib/wizard/`: Textual screens, shared state, calculation orchestration, and export.
+
+Keep calibrated synthesis separate from validation. The bandpass calibration sweep may place
+the skirts; `response_verification.py` independently checks skirts, connected regions, shape,
+and representative stopband samples. Do not replace `response_validation_status` with a
+blanket support claim.
+
+Named circuits are the common physical contract for build analysis and SPICE. A selected
+parallel capacitor remains two branches. An unavailable or policy-refused nominal part is an
+explicit exact fallback with warnings, never a fabricated physical part.
+
+## E-Series Policy
+
+E12/E24/E96 names describe preferred-value density, not tolerance. Automatic preferred-value
+selection applies to capacitors only:
+
+- keep a single part when absolute error is at most 1%;
+- select a two-part parallel combination only when it improves absolute error by at least
+  0.5 percentage points;
+- below 1 pF, require explicit expert action rather than silently selecting a sub-pF value.
+
+Table, JSON, CSV, wizard, nominal realization, and SPICE must agree on the selected policy
+result. Inductors remain calculated/wound values or screened integer-turn toroid candidates.
+
+## Toroid Data and Claims
+
+Automatic screening uses only exact parts marked primary-source verified in
+`toroid_core_data.json`. Legacy records remain inspectable but are not auto-selected. Preserve
+source IDs and field provenance whenever data changes.
+
+A candidate screen may evaluate material-frequency guidance, integer turns, nominal error,
+published winding capacity, wire length, and DC resistance. It must not be labeled as a
+prediction of RF Q, SRF, core loss, saturation, thermal rise, or power handling.
+
+## Build Analysis and SPICE
+
+`BuildConfig`, nominal realization, and tolerance screening are public contracts:
+
+- selected nominal parts and exact fallbacks remain auditable;
+- Q is converted to constant series resistance at a stated reference frequency;
+- a custom loss reference without an effective Q is rejected;
+- deterministic corners and seeded bounded samples are not measurements, probabilities,
+  yields, or guaranteed worst cases;
+- all reported gain is transducer power gain with explicit source/load ports.
+
+Generic SPICE export has two realizations: `exact` and `nominal_build` (the CLI default). The
+printed `vm(load)` trace is load voltage, not gain in dB; deck comments state the transducer
+gain expression.
+
+## Machine-Readable Output
+
+- JSON must pass strict serialization with no `NaN`/`Infinity` extension values.
+- CSV must be rectangular and use the `csv` module for fields that can contain delimiters.
+- Response exports require positive finite frequency values and finite real dB values.
+- Requested synthesis targets, calculated response, selected nominal build, tolerance cases,
+  effective loss, and limitations stay in separate fields.
+- When explicit bandpass edges are supplied, `requested_parameters` and build `target` retain
+  those parsed values and record `frequency_specification = edge_frequencies`.
+
+## Wizard Architecture
+
+The wizard uses independent Textual `Screen` classes and `push_screen`/`pop_screen`:
+
+```text
+Welcome → LP/HP/BP form → Output Options → Results
 ```
 
-### Shared Utilities Pattern
-Reduce duplication via centralized shared functions:
+`FilterWizardApp.filter_state` owns the one `FilterState` instance. Screens access
+`self.app.filter_state`; `FilterState` is data, not a DOM widget, so do not query it with
+`query_one`.
 
-**Core Utilities:**
-- `display_common.py` - Shared display formatting
-- `formatting.py` - Number formatting (mF, pF, µH, nH)
-- `eseries.py` - E-series value databases
-- `topology_diagrams.py` - ASCII circuit diagrams
-- `transfer_functions.py` - Transfer function calculations
-- `parsing.py` - Input validation and frequency/impedance parsing
-- `constants.py` - Physical constants and default values
+Current responsibilities:
 
-**Base Modules (Strategy Pattern for LP/HP):**
-- `lp_hp_base_calculations.py` - Strategy-based LP/HP calculation logic
-- `lp_hp_base_transfer_functions.py` - Shared transfer function implementations
+- `bandpass_form.py`: BP form parsing and focus/error mapping.
+- `build_options.py`: wizard/engine build-control mapping and compatibility checks.
+- `filter_type_calculators.py`: category-specific calculation and primary formatting.
+- `calculation_handler.py`: detached calculation orchestration and outcome construction.
+- `export_formatting.py`: component and response export payloads.
+- `screens/results.py`: background worker lifecycle, revision guard, and save UI.
 
-**Plotting Modules (Modular Architecture - Apr 2026):**
-- `plot_ascii_renderers.py` - ASCII plot rendering with configurable `db_floor`
-- `plot_zoom_pairs.py` - Zoomed passband plot pairs (full + detail)
-- `plot_threshold_analysis.py` - dB crossing detection and summary tables
-- `response_export.py` - unified JSON/CSV response export (single schema)
-- `transfer_response_dispatch.py` - Response function factory for LP/HP/BP
-- `plotting.py` - Facade re-exporting all plot functions
+Every design mutation invalidates prior output. A Results worker calculates from a deep-copied
+snapshot and may publish only to the same pending revision. Unmount cancels the worker and
+invalidates its result. Export is enabled only after a complete successful outcome; build
+analysis must be present when requested.
 
-**Pattern**: LP/HP calculation modules delegate to base modules, passing strategy functions to handle topology-specific differences (denormalization, component ordering). Plotting uses facade pattern with focused sub-modules for rendering, zooming, threshold analysis, and data export.
+The wizard allows raw table rows with an E-series only when realized-build analysis consumes
+that series for nominal selection. Quiet mode remains incompatible with hidden build/match
+results. A plot is rendered inside Results; it is not an extra screen.
 
-## Testing Standards
+## File Boundaries
 
-### Test Organization
-- One test file per major module
-- Test file naming: `test_{module_name}.py`
-- Tests should be independent and isolated
+Split a file when doing so creates a real responsibility boundary or makes an invariant easier
+to test. Avoid line-count-only refactors. Prefer focused modules for synthesis, verification,
+realization, serialization, and UI parsing rather than large cross-layer routers.
 
-### Test Structure
-```python
-def test_lowpass_pi_butterworth():
-    """Test lowpass Pi topology Butterworth filter."""
-    capacitors, inductors, order = calculate_butterworth(
-        cutoff_hz=10e6,
-        impedance=50,
-        num_components=5,
-        topology='pi',
-    )
+## Testing
 
-    assert order == 5
-    assert len(capacitors) == 3
-    assert len(inductors) == 2
-    assert all(c > 0 for c in capacitors)
+Run the narrowest relevant test first, then the broad release gates when shared contracts
+change:
+
+```bash
+uv run pytest -q tests/test_relevant_module.py
+uv run pytest --cov=filter_lib --cov-report=term-missing --cov-fail-under=90
+uv run ruff check .
+uv run ruff format --check .
+uv lock --check
+uv build
 ```
 
-### Fixtures
-Use pytest fixtures for common test data:
+Important regression layers include:
 
-```python
-@pytest.fixture
-def lowpass_result():
-    """Sample lowpass filter result."""
-    return {
-        'filter_type': 'butterworth',
-        'freq_hz': 10e6,
-        'impedance': 50.0,
-        'order': 3,
-        'capacitors': [1e-10, 2e-10, 1e-10],
-        'inductors': [1e-6, 1e-6],
-        'ripple': None,
-        'topology': 'pi',
-    }
-```
+- hand/reference calculation fixtures and topology duality;
+- the 128-cell independent bandpass acceptance matrix;
+- analytic and Decimal-fallback nodal-solver cases;
+- strict JSON, rectangular CSV, build, and generic SPICE contracts;
+- toroid provenance and winding math;
+- Textual unit tests and real `run_test()` pilot flows;
+- source archive, wheel contents, and installed-wheel smoke tests;
+- Python 3.10 through 3.13.
 
-### Coverage
-- Target: >90% code coverage
-- Run tests with coverage: `uv run pytest tests/ --cov=filter_lib`
-- Focus on logic branches, not 100% line coverage
+Do not hide a failing gate or reduce coverage to land a change.
 
-## Performance Considerations
+## Documentation
 
-### Optimization Priority
-1. **Correctness** - Never sacrifice accuracy for speed
-2. **Readability** - Code must be maintainable
-3. **Performance** - Optimize only if measurable bottleneck
-
-### Common Bottlenecks (Acceptable)
-- Frequency response calculation (multiple frequency points) - acceptable
-- E-series matching loops (at most ~100 iterations) - acceptable
-- Transfer function evaluation - optimized already
-
-## Security Standards
-
-### Input Validation
-- Validate all user inputs at entry point
-- Check frequency > 0
-- Check impedance > 0
-- Check order in range [2, 9]
-- Check ripple > 0 for Chebyshev (bandpass additionally caps at 3.0 dB)
-
-### Safe Data Handling
-- No shell command execution
-- No unsafe eval/exec
-- All file I/O uses pathlib or relative paths
-- No credential handling in code
-
-## Wizard Module Architecture
-
-See [system-architecture.md § Layer 4: Wizard Module](./system-architecture.md) for detailed wizard architecture, screen navigation flow, and state management patterns.
-
-### Refactored Structure (Recent Simplification)
-
-**calculation_handler.py** (34 LOC after refactoring):
-- Minimal orchestration router
-- Delegates to type-specific calculators
-- Routes output formatting to helpers
-
-**filter_type_calculators.py** (202 LOC):
-- Contains _calculate_lowpass, _calculate_highpass, _calculate_bandpass
-- Handles filter selection and parameter passing
-- Calls shared base calculation modules
-
-**formatting_helpers.py** (115 LOC):
-- Wizard-specific formatting logic
-- E-series matching display
-- Output format selection (table/json/csv)
-
-**Key Mixins:**
-- `filter_screen_navigation_mixin.py` - Shared screen navigation logic
-- `radio_button_helpers.py` - Radio button widget utilities
-
-## Textual TUI Patterns
-
-### Screen Architecture
-Each wizard screen is an independent Textual `Screen` subclass:
-
-```python
-from textual.screen import Screen
-from textual.app import ComposeResult
-
-class LowpassScreen(Screen):
-    """Lowpass filter configuration screen."""
-
-    BINDINGS = [
-        ("escape", "back", "Back"),
-    ]
-
-    def compose(self) -> ComposeResult:
-        """Create screen widgets."""
-        yield Header()
-        with VerticalScroll(classes="content"):
-            # Form fields
-            yield Input(id="frequency", ...)
-        yield Footer()
-
-    @on(Button.Pressed, "#submit")
-    def handle_submit(self):
-        """Validate and update shared state."""
-        state = self.app.query_one(FilterState)
-        state.frequency_hz = parse_frequency(...)
-        self.app.push_screen(OutputOptionsScreen())
-```
-
-### State Management
-Use centralized `FilterState` dataclass for all screen-to-screen data sharing:
-
-```python
-@dataclass
-class FilterState:
-    """Shared filter parameters across all screens."""
-    # Filter selection
-    category: str = ""                         # lowpass/highpass/bandpass
-    filter_type: str = "butterworth"
-    topology: str = "pi"                       # pi, t for LP/HP; top for BP
-
-    # Frequency parameters
-    frequency_hz: float = 0.0                  # cutoff for LP/HP, center for BP
-    bandwidth_hz: float = 0.0                  # bandpass only
-
-    # Common parameters
-    impedance: float = 50.0
-    order: int = 3                             # num_components or resonators
-    ripple_db: float = 0.5
-
-    # Output options
-    eseries: str = "E24"
-    output_format: str = "table"
-    show_plot: bool = True
-    export_format: str | None = None
-    raw_units: bool = False
-    quiet: bool = False
-
-    # Results (populated after calculation)
-    result: dict = field(default_factory=dict)
-    output_text: str = ""
-```
-
-### Async Calculations
-For expensive operations, use background workers to prevent UI freezing:
-
-```python
-def on_mount(self) -> None:
-    """Start background calculation when results screen mounted."""
-    self.run_worker(
-        self._calculate_results(),
-        exclusive=True,
-        thread=True
-    )
-
-def _calculate_results(self) -> None:
-    """Run calculation in background thread."""
-    result = calculate_filter(...)  # Expensive calculation
-    self.post_message(self.ResultsReady(result))
-
-@on(ResultsReady)
-def handle_results(self, message: ResultsReady) -> None:
-    """Update display with calculated results."""
-    self.result = message.result
-    self.refresh()
-```
-
-### Navigation
-Use `push_screen()` for forward navigation and `pop_screen()` for back:
-
-```python
-# Forward navigation with data passing
-self.app.push_screen(OutputOptionsScreen())
-
-# Back navigation
-self.app.pop_screen()
-
-# From Action binding (Escape key)
-def action_back(self) -> None:
-    """Go back to previous screen."""
-    self.app.pop_screen()
-```
-
-## File Size Guidelines
-
-| File Type | Soft Limit | Hard Limit | Rationale |
-|-----------|-----------|-----------|-----------|
-| Calculation module | 120 lines | 150 lines | Keep logic focused |
-| Display module | 90 lines | 120 lines | Easy to understand |
-| Shared utility | 150 lines | 200 lines | Complex helpers OK |
-| Textual screen | 250 lines | 300 lines | Screen-specific logic |
-| Main entry point | N/A | 400 lines | Router exception |
-| Test file | 200 lines | 300 lines | Keep test focused |
-| Documentation file | Soft limit: 800 LOC | Keep searchable and focused |
-
-**Splitting strategy**: When approaching limit, extract subroutines or move helpers to shared module. For screens, extract complex validation to shared validators module or move business logic to calculation_handler.
-
-## Documentation in Code
-
-### Inline Documentation
-- Add docstrings to all public functions
-- Comment non-obvious logic
-- Document mathematical formulas or references
-
-### References
-- Include source citations for algorithms
-- Example: "Based on Matthaei/Young/Jones normalized g-values"
-- Link to filter theory docs where applicable
-
-## Input Validation Convention
-
-**Policy**: Public float parameters reject NaN, infinity, and non-positive values.
-
-**Standard pattern** (all public float params):
-```python
-if not math.isfinite(x) or x <= 0:
-    raise ValueError("X must be positive and finite")
-```
-
-**Note**: Keep "must be positive" substring in error messages for regex test compatibility.
-
-**Applies to**: `cutoff_hz`, `impedance`, `num_points`, `f0`, `bw`, `z0`, `q_safety`, `ripple_db` across modules:
-- `shared/lp_hp_base_calculations.py`
-- `shared/lp_hp_base_transfer_functions.py`
-- `bandpass/calculations.py`, `bandpass/transfer.py`
-- `shared/transfer_functions.py`
-
-**Also**: `frequency_sweep()` and `generate_frequency_points()` reject `points < 2` ("points must be >= 2 for a log sweep").
-
-## Recent Refactoring Principles
-
-1. **Centralize display logic** - Move common formatting to `display_common.py`
-2. **Reduce branching** - Simplify topology handling in display modules
-3. **Consistent interfaces** - Align all filter display modules
-4. **Clear naming** - Descriptive function names over abbreviations
-5. **Topological awareness** - Helper functions identify primary components per topology
+Update documentation only when behavior, setup, architecture, public contracts, or maintainer
+decisions change. Verify commands execute as written, schema examples use real field names, and
+claims match the final test/build evidence. Historical changelog entries remain historical;
+new reality belongs in the newest release entry and current reference documents.

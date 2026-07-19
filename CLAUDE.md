@@ -14,7 +14,8 @@ uv sync --group dev
 # Run the tool
 uv run filter-calc lowpass butterworth pi 10MHz -n 5
 uv run filter-calc lp bw pi 10MHz --format json     # short aliases (lp/hp/bp); json/csv output
-uv run filter-calc bp bw top -f 10MHz -b 500kHz --sim-matched  # simulate E-series matched caps
+uv run filter-calc bp bw top -f 10MHz -b 500kHz --sim-build --format json
+uv run filter-calc lp bw pi 10MHz --format spice --spice-realization nominal-build
 uv run filter-calc                  # starts interactive wizard
 
 # Tests
@@ -46,16 +47,16 @@ Python 3.10+ CLI tool for calculating LC filter component values. Entry point is
 - **`wizard/`** — Textual TUI. `app.py` drives screens in `screens/` (welcome → filter config → output options → results). `state.py` holds the `FilterState` dataclass shared across screens.
 - **`shared/`** — Core logic shared across filter types:
   - `lp_hp_base_calculations.py` — Strategy pattern: LP and HP share calculation code, differing only in component formulas (`cap_formula`/`ind_formula` callables) and ordering.
-  - `eseries.py` — E12/E24/E96 standard capacitor value matching with parallel combinations. Inductors are shown raw (no E-series matching).
+  - `eseries.py` — E12/E24/E96 capacitor selection. A single part is selected within 1%; a parallel pair is selected only when it improves absolute error by at least 0.5 percentage points. Values below 1 pF require an explicit expert override. E-series names describe value density, not part tolerance.
   - `plotting.py` + `plot_*.py` — ASCII frequency response, zoom pairs, threshold analysis (split per GH-7); response-data export lives in `response_export.py`.
   - `parsing.py` — Flexible frequency/impedance parsing (`10MHz`, `10M`, `10e6`, etc.). Impedance also accepts k/M suffixes.
   - `constants.py` — Bessel g-value lookup tables. Chebyshev g-values computed by formula (see `chebyshev_g_calculator.py`).
   - `chebyshev_g_calculator.py` — Arbitrary Chebyshev ripple (0, 3.0] dB support via formula-based g-value computation (exact dB→neper conversion: 40/ln(10)).
-  - `netlist_simulation.py` + `netlist_builders.py` — Bandpass netlist frequency sweep and component synthesis for simulation-proven response validation.
+  - `nodal_solver.py`, `netlist_simulation.py`, and `netlist_builders.py` — Named passive circuits, scale-safe AC nodal analysis, transducer power gain, and response landmarks.
   - `response_export.py` — Unified --plot-data schema for LP/HP/BP (replaces divergent implementations).
-  - `matched_simulation.py` — `--sim-matched` support: re-simulates the circuit with capacitors replaced by their recommended E-series matches (`ESeriesMatch.best_value`), inductors exact, and reports exact-vs-matched -3 dB metrics. Table output on all three subcommands; BP JSON gains an additive `matched_sim` key. `--sim-matched --no-match` is a usage error.
+  - `build_*.py`, `component_realization.py`, and `nominal_realization.py` — calculated-versus-nominal build realization, finite-Q loss, unequal-port transducer gain, deterministic tolerance corners, and optional seeded screening. `--sim-matched` is a deprecated facade over this implementation; use `--sim-build`.
   - `lp_hp_display.py` — Single LP/HP table renderer used by CLI and wizard.
-  - `toroid_*.py` + `toroid_core_data.json` — Amidon core recommendations: given an inductance + frequency, suggests core/turns/wire gauge/DC resistance (GH-6). On by default; --no-toroids to suppress, --toroid-full to show top-3 in table (JSON always top-3; CSV rows carry the best match only).
+  - `toroid_*.py` + `toroid_core_data.json` — Primary-sourced integer-turn and winding-capacity screening. Only T25-6, T50-2, and T68-2 currently qualify for automatic selection. The output explicitly does not assess RF Q, core loss, SRF, saturation, thermal rise, or power handling.
 
 Full module map: `docs/codebase-summary.md`.
 
@@ -63,13 +64,13 @@ Full module map: `docs/codebase-summary.md`.
 
 - **LP/HP duality**: Lowpass and highpass use the same base calculation functions with different formulas injected (LP: `C=g/(Z*ω)`, `L=g*Z/ω`; HP: inverse). Topology (Pi/T) controls shunt vs series placement.
 - **Filter-type alias canonicalization**: `shared/cli_aliases.py::FILTER_TYPE_ALIASES` is the single source of truth (`bw/b`→butterworth, `ch/c`→chebyshev, `bs`→bessel). Any new dispatch code must consult it rather than re-implement — see `shared/transfer_response_dispatch.py::_canonicalize_filter_type`.
-- **Filter results**: LP/HP calculation functions return a tuple `(capacitors, inductors, order)`; display layers combine it with frequency/impedance/topology metadata. Bandpass `calculate_bandpass_filter()` returns a dict with synthesis and coupling fields (`f0`, `bw`, `fbw`, `fbw_synth`, `n_resonators`, `g_values`, `qe_in`/`qe_out`, `L_resonant`/`C_resonant`, `c_coupling`, `c_tank`, `c_end_in`/`c_end_out`, `q_min`, `il_estimates`, `warnings`). `il_estimates` maps `%g`-formatted Qu strings to Cohn dissipation-loss estimates in dB (standard Qu=100/250 plus the optional `--qu` value).
+- **Filter results**: LP/HP calculation functions return `(capacitors, inductors, order)`. Bandpass returns calibrated component values plus `synthesis_validation`, `response_validation_status`, Q-model metadata, and warnings. `q_min`/`q_safety` are compatibility heuristics, not stability or build-selection criteria. Build JSON keeps requested target, calculated response, selected nominal parts or explicit exact fallbacks, tolerance cases, and the effective loss model separate.
 - **Bandpass -3 dB edges**: True edges come from solving `(f²-f0²)/(BW·f) = ±1`, not `f0 ± bw/2`. Source of truth: `bandpass.calculations.compute_bandpass_3db_edges` (uses `f_low = f0²/f_high` to dodge catastrophic cancellation for wide BW).
-- **Chebyshev BP 3 dB semantics**: `bw` is the user's true -3 dB BW in both synthesis and plotting. For Chebyshev only, fbw is scaled down by `delta_3dB = cosh(acosh(1/ε)/n)` in `calculate_bandpass_filter`, and `magnitude_chebyshev` scales its deviation up by the same factor. Butterworth/Bessel prototypes already land at -3 dB when delta=1, so no scaling. Source of truth: `bandpass/transfer.py::chebyshev_3db_deviation`.
-- **Chebyshev constraints**: LP, HP, and BP all require odd order (3/5/7/9) for equal source/load terminations — enforced in `shared/lp_hp_base_calculations.py` and `cli/bandpass_cmd.py`. Ripple is formula-computed for arbitrary values (no lookup tables); the 3.0 dB cap is enforced across all CLI subcommands by `shared/cli_helpers.py::resolve_ripple_arg`, by the wizard, and by the bandpass library (`bandpass/calculations.py`). The LP/HP library layer (`shared/lp_hp_base_calculations.py`) stays permissive (ripple > 0 only).
-- **Bandpass end-coupling**: External Q at port realized by series end-coupling capacitors Ce_in/Ce_out. Each Ce transforms the termination: Rp = Qe·ω0·L. Source of truth: `bandpass/calculations.py::calculate_end_coupling`. Shunt/bottom coupling removed — simulation showed it cannot realize the designed passband.
-- **Bandpass netlist-simulation**: Top-C series coupling is the only coupling topology. Plots and --plot-data are netlist-simulated from the synthesized circuit (`netlist_frequency_sweep`), not idealized prototypes. Simulation-proven support capped at ≤10% fractional bandwidth (warning above threshold).
-- **Toroid recommendations**: On by default, showing top-1 core per inductor in table output. --no-toroids suppresses entirely; --toroid-full shows top-3 in table (JSON/CSV always include top-3). Selection ranks cores by fit, computes turns from A_L, checks wire OD against window area.
+- **Chebyshev BP 3 dB semantics**: `bw` is the true requested −3 dB bandwidth. The raw Top-C design is calibrated against a circuit sweep rather than relying only on a prototype scaling equation. Source modules are `bandpass/top_c_calibration.py`, `response_verification.py`, and `ideal_response.py`.
+- **Chebyshev constraints**: LP, HP, and BP require odd order (3/5/7/9) for equal terminations and `0 < ripple <= 3.0 dB` across CLI, wizard, and public synthesis APIs.
+- **Bandpass end-coupling**: External Q is realized by series end capacitors. Tank inductance or tank impedance can be chosen independently from the equal design terminations. Shunt/bottom coupling is unsupported.
+- **Bandpass validation**: Top-C is the only coupling topology. The maintained 128-cell matrix spans 1%, 2%, 5%, and 10% FBW: 106 cells are validated, 17 return `outside_validated_envelope`, and 5 known-unrealizable cells are rejected. Do not replace per-design status with a blanket ≤10% claim.
+- **Toroid candidates**: Default table output shows the best qualified candidate, `--toroid-full` shows up to three, JSON includes up to three, and CSV carries the best available candidate. A requested detail count is not a guarantee that enough qualified cores exist.
 
 ## Ruff config
 
@@ -77,11 +78,16 @@ Target: py310, line-length 100, rules: E/F/I/UP/B. Ignores: E501 (formatter hand
 
 ## Validation convention
 
-Public float parameters reject NaN and inf alongside non-positive: `if not math.isfinite(x) or x <= 0: raise ValueError("X must be positive and finite")`. Keep the "must be positive" substring so existing regex tests match. Applies to cutoff/freq/BW/impedance/q_safety/ripple_db.
+Public numeric inputs reject booleans, wrong types, NaN/infinity, and arbitrary-size integers
+outside binary64 before checking the application-specific sign or range. Use
+`filter_lib.shared.numeric.is_finite_real` or the shared `require_*` validators; do not call bare
+`math.isfinite` on untrusted public input because it can leak `TypeError` or `OverflowError`.
+Invalid public input must raise a clear `ValueError`. Exact integer inputs likewise reject
+booleans and floats.
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`): lint → format check → pytest with coverage. Runs on push/PR to main, Python 3.13, ubuntu-latest.
+GitHub Actions (`.github/workflows/ci.yml`) runs Ruff, coverage-gated tests on Python 3.10–3.13, source/wheel builds, archive inspection, and installed-wheel smoke tests on push/PR to `main`.
 
 ## Testing wizard screens
 
@@ -93,7 +99,7 @@ CLI tests build `argparse.Namespace` directly via `_lp_args()/_hp_args()/_bp_arg
 
 ## Netlist-Simulation Testing
 
-Bandpass synthesis is gated by simulation validation. To add a new simulation-gated acceptance case (e.g., a new ripple/FBW/order combination), parametrize it in the acceptance matrix at `tests/test_netlist_simulation.py` (measured -3 dB bandwidth within 3% of design, center frequency within 0.5%). Cases must land within ≤10% FBW (the simulation-proven range). The harness builds the prescribed circuit via `shared/netlist_builders.py` and solves it with the stdlib AC nodal-analysis solver in `shared/netlist_simulation.py` — no external SPICE dependency.
+Bandpass acceptance lives in `tests/test_netlist_simulation.py`. It checks requested skirts, connected/outer −3 dB regions, passband and stopband shape, ripple, and explicit unsupported cells. The harness builds the prescribed circuit and solves it with the stdlib AC nodal-analysis implementation; no external SPICE installation is required for these tests.
 
 ## Patching lazy imports
 

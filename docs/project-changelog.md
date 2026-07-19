@@ -1,5 +1,59 @@
 # Project Changelog
 
+## 2.1.0 — 2026-07-19 — Accuracy, Build, and Release Remediation
+
+This release turns calculated values, physical-part choices, simulations, and limitations into
+separate auditable contracts.
+
+### Accuracy and numerical behavior
+
+- Replaced formula-only Top-C claims with per-design calibration and independent netlist
+  verification of both −3 dB skirts, connected/outer regions, passband shape, Chebyshev ripple,
+  and representative stopband samples. Results expose `response_validation_status`; known
+  unrealizable cells fail cleanly.
+- Added independent bandpass tank reactance/inductance controls and explicit complete-resonator
+  versus component-Q semantics. Extreme-but-representable calculations now use stable
+  log-domain, cancellation-resistant, Decimal-scaled, and adaptive Decimal-nodal paths.
+- Public numeric APIs consistently reject booleans, wrong types, NaN/infinity, invalid ranges,
+  impossible allocations, and non-finite final results with `ValueError` rather than leaking
+  interpreter exceptions.
+- Explicit `--fl`/`--fh` values are preserved in `requested_parameters` and build `target`
+  metadata; reconstructed calculated edges agree within floating precision.
+
+### Buildability and output truthfulness
+
+- Replaced implicit nearest-value behavior with a deterministic capacitor policy: prefer a
+  single within 1%, choose a parallel pair only for at least 0.5 percentage-point improvement,
+  and require expert action below 1 pF. Table, wizard, JSON, CSV, build, and SPICE surfaces state
+  the selection or explicit fallback.
+- Added `--sim-build`: selected physical branches, exact fallbacks, constant-series-loss models,
+  separate evaluation ports, deterministic tolerance corners, and optional seeded bounded
+  samples. Output labels this as simulation—not measurement, yield, probability, or guaranteed
+  worst case. `--sim-matched` remains a deprecated compatibility alias.
+- Added generic exact and nominal-build SPICE decks from the same named circuits used internally.
+  The CLI defaults to `nominal-build`; comments distinguish load voltage from transducer gain.
+- Restricted automatic toroid candidates to exact primary-source-verified T25-6, T50-2, and
+  T68-2 records. Reports preserve provenance and published winding capacity while explicitly
+  declining RF-Q, SRF, core-loss, saturation, thermal, and power claims.
+- JSON is strict and finite, CSV is rectangular and policy-auditable, response exporters validate
+  every sample, and contradictory/ignored CLI and wizard option combinations now fail visibly.
+
+### Wizard, packaging, and verification
+
+- Added wizard build-analysis controls, detached calculation snapshots, revision-guarded worker
+  publication, stale-worker cancellation, failure-safe export, UTF-8/CSV-safe saves, and clear
+  Design Another/Export/Quit actions.
+- Split synthesis, verification, realization, solver, output, and wizard responsibilities into
+  focused modules while retaining supported public facades.
+- Package metadata now requires Python 3.10+, ships runtime data, and reports version 2.1.0.
+  CI uses current pinned major actions, runs Ruff and coverage-gated tests on Python 3.10–3.13,
+  inspects wheel/sdist contents, and smoke-tests the installed wheel.
+- The suite now contains more than 2,000 tests with a 90% CI line-coverage floor, including a
+  maintained 128-cell bandpass study, solver analytic references, machine-output contracts,
+  packaging checks, and real Textual pilot flows.
+
+---
+
 ## 2026-07-06 — Math-Audit Remediation + Matched-Value Simulation
 
 **BREAKING**: Chebyshev LP/HP ripple parameter now capped at 3.0 dB (was no upper bound in LP/HP CLI, wizard and bandpass already had the cap). Ripple value of 3.5 dB now errors "Ripple must be at most 3.0 dB" instead of accepting it.

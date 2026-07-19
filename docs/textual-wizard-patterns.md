@@ -1,71 +1,76 @@
-# Textual Wizard Patterns: Screen vs ContentSwitcher
+# Textual Wizard Patterns
 
-This guide explains the two primary ways to build multi-step wizards in Textual: using a `ContentSwitcher` for in-place transitions or `push_screen` for a modal/layered approach.
+This project uses independent Textual screens, not a `ContentSwitcher`:
 
-> **Note**: This project's wizard (`filter_lib/wizard/`) uses the **Screen + `push_screen`** approach — each step (welcome → filter config → output options → results) is an independent `Screen` subclass sharing a centralized `FilterState` on the App. The ContentSwitcher discussion below is general Textual guidance kept for reference.
-
-## 1. ContentSwitcher (In-Place Transitions)
-
-Use `ContentSwitcher` when you want a static layout (like a wizard container with a title and "Next/Back" buttons) where only the middle form content changes.
-
-### Best For:
-- Linear wizards.
-- Flows where navigation buttons should remain in the same spot.
-- Simple data collection.
-
-### Passing Data:
-The easiest way is to store data on the parent `App` or the main `Screen` that contains the `ContentSwitcher`. All steps can access `self.app.data`.
-
----
-
-## 2. Screens & `push_screen` (Modal Transitions)
-
-Use `push_screen` when each step is a distinct unit, or when you need a "pop-up" style interaction.
-
-### Best For:
-- Complex, branching flows.
-- Reusable UI components.
-- Returning a single value from a specific interaction (e.g., a "Select Filter Type" dialog).
-
-### Returning Values:
-Textual's `push_screen` accepts a callback function that is executed when the screen is "popped" (dismissed).
-
-```python
-# In the parent
-def show_modal(self):
-    self.push_screen(MyModal(), self.handle_result)
-
-def handle_result(self, value):
-    # 'value' is what was passed to self.dismiss(value) in the modal
-    self.notify(f"Selected: {value}")
-
-# In the modal screen
-def on_button_pressed(self, event):
-    self.dismiss(event.button.id)
+```text
+Welcome → one filter form → Output Options → Results
 ```
 
----
+Forward navigation calls `push_screen()`. Escape and Back call `pop_screen()`. The optional
+frequency plot is rendered in Results and does not create a fifth screen.
 
-## 3. Recommended Pattern for Wizard App
+## Shared State
 
-For a "Form -> Calculation -> Results" flow, a **ContentSwitcher** inside a single **Screen** is usually the most polished experience. 
+One `FilterState` lives at `FilterWizardApp.filter_state`. Screens read or update
+`self.app.filter_state`; it is a dataclass, not a widget, and must not be found with
+`query_one()`.
 
-### Key Features:
-1.  **Centralized Data:** Use a `WizardData` class or a simple dictionary on the `App`.
-2.  **Validation:** Validate the current step before allowing "Next".
-3.  **Keyboard Shortcuts:** 
-    - `Enter` in an `Input` should trigger `handle_next`.
-    - `Escape` should prompt to cancel or quit.
-4.  **Loading/Calculation State:** Use a separate "Calculating" step in the switcher to perform heavy work without freezing the UI.
+Parameter screens store validated design inputs. Output Options stores component-output,
+response-sidecar, and optional build-analysis controls. Results receives a snapshot and
+publishes a detached `CalculationOutcome` only after the calculation succeeds.
 
----
+## Navigation and Validation
 
-## Summary Comparison
+- Validate the current screen before pushing the next screen.
+- Map an error back to the most relevant widget, notify the user, and focus that widget.
+- Enter advances through the documented field flow; Tab/Shift+Tab remain available.
+- Escape goes back. `Q` on Results or Ctrl+C exits.
+- Output choices that would hide selected data are rejected rather than silently ignored.
 
-| Feature | ContentSwitcher | Screen (push_screen) |
-| :--- | :--- | :--- |
-| **Visuals** | Smooth, keeps frame static | Layers over existing UI |
-| **State** | Shared parent state (Easy) | Decoupled state (Requires callbacks) |
-| **Architecture** | Single-screen app | Multi-screen app |
-| **Complexity** | Low to Medium | Medium to High |
-| **Use Case** | Standard Wizards | Modals, Branching, Dashboards |
+The raw-table/E-series combination is normally rejected because raw rows hide preferred-value
+selection. It is allowed when realized-build analysis is enabled, because the E-series still
+drives the visible nominal-build analysis. Quiet mode cannot hide build analysis.
+
+## Background Calculation
+
+Results starts one exclusive thread worker from `FilterState.calculation_copy()`. The live state
+has a monotonically increasing calculation revision:
+
+1. changing inputs invalidates the prior result;
+2. mounting Results begins a pending revision and captures a snapshot;
+3. a worker event is accepted only if the screen, worker, revision, and pending state all match;
+4. unmount cancels the worker and invalidates that pending revision;
+5. export stays disabled until a complete successful result is published.
+
+This prevents a canceled or stale calculation from overwriting a newer design.
+
+## Export
+
+The Results screen offers Design Another, Export, and Quit. Export reveals Text, JSON, or CSV
+component choices plus Save/Cancel. Build analysis can be saved as text or JSON; CSV is disabled
+because the nested analysis has no lossy flattening contract. An optional response JSON/CSV
+sidecar is written beside the component file. Files use UTF-8 and CSV-safe newline handling.
+
+## Where Logic Belongs
+
+- Screen modules: widgets, focus flow, notifications, and navigation.
+- `bandpass_form.py`: BP form parsing and field-specific errors.
+- `build_options.py`: output/build compatibility and `BuildConfig` mapping.
+- `filter_type_calculators.py`: category calculation and primary rendering.
+- `calculation_handler.py`: detached orchestration and success/error outcomes.
+- `export_formatting.py`: component and response serialization.
+- `state.py`: state, snapshots, revisions, and publication invariants.
+
+Business calculations and machine schemas belong in shared calculator modules so CLI and wizard
+cannot drift.
+
+## Testing
+
+Use both focused unit tests and Textual pilot tests:
+
+- mocked widgets for parsing, focus mapping, and button handlers;
+- `App.run_test()` for mounted navigation, worker completion/cancel, and export lifecycle;
+- stale-worker and failed-calculation regressions;
+- parity tests showing wizard build settings create the same shared `BuildConfig` behavior.
+
+Do not rely on manual TUI checks as the only evidence for a public workflow.

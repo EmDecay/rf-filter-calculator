@@ -116,7 +116,7 @@ IN ──┤├──┬──────┤├──────┬───�
 
 - LC tank circuits tuned to center frequency
 - **Top-coupled series capacitors only**: Cs12, Cs23 couple adjacent resonators; Ce_in/Ce_out couple to ports
-- Fractional BW support ≤10% (simulation-validated tolerance ±3% magnitude, ±0.5% f₀)
+- Both requested −3 dB skirts are numerically calibrated; a separate netlist sweep reports per-design edge, connected-region, outer-skirt, ripple, passband-shape, and representative-stopband validation
 - External Q realized by series end-coupling capacitors (Ce)
 
 ---
@@ -176,14 +176,24 @@ Q_inductor = ωL / R_series
 Q_capacitor = 1 / (ωC × R_series)
 ```
 
-### Minimum Q for Bandpass Filters
+### Historical Q heuristic
 
-The calculator displays minimum usable Q (severe loss at this value) based on:
+For compatibility, the result still includes the heuristic:
 ```
 Q_min = f₀ / BW × Q_safety
 ```
 
-Default safety factor is 2.0. Increase for better filter performance.
+The default safety factor is 2.0. This number is not a stability boundary, a component specification, or the loss model used by realized-build simulation. `q_safety` is explicitly marked compatibility-only in JSON.
+
+### Complete-resonator Q
+
+`Qu` is the unloaded Q of the complete resonator. If inductor and capacitor Q are known separately, the calculator combines their loss channels as:
+
+```text
+1 / Qu = 1 / QL + 1 / QC
+```
+
+The omission of one channel means that channel is modeled as ideal. In realized-build analysis, Q at one reference frequency is converted to explicit series resistance. The resistance is held constant during the sweep, so Q then varies with frequency.
 
 **Cohn Insertion Loss Estimate** (v2.0.1):
 
@@ -198,17 +208,7 @@ Where:
 - **Qu** = unloaded Q of reactive components
 - **4.343** = conversion constant (dB = nepers × 4.343)
 
-The calculator estimates IL at Qu = 100 and Qu = 250 by default (typical values). Use `--qu` flag to estimate at a custom value.
-
-### Practical Considerations
-
-| Frequency | Typical Inductor Q |
-|-----------|-------------------|
-| 1-10 MHz | 50-100 |
-| 10-100 MHz | 80-200 |
-| 100+ MHz | 100-300 |
-
-Air-core inductors generally have higher Q than ferrite-core at RF frequencies.
+The calculator shows reference estimates at Qu = 100 and Qu = 250 and adds the supplied complete-resonator Q. This is a low-loss approximation, not a substitute for the named-circuit loss simulation or a measurement.
 
 ---
 
@@ -248,16 +248,21 @@ Q_ext = f₀ / BW × g_value
 Rp = Z₀·(1 + q²)   where  q = 1/(ω₀·Z₀·Ce)
 ```
 
-The designer solves for Ce such that the tank sees the target Rp, thus realizing the desired external Q. A small series-equivalent capacitance ΔC (derived from q) is then subtracted from the tank capacitor to keep the resonant frequency on-target. This approach is mathematically exact and avoids the insertion loss and component count of prior coupling networks.
+The designer solves for Ce such that the tank sees the target Rp. A series-equivalent capacitance correction is included in the tank. Because finite coupling reactance perturbs the complete multi-resonator network, the implementation subsequently calibrates tank frequency and prototype fractional bandwidth against both requested −3 dB skirts.
 
 The calculator displays Q_ext values indicating the external Q realized by the end-coupling capacitors.
 
-## Iron-Powder Toroids in LC Filters
+## Iron-Powder Toroid Winding Math
 
-Iron-powder T-series cores are the workhorse of HF/VHF LC filter construction because they combine three useful properties:
+For a core with published inductance factor A_L in nH/turn², the nominal turns are:
 
-1. **Distributed air gap.** The binder between powdered iron particles behaves as a large, uniformly distributed air gap, which keeps effective permeability modest and, crucially, stable with drive level. Saturation flux density is high and soft; the core does not abruptly clip like a gapless ferrite tank.
-2. **Predictable A_L at the rated frequency band.** Each "mix" (material) targets a published frequency window (e.g. mix 2: 250 kHz – 10 MHz; mix 6: 3 MHz – 40 MHz). Inside that window, A_L (in nH/turn²) is quoted with ±5% tolerance, so a designer can solve `N = √(1000 L[µH] / A_L)` and expect real-world L within a few percent after rounding.
-3. **Low core loss in the target band.** Loss goes up sharply outside the published window, which is why the recommender gates hard on freq range.
+```text
+Nideal = sqrt(1000 * L[uH] / A_L[nH/turn^2])
+```
 
-The recommender picks the best-accuracy core that (a) covers the design frequency and (b) mechanically fits the required N turns of a default AWG for the family. See `docs/user-guide.md` "Toroid Winding Recommendations" for usage and `docs/caveats-and-known-issues.md` for v1 scope limits (notably: Q reported is a DC upper bound; no core-loss / skin-effect modeling).
+Turns must be integral, so the realized nominal inductance is `A_L * N²`. The calculator compares adjacent turn options and accepts an automatic candidate only when the selected turn count's nominal error is within that exact core's published A_L tolerance.
+
+Frequency guidance, A_L, and physical dimensions do not establish RF suitability. The automatic screen is deliberately limited to exact primary-sourced parts and checks only recorded material guidance, integer-turn accuracy, and winding capacity. Its `omega L / Rdc` value uses wire DC resistance and is only a diagnostic ceiling—not RF Q. Core loss, AC copper loss, SRF, saturation, thermal rise, and power handling require separate data and measurement.
+
+See [the user guide](user-guide.md#toroid-winding-recommendations) for the output contract and
+[caveats](caveats-and-known-issues.md#toroid-candidate-screen) for the trust boundary.
