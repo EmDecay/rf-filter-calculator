@@ -209,7 +209,9 @@ the installed command and package data rather than importing the source checkout
 `.github/workflows/ci.yml` contains three jobs:
 
 1. **Ruff quality** — lint and format check.
-2. **Python matrix** — full suite with coverage on 3.10–3.13.
+2. **Python matrix** — all tests on 3.10–3.13, with the build-analysis runtime check
+   run separately from coverage instrumentation. Its unchanged two-second limit measures
+   application runtime; the remaining suite enforces the coverage gate.
 3. **Build and smoke distributions** — build, inspect, install, smoke, and upload
    artifacts after quality/tests pass.
 
