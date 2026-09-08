@@ -64,15 +64,17 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --group dev
 
-      - name: Check build analysis runtime without coverage overhead
+      - name: Check runtimes without coverage overhead
         run: >-
           uv run --locked pytest
           tests/test_build_simulation.py::TestBuildAnalysis::test_default_analysis_runtime_is_bounded
+          tests/test_netlist_simulation.py::TestBandpassTopCAcceptance::test_calibration_runtime_is_bounded
 
       - name: Run correctness suite with coverage
         run: >-
           uv run --locked pytest tests/
           --deselect=tests/test_build_simulation.py::TestBuildAnalysis::test_default_analysis_runtime_is_bounded
+          --deselect=tests/test_netlist_simulation.py::TestBandpassTopCAcceptance::test_calibration_runtime_is_bounded
           --cov=filter_lib
           --cov-report=term-missing
           --cov-report=xml
