@@ -1,5 +1,25 @@
 # Project Changelog
 
+## Unreleased — 2026-09-07 — Response Measurement Accuracy
+
+- Build analysis now evaluates requested passband boundaries, refines extrema and half-power
+  crossings, and checks successive meshes for convergence. Every tolerance case uses the same
+  policy. Unresolved cases and out-of-window skirts remain visible with explicit summary omissions.
+- Reported bandwidth identifies its local reference peak and selected connected region;
+  disconnected regions and global peak gain remain separate quantities.
+- BP plots and response exports use bandwidth-relative windows with center/edge landmarks.
+  CLI and wizard share evaluated threshold tables; passband detail also zooms horizontally.
+  Narrow-band labels retain enough digits to distinguish the skirts.
+- BP SPICE exports use a bounded bandwidth/order-aware linear sweep. LP/HP retain their
+  logarithmic sweep. External-SPICE execution is not a bundled test dependency.
+- Top-C validation explicitly covers passband and near-stopband behavior. Actual lossless
+  circuit harmonic samples and Cohn/equivalent-loss center comparisons are informational;
+  synthesis formulas, solver and existing acceptance gates are retained.
+- Precise user Q values retain distinct loss-estimate keys instead of colliding with a standard
+  example through compact-number formatting.
+- Added independent ABCD circuit regression coverage and updated interpretation, theory,
+  caveats, architecture, testing and sample-output documentation.
+
 ## 2.1.0 — 2026-07-19 — Accuracy, Build, and Release Remediation
 
 This release turns calculated values, physical-part choices, simulations, and limitations into

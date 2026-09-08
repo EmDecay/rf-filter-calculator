@@ -8,8 +8,8 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 - **Response Types**: Butterworth, Chebyshev (arbitrary ripple in (0, 3] dB), Bessel. Chebyshev LP/HP cutoff is the ripple-band edge (ARRL/Elsie/Zverev convention), not the −3 dB point; bandpass `bw` is the true −3 dB bandwidth
 - **Buildable Capacitor Selection**: E12/E24/E96 is treated as preferred-value density, not tolerance. The default policy keeps a single part within 1%, uses a two-part parallel value only when it improves absolute error by at least 0.5 percentage points, and requires expert action below 1 pF
 - **End-Coupling Realization**: Bandpass external Q realized by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
-- **Calibrated, Verified Bandpass Synthesis**: Each Top-C design is calibrated to both requested −3 dB skirts and independently checked for connected passband, outer skirts, passband shape, ripple, and representative stopband behavior. JSON reports whether the individual design is inside the validated envelope
-- **Realized-Build Analysis**: `--sim-build` selects nominal physical parts, optionally adds finite-Q loss, evaluates deterministic tolerance cases plus repeatable samples, and keeps synthesis targets separate from simulated results
+- **Calibrated, Verified Bandpass Synthesis**: Each Top-C design is calibrated to both requested −3 dB skirts and independently checked for connected passband, outer skirts, passband shape, ripple, and near-stopband samples. Validation does not establish far-stopband rejection; actual circuit harmonic samples and Cohn loss comparisons are reported separately
+- **Realized-Build Analysis**: `--sim-build` selects nominal physical parts, optionally adds finite-Q loss, and evaluates deterministic tolerance cases plus repeatable samples. Refined measurements include exact requested band edges, convergence status, and disconnected-region metadata
 - **Generic SPICE Export**: Exact or nominal-build passive decks use the same named circuit and physical-part realization as the internal analysis
 - **Screened Toroid Candidates**: Automatic selection is limited to exact parts with primary-source core data (currently T25-6, T50-2, and T68-2), published material guidance, acceptable integer-turn error, and winding-capacity checks. RF Q, SRF, core loss, saturation, temperature rise, and power suitability are explicitly not assessed
 - **ASCII Plots**: Visualize frequency response (LP/HP analytic, BP simulated)
@@ -184,7 +184,7 @@ Default values shown as placeholders; press Enter with empty field to use defaul
 | `--inductor-q`, `--capacitor-q` | Component Q at the loss-reference frequency for build analysis or nominal SPICE |
 | `--loss-reference-frequency` | Reference used to convert supplied Q to constant series resistance; requires an effective Q |
 | `--source-resistance`, `--load-resistance` | Evaluation ports for transducer gain; synthesis remains equal-termination |
-| `--sample-count`, `--seed`, `--analysis-points` | Repeatable bounded screening and frequency-grid controls |
+| `--sample-count`, `--seed`, `--analysis-points` | Repeatable bounded screening and initial frequency-grid controls; measurements refine automatically |
 | `--no-toroid-build` | Keep exact inductance as an explicit nominal fallback instead of selecting a screened winding |
 | `--spice-realization` | Select `exact` or `nominal-build` for `--format spice` (default: `nominal-build`) |
 | `--qu` | Complete resonator unloaded Q for bandpass loss estimates/build realization |

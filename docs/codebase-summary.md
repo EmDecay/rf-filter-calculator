@@ -83,12 +83,19 @@ turn windings where available, and explicit exact-value fallbacks. Optional inpu
 - inductor/capacitor Q at an explicit loss-reference frequency;
 - deterministic corners;
 - repeatable seeded bounded samples;
-- selectable analysis-grid size.
+- selectable initial analysis-grid size, with bounded automatic measurement refinement.
 
 The AC nodal solver reports transducer power gain and uses scale-normalized log-polar
 admittances. LP/HP output reports a category-appropriate cutoff; BP reports lower and
 upper edges, center, and bandwidth. Screening results are engineering cases, not yield,
 probability, guaranteed worst case, or measured performance.
+
+Response accuracy owners are [build_response.py](../filter_lib/shared/build_response.py),
+[response_refinement.py](../filter_lib/shared/response_refinement.py), and
+[model_diagnostics.py](../filter_lib/bandpass/model_diagnostics.py). The
+[user guide](user-guide.md#interpreting-response-measurements) explains convergence, region
+selection and model-comparison limits; [accuracy tests](../tests/test_response_accuracy.py)
+provide independent circuit evidence.
 
 `--sim-matched` is retained as a deprecated compatibility alias for the simpler nominal
 comparison. New integrations should use `--sim-build`.

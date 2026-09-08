@@ -100,12 +100,42 @@ These controls are shared by lowpass, highpass, and bandpass commands:
 | `--source-resistance`, `--load-resistance` | Evaluate transducer gain with unequal ports; synthesis remains equal-termination |
 | `--loss-reference-frequency` | Frequency at which supplied Q is converted to series resistance |
 | `--sample-count N`, `--seed S` | Add repeatable uniform-bound screening cases; not a yield/probability model |
-| `--analysis-points N` | Response grid size (default 601) |
+| `--analysis-points N` | Initial response grid size, 51–5001 (default 601); measurements refine automatically |
 | `--no-toroid-build` | Use calculated inductance as an explicit fallback in the nominal realization |
 | `--format spice --spice-realization exact` | Generic lossless deck with calculated values |
 | `--format spice --spice-realization nominal-build` | Generic deck with selected parts/fallbacks and configured loss |
 
 Tolerance analysis is a bounded simulation, not a measurement or guaranteed worst case.
+
+### Interpreting response measurements
+
+Build measurements evaluate the exact requested band boundaries and refine interior extrema
+and half-power crossings. `--analysis-points` controls the initial mesh, not the total number
+of circuit evaluations. The [refinement policy](../filter_lib/shared/response_refinement.py)
+compares successive meshes to 0.001 dB and 0.00001 times requested bandwidth (BP) or cutoff
+(LP/HP), with at most four passes. Crossing brackets are narrowed further, to 0.0000001 times
+that frequency scale. These tolerances describe numerical convergence, not hardware accuracy
+or a proof that no narrower feature exists between evaluated frequencies.
+High-order or strongly perturbed cases can require more circuit evaluations and take longer;
+increasing the initial grid or screening sample count increases that cost.
+
+Every calculated, nominal and tolerance-case record includes `measurement_converged` and
+`response_evaluations`. Unresolved cases remain visible but are omitted from metric summaries;
+`unresolved_cases` and `omitted_cases` make those exclusions explicit. A skirt beyond the
+finite simulation window is `null`, with `edge_at_simulation_grid_boundary: true`, and is
+excluded from edge statistics. Increasing the point count does not expand the window.
+
+BP bandwidth belongs to the connected half-power region around the local peak nearest the
+requested center. `reference_peak_frequency_hz`, `reference_peak_gain_db`, and
+`half_power_threshold_db` identify that reference; it can differ from the global
+`peak_transducer_gain_db`. `half_power_regions` lists all detected regions at this threshold;
+`selected_region_index` is zero-based, and `center_in_selected_region` says whether the requested
+center remains in the selected region. Split-region cases remain in resolved summaries, whose
+bandwidth refers to the selected region. Inspect these cases before interpreting an envelope.
+
+Build bandwidth uses half power, a 3.0102999566 dB drop from its reference peak. Plot tables use
+literal 3.0 dB. LP/HP worst-passband gain covers the finite simulated portion of the passband,
+not DC or infinite frequency.
 
 ---
 
@@ -235,6 +265,19 @@ uv run filter-calc bp bw top -f 14.2MHz -b 500kHz \
 The calculator calibrates each Top-C circuit to the requested −3 dB skirts and reports
 `response_validation_status`. Some designs within 10% fractional bandwidth remain outside
 the validated response envelope, and some combinations are unrealizable; inspect each result.
+
+Validation covers the requested edges, passband and near-stopband samples. It does not promise
+ideal-prototype harmonic rejection. `harmonic_response` reports exact lossless circuit gain
+at twice and three times the requested center, without an application-specific acceptance mask.
+
+The Cohn line is a small-loss approximation. `loss_estimate_validation` compares each listed
+complete-resonator Q estimate with added loss at the requested center using exact components
+and one equivalent inductor loss per tank. A difference exceeding 0.5 dB is labeled
+`poor_approximation_at_center`. This is a reporting policy, not a synthesis rejection gate;
+`agrees_at_center` does not certify accuracy across the passband or on hardware. Separate
+component-Q models and rounded builds can differ; use `--sim-build` for those evaluations.
+Q keys in `il_estimates` retain enough precision to distinguish a user value from the standard
+examples; parse them as numbers rather than assuming a fixed number of displayed digits.
 
 ---
 
@@ -508,6 +551,11 @@ uv run filter-calc lp bw pi 10MHz --format spice \
 
 The deck is generic SPICE. It prints load voltage and comments the exact transducer-gain
 relationship; it does not claim the voltage trace itself is transducer gain.
+BP decks use a bounded linear sweep sized to provide at least 128 intervals per resonator per
+requested bandwidth; LP/HP retain 200 points per decade. This avoids skipping narrow bands.
+The sweep covers the build-analysis window, not arbitrary remote rejection requirements.
+`--analysis-points` is a build-measurement control and is not accepted for SPICE-only output.
+External-SPICE execution remains the user's simulator workflow, not a bundled dependency.
 
 ---
 
@@ -561,7 +609,7 @@ Two vertically stacked ASCII plots appear automatically:
    - Works for all filter types
 
 2. **Zoomed Passband Plot**: Detail view of low-dB region (0 to -6 dB)
-   - 2× frequency resolution for smoother curves
+   - 2× frequency resolution for smoother curves; BP also narrows the horizontal window to the passband neighborhood
    - Helps visualize ripple and transition sharpness
    - Skipped if passband is completely flat
    - For Chebyshev: adaptive range = max(6, 2×ripple) dB
@@ -578,6 +626,14 @@ For **Lowpass** and **Highpass**: Single column with direction arrows:
 - **↑** (up arrow) = Highpass response rising above threshold
 
 For **Bandpass**: Dual columns (f_low / f_high) showing where response crosses thresholds
+
+BP plots and response-data exports share a bandwidth-relative sweep; the former minimum
+0.1-decade half-span no longer stretches very narrow bands. For grids with at least five
+points, the requested center and both geometric band edges are included when inside the
+window, including even point counts. Response exports retain the requested sample count and
+are sampled curves, not converged measurement reports. CLI and wizard threshold tables refine
+peaks and evaluate crossing brackets, print the local reference, and flag exhausted refinement.
+Narrow-band threshold labels retain extra digits so the two edges remain distinguishable.
 
 If the bandpass filter was specified with `--fl` / `--fh`, the requested values remain in
 machine-readable metadata. Plot labels use the calculator's geometrically centered edge values,

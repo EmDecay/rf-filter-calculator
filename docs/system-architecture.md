@@ -97,12 +97,13 @@ The implementation is split by responsibility:
 - `response_sweep.py`, `passband_measurement.py`, `response_verification.py` — independent
   nodal sweep and per-design response checks
 - `bandpass_design.py`, `design_result.py` — orchestration and result metadata
+- `model_diagnostics.py` — informational harmonic samples and Cohn/circuit center-loss comparison
 
 Only Top-C series coupling is supported. Each result distinguishes the requested
 frequency specification from internal calibrated parameters and carries per-design
 synthesis-validation metadata. Validation checks the connected −3 dB region, both outer
 skirts, center/bandwidth, response shape, ripple where applicable, and representative
-stopband points. The published support matrix contains 128 studied combinations; the
+near-stopband points. Far-stopband diagnostics do not change these gates. The published support matrix contains 128 studied combinations; the
 individual result, not a blanket family claim, determines whether a design is inside the
 validated envelope.
 
@@ -150,7 +151,8 @@ The shared circuit stack is intentionally independent of display formatting:
 - `build_loss_models.py` — converts Q at a stated reference frequency to series loss
 - `tolerance_screening.py` — deterministic corners and optional seeded bounded samples
 - `nodal_solver.py` and `branch_admittance.py` — passive AC solution
-- `build_response.py` and `response_measurement.py` — category-aware measurements
+- `build_response.py` and `response_refinement.py` — evaluated build landmarks and convergence evidence
+- `response_measurement.py` — existing array-based synthesis/calibration measurement helpers
 - `build_output*.py` — table/JSON contracts
 - `spice_export.py` — generic passive decks
 
@@ -167,6 +169,12 @@ measurement.
 Measurements are category-aware: LP/HP report one cutoff; BP reports lower/upper edges,
 center, and bandwidth. A one-sided LP/HP response is not mislabeled as a bandpass-style
 center/bandwidth result.
+
+The refinement layer owns evaluated extrema, connected regions and bracketed crossings;
+calibration retains its independently tested array-based helpers and acceptance thresholds.
+This separation repairs reporting without retuning synthesis to satisfy its own measurement.
+CLI and wizard BP threshold tables share `bandpass.display.format_bandpass_thresholds`.
+See [measurement semantics and numerical policy](user-guide.md#interpreting-response-measurements).
 
 ## Output contracts
 

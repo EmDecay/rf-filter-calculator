@@ -1,6 +1,6 @@
 # Sample Output
 
-These examples reflect version 2.1.0. Long machine-readable payloads are shown as
+These examples reflect version 2.1.0 with the unreleased response-accuracy updates. Long machine-readable payloads are shown as
 selected valid fragments; run the command to obtain the complete schema.
 
 ## Lowpass Table
@@ -98,6 +98,13 @@ Coupling:            Top-C (Series)
 
 Loss examples use complete-resonator unloaded Q (not inductor Q alone).
 Est. insertion loss (Cohn): 7.0 dB @ Qu=100, 2.8 dB @ Qu=250
+Cohn is a small-loss approximation; center-frequency circuit comparison:
+  Qu=100: 6.87 dB added loss; agrees at center
+  Qu=250: 2.81 dB added loss; agrees at center
+Validation covers requested edges, passband shape and near-stopband samples.
+Top-C far-stopband rejection can differ from the ideal prototype; no rejection mask is applied.
+  Exact lossless circuit at 2 x f0: Gt -83.36 dB (informational)
+  Exact lossless circuit at 3 x f0: Gt -84.96 dB (informational)
 
 Tank capacitors: Cp1 = 185.84 pF, Cp2 = 216.75 pF, Cp3 = 185.84 pF
 Tank inductors:  L1 = L2 = L3 = 561.45 nH
@@ -233,6 +240,13 @@ The omitted fields include substitutions, exact fallbacks, physical branches, me
 all bounded cases, metric summaries, the effective loss model, warnings, and limitations.
 This analysis is a simulation, not a measurement, yield estimate, or guaranteed worst case.
 
+The measurement records also identify `measurement_converged`, `response_evaluations`,
+`reference_peak_gain_db`, `half_power_threshold_db`, `half_power_regions`, and the selected
+zero-based region index. `grid_points` is the initial mesh size. An unresolved measurement
+remains in the case list but is excluded from summary statistics and counted explicitly.
+See [interpretation](user-guide.md#interpreting-response-measurements) before using split-band
+or grid-censored results.
+
 ## Generic SPICE
 
 ```bash
@@ -261,7 +275,7 @@ CK2 2 3 3.91596876867e-12
 CIN 4 1 3.57096111503e-11
 COUT 3 5 3.57096111503e-11
 RLOAD 5 0 50
-.ac dec 200 11368069.3069 17675000
+.ac lin 6921 11368069.3069 17675000
 .print ac vm(5)
 .end
 ```
@@ -269,6 +283,8 @@ RLOAD 5 0 50
 `nominal-build` is the default SPICE realization. It uses the same selected physical branches
 and Q-derived constant-series-resistance model as build analysis. The `.print` trace is load
 voltage; use the commented expression for transducer power gain.
+The BP sweep is linear and sized by bandwidth and resonator count so narrow bands are sampled.
+LP/HP decks retain a logarithmic sweep.
 
 ## Response-Data Export
 

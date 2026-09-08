@@ -76,7 +76,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - **Acceptance Criteria**:
   - ✓ Normalized g-values per Matthaei/Young/Jones standard
   - ✓ Coupling capacitor values calculated correctly
-  - ✓ Per-design checks for requested/outer skirts, connected passband, center, bandwidth, ripple, passband shape, and representative stopband shape
+  - ✓ Per-design checks for requested/outer skirts, connected passband, center, bandwidth, ripple, passband shape, and near-stopband samples; far-stopband diagnostics are informational
   - ✓ Maintained 128-cell matrix: 106 validated, 17 explicit `outside_validated_envelope`, 5 rejected as known-unrealizable
 
 #### 1.2 Response Type Support
@@ -180,7 +180,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 **FR-1.6.3: Output Options**
 - E-series selection menu (E12/E24/E96/None)
 - Output format selection (table/json/csv) and independent response-data export
-- Advanced realized-build controls for tolerances, Q/loss, evaluation ports, screening count/seed, grid size, and toroid use
+- Advanced realized-build controls for tolerances, Q/loss, evaluation ports, screening count/seed, initial grid size, and toroid use; refined measurements expose convergence and connected-region semantics
 - Export frequency response data option
 - Toggleable flags: raw units, quiet mode
 - Async calculation with loading indicator

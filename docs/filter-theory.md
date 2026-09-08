@@ -116,7 +116,7 @@ IN ──┤├──┬──────┤├──────┬───�
 
 - LC tank circuits tuned to center frequency
 - **Top-coupled series capacitors only**: Cs12, Cs23 couple adjacent resonators; Ce_in/Ce_out couple to ports
-- Both requested −3 dB skirts are numerically calibrated; a separate netlist sweep reports per-design edge, connected-region, outer-skirt, ripple, passband-shape, and representative-stopband validation
+- Both requested −3 dB skirts are numerically calibrated; a separate netlist sweep reports per-design edge, connected-region, outer-skirt, ripple, passband-shape, and near-stopband validation
 - External Q realized by series end-coupling capacitors (Ce)
 
 ---
@@ -195,7 +195,7 @@ The default safety factor is 2.0. This number is not a stability boundary, a com
 
 The omission of one channel means that channel is modeled as ideal. In realized-build analysis, Q at one reference frequency is converted to explicit series resistance. The resistance is held constant during the sweep, so Q then varies with frequency.
 
-**Cohn Insertion Loss Estimate** (v2.0.1):
+**Cohn Insertion Loss Estimate**:
 
 For circuits with low-loss (high-Q) components, insertion loss can be estimated using the Cohn formula:
 ```
@@ -205,10 +205,27 @@ IL (dB) ≈ 4.343 × Σgᵢ / (FBW_synth × Qu)
 Where:
 - **Σgᵢ** = sum of normalized g-values for all resonators
 - **FBW_synth** = synthesized fractional bandwidth (may differ slightly from requested BW for Chebyshev)
-- **Qu** = unloaded Q of reactive components
-- **4.343** = conversion constant (dB = nepers × 4.343)
+- **Qu** = unloaded Q of the complete resonator
+- **4.343** ≈ `10 / ln(10)`, the coefficient in this small-loss power-gain approximation (not a general voltage-neper conversion)
 
 The calculator shows reference estimates at Qu = 100 and Qu = 250 and adds the supplied complete-resonator Q. This is a low-loss approximation, not a substitute for the named-circuit loss simulation or a measurement.
+
+The exact-component center-loss comparison makes the approximation's breakdown visible. For
+a 3-resonator Butterworth design at 10 MHz with 10 kHz bandwidth and Qu=100, Cohn gives about
+174 dB while the equivalent-loss circuit gives about 62 dB of center loss. A finite answer
+does not establish an approximation's applicability. See the [reporting policy](user-guide.md#interpreting-response-measurements)
+and [independent circuit regressions](../tests/test_response_accuracy.py).
+
+### Top-C rejection away from the passband
+
+Capacitive couplers are frequency dependent; their near-passband equivalence to prototype
+inverters does not extend to arbitrary remote frequencies. At 20 MHz, a validated 3-resonator
+Butterworth Top-C design centered at 10 MHz with 1 MHz bandwidth gives about −47.66 dB circuit
+gain, versus about −70.57 dB for the ideal prototype. Both calculations can be correct for
+their respective models. The four near-stopband validation samples use normalized deviations
+−2, −1.5, +1.5 and +2. Informational circuit samples at 2× and 3× center are separate from the
+unchanged synthesis acceptance gates; specific blocker/harmonic requirements need their own
+frequency and rejection mask, including physical parasitics when relevant.
 
 ---
 

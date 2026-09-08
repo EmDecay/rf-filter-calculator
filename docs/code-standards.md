@@ -100,8 +100,13 @@ The maintained boundaries are:
 
 Keep calibrated synthesis separate from validation. The bandpass calibration sweep may place
 the skirts; `response_verification.py` independently checks skirts, connected regions, shape,
-and representative stopband samples. Do not replace `response_validation_status` with a
+and near-stopband samples. Do not replace `response_validation_status` with a
 blanket support claim.
+
+Preserve the separation between synthesis acceptance and reporting accuracy. Harmonic samples
+and approximation comparisons are informational. Measurement changes need independent circuit
+references, convergence evidence, and explicit unresolved/region semantics; see
+[accuracy regressions](../tests/test_response_accuracy.py).
 
 Named circuits are the common physical contract for build analysis and SPICE. A selected
 parallel capacitor remains two branches. An unavailable or policy-refused nominal part is an

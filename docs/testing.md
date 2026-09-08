@@ -1,6 +1,6 @@
 # Testing Guide
 
-**Last updated:** July 19, 2026
+**Last updated:** September 7, 2026
 **Applies to:** RF Filter Calculator 2.1.0
 
 ## Quality gates
@@ -41,6 +41,7 @@ uv run pytest tests/test_eseries_matching.py::TestRecommendationPolicy
 
 # Related feature cluster
 uv run pytest \
+  tests/test_response_accuracy.py \
   tests/test_build_simulation.py \
   tests/test_build_output.py \
   tests/test_spice_export.py
@@ -109,6 +110,19 @@ that each individual result reports its own status.
 
 SPICE tests verify the generated generic deck structurally and numerically against the
 internal named circuit. An external simulator is not a test-suite dependency.
+
+### Response accuracy regressions
+
+[test_response_accuracy.py](../tests/test_response_accuracy.py) uses a separate cascaded
+ABCD two-port calculation to check the produced circuit, including explicit series loss and
+unequal ports. It covers missed requested-edge loss, narrow-band literal −3 dB crossings,
+disconnected tolerance responses, the named local peak, finite refinement budgets, and the
+actual sampling prescribed by SPICE exports. It also preserves the distinction between
+calibration validity, harmonic rejection, and Cohn approximation agreement.
+
+Use this file first for changes to response measurement. The synthesis support matrix remains
+in its existing verification tests; improving measurement must not silently relax that matrix.
+Numerical comparisons are simulations, not measured hardware or an external-SPICE run.
 
 ### Wizard and lifecycle
 

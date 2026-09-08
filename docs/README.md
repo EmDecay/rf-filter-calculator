@@ -6,6 +6,7 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 
 - [Quick Start Guide](quick-start.md) - Get up and running quickly
 - [User Guide](user-guide.md) - Complete usage reference
+- [Response Measurement Interpretation](user-guide.md#interpreting-response-measurements) - Convergence, peak references, disconnected regions, and approximation limits
 - [Filter Theory](filter-theory.md) - Background on filter types and topologies
 - [Tips & Best Practices](tips-and-best-practices.md) - Get the most out of the tool
 - [Caveats & Known Issues](caveats-and-known-issues.md) - Edge cases and limitations

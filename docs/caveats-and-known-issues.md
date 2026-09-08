@@ -18,9 +18,13 @@ Top-C bandpass synthesis uses a bounded two-variable calibration to place both r
 - the outermost skirts and whether the −3 dB region is connected;
 - passband error relative to the selected prototype;
 - Chebyshev ripple; and
-- representative stopband samples.
+- near-stopband samples at normalized deviations −2, −1.5, +1.5 and +2.
 
 Each result carries `synthesis_validation` and `response_validation_status`. A calibrated skirt pair does not by itself prove the complete response shape. Treat `outside_validated_envelope` as a direction to inspect the warnings and verify externally before building.
+
+`validated` does not establish far-stopband rejection. Top-C harmonic leakage can exceed the
+ideal prototype prediction substantially. The additional 2×/3× center circuit samples are
+informational and have no application-specific rejection mask; see [filter theory](filter-theory.md#top-c-rejection-away-from-the-passband).
 
 The maintained acceptance study contains 128 cells at 1%, 2%, 5%, and 10% fractional bandwidth: 106 currently meet every validation gate, 17 synthesize with explicit `outside_validated_envelope` status, and 5 known-unrealizable cells are rejected. In particular, some 3 dB Chebyshev cases develop disconnected −3 dB regions; calibration of the center-connected skirts must not be mistaken for validation of the outer envelope.
 
@@ -58,6 +62,12 @@ The historical `q_min = (f0 / bw) * q_safety` field is only a heuristic retained
 
 Realized-build Q inputs are converted to a constant series resistance at the design frequency or explicit `--loss-reference-frequency`. That resistance is constant in the sweep, so the model is not constant-Q away from the reference. A loss-reference frequency without any Q input is rejected.
 
+Cohn estimates can be seriously inaccurate for large loss. The center-frequency comparison
+flags disagreement with the equivalent-loss circuit; agreement at that one frequency is not
+full-passband or hardware validation. The comparison uses exact components, not the selected
+nominal build, and a single equivalent resonator-loss channel rather than the separate
+QL/tank-QC model. See [user-guide interpretation](user-guide.md#interpreting-response-measurements).
+
 ## Realized-build analysis
 
 `--sim-build` uses the authoritative named circuit and distinguishes:
@@ -72,6 +82,12 @@ The deterministic set contains nominal, coherent-low, coherent-high, and one-par
 The internal solver reports transducer power gain and supports independently specified finite source/load resistances. Those resistances change evaluation only; synthesis still assumes equal terminations at the selected design impedance.
 
 Grid-boundary-censored skirts are flagged and omitted from relevant summary statistics. Extend or independently simulate the sweep before interpreting a censored edge.
+
+Automatic response refinement includes the requested boundaries, extrema and evaluated
+crossings. Cases that exhaust its budget remain visible as unresolved and are excluded from
+summary statistics. Convergence on successively finer meshes is not a mathematical bound on
+all frequencies. For disconnected bands, bandwidth refers to the reported selected local-peak
+region, not the outer envelope; inspect the region records and worst requested-passband gain.
 
 The model omits layout and package parasitics, interconnect coupling, component self-resonance, temperature dependence, nonlinear voltage/current effects, saturation, thermal rise, and power behavior.
 
@@ -108,6 +124,10 @@ Gt = 4 * Rs / Rl * |Vout / Vsource|^2
 ```
 
 The project structurally and numerically tests generated decks but does not bundle or invoke an external SPICE engine. Run the deck in your chosen simulator and inspect its dialect-specific diagnostics.
+
+The bandwidth/order-aware BP linear sweep resolves the requested passband; it does not qualify
+every possible sharp resonance in a perturbed build. Extend or refine it for the particular
+measurement and remote rejection requirements. LP/HP decks use logarithmic sweeps.
 
 ## Construction reality
 
