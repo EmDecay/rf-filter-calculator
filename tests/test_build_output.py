@@ -61,6 +61,41 @@ def test_json_fields_keep_target_ideal_nominal_and_tolerance_results_separate():
     }
     # Standard json must not need allow_nan=True for this public payload.
     assert json.loads(json.dumps(fields, allow_nan=False)) == fields
+    measurement = fields["simulated"]["measurement"]
+    assert measurement["measurement_converged"] is True
+    assert measurement["half_power_threshold_db"] == pytest.approx(
+        measurement["reference_peak_gain_db"] - 3.01029995664
+    )
+    assert measurement["connected_region_count"] == len(measurement["half_power_regions"])
+    assert fields["tolerance_analysis"]["measurement_policy"]["grid_points_are_initial"] is True
+
+
+def test_unresolved_and_disconnected_measurements_remain_explicit_in_text_and_json():
+    from filter_lib.shared.build_output_formatting import _format_measurement
+    from filter_lib.shared.build_output_payloads import _measurement_payload
+    from filter_lib.shared.build_types import CircuitMeasurement
+
+    measurement = CircuitMeasurement(
+        9,
+        11,
+        -40,
+        False,
+        -1,
+        reference_peak_frequency_hz=10,
+        reference_peak_gain_db=-2,
+        threshold_db=-5.0103,
+        threshold_regions=((5, 6), (9, 11)),
+        selected_region_index=1,
+        center_in_selected_region=True,
+        measurement_converged=False,
+    )
+    text = _format_measurement("bandpass", measurement)
+    payload = _measurement_payload(measurement, "bandpass")
+    assert "UNRESOLVED" in text and "2 disconnected regions, selected region 2" in text
+    assert "half-power reference -2.000 dB at 10 Hz" in text
+    assert payload["measurement_converged"] is False
+    assert payload["selected_region_index"] == 1
+    assert payload["half_power_regions"][0] == {"f_low_hz": 5, "f_high_hz": 6}
 
 
 def test_bandpass_target_carries_per_design_validation_status():

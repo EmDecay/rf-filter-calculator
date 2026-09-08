@@ -12,6 +12,8 @@ def _analysis_limitations(
     source: float,
     load: float,
     grid_censored_cases: int,
+    unresolved_cases: int,
+    disconnected_cases: int,
 ) -> tuple[str, ...]:
     limitations = list(nominal_limitations)
     limitations.extend(
@@ -32,6 +34,16 @@ def _analysis_limitations(
             f"Edge/cutoff summaries omit {grid_censored_cases} grid-boundary-censored "
             "screening cases; inspect their case records before extending the sweep."
         )
+    if unresolved_cases:
+        limitations.append(
+            f"Metric summaries omit {unresolved_cases} unresolved screening cases; "
+            "their response measurements did not converge within the refinement budget."
+        )
+    if disconnected_cases:
+        limitations.append(
+            f"{disconnected_cases} screening cases have disconnected half-power regions; "
+            "bandwidth describes the selected local-peak region, not the outer envelope."
+        )
     return tuple(limitations)
 
 
@@ -45,7 +57,6 @@ def analyze_build(
     freqs = build_frequency_grid(result, category, active_config.grid_points)
     source, load = evaluation_ports(result, category, active_config)
     calculated_measurement = measure_circuit(exact_circuit, result, category, freqs, source, load)
-    nominal_measurement = measure_circuit(nominal.circuit, result, category, freqs, source, load)
     cases = run_screening_cases(
         nominal.circuit,
         result,
@@ -63,9 +74,16 @@ def analyze_build(
         load_resistance_ohm=load,
         gain_metric="transducer_power_gain_db",
         calculated=calculated_measurement,
-        nominal_build=nominal_measurement,
+        nominal_build=cases[0].measurement,
         nominal_realization=nominal,
         cases=cases,
         metric_summaries=summarize_cases(cases, category),
-        limitations=_analysis_limitations(nominal.limitations, source, load, censored),
+        limitations=_analysis_limitations(
+            nominal.limitations,
+            source,
+            load,
+            censored,
+            sum(not case.measurement.measurement_converged for case in cases),
+            sum(len(case.measurement.threshold_regions) > 1 for case in cases),
+        ),
     )

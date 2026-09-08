@@ -113,13 +113,21 @@ class NominalRealization:
 
 @dataclass(frozen=True)
 class CircuitMeasurement:
-    """Finite-grid response summary for one calculated or nominal circuit."""
+    """Refined response summary on a finite simulation window."""
 
     f_low: float | None
     f_high: float | None
     worst_passband_db: float
     at_grid_edge: bool
     peak_transducer_gain_db: float = -math.inf
+    reference_peak_frequency_hz: float | None = None
+    reference_peak_gain_db: float | None = None
+    threshold_db: float | None = None
+    threshold_regions: tuple[tuple[float | None, float | None], ...] = ()
+    selected_region_index: int | None = None
+    center_in_selected_region: bool | None = None
+    measurement_converged: bool = True
+    response_evaluations: int = 0
 
     @property
     def f0(self) -> float | None:
@@ -156,6 +164,7 @@ class MetricSummary:
     included_cases: int
     omitted_cases: int
     grid_censored_cases: int
+    unresolved_cases: int = 0
 
 
 @dataclass(frozen=True)

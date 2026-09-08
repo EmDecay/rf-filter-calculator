@@ -91,7 +91,7 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=int,
         default=None,
         metavar="N",
-        help="Frequency-grid points for --sim-build (default: 601)",
+        help="Initial frequency-grid points for --sim-build; measurements refine automatically (default: 601)",
     )
     parser.add_argument(
         "--no-toroid-build",

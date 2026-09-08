@@ -6,7 +6,7 @@ from .build_types import BuildConfig, CircuitMeasurement
 from .circuit_model import NamedCircuit
 from .nodal_solver import solve_transducer_power_gain
 from .numeric import is_finite_real
-from .response_measurement import find_3db_edges
+from .response_refinement import refine_response
 
 
 def _is_finite_number(value: object) -> bool:
@@ -71,34 +71,67 @@ def measure_circuit(
     source_resistance: float,
     load_resistance: float,
 ) -> CircuitMeasurement:
-    """Measure edges and gain landmarks for one named circuit."""
-    gains = solve_transducer_power_gain(
-        circuit.n_nodes,
-        circuit.branches(),
-        source_resistance,
-        load_resistance,
-        circuit.in_node,
-        circuit.out_node,
-        freqs,
-    )
-    magnitudes = [math.sqrt(gain) for gain in gains]
+    """Measure evaluated extrema and crossings, checking mesh convergence."""
+    branches = circuit.branches()
+
+    def response(frequency: float) -> float:
+        gain = solve_transducer_power_gain(
+            circuit.n_nodes,
+            branches,
+            source_resistance,
+            load_resistance,
+            circuit.in_node,
+            circuit.out_node,
+            [frequency],
+        )[0]
+        return 10 * math.log10(gain) if gain > 0 else -math.inf
+
     reference = result["f0"] if category == "bandpass" else None
-    measured_low, measured_high = find_3db_edges(freqs, magnitudes, reference_frequency=reference)
-    at_grid_edge = measured_low == freqs[0] or measured_high == freqs[-1]
+    passband = _passband(result, category, freqs)
+    grid = (
+        freqs
+        if len(freqs) >= 257
+        else sorted(set(freqs + build_frequency_grid(result, category, 257)))
+    )
+    if category == "bandpass":
+        intervals = 16 * result["n_resonators"]
+        grid = sorted(
+            set(grid + [passband[0] + result["bw"] * i / intervals for i in range(intervals + 1)])
+        )
+    refined = refine_response(
+        response,
+        grid,
+        passband,
+        reference_frequency=reference,
+        frequency_scale=result["bw"] if category == "bandpass" else result["freq_hz"],
+    )
+    measured_low, measured_high = refined.regions[refined.selected_region]
+    at_grid_edge = measured_low is None or measured_high is None
     if category == "lowpass":
-        at_grid_edge = measured_high == freqs[-1]
+        at_grid_edge = measured_high is None
         f_low, f_high = None, measured_high
     elif category == "highpass":
-        at_grid_edge = measured_low == freqs[0]
+        at_grid_edge = measured_low is None
         f_low, f_high = measured_low, None
     else:
         f_low, f_high = measured_low, measured_high
-    passband = _passband(result, category, freqs)
-    in_band = [
-        gain for frequency, gain in zip(freqs, gains) if passband[0] <= frequency <= passband[1]
-    ]
-    if not in_band:
-        raise ValueError("simulation grid does not include the design passband")
-    worst = min(10.0 * math.log10(gain) if gain > 0 else -math.inf for gain in in_band)
-    peak = max(10.0 * math.log10(gain) if gain > 0 else -math.inf for gain in gains)
-    return CircuitMeasurement(f_low, f_high, worst, at_grid_edge, peak)
+    return CircuitMeasurement(
+        f_low,
+        f_high,
+        refined.worst_db,
+        at_grid_edge,
+        refined.peak_db,
+        reference_peak_frequency_hz=refined.reference_frequency,
+        reference_peak_gain_db=refined.reference_db,
+        threshold_db=refined.reference_db - 10 * math.log10(2),
+        threshold_regions=refined.regions,
+        selected_region_index=refined.selected_region,
+        center_in_selected_region=(
+            (measured_low is None or measured_low <= reference)
+            and (measured_high is None or reference <= measured_high)
+        )
+        if reference is not None
+        else None,
+        measurement_converged=refined.converged,
+        response_evaluations=refined.evaluations,
+    )

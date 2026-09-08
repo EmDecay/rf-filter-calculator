@@ -4,6 +4,7 @@ Finds dB crossing frequencies and formats summary tables.
 """
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from .numeric import is_finite_real
@@ -241,6 +242,8 @@ def find_db_thresholds(
     *,
     reference_frequency: float | None = None,
     relative_to_peak: bool = False,
+    response_fn: Callable[[float], float] | None = None,
+    frequency_tolerance_hz: float | None = None,
 ) -> dict[float, list[float | None]]:
     """Find frequencies at multiple dB threshold levels.
 
@@ -252,6 +255,9 @@ def find_db_thresholds(
         reference_frequency: Intended bandpass center used to reject unrelated
             disconnected lobes. When omitted, the highest region is selected.
         relative_to_peak: Interpret each level relative to the sampled peak.
+        response_fn: Optional actual response for bisection of sampled brackets.
+            Callers should refine the grid/peaks first to resolve all regions.
+        frequency_tolerance_hz: Crossing tolerance (default: window span * 1e-8).
 
     Returns:
         Dict mapping dB level to list of crossing frequencies in Hz.
@@ -260,6 +266,10 @@ def find_db_thresholds(
     """
     if levels is None:
         levels = [-3, -10, -20]
+    if frequency_tolerance_hz is not None and (
+        not is_finite_real(frequency_tolerance_hz) or frequency_tolerance_hz <= 0
+    ):
+        raise ValueError("frequency_tolerance_hz must be positive and finite")
 
     result: dict[float, list[float | None]] = {}
 
@@ -277,14 +287,26 @@ def find_db_thresholds(
         if _has_region_compatible_grid(freqs, response_db):
             regions = find_threshold_regions(freqs, response_db, effective_level)
             selected = _select_threshold_region(regions, freqs, filter_type, reference_frequency)
+            low, high = (selected.f_low, selected.f_high) if selected else (None, None)
+            if response_fn is not None and selected is not None:
+                from .response_refinement import refine_crossing
+
+                tolerance = frequency_tolerance_hz or (freqs[-1] - freqs[0]) * 1e-8
+                start, end = selected.start_index, selected.end_index
+                if low is not None:
+                    low = refine_crossing(
+                        response_fn, freqs[start - 1], freqs[start], effective_level, tolerance
+                    )
+                if high is not None:
+                    high = refine_crossing(
+                        response_fn, freqs[end], freqs[end + 1], effective_level, tolerance
+                    )
             if filter_type == "bandpass":
-                result[level] = (
-                    [selected.f_low, selected.f_high] if selected is not None else [None, None]
-                )
+                result[level] = [low, high]
             elif filter_type == "highpass":
-                result[level] = [selected.f_low if selected is not None else None]
+                result[level] = [low]
             else:
-                result[level] = [selected.f_high if selected is not None else None]
+                result[level] = [high]
             continue
 
         # Preserve the permissive behavior of the legacy wrapper for malformed
@@ -311,6 +333,17 @@ def find_db_thresholds(
     return result
 
 
+def _bandpass_crossing_labels(crossings: list[float | None]) -> tuple[str, str]:
+    """Keep nearby skirts distinguishable down to their stored precision."""
+    from .plot_ascii_renderers import _format_freq_compact
+
+    low, high = crossings
+    if low is not None and high is not None and 0 < high - low < low * 0.01:
+        digits = min(17, max(9, math.ceil(math.log10(high) - math.log10(high - low)) + 5))
+        return f"{low:.{digits}g} Hz", f"{high:.{digits}g} Hz"
+    return tuple(_format_freq_compact(f) if f is not None else "N/A" for f in crossings)
+
+
 def format_threshold_table(
     thresholds: dict[float, list[float | None]],
     filter_type: str = "lowpass",
@@ -329,13 +362,19 @@ def format_threshold_table(
     from .plot_ascii_renderers import _format_freq_compact
 
     is_bandpass = filter_type == "bandpass"
+    labels = (
+        {level: _bandpass_crossing_labels(values) for level, values in thresholds.items()}
+        if is_bandpass
+        else {}
+    )
+    width = max([14] + [len(label) for pair in labels.values() for label in pair])
 
     lines = ["", "dB Threshold Summary"]
 
     if is_bandpass:
-        lines.append(f"\u250c{'─' * 8}\u252c{'─' * 14}\u252c{'─' * 14}\u2510")
-        lines.append(f"\u2502{'Level':^8}\u2502{'f_low':^14}\u2502{'f_high':^14}\u2502")
-        lines.append(f"\u251c{'─' * 8}\u253c{'─' * 14}\u253c{'─' * 14}\u2524")
+        lines.append(f"\u250c{'─' * 8}\u252c{'─' * width}\u252c{'─' * width}\u2510")
+        lines.append(f"\u2502{'Level':^8}\u2502{'f_low':^{width}}\u2502{'f_high':^{width}}\u2502")
+        lines.append(f"\u251c{'─' * 8}\u253c{'─' * width}\u253c{'─' * width}\u2524")
     else:
         lines.append(f"\u250c{'─' * 8}\u252c{'─' * 14}\u2510")
         lines.append(f"\u2502{'Level':^8}\u2502{'Frequency':^14}\u2502")
@@ -348,16 +387,17 @@ def format_threshold_table(
         level_str = f"{int(level):+d} dB" if level == int(level) else f"{level:+.1f} dB"
 
         if is_bandpass:
-            f_low_str = _format_freq_compact(crossings[0]) if crossings[0] is not None else "N/A"
-            f_high_str = _format_freq_compact(crossings[1]) if crossings[1] is not None else "N/A"
-            lines.append(f"\u2502{level_str:^8}\u2502{f_low_str:^14}\u2502{f_high_str:^14}\u2502")
+            f_low_str, f_high_str = labels[level]
+            lines.append(
+                f"\u2502{level_str:^8}\u2502{f_low_str:^{width}}\u2502{f_high_str:^{width}}\u2502"
+            )
         else:
             freq = crossings[0]
             freq_str = f"{arrow} {_format_freq_compact(freq)}" if freq is not None else "N/A"
             lines.append(f"\u2502{level_str:^8}\u2502{freq_str:^14}\u2502")
 
     if is_bandpass:
-        lines.append(f"\u2514{'─' * 8}\u2534{'─' * 14}\u2534{'─' * 14}\u2518")
+        lines.append(f"\u2514{'─' * 8}\u2534{'─' * width}\u2534{'─' * width}\u2518")
     else:
         lines.append(f"\u2514{'─' * 8}\u2534{'─' * 14}\u2518")
 

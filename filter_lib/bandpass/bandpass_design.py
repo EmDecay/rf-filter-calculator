@@ -10,6 +10,7 @@ from .design_result import (
 from .g_values import get_g_values
 from .ideal_response import chebyshev_3db_deviation
 from .input_validation import _validate_inputs
+from .model_diagnostics import model_diagnostics
 from .numeric_validation import _is_positive_finite, _validate_chebyshev_ripple
 from .resonator_math import (
     _resolve_resonator_components,
@@ -66,6 +67,7 @@ def _finish_result(
             "warnings": _validation_warnings(result["fbw"], validation),
         }
     )
+    result.update(model_diagnostics(result))
 
 
 def calculate_bandpass_filter(

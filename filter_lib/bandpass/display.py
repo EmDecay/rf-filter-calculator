@@ -134,6 +134,8 @@ def _print_table_output(
     il_line = format_insertion_loss_line(result)
     if il_line:
         print(il_line)
+    for line in format_validation_scope_lines(result):
+        print(line)
 
     _print_topology(result)
     _print_component_tables(result, raw, mention_toroids=include_toroids)
@@ -163,7 +165,32 @@ def format_insertion_loss_line(result: BandpassResult) -> str:
     if not il_estimates:
         return ""
     parts = [f"{il:.1f} dB @ Qu={qu}" for qu, il in il_estimates.items()]
-    return f"Est. insertion loss (Cohn): {', '.join(parts)}"
+    line = f"Est. insertion loss (Cohn): {', '.join(parts)}"
+    validation = result.get("loss_estimate_validation")
+    if validation:
+        line += "\nCohn is a small-loss approximation; center-frequency circuit comparison:"
+        for key, check in validation["comparisons"].items():
+            loss = check.get("circuit_added_center_loss_db")
+            detail = f"{loss:.2f} dB added loss" if loss is not None else "unavailable"
+            line += f"\n  Qu={key}: {detail}; {check['status'].replace('_', ' ')}"
+    return line
+
+
+def format_validation_scope_lines(result: BandpassResult) -> list[str]:
+    """Explain the validation envelope and actual circuit harmonic samples."""
+    if "harmonic_response" not in result:
+        return []
+    lines = [
+        "Validation covers requested edges, passband shape and near-stopband samples.",
+        "Top-C far-stopband rejection can differ from the ideal prototype; no rejection mask is applied.",
+    ]
+    for sample in result["harmonic_response"]["samples"]:
+        gain = sample["transducer_gain_db"]
+        value = f"{gain:.2f} dB" if gain is not None else "outside numeric range"
+        lines.append(
+            f"  Exact lossless circuit at {sample['multiple']} x f0: Gt {value} (informational)"
+        )
+    return lines
 
 
 def format_q_model_lines(result: BandpassResult) -> list[str]:
@@ -300,13 +327,38 @@ def _print_frequency_response(result: BandpassResult) -> None:
     print(
         f"\n{render_bandpass_plot_pair(sweep, result['f0'], result['bw'], f_low_hz=result['f_low'], f_high_hz=result['f_high'], title=title, ripple_db=ripple, response_fn=response_fn)}"
     )
+    print(format_bandpass_thresholds(result, sweep, response_fn))
+
+
+def format_bandpass_thresholds(result: BandpassResult, sweep, response_fn) -> str:
+    """Render evaluated BP thresholds identically in the CLI and wizard."""
     freqs = [f for f, _ in sweep]
-    dbs = [db for _, db in sweep]
+    from ..shared.response_refinement import refine_response
+
+    refined = refine_response(
+        response_fn,
+        freqs,
+        (result["f_low"], result["f_high"]),
+        reference_frequency=result["f0"],
+        frequency_scale=result["bw"],
+        drop_db=3.0,
+    )
+    freqs, dbs = list(refined.frequencies), list(refined.response_db)
+    lines = []
+    if not refined.converged:
+        lines.append("Threshold measurements unresolved: refinement budget exhausted.")
     thresholds = find_db_thresholds(
         freqs,
         dbs,
         filter_type="bandpass",
-        reference_frequency=result["f0"],
+        reference_frequency=refined.reference_frequency,
         relative_to_peak=True,
+        response_fn=response_fn,
+        frequency_tolerance_hz=result["bw"] * 1e-7,
     )
-    print(format_threshold_table(thresholds, filter_type="bandpass"))
+    lines.append(
+        f"Threshold reference: local peak {refined.reference_db:.3f} dB at "
+        f"{refined.reference_frequency:.9g} Hz; {len(refined.regions)} connected -3 dB region(s)."
+    )
+    lines.append(format_threshold_table(thresholds, filter_type="bandpass"))
+    return "\n".join(lines)

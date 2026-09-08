@@ -458,13 +458,15 @@ class TestInsertionLoss:
 
     def test_user_qu_rendering_like_standard_keeps_standard_entry(self):
         """A user Qu whose "%g" rendering collides with a standard key must not
-        overwrite the standard estimate."""
+        overwrite the standard estimate or lose the separate user estimate."""
         result = calculate_bandpass_filter(
             10e6, 0.5e6, 50, 3, "butterworth", "top", qu=249.9999999999
         )
-        assert set(result["il_estimates"]) == {"100", "250"}
+        assert set(result["il_estimates"]) == {"100", "250", "249.9999999999"}
         expected_250 = 4.343 * sum(result["g_values"]) / (result["fbw_synth"] * 250.0)
         assert result["il_estimates"]["250"] == pytest.approx(expected_250)
+        expected_user = 4.343 * sum(result["g_values"]) / (result["fbw_synth"] * 249.9999999999)
+        assert result["il_estimates"]["249.9999999999"] == pytest.approx(expected_user, rel=1e-14)
 
     def test_invalid_qu_in_calculate_rejected(self):
         with pytest.raises(ValueError, match="must be positive and finite"):

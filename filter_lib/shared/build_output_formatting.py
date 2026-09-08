@@ -23,9 +23,24 @@ def _format_measurement(category: str, measurement: CircuitMeasurement) -> str:
             if cutoff is not None
             else "no -3 dB cutoff on the simulation grid"
         )
+    detail = ""
+    if measurement.reference_peak_gain_db is not None:
+        detail += (
+            f"; half-power reference {measurement.reference_peak_gain_db:.3f} dB"
+            f" at {measurement.reference_peak_frequency_hz:.9g} Hz"
+        )
+    if len(measurement.threshold_regions) > 1:
+        detail += (
+            f"; {len(measurement.threshold_regions)} disconnected regions, "
+            f"selected region {measurement.selected_region_index + 1}"
+        )
+    if not measurement.measurement_converged:
+        detail += "; UNRESOLVED (refinement budget exhausted)"
+    if measurement.at_grid_edge:
+        detail += "; skirt outside simulation window"
     return (
         f"{landmarks}; peak Gt {measurement.peak_transducer_gain_db:.2f} dB; "
-        f"worst requested-passband Gt {measurement.worst_passband_db:.2f} dB"
+        f"worst requested-passband Gt {measurement.worst_passband_db:.2f} dB{detail}"
     )
 
 
@@ -48,6 +63,8 @@ def _format_summary(summary) -> str:
     case_counts = f"; cases included {summary.included_cases}, omitted {summary.omitted_cases}"
     if summary.grid_censored_cases:
         case_counts += f" ({summary.grid_censored_cases} grid-boundary-censored)"
+    if summary.unresolved_cases:
+        case_counts += f" ({summary.unresolved_cases} unresolved)"
     return (
         f"  {summary.metric}: "
         f"min {_format_metric_value(summary.metric, summary.minimum)}, "

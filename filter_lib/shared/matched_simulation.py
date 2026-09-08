@@ -196,6 +196,13 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
         "(Calculated ideal circuit versus selected nominal physical realization)",
     ]
     exact, matched = summary.exact, summary.matched
+    for name, item in (("Calculated", exact), ("Nominal", matched)):
+        if not item.measurement_converged:
+            lines.append(f"{name}: UNRESOLVED response measurement (refinement budget exhausted)")
+        if item.reference_peak_gain_db is not None:
+            lines.append(
+                f"{name} half-power reference: {item.reference_peak_gain_db:.3f} dB at {item.reference_peak_frequency_hz:.9g} Hz; {len(item.threshold_regions)} connected region(s)"
+            )
 
     has_required_edges = (
         matched.f_low is not None and matched.f_high is not None
@@ -284,6 +291,15 @@ def matched_sim_json_payload(summary: MatchedSimSummary) -> dict:
             "bw_hz": m.bw,
             "worst_passband_db": m.worst_passband_db,
             "at_grid_edge": m.at_grid_edge,
+            "measurement_converged": m.measurement_converged,
+            "reference_peak_frequency_hz": m.reference_peak_frequency_hz,
+            "reference_peak_gain_db": m.reference_peak_gain_db,
+            "half_power_threshold_db": m.threshold_db,
+            "connected_region_count": len(m.threshold_regions),
+            "half_power_regions": [
+                {"f_low_hz": low, "f_high_hz": high} for low, high in m.threshold_regions
+            ],
+            "selected_region_index": m.selected_region_index,
         }
         if summary.category == "lowpass":
             payload["cutoff_hz"] = m.f_high

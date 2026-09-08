@@ -180,11 +180,10 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         Display lines in the format selected by `state.output_format`.
     """
     from filter_lib.bandpass import calculate_bandpass_filter
+    from filter_lib.bandpass.display import format_bandpass_thresholds
     from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
     from filter_lib.bandpass.transfer import netlist_frequency_sweep
     from filter_lib.shared.plotting import (
-        find_db_thresholds,
-        format_threshold_table,
         render_bandpass_plot_pair,
     )
 
@@ -243,15 +242,6 @@ def calculate_bandpass(state: FilterState) -> list[str]:
                 response_fn=response_fn,
             )
         )
-        freqs = [f for f, _ in sweep]
-        dbs = [db for _, db in sweep]
-        thresholds = find_db_thresholds(
-            freqs,
-            dbs,
-            filter_type="bandpass",
-            reference_frequency=result["f0"],
-            relative_to_peak=True,
-        )
-        lines.append(format_threshold_table(thresholds, filter_type="bandpass"))
+        lines.append(format_bandpass_thresholds(result, sweep, response_fn))
 
     return lines

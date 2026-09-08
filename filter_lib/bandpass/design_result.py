@@ -23,6 +23,9 @@ def _finalize_validation(validation: dict[str, Any], iterations: int) -> None:
             "calibration_max_iterations": CALIBRATION_MAX_ITERATIONS,
             "calibration_points": CALIBRATION_POINTS,
             "validation_points": VALIDATION_POINTS,
+            "scope": "requested_half_power_edges_passband_shape_and_near_stopband_samples",
+            "far_stopband_validated": False,
+            "near_stopband_normalized_deviations": [-2.0, -1.5, 1.5, 2.0],
         }
     )
     if not validation["edge_validated"]:
@@ -55,8 +58,14 @@ def _insertion_loss_estimates(
     estimates = {
         f"{q:g}": estimate_insertion_loss(g_values, fbw_synth, q) for q in STANDARD_QU_VALUES
     }
-    if resonator_qu is not None and f"{resonator_qu:g}" not in estimates:
-        estimates[f"{resonator_qu:g}"] = estimate_insertion_loss(g_values, fbw_synth, resonator_qu)
+    if resonator_qu is not None:
+        key = f"{resonator_qu:g}"
+        # Keep historical compact keys when they round-trip, but do not merge
+        # a distinct user Q with a standard example through display rounding.
+        if float(key) != resonator_qu:
+            key = repr(resonator_qu)
+        if key not in estimates:
+            estimates[key] = estimate_insertion_loss(g_values, fbw_synth, resonator_qu)
     return estimates
 
 

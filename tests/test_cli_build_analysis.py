@@ -180,7 +180,8 @@ def test_spice_export_covers_every_category_and_realization(
         in deck
     )
     assert re.search(rf"(?m)^{expected_element}\w*\s", deck)
-    assert re.search(r"(?m)^\.ac dec 200 [0-9.e+-]+ [0-9.e+-]+$", deck)
+    sweep = r"lin \d+" if command[0] == "bp" else "dec 200"
+    assert re.search(rf"(?m)^\.ac {sweep} [0-9.e+-]+ [0-9.e+-]+$", deck)
     assert deck.endswith(".end\n")
     assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", deck)
 

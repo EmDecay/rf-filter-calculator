@@ -188,7 +188,8 @@ class TestSpiceValidation:
             realization=realization,
             config=BuildConfig(use_toroid_candidates=False),
         )
-        assert re.search(r"(?im)^\.ac\s+dec\s+\d+\s+[0-9.e+-]+\s+[0-9.e+-]+$", deck)
+        sweep_kind = "lin" if category == "bandpass" else "dec"
+        assert re.search(rf"(?im)^\.ac\s+{sweep_kind}\s+\d+\s+[0-9.e+-]+\s+[0-9.e+-]+$", deck)
         assert re.search(r"(?im)^\.end\s*$", deck)
         assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", deck)
         assert "VINPUT" in deck and "RSOURCE" in deck and "RLOAD" in deck

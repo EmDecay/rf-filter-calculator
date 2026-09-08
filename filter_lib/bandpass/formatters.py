@@ -82,6 +82,8 @@ def format_json(
         "q_safety_compatibility_only": result.get("q_safety_compatibility_only", True),
         "q_model": result.get("q_model"),
         "il_estimates": result.get("il_estimates", {}),
+        "loss_estimate_validation": result.get("loss_estimate_validation"),
+        "harmonic_response": result.get("harmonic_response"),
         "response_validation_status": result.get("response_validation_status"),
         "synthesis_validation": result.get("synthesis_validation"),
         "requested_parameters": result.get("requested_parameters"),

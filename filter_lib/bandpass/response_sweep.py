@@ -41,7 +41,7 @@ def _log_sweep_frequencies(
             if not math.isfinite(relative_span)
             else math.log1p(relative_span) / math.log(10.0)
         )
-        decades = max(0.1, min(1.0, auto_decades))
+        decades = min(1.0, auto_decades)
     elif not is_finite_real(decades) or decades <= 0:
         raise ValueError("decades must be positive and finite")
 
@@ -57,6 +57,24 @@ def _log_sweep_frequencies(
         raise ValueError("Requested sweep frequencies must remain positive and finite") from exc
     if any(not _is_positive_finite(frequency) for frequency in frequencies):
         raise ValueError("Requested sweep frequencies must remain positive and finite")
+    # Preserve the requested point count, replacing the closest interior
+    # samples with the center and geometric half-power edges when possible.
+    if points >= 5:
+        half_bw = bw / 2
+        high = math.hypot(f0, half_bw) + half_bw
+        low = f0 * (f0 / high)
+        used = set()
+        for landmark in (f0, low, high):
+            if frequencies[0] < landmark < frequencies[-1]:
+                index = min(
+                    (i for i in range(1, points - 1) if i not in used),
+                    key=lambda i: abs(frequencies[i] - landmark),
+                )
+                frequencies[index] = landmark
+                used.add(index)
+        frequencies.sort()
+    if any(b <= a for a, b in zip(frequencies, frequencies[1:])):
+        raise ValueError("Requested sweep frequencies must be distinct at floating-point precision")
     return frequencies
 
 

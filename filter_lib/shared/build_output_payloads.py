@@ -9,6 +9,11 @@ from .build_types import (
     ComponentSubstitution,
 )
 from .circuit_model import CircuitElement
+from .response_refinement import (
+    FREQUENCY_TOLERANCE_FRACTION,
+    GAIN_TOLERANCE_DB,
+    MAX_REFINEMENT_PASSES,
+)
 from .strict_json import validate_finite_tree
 
 
@@ -24,6 +29,17 @@ def _measurement_payload(
         "worst_design_passband_gain_db": measurement.worst_passband_db,
         "peak_transducer_gain_db": measurement.peak_transducer_gain_db,
         "edge_at_simulation_grid_boundary": measurement.at_grid_edge,
+        "measurement_converged": measurement.measurement_converged,
+        "response_evaluations": measurement.response_evaluations,
+        "reference_peak_frequency_hz": measurement.reference_peak_frequency_hz,
+        "reference_peak_gain_db": measurement.reference_peak_gain_db,
+        "half_power_threshold_db": measurement.threshold_db,
+        "connected_region_count": len(measurement.threshold_regions),
+        "half_power_regions": [
+            {"f_low_hz": low, "f_high_hz": high} for low, high in measurement.threshold_regions
+        ],
+        "selected_region_index": measurement.selected_region_index,
+        "center_in_selected_region": measurement.center_in_selected_region,
     }
     if category == "lowpass":
         payload["cutoff_hz"] = measurement.f_high
@@ -102,6 +118,7 @@ def _summary_payload(summary) -> dict[str, Any]:
         "included_cases": summary.included_cases,
         "omitted_cases": summary.omitted_cases,
         "grid_censored_cases": summary.grid_censored_cases,
+        "unresolved_cases": summary.unresolved_cases,
     }
 
 
@@ -134,6 +151,23 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
             "sample_count": config.sample_count,
             "seed": config.seed,
             "grid_points": config.grid_points,
+            "unresolved_cases": sum(
+                not case.measurement.measurement_converged for case in analysis.cases
+            ),
+            "disconnected_region_cases": sum(
+                len(case.measurement.threshold_regions) > 1 for case in analysis.cases
+            ),
+            "measurement_policy": {
+                "method": "mesh_doubling_with_evaluated_extrema_and_crossings",
+                "grid_points_are_initial": True,
+                "gain_tolerance_db": GAIN_TOLERANCE_DB,
+                "frequency_tolerance_fraction": FREQUENCY_TOLERANCE_FRACTION,
+                "frequency_tolerance_reference": "bandwidth"
+                if analysis.category == "bandpass"
+                else "cutoff",
+                "max_refinement_passes": MAX_REFINEMENT_PASSES,
+                "convergence_is_not_a_mathematical_bound": True,
+            },
             "cases": [
                 {
                     "case_id": case.case_id,

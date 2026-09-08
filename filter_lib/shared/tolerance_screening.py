@@ -131,6 +131,7 @@ def summarize_cases(cases: tuple[ScreeningCase, ...], category: str) -> tuple[Me
         values = [
             value
             for case in cases
+            if case.measurement.measurement_converged
             if not (exclude_grid_censored and case.measurement.at_grid_edge)
             if (value := extractor(case.measurement)) is not None and math.isfinite(value)
         ]
@@ -147,6 +148,7 @@ def summarize_cases(cases: tuple[ScreeningCase, ...], category: str) -> tuple[Me
                 len(values),
                 len(cases) - len(values),
                 grid_censored,
+                sum(not case.measurement.measurement_converged for case in cases),
             )
         )
     return tuple(summaries)

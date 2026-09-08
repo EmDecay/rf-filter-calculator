@@ -130,7 +130,12 @@ def render_bandpass_plot_pair(
     # render_plot_pair above.
     if response_fn:
         freqs = [f for f, _ in sweep_data]
-        zoom_freqs = _generate_zoom_freqs(freqs, num_points=len(freqs) * 2)
+        # Two requested bandwidths on either side in the bandpass transform;
+        # zoom horizontally as well as vertically without negative frequencies.
+        high = math.hypot(f0, bw) + bw
+        low = f0 * (f0 / high)
+        zoom_freqs = _generate_zoom_freqs([low, high], num_points=len(freqs) * 2)
+        zoom_freqs[min(range(len(zoom_freqs)), key=lambda i: abs(zoom_freqs[i] - f0))] = f0
         zoom_sweep = [(f, response_fn(f)) for f in zoom_freqs]
     else:
         zoom_sweep = sweep_data

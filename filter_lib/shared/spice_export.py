@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from .build_response import build_frequency_grid, evaluation_ports
 from .build_types import BuildConfig, NominalRealization, resolve_build_config
 from .circuit_builders import build_named_circuit
@@ -64,7 +66,7 @@ def export_spice_deck(
     """Export an exact or nominal-build passive network as generic SPICE.
 
     The deck includes a 1 V AC Thevenin source, separate finite source/load
-    resistances, a logarithmic AC sweep, and explicit series-loss resistors.
+    resistances, a bandwidth-aware BP sweep (logarithmic for LP/HP), and losses.
     """
     active_config = resolve_build_config(config)
     nominal: NominalRealization | None = None
@@ -84,6 +86,14 @@ def export_spice_deck(
     # Validate the complete numeric envelope before rendering any text.
     for value in (source, load, start, stop):
         _number(value)
+    sweep = f".ac dec 200 {_number(start)} {_number(stop)}"
+    if category == "bandpass":
+        # At least 128 intervals per resonator per requested bandwidth, even
+        # when that bandwidth occupies a tiny fraction of a decade.
+        points = math.ceil((stop - start) / result["bw"] * 128 * result["n_resonators"]) + 1
+        if not 2 <= points <= 1_000_000:
+            raise ValueError("bandpass SPICE sweep exceeds the supported resolution budget")
+        sweep = f".ac lin {points} {_number(start)} {_number(stop)}"
 
     lines = [
         "* RF Filter Calculator generic AC deck",
@@ -113,7 +123,7 @@ def export_spice_deck(
     lines.extend(
         (
             f"RLOAD {circuit.out_node} 0 {_number(load)}",
-            f".ac dec 200 {_number(start)} {_number(stop)}",
+            sweep,
             f".print ac vm({circuit.out_node})",
             ".end",
         )

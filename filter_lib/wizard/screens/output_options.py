@@ -115,7 +115,7 @@ class OutputOptionsScreen(Screen):
                     yield Input(value="0", id="build-sample-count")
                     yield Static("Screening seed (integer):")
                     yield Input(value="0", id="build-seed")
-                    yield Static("Analysis frequency points (51-5001):")
+                    yield Static("Initial analysis points (51-5001; automatic refinement):")
                     yield Input(value="601", id="build-grid-points")
                     yield Checkbox(
                         "Use screened integer-turn toroid candidates when available",

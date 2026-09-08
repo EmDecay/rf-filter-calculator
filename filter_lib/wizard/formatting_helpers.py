@@ -102,13 +102,18 @@ def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
         for w in result["warnings"]:
             lines.append(f"  ! {w}")
 
-    from filter_lib.bandpass.display import format_insertion_loss_line, format_q_model_lines
+    from filter_lib.bandpass.display import (
+        format_insertion_loss_line,
+        format_q_model_lines,
+        format_validation_scope_lines,
+    )
 
     lines.extend(format_q_model_lines(result))
 
     il_line = format_insertion_loss_line(result)
     if il_line:
         lines.append(il_line)
+    lines.extend(format_validation_scope_lines(result))
 
     lines.append("\nTopology:")
     lines.append(format_top_c_diagram(result["n_resonators"]))
