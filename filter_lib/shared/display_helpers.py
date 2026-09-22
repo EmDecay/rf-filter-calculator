@@ -6,6 +6,13 @@ Provides E-series matching display, component formatting, and output formatters.
 from collections.abc import Callable
 
 from .eseries import match_component
+from .formatting import format_fixed
+
+
+def _signed_error_pct(error_pct: float) -> str:
+    """One-decimal error with "+" on positive values; an error that rounds to zero is unsigned."""
+    rendered = format_fixed(error_pct, 1)
+    return f"+{rendered}" if float(rendered) > 0 else rendered
 
 
 def format_eseries_match(
@@ -29,14 +36,11 @@ def format_eseries_match(
     match = match_component(value, series, parallel_mode=parallel_mode)
     lines: list[str] = []
     formatted = unit_formatter(match.single_value)
-    error_sign = "+" if match.single_error_pct > 0 else ""
+    single_error = _signed_error_pct(match.single_error_pct)
     if match.selected_value is None:
-        lines.append(
-            "  Nearest Std (reference only): "
-            f"{formatted} ({error_sign}{match.single_error_pct:.1f}%)"
-        )
+        lines.append(f"  Nearest Std (reference only): {formatted} ({single_error}%)")
     else:
-        lines.append(f"  Nearest Std:  {formatted} ({error_sign}{match.single_error_pct:.1f}%)")
+        lines.append(f"  Nearest Std:  {formatted} ({single_error}%)")
 
     if match.status == "expert_override_required":
         lines.append("  Selection:                    EXPERT ACTION REQUIRED; no part selected")
@@ -49,9 +53,8 @@ def format_eseries_match(
         # (e.g. "910 pF || 8.2 nF"), so a bare first number is ambiguous.
         p1_fmt = unit_formatter(p1)
         p2_fmt = unit_formatter(p2)
-        err_sign = "+" if match.parallel_error_pct > 0 else ""
         lines.append(
-            f"  Parallel Std: {p1_fmt} || {p2_fmt} ({err_sign}{match.parallel_error_pct:.1f}%)"
+            f"  Parallel Std: {p1_fmt} || {p2_fmt} ({_signed_error_pct(match.parallel_error_pct)}%)"
         )
     return lines
 

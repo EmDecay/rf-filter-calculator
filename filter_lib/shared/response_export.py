@@ -25,11 +25,13 @@ JSON schema::
     }
 
 CSV format: header ``frequency_hz,magnitude_db``, one row per point,
-frequency in %.6g, magnitude rounded to 0.01 dB.
+frequency as the shortest round-trip decimal (identical to the JSON value),
+magnitude rounded to 0.01 dB. Neither format prints a negative zero.
 """
 
 from collections.abc import Mapping, Sequence
 
+from .formatting import format_fixed
 from .numeric import is_finite_real, require_finite_real, require_positive_finite
 from .strict_json import dumps_strict, validate_finite_tree
 
@@ -146,13 +148,18 @@ def export_response_json(freqs: list[float], response_db: list[float], meta: dic
     _validate_response_arrays(freqs, response_db)
     if not isinstance(meta, Mapping):
         raise ValueError("meta must be a mapping")
-    validate_finite_tree({"filter": dict(meta)})
+    try:
+        validate_finite_tree({"filter": dict(meta)})
+    except TypeError as error:
+        raise ValueError(str(error)) from error
     _validate_meta(meta)
     filter_block = {k: meta[k] for k in _FILTER_KEYS if meta.get(k) is not None}
     payload = {
         "filter": filter_block,
         "data": [
-            {"frequency_hz": f, "magnitude_db": round(db, 2)} for f, db in zip(freqs, response_db)
+            # "+ 0.0" turns a rounded -0.0 into 0.0.
+            {"frequency_hz": f, "magnitude_db": round(db, 2) + 0.0}
+            for f, db in zip(freqs, response_db)
         ],
     }
     return dumps_strict(payload, indent=2)
@@ -163,7 +170,7 @@ def export_response_csv(freqs: list[float], response_db: list[float]) -> str:
     _validate_response_arrays(freqs, response_db)
     validate_finite_tree({"frequency_hz": freqs, "magnitude_db": response_db})
     lines = ["frequency_hz,magnitude_db"]
-    lines.extend(f"{f:.6g},{db:.2f}" for f, db in zip(freqs, response_db))
+    lines.extend(f"{float(f)!r},{format_fixed(db, 2)}" for f, db in zip(freqs, response_db))
     return "\n".join(lines)
 
 

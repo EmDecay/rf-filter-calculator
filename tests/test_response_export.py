@@ -4,6 +4,9 @@ import json
 
 import pytest
 
+from filter_lib.bandpass import calculate_bandpass_filter
+from filter_lib.bandpass.display import PLOT_POINTS
+from filter_lib.bandpass.transfer import netlist_frequency_sweep
 from filter_lib.shared.response_export import (
     export_response_csv,
     export_response_json,
@@ -224,20 +227,63 @@ class TestResponseJson:
         with pytest.raises(ValueError, match=message):
             export_response_json([], [], meta)
 
+    @pytest.mark.parametrize(
+        ("meta", "message"),
+        [
+            ({**_LP_META, "note": object()}, r"\$\.filter\.note contains non-JSON value"),
+            ({**_LP_META, 7: "seven"}, r"\$\.filter has non-string JSON object key 7"),
+            ({**_LP_META, "cutoff_hz": b"1e7"}, r"\$\.filter\.cutoff_hz contains non-JSON"),
+        ],
+    )
+    def test_rejects_non_json_metadata_with_value_error(self, meta, message):
+        with pytest.raises(ValueError, match=message):
+            export_response_json([1e6], [-3.0], meta)
+
+    def test_negative_zero_magnitude_serializes_unsigned(self):
+        text = export_response_json([1e6, 2e6], [-0.001, -0.0], _LP_META)
+
+        assert "-0.0" not in text
+        assert [point["magnitude_db"] for point in json.loads(text)["data"]] == [0.0, 0.0]
+
     def test_rejects_non_finite_metadata_with_json_path(self):
         with pytest.raises(ValueError, match=r"\$\.filter\.cutoff_hz must be finite"):
             export_response_json([1e6], [-3.0], {**_LP_META, "cutoff_hz": float("inf")})
 
 
 class TestResponseCsv:
-    def test_header_and_rows_use_six_significant_figures_and_hundredth_db(self):
+    def test_frequencies_round_trip_and_magnitudes_use_hundredth_db(self):
         csv_text = export_response_csv([1234567.891, 2e6, 0.5], [-3.14159, -0.005, -120])
 
         assert csv_text.split("\n") == [
             "frequency_hz,magnitude_db",
-            "1.23457e+06,-3.14",
-            "2e+06,-0.01",
+            "1234567.891,-3.14",
+            "2000000.0,-0.01",
             "0.5,-120.00",
+        ]
+
+    def test_narrow_bandpass_grid_keeps_every_frequency_distinct_and_equal_to_json(self):
+        result = calculate_bandpass_filter(1e9, 100e3, 50, 3, "butterworth", "top")
+        sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
+        freqs = [frequency for frequency, _db in sweep]
+        response_db = [db for _frequency, db in sweep]
+
+        rows = export_response_csv(freqs, response_db).split("\n")[1:]
+        csv_freqs = [float(row.split(",")[0]) for row in rows]
+        json_freqs = [
+            point["frequency_hz"]
+            for point in json.loads(
+                export_response_json(freqs, response_db, response_meta("bandpass", result))
+            )["data"]
+        ]
+
+        assert len(csv_freqs) == PLOT_POINTS
+        assert csv_freqs == json_freqs == freqs
+        assert all(low < high for low, high in zip(csv_freqs, csv_freqs[1:]))
+
+    def test_negative_zero_magnitude_prints_unsigned(self):
+        assert export_response_csv([1e6, 2e6], [-0.001, -0.0]).split("\n")[1:] == [
+            "1000000.0,0.00",
+            "2000000.0,0.00",
         ]
 
     def test_empty_response_is_header_only(self):

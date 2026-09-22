@@ -15,6 +15,7 @@ from filter_lib.highpass import display as hp_display
 from filter_lib.lowpass import display as lp_display
 from filter_lib.shared.display_common import (
     build_standard_match,
+    csv_match_fields,
     format_component_table,
     format_csv_result,
     format_header,
@@ -23,6 +24,8 @@ from filter_lib.shared.display_common import (
     print_component_table,
     print_header,
 )
+from filter_lib.shared.display_helpers import format_eseries_match
+from filter_lib.shared.formatting import format_capacitance
 from filter_lib.shared.topology_diagrams import (
     format_pi_topology_diagram,
     format_t_topology_diagram,
@@ -237,6 +240,41 @@ class TestStandardMatchRecommendationMetadata:
         assert data["status"] == "expert_override_required"
         assert data["selected"] is None
         assert any("1 pF" in warning for warning in data["warnings"])
+
+
+class TestNegativeZeroErrorText:
+    """Sub-0.05 % negative errors must round to an unsigned zero, never ``-0.0``."""
+
+    def test_csv_single_error_cells_are_unsigned_zero(self):
+        # 35.71 pF -> E96 35.7 pF is -0.028 %, which rounds to zero at one decimal.
+        fields = csv_match_fields(35.71e-12, format_capacitance, "E96", "additive")
+
+        assert fields[2] == "0.0"
+        assert fields[6:9] == ["single", "35.70 pF", "0.0"]
+
+    def test_csv_parallel_error_cells_are_unsigned_zero(self):
+        # 184.91 pF -> E96 30.9 pF || 154 pF is -0.005 %.
+        fields = csv_match_fields(184.91e-12, format_capacitance, "E96", "additive")
+
+        assert fields[4] == "0.0"
+        assert fields[6] == "parallel"
+        assert fields[8] == "0.0"
+
+    def test_table_nearest_and_parallel_errors_are_unsigned_zero(self):
+        single = format_eseries_match(35.71e-12, "E96", format_capacitance, "additive")
+        parallel = format_eseries_match(184.91e-12, "E96", format_capacitance, "additive")
+
+        assert single == ["  Nearest Std:  35.70 pF (0.0%)"]
+        assert parallel[1] == "  Parallel Std: 30.90 pF || 154.00 pF (0.0%)"
+
+    def test_table_positive_error_that_rounds_to_zero_is_also_unsigned(self):
+        # 35.69 pF -> E96 35.7 pF is +0.028 %; a sign is shown only on a nonzero rendering.
+        assert format_eseries_match(35.69e-12, "E96", format_capacitance, "additive") == [
+            "  Nearest Std:  35.70 pF (0.0%)"
+        ]
+        assert format_eseries_match(318.31e-12, "E24", format_capacitance, "additive")[0] == (
+            "  Nearest Std:  330.00 pF (+3.7%)"
+        )
 
 
 class TestDisplayResultsRouting:

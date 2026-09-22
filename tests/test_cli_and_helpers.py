@@ -214,7 +214,8 @@ class TestExportPlotData:
 
     def test_csv_writes_header_and_rows(self, capsys):
         assert export_plot_data(Namespace(plot_data="csv"), [1e6], [-3.0], {}) is True
-        assert capsys.readouterr().out == "frequency_hz,magnitude_db\n1e+06,-3.00\n"
+        # Frequencies are written as their shortest round-trip decimal, matching JSON.
+        assert capsys.readouterr().out == "frequency_hz,magnitude_db\n1000000.0,-3.00\n"
 
     def test_disabled_export_prints_nothing(self, capsys):
         assert export_plot_data(Namespace(plot_data=None), [1e6], [-3.0], {}) is False
