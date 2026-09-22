@@ -104,28 +104,54 @@ def test_explicit_eseries_conflicts_with_no_match(monkeypatch, capsys) -> None:
     assert "cannot be combined" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("detail_flag", ["--toroid-compact", "--toroid-full"])
-def test_toroid_table_detail_conflicts_with_quiet(monkeypatch, capsys, detail_flag) -> None:
-    with pytest.raises(SystemExit) as exc_info:
-        _run(monkeypatch, "lp", "bw", "pi", "10MHz", "--quiet", detail_flag)
-
-    assert exc_info.value.code == 2
-    assert "--quiet" in capsys.readouterr().err
-
-
 @pytest.mark.parametrize(
-    "flags",
+    ("flags", "message"),
     [
-        ("--toroid-compact", "--toroid-full"),
-        ("--no-toroids", "--toroid-full"),
+        (
+            ("--quiet", "--toroid-compact"),
+            "--toroid-compact/--toroid-full cannot be used with --quiet",
+        ),
+        (
+            ("--quiet", "--toroid-full"),
+            "--toroid-compact/--toroid-full cannot be used with --quiet",
+        ),
+        (
+            ("--toroid-compact", "--toroid-full"),
+            "use only one of --toroid-compact or --toroid-full",
+        ),
+        (
+            ("--no-toroids", "--toroid-full"),
+            "--no-toroids cannot be combined with a toroid table-detail option",
+        ),
     ],
 )
-def test_contradictory_toroid_display_controls_are_rejected(monkeypatch, capsys, flags) -> None:
+def test_contradictory_toroid_display_controls_are_rejected(
+    monkeypatch, capsys, flags, message
+) -> None:
     with pytest.raises(SystemExit) as exc_info:
         _run(monkeypatch, "hp", "bw", "t", "10MHz", *flags)
 
     assert exc_info.value.code == 2
-    assert "toroid" in capsys.readouterr().err.lower()
+    assert f"error: {message}" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("command", "first_capacitor"),
+    [
+        (("hp", "bw", "t", "10MHz"), "C1"),
+        # Two resonators keep the bandpass tolerance analysis cheap.
+        (("bp", "bw", "top", "-f", "10MHz", "-b", "300kHz", "-n", "2"), "Cp1"),
+    ],
+)
+def test_sim_build_table_appends_realized_build_block(
+    monkeypatch, capsys, command, first_capacitor
+) -> None:
+    _run(monkeypatch, *command, "--sim-build", "--no-toroids", "--analysis-points", "51")
+
+    output = capsys.readouterr().out
+    component_table = output.index(f"│ {first_capacitor}: ")
+    build_block = output.index("Realized-Build Analysis (simulation, not a measurement)")
+    assert component_table < build_block
 
 
 @pytest.mark.parametrize(

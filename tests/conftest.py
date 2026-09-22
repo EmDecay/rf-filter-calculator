@@ -1,25 +1,16 @@
-"""Shared pytest fixtures and constants for RF filter calculator tests.
+"""Shared result-dictionary fixtures for display and export formatting tests.
 
-This module provides reusable test fixtures and constants that are commonly
-used across multiple test modules. Pytest automatically discovers and makes
-these fixtures available to all tests in the tests/ directory.
+The component values are round synthetic numbers chosen to make formatted output easy to
+read; they are not synthesized designs. Tests that check component values use the
+calculators directly.
 """
 
 import pytest
 
-# Test tolerance constants
-FLOAT_TOLERANCE = 1e-15  # For exact float comparisons
-DB_THREE_POINT = -3.0  # Standard -3dB point for filter responses
-FREQ_20M_CENTER = 14.175e6  # 20m amateur band center frequency
-
 
 @pytest.fixture
 def lowpass_result():
-    """Sample lowpass Pi filter result for testing display/formatting.
-
-    5th order Butterworth at 10 MHz, 50 Ohm.
-    Pi topology: C-L-C-L-C (3 caps, 2 inductors)
-    """
+    """Lowpass Pi result shape (order 5: C-L-C-L-C) with synthetic values."""
     return {
         "filter_type": "butterworth",
         "freq_hz": 10e6,
@@ -34,11 +25,7 @@ def lowpass_result():
 
 @pytest.fixture
 def highpass_result():
-    """Sample highpass T filter result for testing display/formatting.
-
-    3rd order Chebyshev at 1 MHz, 75 Ohm, 0.5 dB ripple.
-    T topology for HP: C-L-C (2 series caps, 1 shunt inductor)
-    """
+    """Highpass T result shape (order 3: series C, shunt L, series C) with synthetic values."""
     return {
         "filter_type": "chebyshev",
         "freq_hz": 1e6,
@@ -53,11 +40,7 @@ def highpass_result():
 
 @pytest.fixture
 def lowpass_t_result():
-    """Sample lowpass T topology result for testing.
-
-    5th order Butterworth at 10 MHz, 50 Ohm.
-    T topology: L-C-L-C-L (3 inductors, 2 caps)
-    """
+    """Lowpass T result shape (order 5: L-C-L-C-L) with synthetic values."""
     return {
         "filter_type": "butterworth",
         "freq_hz": 10e6,
@@ -72,11 +55,7 @@ def lowpass_t_result():
 
 @pytest.fixture
 def highpass_pi_result():
-    """Sample highpass Pi topology result for testing.
-
-    3rd order Butterworth at 1 MHz, 75 Ohm.
-    Pi topology for HP: L-C-L (2 shunt inductors, 1 series cap)
-    """
+    """Highpass Pi result shape (order 3: shunt L, series C, shunt L) with synthetic values."""
     return {
         "filter_type": "butterworth",
         "freq_hz": 1e6,
@@ -91,10 +70,7 @@ def highpass_pi_result():
 
 @pytest.fixture
 def bandpass_result():
-    """Sample bandpass filter result for testing.
-
-    3-pole Butterworth at 14.175 MHz (20m band), 350 kHz bandwidth.
-    """
+    """Three-resonator bandpass result shape (20 m band) with synthetic component values."""
     return {
         "filter_type": "butterworth",
         "f0": 14.175e6,

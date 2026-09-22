@@ -1,105 +1,210 @@
-"""Tests for display formatting modules."""
+"""Display building blocks: topology diagrams, quiet/CSV/JSON formatting, and output routing.
 
-import csv
-import io
+Complete LP/HP tables, JSON, and CSV for real order-3 designs are pinned in
+``test_lp_hp_display_golden.py``; this module covers every order, the formatter
+edge cases, and the routing those goldens do not reach.
+"""
+
 import json
+import re
 
 import pytest
 
-from filter_lib.highpass.display import (
-    _primary_component as hp_primary,
-)
-from filter_lib.highpass.display import (
-    display_results as hp_display,
-)
-from filter_lib.highpass.display import (
-    format_csv as hp_format_csv,
-)
-from filter_lib.highpass.display import (
-    format_json as hp_format_json,
-)
-from filter_lib.highpass.display import (
-    format_quiet as hp_format_quiet,
-)
-from filter_lib.lowpass.display import (
-    _primary_component as lp_primary,
-)
-from filter_lib.lowpass.display import (
-    display_results as lp_display,
-)
-from filter_lib.lowpass.display import (
-    format_csv,
-    format_json,
-    format_quiet,
-)
+from filter_lib.bandpass.diagrams import format_top_c_diagram, print_top_c_diagram
+from filter_lib.highpass import display as hp_display
+from filter_lib.lowpass import display as lp_display
 from filter_lib.shared.display_common import (
     build_standard_match,
+    format_component_table,
     format_csv_result,
+    format_header,
     format_json_result,
     format_quiet_result,
     print_component_table,
     print_header,
 )
 from filter_lib.shared.topology_diagrams import (
-    _build_line,
+    format_pi_topology_diagram,
+    format_t_topology_diagram,
     print_pi_topology_diagram,
     print_t_topology_diagram,
 )
 
-# Fixtures lowpass_result, highpass_result, lowpass_t_result, highpass_pi_result
-# are defined in conftest.py and automatically available to all tests
+# Fixtures lowpass_result, highpass_result, lowpass_t_result, and highpass_pi_result
+# come from conftest.py.
+
+_ORDERS = range(2, 10)
+_LABELINGS = [("L", "C"), ("C", "L")]  # (series, shunt): lowpass, highpass
 
 
-class TestFormatJsonResult:
-    """Tests for JSON formatting."""
+def _centered_label(line: str, column: int, label: str) -> str:
+    start = column - len(label) // 2
+    return line[start : start + len(label)]
 
-    def test_lowpass_json_structure(self, lowpass_result):
-        """JSON output has correct structure for lowpass."""
-        output = format_json_result(lowpass_result, primary_component="capacitors")
-        data = json.loads(output)
 
-        assert data["filter_type"] == "butterworth"
-        assert data["cutoff_frequency_hz"] == 10e6
-        assert data["impedance_ohms"] == 50.0
-        assert data["order"] == 5
-        assert "components" in data
-        assert "capacitors" in data["components"]
-        assert "inductors" in data["components"]
+def _assert_shunt_branches(lines: list[str], taps: list[int], shunt_label: str) -> None:
+    _main, wire, symbol, labels, ground_wire, ground = lines
+    for index, tap in enumerate(taps, start=1):
+        assert wire[tap] == ground_wire[tap] == "│"
+        assert _centered_label(symbol, tap, "===") == "==="
+        assert _centered_label(labels, tap, f"{shunt_label}{index}") == f"{shunt_label}{index}"
+        assert _centered_label(ground, tap, "GND") == "GND"
+    assert len({len(line) for line in lines}) == 1
 
-    def test_highpass_json_structure(self, highpass_result):
-        """JSON output has correct structure for highpass."""
-        output = format_json_result(highpass_result, primary_component="inductors")
-        data = json.loads(output)
 
-        assert data["filter_type"] == "chebyshev"
-        assert data["ripple_db"] == 0.5
-        assert "inductors" in data["components"]
+class TestLadderTopologyDiagrams:
+    @pytest.mark.parametrize(("series", "shunt"), _LABELINGS)
+    @pytest.mark.parametrize("order", _ORDERS)
+    def test_pi_starts_with_shunt_and_hangs_every_shunt_from_its_own_tap(
+        self, order, series, shunt
+    ):
+        n_shunt, n_series = (order + 1) // 2, order // 2
+        lines = format_pi_topology_diagram(n_shunt, n_series, series, shunt).splitlines()
+        main = lines[0]
+        taps = [column for column, char in enumerate(main) if char == "┬"]
 
-    def test_capacitor_values_in_json(self, lowpass_result):
-        """Capacitor values are correctly formatted in JSON."""
-        output = format_json_result(lowpass_result, primary_component="capacitors")
-        data = json.loads(output)
+        assert main.startswith("  IN ───┬")
+        assert re.findall(rf"┤ ({series}\d) ├", main) == [
+            f"{series}{i}" for i in range(1, n_series + 1)
+        ]
+        assert len(taps) == n_shunt
+        # Odd orders end on a shunt tap; even orders end on a series element (no phantom tap).
+        assert main.endswith("┬─── OUT") is (order % 2 == 1)
+        assert main.endswith("├────── OUT") is (order % 2 == 0)
+        _assert_shunt_branches(lines, taps, shunt)
 
-        caps = data["components"]["capacitors"]
-        assert len(caps) == 3
-        assert caps[0]["name"] == "C1"
-        assert caps[0]["value_farads"] == 1e-10
+    @pytest.mark.parametrize(("series", "shunt"), _LABELINGS)
+    @pytest.mark.parametrize("order", _ORDERS)
+    def test_t_starts_with_series_and_hangs_every_shunt_from_its_own_tap(
+        self, order, series, shunt
+    ):
+        n_series, n_shunt = (order + 1) // 2, order // 2
+        lines = format_t_topology_diagram(n_series, n_shunt, series, shunt).splitlines()
+        main = lines[0]
+        taps = [column for column, char in enumerate(main) if char == "┬"]
 
-    def test_inductor_values_in_json(self, lowpass_result):
-        """Inductor values are correctly formatted in JSON."""
-        output = format_json_result(lowpass_result, primary_component="capacitors")
-        data = json.loads(output)
+        assert main.startswith(f"  IN ───┤{series}1├")
+        assert re.findall(rf"┤({series}\d)├", main) == [
+            f"{series}{i}" for i in range(1, n_series + 1)
+        ]
+        assert len(taps) == n_shunt
+        # Odd orders end on a series element; even orders end on the final shunt tap.
+        assert main.endswith("├─── OUT") is (order % 2 == 1)
+        assert main.endswith("┬─── OUT") is (order % 2 == 0)
+        _assert_shunt_branches(lines, taps, shunt)
 
-        inds = data["components"]["inductors"]
-        assert len(inds) == 2
-        assert inds[0]["name"] == "L1"
-        assert inds[0]["value_henries"] == 1e-6
 
-    def test_non_finite_component_is_rejected_instead_of_emitting_nan(self, lowpass_result):
-        lowpass_result["capacitors"][0] = float("nan")
+class TestTopCDiagram:
+    @pytest.mark.parametrize("n", _ORDERS)
+    def test_tanks_coupling_and_end_capacitors_are_labelled_in_place(self, n):
+        lines = format_top_c_diagram(n).splitlines()
+        labels, main, tank_labels, ground = lines[0], lines[1], lines[5], lines[9]
+        taps = [column for column, char in enumerate(main) if char == "┬"]
+        caps = [match.start() for match in re.finditer("┤├", main)]
 
-        with pytest.raises(ValueError, match=r"\$\.components\.capacitors\[0\]"):
-            format_json_result(lowpass_result, primary_component="capacitors")
+        assert main.startswith("  IN ──┤├──┬") and main.endswith("──┤├── OUT")
+        assert len(taps) == n
+        assert len(caps) == n + 1  # Ce_in, n-1 series couplers, Ce_out
+        for index, tap in enumerate(taps, start=1):
+            assert _centered_label(tank_labels, tap, f"Cp{index:<2} L{index}") == (
+                f"Cp{index:<2} L{index}"
+            )
+            assert _centered_label(ground, tap, "GND") == "GND"
+        for label, cap in [("Ce_in", caps[0]), ("Ce_out", caps[-1])] + [
+            (f"Cs{i}{i + 1}", cap) for i, cap in enumerate(caps[1:-1], start=1)
+        ]:
+            start = labels.index(label)
+            assert start <= cap and cap + 1 < start + len(label)
+        assert len({len(line) for line in lines}) == 1
+
+
+@pytest.mark.parametrize(
+    ("printer", "formatter", "arguments"),
+    [
+        (print_pi_topology_diagram, format_pi_topology_diagram, (3, 2)),
+        (print_t_topology_diagram, format_t_topology_diagram, (3, 2, "C", "L")),
+        (print_top_c_diagram, format_top_c_diagram, (4,)),
+    ],
+)
+def test_diagram_printers_emit_the_formatted_diagram(printer, formatter, arguments, capsys):
+    printer(*arguments)
+    assert capsys.readouterr().out == formatter(*arguments) + "\n"
+
+
+def test_header_and_component_table_printers_emit_formatted_text(highpass_result, capsys):
+    print_header(highpass_result, topology="T", filter_category="High Pass")
+    print_component_table(highpass_result, raw=True, primary_component="capacitors")
+
+    expected = (
+        format_header(highpass_result, "T", "High Pass")
+        + "\n"
+        + format_component_table(highpass_result, True, "capacitors")
+        + "\n"
+    )
+    assert capsys.readouterr().out == expected
+
+
+class TestQuietOutput:
+    @pytest.mark.parametrize(
+        ("module", "fixture", "expected"),
+        [
+            (
+                lp_display,
+                "lowpass_result",
+                "C1: 100.00 pF\nC2: 200.00 pF\nC3: 100.00 pF\nL1: 1.00 µH\nL2: 1.00 µH",
+            ),
+            (
+                lp_display,
+                "lowpass_t_result",
+                "L1: 1.00 µH\nL2: 1.00 µH\nL3: 1.00 µH\nC1: 100.00 pF\nC2: 200.00 pF",
+            ),
+            (hp_display, "highpass_result", "C1: 500.00 pF\nC2: 500.00 pF\nL1: 2.00 µH"),
+            (hp_display, "highpass_pi_result", "L1: 2.00 µH\nL2: 2.00 µH\nC1: 500.00 pF"),
+        ],
+    )
+    def test_quiet_lists_first_ladder_element_type_first(self, module, fixture, expected, request):
+        assert module.format_quiet(request.getfixturevalue(fixture)) == expected
+
+    def test_raw_quiet_uses_si_units(self, lowpass_result):
+        assert lp_display.format_quiet(lowpass_result, raw=True).splitlines() == [
+            "C1: 1.000000e-10 F",
+            "C2: 2.000000e-10 F",
+            "C3: 1.000000e-10 F",
+            "L1: 1.000000e-06 H",
+            "L2: 1.000000e-06 H",
+        ]
+
+    @pytest.mark.parametrize(
+        ("module", "fixture"),
+        [(lp_display, "lowpass_result"), (hp_display, "highpass_result")],
+    )
+    def test_missing_topology_uses_category_default(self, module, fixture, request):
+        """Lowpass defaults to Pi and highpass to T; both lead with capacitors."""
+        result = request.getfixturevalue(fixture)
+        legacy = {key: value for key, value in result.items() if key != "topology"}
+
+        assert module.format_quiet(legacy) == module.format_quiet(result)
+        assert module.format_quiet(legacy).startswith("C1: ")
+
+
+def test_csv_without_preferred_values_has_only_value_columns(lowpass_t_result):
+    output = lp_display.format_csv(lowpass_t_result, include_toroids=False)
+
+    assert output.splitlines() == [
+        "Component,Value,Unit",
+        "L1,1.00,µH",
+        "L2,1.00,µH",
+        "L3,1.00,µH",
+        "C1,100.00,pF",
+        "C2,200.00,pF",
+    ]
+
+
+def test_json_rejects_non_finite_component_instead_of_emitting_nan(lowpass_result):
+    lowpass_result["capacitors"][0] = float("nan")
+
+    with pytest.raises(ValueError, match=r"\$\.components\.capacitors\[0\]"):
+        format_json_result(lowpass_result, primary_component="capacitors")
 
 
 class TestStandardMatchRecommendationMetadata:
@@ -108,6 +213,7 @@ class TestStandardMatchRecommendationMetadata:
 
         assert data["status"] == "recommended"
         assert data["selected"]["kind"] == "single"
+        assert data["selected"]["value_farads"] == pytest.approx(100e-12, rel=1e-9, abs=0)
         assert "parallel" not in data
         assert data["policy"] == {
             "prefer_single_within_pct": 1.0,
@@ -121,418 +227,116 @@ class TestStandardMatchRecommendationMetadata:
 
         assert data["selected"]["kind"] == "parallel"
         assert data["parallel"]["components"] == data["selected"]["components"]
+        assert data["selected"]["value_farads"] == pytest.approx(
+            sum(part["value_farads"] for part in data["selected"]["components"]), rel=1e-9, abs=0
+        )
 
     def test_sub_pf_target_exports_warning_without_selection(self):
         data = build_standard_match(0.62e-12, "E24", "value_farads", "additive")
 
         assert data["status"] == "expert_override_required"
         assert data["selected"] is None
-        assert data["warnings"]
+        assert any("1 pF" in warning for warning in data["warnings"])
 
 
-class TestFormatCsvResult:
-    """Tests for CSV formatting."""
+class TestDisplayResultsRouting:
+    @pytest.mark.parametrize(
+        ("module", "fixture"),
+        [(lp_display, "lowpass_result"), (hp_display, "highpass_pi_result")],
+    )
+    @pytest.mark.parametrize("show_match", [True, False])
+    def test_machine_formats_print_formatter_output(
+        self, module, fixture, show_match, request, capsys
+    ):
+        result = request.getfixturevalue(fixture)
+        eseries = "E24" if show_match else None
+        expected = {
+            "json": module.format_json(result, eseries=eseries, include_toroids=False) + "\n",
+            "csv": module.format_csv(result, eseries=eseries, include_toroids=False),
+        }
 
-    def test_csv_header(self, lowpass_result):
-        """CSV has correct header."""
-        output = format_csv_result(lowpass_result, primary_component="capacitors")
-        lines = output.strip().split("\n")
-        assert lines[0] == "Component,Value,Unit"
+        for output_format, text in expected.items():
+            module.display_results(
+                result, output_format=output_format, show_match=show_match, include_toroids=False
+            )
+            assert capsys.readouterr().out == text
+        payload = json.loads(expected["json"])
+        assert ("standard_match" in payload["components"]["capacitors"][0]) is show_match
 
-    def test_csv_capacitors_first_for_lowpass(self, lowpass_result):
-        """Lowpass CSV lists capacitors before inductors."""
-        output = format_csv_result(lowpass_result, primary_component="capacitors")
-        lines = output.strip().split("\n")
+    def test_quiet_table_prints_quiet_listing(self, highpass_pi_result, capsys):
+        hp_display.display_results(highpass_pi_result, quiet=True)
+        assert capsys.readouterr().out == hp_display.format_quiet(highpass_pi_result) + "\n"
 
-        # After header, C1, C2, C3 should come before L1, L2
-        assert lines[1].startswith("C1,")
-        assert lines[2].startswith("C2,")
-        assert lines[3].startswith("C3,")
-        assert lines[4].startswith("L1,")
-        assert lines[5].startswith("L2,")
-
-    def test_csv_capacitors_first_for_highpass_t(self, highpass_result):
-        """Highpass T CSV lists capacitors before inductors (caps are primary)."""
-        output = format_csv_result(highpass_result, primary_component="capacitors")
-        lines = output.strip().split("\n")
-
-        # After header, C1, C2 should come before L1
-        assert lines[1].startswith("C1,")
-        assert lines[2].startswith("C2,")
-        assert lines[3].startswith("L1,")
-
-    def test_csv_values_formatted(self, lowpass_result):
-        """CSV values use engineering notation units."""
-        output = format_csv_result(lowpass_result, primary_component="capacitors")
-        lines = output.strip().split("\n")
-
-        # C1 = 100pF should show pF unit
-        parts = lines[1].split(",")
-        assert parts[0] == "C1"
-        assert "pF" in parts[2] or "nF" in parts[2]
-
-    def test_csv_exposes_one_recommended_realization_and_policy(self, lowpass_result):
-        output = format_csv_result(
-            lowpass_result,
-            primary_component="capacitors",
-            eseries="E24",
-            include_toroids=False,
-        )
-        rows = list(csv.DictReader(io.StringIO(output)))
-
-        assert "RecommendedStdKind" in rows[0]
-        assert "RecommendationPolicy" in rows[0]
-        assert rows[0]["RecommendedStdKind"] in {"single", "parallel"}
-        assert "single<=1%" in rows[0]["RecommendationPolicy"]
-
-
-class TestFormatQuietResult:
-    """Tests for quiet/minimal output formatting."""
-
-    def test_quiet_output_lines(self, lowpass_result):
-        """Quiet output has one line per component."""
-        output = format_quiet_result(lowpass_result, raw=False, primary_component="capacitors")
-        lines = output.strip().split("\n")
-
-        # 3 capacitors + 2 inductors = 5 lines
-        assert len(lines) == 5
-
-    def test_quiet_output_format(self, lowpass_result):
-        """Quiet output has component name and value."""
-        output = format_quiet_result(lowpass_result, raw=False, primary_component="capacitors")
-        lines = output.strip().split("\n")
-
-        assert lines[0].startswith("C1")
-        assert lines[3].startswith("L1")
-
-    def test_quiet_raw_format(self, lowpass_result):
-        """Raw mode shows SI notation."""
-        output = format_quiet_result(lowpass_result, raw=True, primary_component="capacitors")
-
-        # Raw mode should show scientific notation
-        assert "e" in output.lower() or "E" in output
-
-
-class TestLowpassDisplay:
-    """Tests for lowpass-specific display wrappers."""
-
-    def test_format_json_wrapper(self, lowpass_result):
-        """Lowpass format_json uses capacitors as primary."""
-        output = format_json(lowpass_result)
-        data = json.loads(output)
-
-        # Should have capacitors in components
-        assert "capacitors" in data["components"]
-
-    def test_format_csv_wrapper(self, lowpass_result):
-        """Lowpass format_csv uses capacitors as primary."""
-        output = format_csv(lowpass_result)
-        lines = output.strip().split("\n")
-
-        # Capacitors should come first
-        assert lines[1].startswith("C1,")
-
-    def test_format_quiet_wrapper(self, lowpass_result):
-        """Lowpass format_quiet uses capacitors as primary."""
-        output = format_quiet(lowpass_result, raw=False)
-
-        # C1 should appear before L1
-        c1_pos = output.find("C1")
-        l1_pos = output.find("L1")
-        assert c1_pos < l1_pos
-
-
-class TestHighpassDisplay:
-    """Tests for highpass-specific display wrappers."""
-
-    def test_format_json_wrapper(self, highpass_result):
-        """Highpass format_json uses inductors as primary."""
-        output = hp_format_json(highpass_result)
-        data = json.loads(output)
-
-        # Should have inductors in components
-        assert "inductors" in data["components"]
-
-    def test_format_csv_wrapper(self, highpass_result):
-        """Highpass T format_csv uses capacitors as primary."""
-        output = hp_format_csv(highpass_result)
-        lines = output.strip().split("\n")
-
-        # HPF T: capacitors (series) are primary → listed first
-        assert lines[1].startswith("C1,")
-
-    def test_format_quiet_wrapper(self, highpass_result):
-        """Highpass T format_quiet uses capacitors as primary."""
-        output = hp_format_quiet(highpass_result, raw=False)
-
-        # C1 should appear before L1
-        c1_pos = output.find("C1")
-        l1_pos = output.find("L1")
-        assert c1_pos < l1_pos
-
-
-class TestPrintFunctions:
-    """Tests for print_header and print_component_table."""
-
-    def test_print_header_output(self, lowpass_result, capsys):
-        """print_header outputs correct information."""
-        print_header(lowpass_result, topology="Pi", filter_category="Low Pass")
-        captured = capsys.readouterr()
-
-        assert "Butterworth" in captured.out
-        assert "Pi" in captured.out
-        assert "Low Pass" in captured.out
-        assert "10" in captured.out  # frequency
-        assert "50" in captured.out  # impedance
-        assert "Order" in captured.out
-
-    def test_print_header_with_ripple(self, highpass_result, capsys):
-        """print_header shows ripple for Chebyshev."""
-        print_header(highpass_result, topology="T", filter_category="High Pass")
-        captured = capsys.readouterr()
-
-        assert "Chebyshev" in captured.out
-        assert "Ripple" in captured.out
-        assert "0.5" in captured.out
-
-    def test_print_component_table_output(self, lowpass_result, capsys):
-        """print_component_table formats table correctly."""
-        print_component_table(lowpass_result, raw=False, primary_component="capacitors")
-        captured = capsys.readouterr()
-
-        assert "Capacitors" in captured.out
-        assert "Inductors" in captured.out
-        assert "C1" in captured.out
-        assert "L1" in captured.out
-
-    def test_print_component_table_raw_mode(self, lowpass_result, capsys):
-        """print_component_table shows scientific notation in raw mode."""
-        print_component_table(lowpass_result, raw=True, primary_component="capacitors")
-        captured = capsys.readouterr()
-
-        # Raw mode should show 'e' for scientific notation
-        assert "e" in captured.out.lower() or "E" in captured.out
-
-
-class TestBuildLine:
-    """Tests for _build_line helper in topology_diagrams."""
-
-    def test_single_element_centered(self):
-        """Single element placed at correct position."""
-        result = _build_line([10], ["X"], 20)
-        assert result[10] == "X"
-        assert len(result) == 20
-
-    def test_multiple_elements(self):
-        """Multiple elements placed at correct positions."""
-        result = _build_line([5, 15], ["AB", "CD"], 20)
-        # AB centered at 5: starts at 4
-        assert result[4:6] == "AB"
-        # CD centered at 15: starts at 14
-        assert result[14:16] == "CD"
-
-    def test_empty_positions(self):
-        """No elements produces blank line."""
-        result = _build_line([], [], 10)
-        assert result == " " * 10
-
-    def test_wide_element(self):
-        """Wide element like 'GND' centered correctly."""
-        result = _build_line([10], ["GND"], 20)
-        assert "GND" in result
-
-    def test_boundary_clipping(self):
-        """Elements near boundary don't cause index error."""
-        # Element at position 0 - part may clip
-        result = _build_line([0], ["ABC"], 5)
-        assert len(result) == 5
-
-
-class TestPrintPiTopologyDiagram:
-    """Tests for Pi topology ASCII diagram rendering."""
-
-    def test_pi_3cap_2ind(self, capsys):
-        """Pi diagram with 3 capacitors and 2 inductors (n=5)."""
-        print_pi_topology_diagram(3, 2)
+    def test_raw_table_omits_preferred_value_selection(self, lowpass_result, capsys):
+        lp_display.display_results(lowpass_result, raw=True, show_match=True, include_toroids=False)
         out = capsys.readouterr().out
 
-        assert "IN" in out
-        assert "OUT" in out
-        assert "L1" in out
-        assert "L2" in out
-        assert "C1" in out
-        assert "C2" in out
-        assert "C3" in out
-        assert out.count("GND") == 3
-
-    def test_pi_2cap_1ind(self, capsys):
-        """Pi diagram with 2 capacitors and 1 inductor (n=3)."""
-        print_pi_topology_diagram(2, 1)
-        out = capsys.readouterr().out
-
-        assert "L1" in out
-        assert "C1" in out
-        assert "C2" in out
-        assert "L2" not in out
-        assert out.count("GND") == 2
-
-    def test_pi_2cap_2ind(self, capsys):
-        """Pi diagram with equal caps and inductors (n=4)."""
-        print_pi_topology_diagram(2, 2)
-        out = capsys.readouterr().out
-
-        assert "L1" in out
-        assert "L2" in out
-        assert "C1" in out
-        assert "C2" in out
-
-    def test_pi_diagram_has_branch_points(self, capsys):
-        """Pi diagram has branch points for shunt elements."""
-        print_pi_topology_diagram(3, 2)
-        out = capsys.readouterr().out
-        # Branch points (┬) for each capacitor
-        first_line = out.split("\n")[0]
-        assert first_line.count("┬") == 3
+        assert "│ C1: 1.000000e-10 F     │ L1: 1.000000e-06 H     │" in out.splitlines()
+        assert "Preferred-Value Capacitor Selection" not in out
 
 
-class TestPrintTTopologyDiagram:
-    """Tests for T topology ASCII diagram rendering."""
+class TestJsonResultComponentValues:
+    def test_empty_component_lists_serialize_as_empty_arrays(self):
+        result_dict = {
+            "filter_type": "butterworth",
+            "freq_hz": 1e6,
+            "impedance": 50.0,
+            "order": 0,
+            "capacitors": [],
+            "inductors": [],
+            "ripple": None,
+        }
+        data = json.loads(format_json_result(result_dict))
+        assert data["components"]["capacitors"] == []
+        assert data["components"]["inductors"] == []
 
-    def test_t_3ind_2cap(self, capsys):
-        """T diagram with 3 series and 2 shunt elements (n=5)."""
-        print_t_topology_diagram(3, 2)
-        out = capsys.readouterr().out
-
-        assert "IN" in out
-        assert "OUT" in out
-        assert "L1" in out
-        assert "L2" in out
-        assert "L3" in out
-        assert "C1" in out
-        assert "C2" in out
-        assert out.count("GND") == 2
-
-    def test_t_2ind_1cap(self, capsys):
-        """T diagram with 2 series and 1 shunt (n=3)."""
-        print_t_topology_diagram(2, 1)
-        out = capsys.readouterr().out
-
-        assert "L1" in out
-        assert "L2" in out
-        assert "C1" in out
-        assert "C2" not in out
-
-    def test_t_2ind_2cap(self, capsys):
-        """T diagram with equal series and shunt (n=4)."""
-        print_t_topology_diagram(2, 2)
-        out = capsys.readouterr().out
-
-        assert "L1" in out
-        assert "L2" in out
-        assert "C1" in out
-        assert "C2" in out
-
-    def test_t_diagram_has_branch_points(self, capsys):
-        """T diagram has branch points for shunt elements."""
-        print_t_topology_diagram(3, 2)
-        out = capsys.readouterr().out
-        first_line = out.split("\n")[0]
-        assert first_line.count("┬") == 2
+    def test_extreme_component_values_are_preserved_unrounded(self):
+        result_dict = {
+            "filter_type": "butterworth",
+            "freq_hz": 1e6,
+            "impedance": 50.0,
+            "order": 2,
+            "capacitors": [1e-15, 1e-3],  # femtofarad to millifarad
+            "inductors": [1e-12, 1],  # picohenry to henry
+            "ripple": None,
+        }
+        data = json.loads(format_json_result(result_dict))
+        assert data["components"]["capacitors"][0]["value_farads"] == 1e-15
+        assert data["components"]["capacitors"][1]["value_farads"] == 1e-3
+        assert data["components"]["inductors"][0]["value_henries"] == 1e-12
+        assert data["components"]["inductors"][1]["value_henries"] == 1
 
 
-class TestPrimaryComponent:
-    """Tests for _primary_component helpers in display modules."""
+class TestCsvResultRows:
+    def test_empty_components_produce_header_only(self):
+        output = format_csv_result({"capacitors": [], "inductors": []})
+        assert output.strip().split("\n") == ["Component,Value,Unit"]
 
-    def test_lowpass_pi_primary_is_capacitors(self):
-        assert lp_primary({"topology": "pi"}) == "capacitors"
+    def test_extreme_capacitances_split_into_value_and_unit_columns(self):
+        output = format_csv_result({"capacitors": [1e-15, 1e-3], "inductors": []})
+        assert output.strip().split("\n") == [
+            "Component,Value,Unit",
+            "C1,1.00,fF",
+            "C2,1.00,mF",
+        ]
 
-    def test_lowpass_t_primary_is_inductors(self):
-        assert lp_primary({"topology": "t"}) == "inductors"
-
-    def test_lowpass_default_is_capacitors(self):
-        """Lowpass defaults to pi (capacitors) when topology missing."""
-        assert lp_primary({}) == "capacitors"
-
-    def test_highpass_t_primary_is_capacitors(self):
-        """HPF T: series caps are primary."""
-        assert hp_primary({"topology": "t"}) == "capacitors"
-
-    def test_highpass_pi_primary_is_inductors(self):
-        """HPF Pi: shunt inductors are primary."""
-        assert hp_primary({"topology": "pi"}) == "inductors"
-
-    def test_highpass_default_is_capacitors(self):
-        """Highpass defaults to t (capacitors) when topology missing."""
-        assert hp_primary({}) == "capacitors"
+    def test_sub_nanohenry_inductance_keeps_plain_henry_unit_column(self):
+        output = format_csv_result({"capacitors": [], "inductors": [1e-12, 1.0]})
+        assert output.strip().split("\n") == [
+            "Component,Value,Unit",
+            "L1,1.000000e-12,H",
+            "L2,1.00,H",
+        ]
 
 
-class TestDisplayResultsTopology:
-    """Tests for display_results with different topologies."""
+class TestQuietResultLines:
+    def test_empty_components_produce_empty_output(self):
+        assert format_quiet_result({"capacitors": [], "inductors": []}) == ""
 
-    def test_lowpass_pi_display(self, lowpass_result, capsys):
-        """LPF Pi display shows its diagram and preferred-value selection."""
-        lp_display(lowpass_result, show_plot=False, show_match=True)
-        out = capsys.readouterr().out
+    def test_raw_mode_prints_base_units_in_scientific_notation(self):
+        output = format_quiet_result({"capacitors": [1e-15], "inductors": [1.0]}, raw=True)
+        assert output == "C1: 1.000000e-15 F\nL1: 1.000000e+00 H"
 
-        assert "Low Pass" in out
-        assert "PI" in out
-        assert "Preferred-Value Capacitor Selection" in out
-
-    def test_lowpass_t_display(self, lowpass_t_result, capsys):
-        """LPF T display shows its preferred-value selection."""
-        lp_display(lowpass_t_result, show_plot=False, show_match=True)
-        out = capsys.readouterr().out
-
-        assert "Low Pass" in out
-        assert "Preferred-Value Capacitor Selection" in out
-
-    def test_highpass_t_display(self, highpass_result, capsys):
-        """HPF T display shows its preferred-value selection."""
-        hp_display(highpass_result, show_plot=False, show_match=True)
-        out = capsys.readouterr().out
-
-        assert "High Pass" in out
-        assert "Preferred-Value Capacitor Selection" in out
-
-    def test_highpass_pi_display(self, highpass_pi_result, capsys):
-        """HPF Pi display shows its preferred-value selection."""
-        hp_display(highpass_pi_result, show_plot=False, show_match=True)
-        out = capsys.readouterr().out
-
-        assert "High Pass" in out
-        assert "Preferred-Value Capacitor Selection" in out
-
-    def test_lowpass_pi_json_format(self, lowpass_result, capsys):
-        """LPF Pi JSON output works via display_results."""
-        lp_display(lowpass_result, output_format="json")
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert data["topology"] == "pi"
-
-    def test_lowpass_t_csv_format(self, lowpass_t_result, capsys):
-        """LPF T CSV lists inductors first."""
-        lp_display(lowpass_t_result, output_format="csv")
-        out = capsys.readouterr().out
-        lines = out.strip().split("\n")
-        assert lines[1].startswith("L1,")
-
-    def test_lowpass_t_quiet_format(self, lowpass_t_result, capsys):
-        """LPF T quiet mode lists inductors first."""
-        lp_display(lowpass_t_result, quiet=True)
-        out = capsys.readouterr().out
-        l1_pos = out.find("L1")
-        c1_pos = out.find("C1")
-        assert l1_pos < c1_pos
-
-    def test_highpass_pi_json_format(self, highpass_pi_result, capsys):
-        """HPF Pi JSON output includes topology."""
-        hp_display(highpass_pi_result, output_format="json")
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert data["topology"] == "pi"
-
-    def test_display_no_match_raw(self, lowpass_result, capsys):
-        """Display with raw=True skips E-series matching (toroids still show; skip for this assertion)."""
-        lp_display(lowpass_result, raw=True, show_match=True, include_toroids=False)
-        out = capsys.readouterr().out
-        assert "Recommendations" not in out
+    def test_formatted_mode_prints_engineering_units(self):
+        output = format_quiet_result({"capacitors": [1e-12], "inductors": [1e-6]}, raw=False)
+        assert output == "C1: 1.00 pF\nL1: 1.00 µH"
