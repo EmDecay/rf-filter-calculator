@@ -1,14 +1,13 @@
 """Highpass filter input screen."""
 
-import math
-
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.validation import Number
+from textual.validation import Integer
 from textual.widgets import Button, Footer, Input, RadioButton, RadioSet, Static
 
+from ..design_field_validation import RippleValidator, parse_ripple_db
 from ..filter_screen_navigation_mixin import FilterScreenNavigationMixin
 from ..radio_button_helpers import get_selected_radio
 from ..state import FilterState
@@ -74,14 +73,14 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
                 yield Input(
                     value="3",
                     id="order",
-                    validators=[Number(minimum=2, maximum=9)],
+                    validators=[Integer(minimum=2, maximum=9)],
                 )
                 with Vertical(id="ripple-section"):
                     yield Static("Ripple (dB):")
                     yield Input(
                         value="0.5",
                         id="ripple",
-                        validators=[Number(minimum=0.01, maximum=3.0)],
+                        validators=[RippleValidator()],
                     )
 
             with Horizontal(classes="button-row"):
@@ -217,18 +216,12 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             order_input.focus()
             return
 
-        # Ripple applies to Chebyshev only. The wizard enforces the 3.0 dB
-        # cap here — the LP/HP CLI deliberately validates only ripple > 0.
+        # Ripple applies to Chebyshev only. CLI, wizard and public synthesis all
+        # require 0 < ripple <= 3.0 dB; the ripple field's validator applies the same rule.
         ripple = None
         if filter_type == "chebyshev":
             try:
-                ripple = float(ripple_input.value)
-                if not math.isfinite(ripple):
-                    raise ValueError("must be finite")
-                if ripple <= 0:
-                    raise ValueError("must be positive")
-                if ripple > 3.0:
-                    raise ValueError("must be <= 3.0 dB")
+                ripple = parse_ripple_db(ripple_input.value)
             except ValueError as e:
                 self.notify(f"Invalid ripple: {e}", severity="error")
                 ripple_input.focus()

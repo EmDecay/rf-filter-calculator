@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 from filter_lib.bandpass.calculations import (
@@ -10,6 +9,8 @@ from filter_lib.bandpass.calculations import (
     BANDPASS_LUMPED_MODEL_CAUTION_FBW,
 )
 from filter_lib.shared.parsing import parse_frequency, parse_impedance, parse_inductance
+
+from .design_field_validation import parse_ripple_db
 
 
 class BandpassFormError(ValueError):
@@ -112,13 +113,7 @@ def parse_bandpass_form(values: BandpassFormValues) -> ParsedBandpassDesign:
     ripple_db = 0.5
     if values.filter_type == "chebyshev":
         try:
-            ripple_db = float(values.ripple)
-            if not math.isfinite(ripple_db):
-                raise ValueError("must be finite")
-            if ripple_db <= 0:
-                raise ValueError("must be positive")
-            if ripple_db > 3.0:
-                raise ValueError("must be <= 3.0 dB")
+            ripple_db = parse_ripple_db(values.ripple)
         except ValueError as error:
             raise BandpassFormError(f"Invalid ripple: {error}", "ripple") from error
 

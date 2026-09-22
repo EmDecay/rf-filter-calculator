@@ -43,6 +43,20 @@ def _pressed(screen, radio_set_id: str) -> str:
     return screen.query_one(f"#{radio_set_id}", RadioSet).pressed_button.id
 
 
+async def _assert_design_field_validators(pilot, screen, count_id: str) -> None:
+    """The ripple and count fields are styled invalid exactly when Next rejects them."""
+    ripple = screen.query_one("#ripple", Input)
+    count = screen.query_one(f"#{count_id}", Input)
+    for value, valid in (("0.005", True), ("3.5", False), ("0.5", True)):
+        ripple.value = value
+        await pilot.pause()
+        assert ripple.is_valid is valid, value
+    for value, valid in (("3.5", False), ("10", False), ("3", True)):
+        count.value = value
+        await pilot.pause()
+        assert count.is_valid is valid, value
+
+
 def test_lowpass_keyboard_journey_blocks_even_chebyshev_then_stores_design() -> None:
     async def exercise() -> None:
         app = FilterWizardApp()
@@ -80,9 +94,18 @@ def test_lowpass_keyboard_journey_blocks_even_chebyshev_then_stores_design() -> 
                 await pilot.press("enter")
             ripple = screen.query_one("#ripple", Input)
             assert ripple.has_focus
-            # Below the field validator's 0.01 dB styling floor, yet a legal design:
-            # Chebyshev ripple is accepted over 0 < ripple <= 3.0 dB.
+            # Field styling and Next share one contract: 0 < ripple <= 3.0 dB and an
+            # integer order, so a field is red exactly when Next would reject it.
             ripple.value = "0.005"
+            await pilot.pause()
+            assert ripple.is_valid
+            order = screen.query_one("#order", Input)
+            order.value = "3.5"
+            await pilot.pause()
+            assert not order.is_valid
+            order.value = "4"
+            await pilot.pause()
+            assert order.is_valid
             await pilot.press("enter", "enter")
             await pilot.pause()
 
@@ -136,6 +159,7 @@ def test_highpass_defaults_reach_results_and_a_later_edit_invalidates_them() -> 
             assert _radio_labels(screen, "filter-type")["bessel"] == (
                 "Bessel - High-pass transform does not preserve flat group delay"
             )
+            await _assert_design_field_validators(pilot, screen, "order")
 
             # An empty cutoff falls back to the visible 10MHz placeholder.
             screen.query_one("#next-btn").focus()
@@ -195,6 +219,7 @@ def test_bandpass_journey_updates_fbw_feedback_and_stores_tank_inductance() -> N
             assert _radio_labels(screen, "filter-type")["bessel"] == (
                 "Bessel - Band-pass transform does not preserve flat group delay"
             )
+            await _assert_design_field_validators(pilot, screen, "resonators")
 
             await pilot.press("down", "down", "space", "enter", "enter")
             assert _pressed(screen, "filter-type") == "bessel"
