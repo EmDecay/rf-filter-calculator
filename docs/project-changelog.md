@@ -1,5 +1,88 @@
 # Project Changelog
 
+## Unreleased — 2026-09-22 — Source Bug Remediation
+
+### Input and API contracts
+
+- Frequency, impedance, and inductance parsing now reports an exponent beyond the decimal
+  range (for example `1e1000000000`) as `must be positive and finite`. It previously raised
+  an internal `decimal.Overflow`: a traceback at the CLI and an unhandled error in the wizard.
+- LP/HP `frequency_response` accepts every `FILTER_TYPE_ALIASES` key, adding `b` and `c`,
+  through the shared canonicalizer. An unknown type now raises the shared message
+  `Unknown filter type '<name>'; expected one of butterworth, chebyshev, bessel ...`.
+- Harmonic (inductor) parallel pairs below about 1e-308 no longer collapse to 0.0 with a
+  −100 % error. The value is computed on exactly scaled parts, so every selection in the
+  normal range is bit-for-bit unchanged.
+- `export_response_json` raises `ValueError` instead of `TypeError` for non-JSON metadata keys
+  or values.
+
+### Output formatting
+
+- `--plot-data csv` writes each frequency as the shortest decimal that round-trips to the same
+  binary64 value (`1000000.0`, `1096478.196143185`). This replaces the `%.6g` format from
+  2.0.0, which merged distinct narrow-band frequencies. A 1 GHz / 100 kHz bandpass sweep now
+  has 601 distinct, increasing CSV frequencies that equal the JSON `frequency_hz` values.
+- No output prints a negative zero. Response data, E-series error cells, toroid turn errors,
+  build peak and half-power values, and `--sim-matched` deltas now show `0.00` (or `+0.00`
+  where a sign is always shown) instead of `-0.00`. In the E-series table, an error that
+  rounds to zero now prints `(0.0%)` whatever its sign, where a tiny positive error used to
+  print `(+0.0%)`.
+- A derived user Qu (for example from `--ql 180 --qc 500`) prints as `Qu=132.4` instead of
+  `Qu=132.3529411764706`. Compact values such as `100`, `12345`, or `1e+06` print as
+  before. A precise Qu keeps at least four significant digits and all of its integer digits,
+  and more only when needed to keep two different Qu values distinct. The
+  `Loss-model complete-resonator unloaded Q` line and its `Derived from QL=… and QC=…` values
+  follow the same rule, so `--qu 12345` prints `12345` rather than `1.234e+04`, and a widened
+  Qu reads the same on both lines. JSON keys and values are unchanged.
+
+### ASCII plots
+
+- Both renderers and both full-plus-zoom pair renderers skip non-positive frequencies before
+  ranging the log axis. An input with no positive frequency returns a single
+  `No data to plot`. The LP/HP renderer previously raised `math domain error`, and the
+  bandpass renderer pinned its axis at 1 Hz. A NaN, infinite, or non-numeric frequency raises
+  `Plot frequencies must be finite real numbers`.
+- Empty columns inside the plotted span are filled with the response interpolated in
+  log-frequency. The default 51-point LP/HP sweep no longer leaves a blank column near the
+  right edge. Narrow peaks keep their full height.
+- The passband-detail view is omitted when no sample reaches its window, instead of drawing
+  an empty grid.
+
+### Wizard
+
+- The ripple fields apply the same `0 < ripple <= 3.0 dB` rule and messages as the Next button,
+  so a legal ripple below 0.01 dB is no longer styled invalid. The order and resonator fields
+  accept only integers 2–9, so `3.5` is styled invalid before Next rejects it.
+
+### Toroid candidates
+
+- Table output (CLI and wizard, full and compact) now states once per section that RF Q,
+  core loss, SRF, saturation, thermal rise, and power handling are not assessed. JSON and CSV
+  already carried this per candidate and are unchanged.
+- Wire length uses the reported datasheet wire diameter (AWG 14 on T68-2: 1.600 mm, not the
+  formula's 1.628 mm). For example, the realized-build substitution line
+  `on T68-2, 12 turns of AWG 14` now shows `277 mm` instead of `278 mm`. Build JSON
+  `wire_length_mm` changes to match.
+- Geometry-estimate DCR uses IACS annealed copper (1.724e-8 Ω·m), the basis of AWG tables,
+  instead of 1.68e-8 Ω·m. Manufacturer-table DCR is unchanged.
+- The A_L tolerance note is derived from the candidates shown instead of hard-coded as ±5 %.
+  When candidates differ, the note refers to each candidate's L range line. A section with
+  no candidates omits the note.
+
+### Performance and messages
+
+- `--sim-matched` measures only the calculated and nominal circuits instead of running and
+  discarding the full tolerance screening. For a 14.175 MHz / 350 kHz three-resonator
+  bandpass, the analysis dropped from 3.18 s to 0.12 s (26×; CLI wall time 3.25 s to 0.26 s).
+  Measured values are bit-identical; only the negative-zero formatting above changes the text.
+- Build measurements validate each circuit once, not at every frequency. For the same design,
+  `--sim-build` analysis dropped from 1.77 s to 1.36 s (1.30×), with bit-identical measurements.
+- A bandpass bandwidth below the binary64 resolution of f0 now reports `bandpass bandwidth is
+  too small relative to f0 to form a sweep span`. `frequency span must be finite` remains for
+  an overflowing span.
+- Usage errors use a singular verb for one flag (`--capacitor-tolerance requires --sim-build or
+  --format spice`, `... affects tolerance analysis ...`).
+
 ## Unreleased — 2026-09-22 — Test Suite Audit
 
 - Tests now check component values and responses against published prototype tables and

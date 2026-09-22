@@ -1,6 +1,7 @@
 # Sample Output
 
-These examples reflect version 2.1.0 with the unreleased response-accuracy updates. Long machine-readable payloads are shown as
+These examples reflect version 2.1.0 with the unreleased updates listed in the
+[changelog](project-changelog.md). Long machine-readable payloads are shown as
 selected valid fragments; run the command to obtain the complete schema.
 
 ## Lowpass Table
@@ -19,13 +20,13 @@ Order:               3
 
 Topology:
   IN ───┬───┤ L1 ├───┬─── OUT
-        │            │
-       ===          ===
-       C1           C2
-        │            │
-       GND          GND
+        │            │       
+       ===          ===      
+       C1           C2       
+        │            │       
+       GND          GND      
 
-                 Component Values
+                 Component Values                 
 ┌────────────────────────┬────────────────────────┐
 │       Capacitors       │       Inductors        │
 ├────────────────────────┼────────────────────────┤
@@ -36,8 +37,7 @@ Inductors: wind to value
 
 E24 Preferred-Value Capacitor Selection
 ---------------------------------------------
-(Series density is not part tolerance; policy selects at most one realization;
-expert action may be required)
+(Series density is not part tolerance; policy selects at most one realization; expert action may be required)
 
 C1 Calculated: 318.31 pF
   Nearest Std:  330.00 pF (+3.7%)
@@ -68,13 +68,31 @@ Order:               3
 
 Topology:
   IN ───┤C1├───┬───┤C2├─── OUT
-               │
-              ===
-              L1
-               │
-              GND
+               │              
+              ===             
+              L1              
+               │              
+              GND             
 
-Component values: C1 = C2 = 318.31 pF; L1 = 397.89 nH
+                 Component Values                 
+┌────────────────────────┬────────────────────────┐
+│       Capacitors       │       Inductors        │
+├────────────────────────┼────────────────────────┤
+│ C1: 318.31 pF          │ L1: 397.89 nH          │
+│ C2: 318.31 pF          │                        │
+└────────────────────────┴────────────────────────┘
+Inductors: wind to value
+
+E24 Preferred-Value Capacitor Selection
+---------------------------------------------
+(Series density is not part tolerance; policy selects at most one realization; expert action may be required)
+
+C1 Calculated: 318.31 pF
+  Nearest Std:  330.00 pF (+3.7%)
+  Parallel Std: 47.00 pF || 270.00 pF (-0.4%)
+C2 Calculated: 318.31 pF
+  Nearest Std:  330.00 pF (+3.7%)
+  Parallel Std: 47.00 pF || 270.00 pF (-0.4%)
 ```
 
 ## Calibrated Bandpass Table
@@ -106,15 +124,43 @@ Top-C far-stopband rejection can differ from the ideal prototype; no rejection m
   Exact lossless circuit at 2 x f0: Gt -83.36 dB (informational)
   Exact lossless circuit at 3 x f0: Gt -84.96 dB (informational)
 
-Tank capacitors: Cp1 = 185.84 pF, Cp2 = 216.75 pF, Cp3 = 185.84 pF
-Tank inductors:  L1 = L2 = L3 = 561.45 nH
-End coupling:    Ce_in = Ce_out = 35.71 pF
-Interstage:      Cs12 = Cs23 = 3.92 pF
-External Q:      40.55 at each port, realized by Ce_in/Ce_out
+Topology:
+      Ce_in     Cs12           Cs23      Ce_out     
+  IN ──┤├──┬──────┤├──────┬──────┤├──────┬──┤├── OUT
+           │              │              │          
+        ┌──┴──┐        ┌──┴──┐        ┌──┴──┐       
+        │     │        │     │        │     │       
+        Cp1  L1        Cp2  L2        Cp3  L3       
+        │     │        │     │        │     │       
+        └──┬──┘        └──┬──┘        └──┬──┘       
+           │              │              │          
+          GND            GND            GND         
+
+                 Component Values                 
+┌────────────────────────┬────────────────────────┐
+│    Tank Capacitors     │       Inductors        │
+├────────────────────────┼────────────────────────┤
+│ Cp1: 185.84 pF         │ L1: 561.45 nH          │
+│ Cp2: 216.75 pF         │ L2: 561.45 nH          │
+│ Cp3: 185.84 pF         │ L3: 561.45 nH          │
+└────────────────────────┴────────────────────────┘
+Inductors: wind to value
+
+┌────────────────────────┐
+│  Coupling Capacitors   │
+├────────────────────────┤
+│ Ce_in: 35.71 pF        │
+│ Cs12: 3.92 pF          │
+│ Cs23: 3.92 pF          │
+│ Ce_out: 35.71 pF       │
+└────────────────────────┘
+
+External Q (input):  40.55 (realized by Ce_in)
+External Q (output): 40.55 (realized by Ce_out)
 ```
 
-The full table includes the physical Top-C diagram. Bandpass values are calibrated against
-the circuit netlist, and every result carries its own `response_validation_status`.
+Bandpass values are calibrated against the circuit netlist, and every result carries its own
+`response_validation_status`.
 
 ## Strict JSON
 
@@ -187,6 +233,7 @@ uv run filter-calc lp bw pi 10MHz --toroid-compact
 ```text
 Screened Toroid Winding Candidates (Iron-Powder T-Series)
 -------------------------------------------------------
+RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed.
 
   L1 target: 1.59 µH @ 10 MHz
   1. T50-2    N=18 AWG20 L=1.588µH (-0.25%) Rdc=12mΩ ωL/Rdc≤8,210 [RF Q/SRF/power not assessed]
@@ -295,13 +342,15 @@ uv run filter-calc lp bw pi 10MHz --plot-data csv
 
 ```csv
 frequency_hz,magnitude_db
-1e+06,-0.00
-1.09648e+06,-0.00
-1.20226e+06,-0.00
+1000000.0,0.00
+1096478.196143185,0.00
+1202264.4346174132,0.00
 ```
 
 JSON response export uses a `filter` metadata object and a parallel `data` array. Frequencies
-must be positive finite numbers and magnitudes must be finite real dB values.
+must be positive finite numbers and magnitudes must be finite real dB values. CSV frequencies
+use the shortest decimal that round-trips to the same binary64 value, so each row matches the
+JSON `frequency_hz` exactly; neither format prints a negative zero.
 
 ## Wizard and Version
 
