@@ -1,5 +1,21 @@
 # Project Changelog
 
+## Unreleased — 2026-09-22 — Test Suite Audit
+
+- Tests now check component values and responses against published prototype tables and
+  independent closed-form or ABCD calculations, rather than repeating implementation formulas
+  or asserting only counts, types, and non-empty output.
+- Test files named after audits or coverage passes were dissolved into behavior-named files,
+  and duplicated tests were removed after confirming no line lost its only coverage.
+- Small-magnitude `pytest.approx` comparisons now set `abs=0`; the default 1e-12 absolute
+  tolerance had made several picofarad and near-zero checks vacuous.
+- Wizard direct-handler stubs are installed with `monkeypatch`, which fixes an order-dependent
+  test. New mounted Textual journeys cover each design screen's widgets and focus chain.
+- Runtime-budget tests carry a registered `runtime_budget` marker. CI and the documented local
+  gates select them by marker instead of by hard-coded test ids, and `--strict-markers` is on.
+- The deprecated `--sim-matched` compatibility tests share their expensive simulations, which
+  cut about two minutes from a coverage run.
+
 ## Unreleased — 2026-09-22 — Wizard Toroid Output
 
 - Wizard table output for lowpass, highpass, and bandpass now includes the screened toroid
