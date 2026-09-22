@@ -1,132 +1,204 @@
-"""Tests for toroid core database (Phase 1)."""
+"""Packaged iron-powder toroid catalog: provenance, eligibility, and lookups."""
+
+from dataclasses import FrozenInstanceError
 
 import pytest
 
 from filter_lib.shared.toroid_core_data import (
-    ToroidCore,
     get_core,
     get_source,
+    iter_auto_selectable_cores_for_frequency,
     iter_cores_for_frequency,
     list_cores,
+    list_sources,
 )
 
 
-def test_loads_expected_count():
-    """All 43 iron-powder T-series cores are loaded (plan said 42; actual is 43)."""
-    assert len(list_cores()) == 43
-
-
-def test_list_cores_sorted_by_od():
-    """list_cores returns cores sorted by outer diameter ascending."""
+def test_catalog_loads_every_record_sorted_by_outer_diameter():
     cores = list_cores()
-    ods = [c.od_mm for c in cores]
-    assert ods == sorted(ods)
+
+    assert len(cores) == 43
+    keys = [(core.od_mm, core.name) for core in cores]
+    assert keys == sorted(keys)
 
 
-def test_get_core_t50_2_al():
-    """T50-2 canonical fixture: A_L=4.9 nH/turn^2."""
-    c = get_core("T50-2")
-    assert c.al_nh_per_turn2 == 4.9
-    assert c.freq_min_hz == 2_000_000
-    assert c.freq_max_hz == 30_000_000
+def test_only_the_three_primary_verified_parts_are_auto_selectable():
+    """Automatic selection is limited to exact parts checked against a datasheet."""
+    assert {core.name for core in list_cores() if core.is_auto_selectable} == {
+        "T25-6",
+        "T50-2",
+        "T68-2",
+    }
+    for name in ("T25-6", "T50-2", "T68-2"):
+        core = get_core(name)
+        assert core.provenance_status == "primary_verified"
+        assert core.manufacturer == "Micrometals, Inc."
+        assert core.manufacturer_part_number == name
+        assert get_source(core.core_source_id).source_type == "manufacturer_datasheet"
+        # Every eligible part carries a published winding table, so automatic
+        # candidates never depend on the unsourced geometric capacity estimate.
+        assert core.winding_table
+
+    legacy = get_core("T37-2")
+    assert legacy.provenance_status == "legacy_unverified"
+    assert legacy.core_source_id == "legacy-research-snapshot"
+    assert not legacy.is_auto_selectable
+
+
+@pytest.mark.parametrize(
+    ("name", "amidon_al_uh_per_100_turns", "dimensions_in"),
+    [
+        ("T25-6", 27, (0.255, 0.120, 0.096)),
+        ("T50-2", 49, (0.500, 0.303, 0.190)),
+        ("T68-2", 57, (0.690, 0.370, 0.190)),
+    ],
+)
+def test_verified_core_data_matches_published_catalog_values(
+    name, amidon_al_uh_per_100_turns, dimensions_in
+):
+    """A_L and OD/ID/height agree with the Amidon/Micrometals catalog tables.
+
+    1 µH per 100 turns is 1e-6 H / 1e4 turns², i.e. 0.1 nH/turn².
+    """
+    core = get_core(name)
+
+    assert core.al_nh_per_turn2 == pytest.approx(amidon_al_uh_per_100_turns / 10)
+    assert core.al_tolerance_pct == 5.0
+    assert (core.od_mm, core.id_mm, core.height_mm) == pytest.approx(
+        tuple(inches * 25.4 for inches in dimensions_in), abs=0.03
+    )
+
+
+@pytest.mark.parametrize(
+    ("freq_hz", "expected"),
+    [
+        (1.99e6, []),
+        (2e6, ["T50-2", "T68-2"]),
+        (9.99e6, ["T50-2", "T68-2"]),
+        (10e6, ["T25-6", "T50-2", "T68-2"]),
+        (30e6, ["T25-6", "T50-2", "T68-2"]),
+        (30.01e6, ["T25-6"]),
+        (50e6, ["T25-6"]),
+        (50.01e6, []),
+    ],
+)
+def test_auto_selectable_cores_follow_published_material_ranges(freq_hz, expected):
+    """Amidon guidance: mix 2 covers 2–30 MHz and mix 6 covers 10–50 MHz, inclusive."""
+    names = [core.name for core in iter_auto_selectable_cores_for_frequency(freq_hz)]
+
+    assert names == expected
 
 
 def test_mix_2_guidance_has_primary_source_provenance():
-    core = get_core("T50-2")
+    source = get_source(get_core("T50-2").frequency_source_id)
 
-    assert core.provenance_status == "primary_verified"
-    assert core.is_auto_selectable
-    source = get_source(core.frequency_source_id)
     assert source.publisher == "Amidon Corp."
     assert source.url == "https://www.amidoncorp.com/2ipt/"
     assert source.accessed_on == "2026-07-19"
 
 
-def test_mix_2_material_guidance_is_correct_even_for_legacy_core_records():
+def test_material_guidance_overrides_legacy_ranges_for_every_mix_2_record():
     mix_2_cores = [core for core in list_cores() if core.mix == "2"]
 
-    assert mix_2_cores
-    assert all(core.freq_min_hz == 2_000_000 for core in mix_2_cores)
-    assert all(core.freq_max_hz == 30_000_000 for core in mix_2_cores)
-    assert all(core.frequency_source_id == "amidon-mix-2-guidance" for core in mix_2_cores)
-    assert sum(core.is_auto_selectable for core in mix_2_cores) == 2
+    assert len(mix_2_cores) > 2  # legacy records share the material guidance
+    for core in mix_2_cores:
+        assert (core.freq_min_hz, core.freq_max_hz) == (2e6, 30e6), core.name
+        assert core.frequency_source_id == "amidon-mix-2-guidance", core.name
 
 
-def test_exact_core_datasheet_provenance_is_not_bulk_claimed():
-    verified = get_core("T68-2")
-    legacy = get_core("T37-2")
+@pytest.mark.parametrize(
+    ("freq_hz", "expected_mixes"),
+    [
+        (5e6, {"2", "7"}),
+        (100e6, {"0", "10", "17"}),
+        (500e6, set()),
+    ],
+)
+def test_inspectable_cores_are_filtered_by_their_recorded_material_range(freq_hz, expected_mixes):
+    cores = list(iter_cores_for_frequency(freq_hz))
 
-    assert verified.core_source_id == "micrometals-t68-2-datasheet"
-    assert get_source(verified.core_source_id).source_type == "manufacturer_datasheet"
-    assert legacy.provenance_status == "legacy_unverified"
-    assert not legacy.is_auto_selectable
+    assert {core.mix for core in cores} == expected_mixes
+    assert all(core.freq_min_hz <= freq_hz <= core.freq_max_hz for core in cores)
 
 
-def test_t25_6_has_sourced_awg26_winding_capacity():
+def test_field_level_sources_separate_exact_part_and_material_data():
+    core = get_core("T68-2")
+
+    assert core.source_for("al").source_id == "micrometals-t68-2-datasheet"
+    assert core.source_for("dimensions").source_id == "micrometals-t68-2-datasheet"
+    assert core.source_for("temperature_coefficient").source_id == "micrometals-rf-materials"
+    assert core.source_for("frequency_guidance").source_id == "amidon-mix-2-guidance"
+    assert core.source_for("not_recorded") is None
+    assert get_core("T37-2").source_for("al") is None
+
+
+def test_winding_table_lookup_returns_published_row_or_none():
     core = get_core("T25-6")
     row = core.winding_spec_for_awg(26)
 
-    assert row is not None
-    assert row.single_layer_turns == 13
-    assert row.full_winding_turns == 15
+    assert (row.single_layer_turns, row.full_winding_turns) == (13, 15)
     assert core.winding_source_id == "micrometals-t25-6-datasheet"
+    assert core.winding_spec_for_awg(25) is None
+    assert get_core("T37-2").winding_spec_for_awg(26) is None
 
 
-def test_get_core_t37_17_temp_coeff():
-    """T37-17 temperature coefficient is 50 ppm/C."""
+def test_every_record_has_physical_geometry_and_resolvable_https_sources():
+    sources = list_sources()
+    source_ids = {source.source_id for source in sources}
+
+    assert [source.source_id for source in sources] == sorted(source_ids)
+    assert all(source.url.startswith("https://") for source in sources)
+    for core in list_cores():
+        assert 0 < core.id_mm < core.od_mm and core.height_mm > 0, core.name
+        assert core.al_nh_per_turn2 > 0, core.name
+        assert 0 < core.freq_min_hz <= core.freq_max_hz, core.name
+        cited = {
+            core.core_source_id,
+            core.frequency_source_id,
+            core.winding_source_id,
+            *(source_id for _, source_id in core.field_sources),
+        } - {None}
+        assert cited <= source_ids, core.name
+
+
+def test_legacy_records_keep_their_distinct_material_values():
     assert get_core("T37-17").temp_coeff_ppm_per_c == 50
-
-
-def test_get_core_mix_1_has_wider_tolerance():
-    """Mix 1 iron-powder has 10% tolerance (rest are 5%)."""
     assert get_core("T50-1").al_tolerance_pct == 10.0
 
 
-def test_get_core_unknown_raises_value_error():
-    """Unknown core name raises ValueError with the bad name."""
-    with pytest.raises(ValueError, match="NOPE"):
-        get_core("NOPE")
-
-
-def test_iter_cores_for_frequency_hf():
-    """5 MHz should match several HF cores, all covering that freq."""
-    cores = list(iter_cores_for_frequency(5_000_000))
-    assert len(cores) > 0
-    for c in cores:
-        assert c.freq_min_hz <= 5_000_000 <= c.freq_max_hz
-
-
-def test_iter_cores_for_frequency_vhf():
-    """100 MHz should match several VHF-capable cores."""
-    cores = list(iter_cores_for_frequency(100_000_000))
-    assert len(cores) > 0
-
-
-def test_iter_cores_for_frequency_500mhz_empty():
-    """500 MHz is beyond the iron-powder range (max 350 MHz for mix 0)."""
-    cores = list(iter_cores_for_frequency(500_000_000))
-    assert cores == []
-
-
-def test_core_family_property():
-    """ToroidCore.family strips the mix suffix."""
+def test_core_family_strips_the_mix_suffix():
     assert get_core("T50-2").family == "T50"
     assert get_core("T200-2B").family == "T200"
 
 
-def test_core_is_frozen():
-    """ToroidCore dataclass is frozen (immutable)."""
-    c = get_core("T50-2")
-    with pytest.raises((AttributeError, Exception)):
-        c.al_nh_per_turn2 = 99.0  # type: ignore[misc]
+def test_catalog_records_are_immutable():
+    with pytest.raises(FrozenInstanceError):
+        get_core("T50-2").al_nh_per_turn2 = 99.0  # type: ignore[misc]
 
 
-def test_all_cores_have_positive_dimensions():
-    """Every core must have positive OD, ID, height, and A_L."""
-    for c in list_cores():
-        assert isinstance(c, ToroidCore)
-        assert c.od_mm > 0
-        assert c.id_mm > 0
-        assert c.height_mm > 0
-        assert c.al_nh_per_turn2 > 0
-        assert 0 < c.id_mm < c.od_mm
+@pytest.mark.parametrize(
+    ("function", "args", "message"),
+    [
+        (get_core, ("NOPE",), "Unknown toroid core: 'NOPE'"),
+        (get_core, (50,), "toroid core name must be a string"),
+        (get_source, ("nope",), "Unknown toroid source: 'nope'"),
+        (get_source, (None,), "Unknown toroid source: None"),
+        (lambda freq: list(iter_cores_for_frequency(freq)), (0,), "freq_hz must be positive"),
+        (get_core("T50-2").source_for, (1,), "field_group must be a string"),
+        (get_core("T50-2").winding_spec_for_awg, (True,), r"awg must be an integer in \[0, 50\]"),
+        (get_core("T50-2").winding_spec_for_awg, (51,), r"awg must be an integer in \[0, 50\]"),
+    ],
+    ids=[
+        "unknown-core",
+        "non-string-core",
+        "unknown-source",
+        "missing-source",
+        "non-positive-frequency",
+        "non-string-field-group",
+        "bool-awg",
+        "out-of-range-awg",
+    ],
+)
+def test_public_lookups_reject_invalid_input_with_value_error(function, args, message):
+    with pytest.raises(ValueError, match=message):
+        function(*args)

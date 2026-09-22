@@ -1,5 +1,6 @@
 """Machine-readable bandpass output contract regressions."""
 
+import copy
 import csv
 import io
 import json
@@ -10,7 +11,8 @@ from filter_lib.bandpass.calculations import calculate_bandpass_filter
 from filter_lib.bandpass.formatters import format_csv, format_json
 
 
-def _result() -> dict:
+@pytest.fixture(scope="module")
+def _reference_result() -> dict:
     return calculate_bandpass_filter(
         f0=14.2e6,
         bw=500e3,
@@ -23,16 +25,19 @@ def _result() -> dict:
     )
 
 
-def test_json_exposes_validation_q_and_candidate_semantics() -> None:
+@pytest.fixture
+def result(_reference_result) -> dict:
+    """Fresh copy of a 3.5% FBW Butterworth design with separate component Q values."""
+    return copy.deepcopy(_reference_result)
+
+
+def test_json_exposes_validation_q_and_candidate_semantics(result) -> None:
     data = json.loads(
-        format_json(_result(), eseries="E24"),
+        format_json(result, eseries="E24"),
         parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
     )
 
-    assert data["response_validation_status"] in {
-        "validated",
-        "outside_validated_envelope",
-    }
+    assert data["response_validation_status"] == "validated"
     assert data["synthesis_validation"]["edge_validated"] is True
     assert data["q_model"]["definition"] == "complete_resonator_unloaded_q"
     assert data["q_model"]["combination"] == "reciprocal_component_loss_sum"
@@ -53,17 +58,19 @@ def test_json_exposes_validation_q_and_candidate_semantics() -> None:
                 assert match["selected"]["kind"] in {"single", "parallel"}
 
 
-@pytest.mark.parametrize("field", ["f0", "bw", "z0"])
-def test_json_rejects_non_finite_numeric_fields(field: str) -> None:
-    result = _result()
+@pytest.mark.parametrize(
+    "field, json_path",
+    [("f0", "center_frequency_hz"), ("bw", "bandwidth_hz"), ("z0", "impedance_ohms")],
+)
+def test_json_rejects_non_finite_numeric_fields(result, field: str, json_path: str) -> None:
     result[field] = float("nan")
 
-    with pytest.raises(ValueError, match="finite"):
+    with pytest.raises(ValueError, match=rf"\$\.{json_path} must be finite"):
         format_json(result, include_toroids=False)
 
 
-def test_csv_is_rectangular_and_emits_only_selected_parallel_pairs() -> None:
-    rows = list(csv.reader(io.StringIO(format_csv(_result(), eseries="E24"))))
+def test_csv_is_rectangular_and_emits_only_selected_parallel_pairs(result) -> None:
+    rows = list(csv.reader(io.StringIO(format_csv(result, eseries="E24"))))
     header = rows[0]
     assert all(len(row) == len(header) for row in rows)
 

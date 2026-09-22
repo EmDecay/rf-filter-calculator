@@ -1,7 +1,8 @@
-"""Unit tests for lowpass filter calculations.
+"""Lowpass ladder values against published prototype tables and exact scaling laws.
 
-Tests verify mathematical correctness of Butterworth, Chebyshev, and Bessel
-lowpass filter component value calculations.
+Component values are normalized back to prototype g-values with the textbook
+denormalization (shunt C = g / (Z * omega), series L = g * Z / omega) and compared
+with published tables at a non-trivial design point.
 """
 
 import math
@@ -9,290 +10,112 @@ import math
 import pytest
 
 from filter_lib.lowpass import calculations as lp
-
-
-class TestButterworthLowpass:
-    """Test Butterworth lowpass filter calculations."""
-
-    def test_basic_2component_50ohm_1mhz(self):
-        """Test basic 2-component Butterworth at 1 MHz, 50 Ohms."""
-        cutoff = 1e6
-        impedance = 50
-        caps, inds, order = lp.calculate_butterworth(cutoff, impedance, 2, topology="pi")
-
-        assert order == 2
-        assert len(caps) == 1
-        assert len(inds) == 1
-
-        # All values should be positive
-        assert all(c > 0 for c in caps)
-        assert all(i > 0 for i in inds)
-
-    def test_5component_butterworth(self):
-        """Test 5-component Butterworth filter."""
-        caps, inds, order = lp.calculate_butterworth(10e6, 50, 5, topology="pi")
-
-        assert order == 5
-        assert len(caps) == 3  # Pi topology: C-L-C-L-C
-        assert len(inds) == 2
-
-        # Verify symmetry (should be symmetric for Butterworth)
-        assert abs(caps[0] - caps[2]) < 1e-15
-
-    def test_impedance_scaling(self):
-        """Test that doubling impedance roughly doubles inductor values."""
-        cutoff = 10e6
-        caps_50, inds_50, _ = lp.calculate_butterworth(cutoff, 50, 3, topology="pi")
-        caps_100, inds_100, _ = lp.calculate_butterworth(cutoff, 100, 3, topology="pi")
-
-        # Higher impedance -> larger inductors
-        for i50, i100 in zip(inds_50, inds_100):
-            assert i100 > i50
-
-    def test_frequency_scaling(self):
-        """Test that higher frequency reduces component values."""
-        impedance = 50
-        caps_1m, inds_1m, _ = lp.calculate_butterworth(1e6, impedance, 3, topology="pi")
-        caps_10m, inds_10m, _ = lp.calculate_butterworth(10e6, impedance, 3, topology="pi")
-
-        # Higher frequency -> smaller L and C
-        for c1, c10 in zip(caps_1m, caps_10m):
-            assert c10 < c1
-        for i1, i10 in zip(inds_1m, inds_10m):
-            assert i10 < i1
-
-    def test_order_range(self):
-        """Test all valid filter orders (2-9)."""
-        for order in range(2, 10):
-            caps, inds, n = lp.calculate_butterworth(10e6, 50, order, topology="pi")
-            assert n == order
-            assert len(caps) + len(inds) == order
-
-    def test_formula_verification_2component(self):
-        """Verify 2-component uses correct Butterworth formula.
-
-        For 2-component Butterworth:
-        g1 = 2*sin(π/4) = sqrt(2)
-        g2 = 2*sin(3π/4) = sqrt(2)
-        C1 = g1/(Z0*ω)
-        L2 = g2*Z0/ω
-        """
-        cutoff = 1e6
-        z0 = 50
-        omega = 2 * math.pi * cutoff
-
-        caps, inds, _ = lp.calculate_butterworth(cutoff, z0, 2, topology="pi")
-
-        # Expected values
-        g1 = 2 * math.sin(math.pi / 4)
-        g2 = 2 * math.sin(3 * math.pi / 4)
-
-        expected_c1 = g1 / (z0 * omega)
-        expected_l2 = g2 * z0 / omega
-
-        assert abs(caps[0] - expected_c1) < 1e-15
-        assert abs(inds[0] - expected_l2) < 1e-15
-
-
-class TestChebychevLowpass:
-    """Test Chebyshev lowpass filter calculations."""
-
-    def test_basic_chebyshev_0_5db(self):
-        """Test basic Chebyshev with 0.5 dB ripple."""
-        caps, inds, order = lp.calculate_chebyshev(10e6, 50, 0.5, 3, topology="pi")
-
-        assert order == 3
-        assert len(caps) == 2
-        assert len(inds) == 1
-
-        # All values positive
-        assert all(c > 0 for c in caps)
-        assert all(i > 0 for i in inds)
-
-    def test_ripple_effect(self):
-        """Test that higher ripple allows smaller components."""
-        cutoff = 10e6
-        impedance = 50
-        order = 3
-
-        caps_01, inds_01, _ = lp.calculate_chebyshev(cutoff, impedance, 0.1, order, topology="pi")
-        caps_10, inds_10, _ = lp.calculate_chebyshev(cutoff, impedance, 1.0, order, topology="pi")
-
-        # Higher ripple allows flatter response, different values
-        # (not monotonic relationship, but should be different)
-        assert caps_01 != caps_10
-
-    def test_supported_ripples(self):
-        """Test that various ripple values work."""
-        ripples = [0.1, 0.5, 1.0, 2.0, 3.0]
-        for ripple in ripples:
-            caps, inds, order = lp.calculate_chebyshev(10e6, 50, ripple, 3, topology="pi")
-            assert len(caps) > 0
-            assert len(inds) > 0
-
-    def test_ripple_above_three_db_is_rejected(self):
-        with pytest.raises(ValueError, match="at most 3.0"):
-            lp.calculate_chebyshev(10e6, 50, 3.01, 3, topology="pi")
-
-    def test_order_range(self):
-        """Test all valid Chebyshev orders (odd only for equal terminations)."""
-        for order in (3, 5, 7, 9):
-            caps, inds, n = lp.calculate_chebyshev(10e6, 50, 0.5, order, topology="pi")
-            assert n == order
-            assert len(caps) + len(inds) == order
-
-    def test_even_order_rejected(self):
-        """Even-order Chebyshev is rejected for equal source/load terminations."""
-        import pytest
-
-        for order in (2, 4, 6, 8):
-            with pytest.raises(ValueError, match="odd order"):
-                lp.calculate_chebyshev(10e6, 50, 0.5, order, topology="pi")
-
-    def test_impedance_scaling(self):
-        """Test impedance scaling for Chebyshev."""
-        caps_50, inds_50, _ = lp.calculate_chebyshev(10e6, 50, 0.5, 3, topology="pi")
-        caps_100, inds_100, _ = lp.calculate_chebyshev(10e6, 100, 0.5, 3, topology="pi")
-
-        # Higher impedance -> larger inductors
-        for i50, i100 in zip(inds_50, inds_100):
-            assert i100 > i50
-
-
-class TestBesselLowpass:
-    """Test Bessel lowpass filter calculations."""
-
-    def test_basic_bessel(self):
-        """Test basic Bessel filter."""
-        caps, inds, order = lp.calculate_bessel(10e6, 50, 3, topology="pi")
-
-        assert order == 3
-        assert len(caps) == 2
-        assert len(inds) == 1
-
-        # All values positive
-        assert all(c > 0 for c in caps)
-        assert all(i > 0 for i in inds)
-
-    def test_all_orders(self):
-        """Test all supported Bessel orders (2-9)."""
-        for order in range(2, 10):
-            caps, inds, n = lp.calculate_bessel(10e6, 50, order, topology="pi")
-            assert n == order
-            assert len(caps) + len(inds) == order
-
-    def test_invalid_order_raises(self):
-        """Test that invalid order raises ValueError."""
-        with pytest.raises(ValueError, match="between 2 and 9"):
-            lp.calculate_bessel(10e6, 50, 1, topology="pi")
-
-        with pytest.raises(ValueError, match="between 2 and 9"):
-            lp.calculate_bessel(10e6, 50, 10, topology="pi")
-
-    def test_frequency_scaling(self):
-        """Test frequency scaling for Bessel."""
-        caps_1m, inds_1m, _ = lp.calculate_bessel(1e6, 50, 3, topology="pi")
-        caps_10m, inds_10m, _ = lp.calculate_bessel(10e6, 50, 3, topology="pi")
-
-        # Higher frequency -> smaller components
-        for c1, c10 in zip(caps_1m, caps_10m):
-            assert c10 < c1
-        for i1, i10 in zip(inds_1m, inds_10m):
-            assert i10 < i1
-
-    def test_impedance_scaling(self):
-        """Test impedance scaling for Bessel."""
-        caps_50, inds_50, _ = lp.calculate_bessel(10e6, 50, 3, topology="pi")
-        caps_100, inds_100, _ = lp.calculate_bessel(10e6, 100, 3, topology="pi")
-
-        # Higher impedance -> larger inductors, smaller capacitors
-        for i50, i100 in zip(inds_50, inds_100):
-            assert i100 > i50
-        for c50, c100 in zip(caps_50, caps_100):
-            assert c100 < c50
-
-
-class TestLowpassEdgeCases:
-    """Test edge cases and error handling."""
-
-    def test_zero_frequency_raises(self):
-        """Test that zero frequency raises error or produces inf."""
-        with pytest.raises((ValueError, ZeroDivisionError)):
-            lp.calculate_butterworth(0, 50, 2, topology="pi")
-
-    def test_invalid_topology_raises(self):
-        """Test that invalid topology raises ValueError."""
-        with pytest.raises(ValueError, match="Topology must be"):
-            lp.calculate_butterworth(10e6, 50, 3, topology="x")
-
-    def test_negative_impedance_rejected(self):
-        """Negative impedance is rejected with a clear ValueError."""
-        with pytest.raises(ValueError, match="Impedance must be positive"):
-            lp.calculate_butterworth(10e6, -50, 2, topology="pi")
-
-    def test_non_positive_cutoff_rejected(self):
-        """Zero or negative cutoff is rejected."""
-        with pytest.raises(ValueError, match="Cutoff frequency must be positive"):
-            lp.calculate_butterworth(0, 50, 2, topology="pi")
-        with pytest.raises(ValueError, match="Cutoff frequency must be positive"):
-            lp.calculate_butterworth(-1e6, 50, 2, topology="pi")
-
-    def test_component_count_out_of_range_rejected(self):
-        """Component counts outside 2-9 are rejected."""
-        with pytest.raises(ValueError, match="between 2 and 9"):
-            lp.calculate_butterworth(10e6, 50, 1, topology="pi")
-        with pytest.raises(ValueError, match="between 2 and 9"):
-            lp.calculate_butterworth(10e6, 50, 10, topology="pi")
-
-    def test_very_small_frequency(self):
-        """Test very small frequency produces very large components."""
-        caps, inds, _ = lp.calculate_butterworth(1e3, 50, 2, topology="pi")
-
-        caps_high, inds_high, _ = lp.calculate_butterworth(1e9, 50, 2, topology="pi")
-
-        # Smaller frequency -> larger components
-        assert caps[0] > caps_high[0]
-        assert inds[0] > inds_high[0]
-
-    def test_very_high_frequency(self):
-        """Test very high frequency produces very small components."""
-        caps, inds, _ = lp.calculate_butterworth(1e9, 50, 2, topology="pi")
-
-        # Components should still be positive
-        assert all(c > 0 for c in caps)
-        assert all(i > 0 for i in inds)
-
-    def test_very_large_impedance(self):
-        """Test large impedance scaling."""
-        caps_50, inds_50, _ = lp.calculate_butterworth(10e6, 50, 2, topology="pi")
-        caps_1k, inds_1k, _ = lp.calculate_butterworth(10e6, 1000, 2, topology="pi")
-
-        # 20x impedance -> 20x inductors
-        ratio = inds_1k[0] / inds_50[0]
-        assert 19 < ratio < 21
-
-
-class TestComponentInterrelationships:
-    """Test relationships between filter parameters."""
-
-    def test_butterworth_symmetry_odd_order(self):
-        """Test symmetry in odd-order Butterworth."""
-        caps, inds, _ = lp.calculate_butterworth(10e6, 50, 5, topology="pi")
-
-        # First and last capacitors should be equal (symmetric Pi)
-        assert abs(caps[0] - caps[2]) < 1e-14
-
-    def test_butterworth_symmetry_even_order(self):
-        """Test that even-order Butterworth has correct structure.
-
-        For 4-component lowpass: C-L-C-L topology
-        Pi topology always alternates capacitors and inductors.
-        """
-        caps, inds, _ = lp.calculate_butterworth(10e6, 50, 4, topology="pi")
-
-        # 4-component = 2 caps + 2 inductors
-        assert len(caps) == 2
-        assert len(inds) == 2
-        # All should be positive
-        assert all(c > 0 for c in caps)
-        assert all(i > 0 for i in inds)
+from tests.test_chebyshev_calculator import PUBLISHED_G_VALUES
+
+# Matthaei, Young & Jones, Table 4.05-1(a): maximally flat, equal 1-ohm terminations.
+BUTTERWORTH_PUBLISHED: dict[int, list[float]] = {
+    2: [1.4142, 1.4142],
+    3: [1.0000, 2.0000, 1.0000],
+    4: [0.7654, 1.8478, 1.8478, 0.7654],
+    5: [0.6180, 1.6180, 2.0000, 1.6180, 0.6180],
+    6: [0.5176, 1.4142, 1.9318, 1.9318, 1.4142, 0.5176],
+    7: [0.4450, 1.2470, 1.8019, 2.0000, 1.8019, 1.2470, 0.4450],
+    8: [0.3902, 1.1111, 1.6629, 1.9616, 1.9616, 1.6629, 1.1111, 0.3902],
+    9: [0.3473, 1.0000, 1.5321, 1.8794, 2.0000, 1.8794, 1.5321, 1.0000, 0.3473],
+}
+
+# Zverev (1967) Bessel prototype, normalized to -3 dB at omega = 1, listed from the
+# source end. The rows are asymmetric, so this also pins element orientation.
+BESSEL_PUBLISHED: dict[int, list[float]] = {
+    2: [0.5755, 2.1478],
+    3: [0.3374, 0.9705, 2.2034],
+    4: [0.2334, 0.6725, 1.0815, 2.2404],
+    5: [0.1743, 0.5072, 0.8040, 1.1110, 2.2582],
+    6: [0.1365, 0.4002, 0.6392, 0.8538, 1.1126, 2.2645],
+    7: [0.1106, 0.3259, 0.5249, 0.7020, 0.8690, 1.1052, 2.2659],
+    8: [0.0919, 0.2719, 0.4409, 0.5936, 0.7303, 0.8695, 1.0956, 2.2656],
+    9: [0.0780, 0.2313, 0.3770, 0.5108, 0.6306, 0.7407, 0.8639, 1.0863, 2.2649],
+}
+
+CUTOFF_HZ = 7.1e6
+IMPEDANCE = 75.0
+OMEGA = 2 * math.pi * CUTOFF_HZ
+
+
+def _normalized_ladder(capacitors, inductors, topology: str) -> list[float]:
+    """Return g-values in ladder order; Pi starts with a shunt C, T with a series L."""
+    remaining_caps, remaining_inds = iter(capacitors), iter(inductors)
+    ladder = []
+    for position in range(len(capacitors) + len(inductors)):
+        if (position % 2 == 0) == (topology == "pi"):
+            ladder.append(next(remaining_caps) * IMPEDANCE * OMEGA)
+        else:
+            ladder.append(next(remaining_inds) * OMEGA / IMPEDANCE)
+    return ladder
+
+
+@pytest.mark.parametrize("topology", ["pi", "t"])
+@pytest.mark.parametrize("order", sorted(BUTTERWORTH_PUBLISHED))
+def test_butterworth_matches_published_prototype(order, topology):
+    capacitors, inductors, returned_order = lp.calculate_butterworth(
+        CUTOFF_HZ, IMPEDANCE, order, topology
+    )
+
+    assert returned_order == order
+    assert _normalized_ladder(capacitors, inductors, topology) == pytest.approx(
+        BUTTERWORTH_PUBLISHED[order], abs=6e-5
+    )
+
+
+@pytest.mark.parametrize("ripple_db", sorted(PUBLISHED_G_VALUES))
+@pytest.mark.parametrize("order", [3, 5, 7, 9])
+def test_chebyshev_matches_published_prototype(order, ripple_db):
+    capacitors, inductors, returned_order = lp.calculate_chebyshev(
+        CUTOFF_HZ, IMPEDANCE, ripple_db, order, "pi"
+    )
+
+    assert returned_order == order
+    assert _normalized_ladder(capacitors, inductors, "pi") == pytest.approx(
+        PUBLISHED_G_VALUES[ripple_db][order], abs=1e-4
+    )
+
+
+@pytest.mark.parametrize("order", sorted(BESSEL_PUBLISHED))
+def test_bessel_matches_published_prototype_from_source_end(order):
+    capacitors, inductors, returned_order = lp.calculate_bessel(CUTOFF_HZ, IMPEDANCE, order, "pi")
+
+    assert returned_order == order
+    assert _normalized_ladder(capacitors, inductors, "pi") == pytest.approx(
+        BESSEL_PUBLISHED[order], abs=6e-5
+    )
+
+
+_FAMILIES = {
+    "butterworth": lambda f, z, topology: lp.calculate_butterworth(f, z, 5, topology),
+    "chebyshev": lambda f, z, topology: lp.calculate_chebyshev(f, z, 0.5, 7, topology),
+    "bessel": lambda f, z, topology: lp.calculate_bessel(f, z, 6, topology),
+}
+
+
+@pytest.mark.parametrize("topology", ["pi", "t"])
+@pytest.mark.parametrize("family", sorted(_FAMILIES))
+def test_impedance_scaling_is_exact(family, topology):
+    """L scales with Z and C with 1/Z over a thousandfold impedance change."""
+    calculate = _FAMILIES[family]
+    caps_low, inds_low, _ = calculate(CUTOFF_HZ, 5.0, topology)
+    caps_high, inds_high, _ = calculate(CUTOFF_HZ, 5000.0, topology)
+
+    assert inds_high == pytest.approx([1000 * value for value in inds_low], rel=1e-12)
+    assert caps_high == pytest.approx([value / 1000 for value in caps_low], rel=1e-12, abs=0)
+
+
+@pytest.mark.parametrize("topology", ["pi", "t"])
+@pytest.mark.parametrize("family", sorted(_FAMILIES))
+def test_frequency_scaling_is_exact(family, topology):
+    """Both L and C scale with 1/f from 1 kHz to 1 GHz."""
+    calculate = _FAMILIES[family]
+    caps_low, inds_low, _ = calculate(1e3, IMPEDANCE, topology)
+    caps_high, inds_high, _ = calculate(1e9, IMPEDANCE, topology)
+
+    assert inds_high == pytest.approx([value / 1e6 for value in inds_low], rel=1e-12, abs=0)
+    assert caps_high == pytest.approx([value / 1e6 for value in caps_low], rel=1e-12, abs=0)

@@ -1,5 +1,7 @@
 """End-to-end CLI contracts for build analysis and SPICE export."""
 
+import contextlib
+import io
 import json
 import re
 import sys
@@ -7,6 +9,10 @@ import sys
 import pytest
 
 from filter_lib.cli import main
+
+_LOWPASS = ("lp", "bw", "pi", "10MHz")
+_SIM_BUILD_JSON_ARGS = ("--sim-build", "--no-toroids", "--analysis-points", "101")
+_BANDPASS_EDGE_COMMAND = ("bp", "bw", "top", "-n", "2", "--fl", "14MHz", "--fh", "14.35MHz")
 
 
 def _run(monkeypatch, *arguments: str) -> None:
@@ -18,27 +24,38 @@ def _reject_constant(value: str):
     raise AssertionError(f"non-standard JSON constant: {value}")
 
 
+@pytest.fixture(scope="module")
+def sim_build_json():
+    """Run each ``--sim-build --format json`` command once per module.
+
+    Every call returns a freshly parsed payload, so tests share only the expensive
+    bandpass simulation, not mutable state.
+    """
+    outputs: dict[tuple[str, ...], str] = {}
+
+    def run(*command: str) -> dict:
+        if command not in outputs:
+            stdout = io.StringIO()
+            with pytest.MonkeyPatch.context() as patch, contextlib.redirect_stdout(stdout):
+                patch.setattr(
+                    sys,
+                    "argv",
+                    ["filter-calc", *command, *_SIM_BUILD_JSON_ARGS, "--format", "json"],
+                )
+                main()
+            outputs[command] = stdout.getvalue()
+        return json.loads(outputs[command], parse_constant=_reject_constant)
+
+    return run
+
+
 @pytest.mark.parametrize(
     "command",
-    [
-        ("lp", "bw", "pi", "10MHz"),
-        ("hp", "bw", "t", "10MHz"),
-        ("bp", "bw", "top", "-f", "10MHz", "-b", "500kHz"),
-    ],
+    [_LOWPASS, ("hp", "bw", "t", "10MHz"), _BANDPASS_EDGE_COMMAND],
+    ids=["lowpass", "highpass", "bandpass"],
 )
-def test_sim_build_json_has_category_parity(monkeypatch, capsys, command):
-    _run(
-        monkeypatch,
-        *command,
-        "--sim-build",
-        "--no-toroids",
-        "--analysis-points",
-        "101",
-        "--format",
-        "json",
-    )
-
-    payload = json.loads(capsys.readouterr().out, parse_constant=_reject_constant)
+def test_sim_build_json_has_category_parity(sim_build_json, command):
+    payload = sim_build_json(*command)
 
     assert {"target", "simulated", "nominal_build", "tolerance_analysis"} <= payload.keys()
     assert payload["simulated"]["realization"] == "calculated_exact_values"
@@ -64,33 +81,18 @@ def test_sim_build_uses_accuracy_safe_default_grid(monkeypatch, capsys):
     assert payload["tolerance_analysis"]["grid_points"] == 601
 
 
-def test_bandpass_edge_targets_preserve_exact_requested_values(monkeypatch, capsys):
-    _run(
-        monkeypatch,
-        "bp",
-        "bw",
-        "top",
-        "--fl",
-        "14MHz",
-        "--fh",
-        "14.35MHz",
-        "--sim-build",
-        "--no-toroids",
-        "--analysis-points",
-        "101",
-        "--format",
-        "json",
-    )
+def test_bandpass_edge_targets_preserve_exact_requested_values(sim_build_json):
+    payload = sim_build_json(*_BANDPASS_EDGE_COMMAND)
 
-    payload = json.loads(capsys.readouterr().out, parse_constant=_reject_constant)
     assert payload["target"]["frequency_specification"] == "edge_frequencies"
+    assert payload["target"]["order"] == 2
     assert payload["target"]["f_low_hz"] == 14_000_000.0
     assert payload["target"]["f_high_hz"] == 14_350_000.0
     assert payload["target"]["f_low_hz"] == payload["requested_parameters"]["f_low_hz"]
     assert payload["target"]["f_high_hz"] == payload["requested_parameters"]["f_high_hz"]
 
 
-def test_sim_build_table_is_explicitly_not_a_measurement(monkeypatch, capsys):
+def test_no_toroid_build_keeps_calculated_inductance_as_disclosed_fallback(monkeypatch, capsys):
     _run(
         monkeypatch,
         "lp",
@@ -98,19 +100,28 @@ def test_sim_build_table_is_explicitly_not_a_measurement(monkeypatch, capsys):
         "pi",
         "10MHz",
         "--sim-build",
-        "--no-toroids",
+        "--no-toroid-build",
         "--analysis-points",
-        "101",
+        "51",
+        "--format",
+        "json",
     )
 
-    output = capsys.readouterr().out
-    assert "Realized-Build Analysis (simulation, not a measurement)" in output
-    assert "Calculated exact values" in output
-    assert "Selected nominal build" in output
-    assert "not guaranteed worst case or probability" in output
+    payload = json.loads(capsys.readouterr().out, parse_constant=_reject_constant)
+    inductor = next(
+        item for item in payload["nominal_build"]["substitutions"] if item["kind"] == "L"
+    )
+    assert payload["build_model"]["toroid_candidate_screen_enabled"] is False
+    assert (inductor["method"], inductor["status"]) == (
+        "exact_fallback",
+        "candidate_screen_disabled",
+    )
+    assert inductor["nominal_value_si"] == inductor["calculated_value_si"]
+    # Unlike --no-toroids, the build-only opt-out leaves the winding recommendations visible.
+    assert payload["components"]["inductors"][0]["toroid_recommendations"]
 
 
-def test_build_controls_are_recorded_and_drive_repeatable_cases(monkeypatch, capsys):
+def test_build_controls_are_forwarded_to_analysis_json(monkeypatch, capsys):
     _run(
         monkeypatch,
         "hp",
@@ -211,74 +222,92 @@ def test_nominal_spice_uses_physical_parallel_caps_and_q_loss(monkeypatch, capsy
 
 
 @pytest.mark.parametrize(
-    "command",
-    [("lp", "bw", "pi", "10MHz"), ("hp", "bw", "t", "10MHz")],
+    "command, cutoff_key, absent_skirt_key",
+    [
+        (("lp", "bw", "pi", "10MHz"), "f_high_hz", "f_low_hz"),
+        (("hp", "bw", "t", "10MHz"), "f_low_hz", "f_high_hz"),
+    ],
+    ids=["lowpass", "highpass"],
 )
-def test_deprecated_alias_has_json_parity_and_warning(monkeypatch, capsys, command):
+def test_deprecated_alias_has_json_parity_and_warning(
+    monkeypatch, capsys, command, cutoff_key, absent_skirt_key
+):
     _run(monkeypatch, *command, "--sim-matched", "--format", "json", "--no-toroids")
 
     captured = capsys.readouterr()
-    payload = json.loads(captured.out, parse_constant=_reject_constant)
-    assert payload["matched_sim"]["deprecated"] is True
-    assert payload["matched_sim"]["replacement"] == "build_analysis"
-    assert payload["matched_sim"]["inductors"] == "calculated_exact_value_toroid_selection_disabled"
-    assert "--sim-matched is deprecated" in captured.err
+    block = json.loads(captured.out, parse_constant=_reject_constant)["matched_sim"]
+    assert block["deprecated"] is True
+    assert block["replacement"] == "build_analysis"
+    assert block["inductors"] == "calculated_exact_value_toroid_selection_disabled"
+    assert "Warning: --sim-matched is deprecated; use --sim-build" in captured.err
+    for side in ("exact", "matched"):
+        assert block[side]["cutoff_hz"] == block[side][cutoff_key]
+        assert block[side]["cutoff_hz"] == pytest.approx(10e6, rel=0.05)
+        assert block[side][absent_skirt_key] is None
+        assert block[side]["f0_hz"] is None
+        assert block[side]["bw_hz"] is None
 
 
 @pytest.mark.parametrize(
     "arguments, expected",
     [
         (
-            ("lp", "bw", "pi", "10MHz", "--sim-build", "--no-match"),
-            "requires selected nominal capacitor values",
+            (*_LOWPASS, "--sim-build", "--no-match"),
+            "--sim-build requires selected nominal capacitor values; remove --no-match",
         ),
         (
-            ("lp", "bw", "pi", "10MHz", "--sim-build", "--format", "csv"),
-            "supported only with table or JSON",
+            (*_LOWPASS, "--sim-build", "--format", "csv"),
+            "--sim-build is supported only with table or JSON output",
         ),
         (
-            ("lp", "bw", "pi", "10MHz", "--cap-tolerance", "5"),
-            "require --sim-build or --format spice",
+            (*_LOWPASS, "--format", "spice", "--sim-build"),
+            "--sim-build is supported only with table or JSON output",
         ),
         (
-            ("lp", "bw", "pi", "10MHz", "--sim-build", "--seed", "7"),
+            (*_LOWPASS, "--sim-matched", "--format", "csv"),
+            "--sim-matched is supported only with table or JSON output",
+        ),
+        (
+            (*_LOWPASS, "--sim-matched", "--sim-build"),
+            "--sim-matched is deprecated; use --sim-build alone",
+        ),
+        ((*_LOWPASS, "--sim-build", "--quiet"), "--quiet and --sim-build cannot be used together"),
+        (
+            (*_LOWPASS, "--sim-matched", "--quiet"),
+            "--quiet and --sim-matched cannot be used together",
+        ),
+        (
+            (*_LOWPASS, "--cap-tolerance", "5"),
+            "--capacitor-tolerance require --sim-build or --format spice",
+        ),
+        (
+            (*_LOWPASS, "--sim-build", "--seed", "7"),
             "--seed requires a positive --sample-count",
         ),
         (
-            ("lp", "bw", "pi", "10MHz", "--format", "spice", "--cap-tolerance", "5"),
-            "affect tolerance analysis, not a SPICE deck",
+            (*_LOWPASS, "--spice-realization", "exact"),
+            "--spice-realization requires --format spice",
+        ),
+        (
+            (*_LOWPASS, "--format", "spice", "--cap-tolerance", "5"),
+            "--capacitor-tolerance affect tolerance analysis, not a SPICE deck; use --sim-build",
+        ),
+        (
+            (*_LOWPASS, "--format", "spice", "--no-match"),
+            "nominal-build SPICE requires selected capacitor values; remove --no-match "
+            "or use --spice-realization exact",
+        ),
+        (
+            (*_LOWPASS, "--sim-build", "--loss-reference-frequency", "1MHz"),
+            "--loss-reference-frequency requires a Q input",
+        ),
+        (
+            (*_LOWPASS, "--format", "spice", "--loss-reference-frequency", "1MHz"),
+            "--loss-reference-frequency requires a Q input",
         ),
         (
             (
-                "lp",
-                "bw",
-                "pi",
-                "10MHz",
-                "--sim-build",
-                "--loss-reference-frequency",
-                "1MHz",
-            ),
-            "requires a Q input",
-        ),
-        (
-            (
-                "lp",
-                "bw",
-                "pi",
-                "10MHz",
-                "--format",
-                "spice",
-                "--loss-reference-frequency",
-                "1MHz",
-            ),
-            "requires a Q input",
-        ),
-        (
-            (
-                "lp",
-                "bw",
-                "pi",
-                "10MHz",
+                *_LOWPASS,
                 "--format",
                 "spice",
                 "--spice-realization",
@@ -286,7 +315,7 @@ def test_deprecated_alias_has_json_parity_and_warning(monkeypatch, capsys, comma
                 "--inductor-q",
                 "100",
             ),
-            "cannot affect an exact lossless deck",
+            "--inductor-q cannot affect an exact lossless deck",
         ),
         (
             (
@@ -303,7 +332,7 @@ def test_deprecated_alias_has_json_parity_and_warning(monkeypatch, capsys, comma
                 "--inductor-q",
                 "100",
             ),
-            "not both loss models",
+            "use either --qu/--ql/--qc or --inductor-q/--capacitor-q, not both loss models",
         ),
     ],
 )

@@ -56,10 +56,8 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
         f"""
         import json
         import sys
-        from importlib import import_module
         from importlib.metadata import distribution, version
         from importlib.resources import files
-        from importlib.util import find_spec
         from pathlib import Path
 
         import filter_lib
@@ -91,15 +89,10 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
         css_resource = files("filter_lib.wizard").joinpath("styles.tcss")
         assert css_resource.read_text(encoding="utf-8").strip()
 
-        spice_module_available = find_spec("filter_lib.shared.spice_export") is not None
-        if spice_module_available:
-            import_module("filter_lib.shared.spice_export")
-
         print(json.dumps({{
             "version": filter_lib.__version__,
             "loaded_core_count": len(loaded_cores),
             "package_path": str(package_path),
-            "spice_module": spice_module_available,
         }}))
         """
     )
@@ -107,48 +100,55 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
     return json.loads(result.stdout)
 
 
-def _probe_cli(filter_calc: Path, *, cwd: Path, env: dict[str, str]) -> bool:
+def _json_output(result: subprocess.CompletedProcess[str]) -> dict:
+    return json.loads(result.stdout, parse_constant=_reject_json_constant)
+
+
+def _probe_cli(filter_calc: Path, *, cwd: Path, env: dict[str, str]) -> None:
     version_result = _run([str(filter_calc), "--version"], cwd=cwd, env=env)
-    assert version_result.stdout.strip().endswith(EXPECTED_VERSION)
+    assert version_result.stdout.strip() == f"filter-calc {EXPECTED_VERSION}"
 
-    command = [
-        str(filter_calc),
-        "lowpass",
-        "butterworth",
-        "pi",
-        "10MHz",
-        "--components",
-        "3",
-        "--no-match",
-        "--no-toroids",
-        "--format",
-        "json",
-    ]
-    calculation = _run(command, cwd=cwd, env=env)
-    payload = json.loads(calculation.stdout, parse_constant=_reject_json_constant)
-    assert isinstance(payload, dict) and payload
+    # Butterworth n=3 Pi at 10 MHz / 50 ohm: C = 1/(Z*w) = 318.31 pF, L = 2*Z/w = 1.5915 uH.
+    lowpass_command = [str(filter_calc), "lowpass", "butterworth", "pi", "10MHz"]
+    payload = _json_output(
+        _run([*lowpass_command, "--components", "3", "--format", "json"], cwd=cwd, env=env)
+    )
+    capacitors = payload["components"]["capacitors"]
+    inductor = payload["components"]["inductors"][0]
+    assert [c["name"] for c in capacitors] == ["C1", "C2"]
+    assert abs(capacitors[0]["value_farads"] / 318.30988618e-12 - 1) < 1e-9
+    assert abs(inductor["value_henries"] / 1.5915494309e-6 - 1) < 1e-9
+    # Toroid screening reads the packaged core manifest through the installed CLI.
+    assert inductor["toroid_recommendations"], "no screened toroid from installed core data"
 
-    help_result = _run([str(filter_calc), "lowpass", "--help"], cwd=cwd, env=env)
-    spice_available = bool(re.search(r"--format[^\n]*\bspice\b", help_result.stdout))
-    if spice_available:
-        spice_command = [
-            str(filter_calc),
-            "lowpass",
-            "butterworth",
-            "pi",
-            "10MHz",
-            "--components",
-            "3",
-            "--format",
-            "spice",
-        ]
-        spice_result = _run(spice_command, cwd=cwd, env=env)
-        spice_deck = spice_result.stdout
-        assert re.search(r"(?im)^\.ac\s", spice_deck)
-        assert re.search(r"(?im)^\.end\s*$", spice_deck)
-        assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", spice_deck)
+    bandpass = _json_output(
+        _run(
+            [
+                str(filter_calc),
+                "bp",
+                "bw",
+                "top",
+                "-f",
+                "14.2MHz",
+                "-b",
+                "500kHz",
+                "--no-toroids",
+                "--format",
+                "json",
+            ],
+            cwd=cwd,
+            env=env,
+        )
+    )
+    assert abs(bandpass["center_frequency_hz"] / 14.2e6 - 1) < 1e-12
+    assert bandpass["n_resonators"] == 3
+    assert bandpass["response_validation_status"] == "validated"
 
-    return spice_available
+    spice_deck = _run([*lowpass_command, "--format", "spice"], cwd=cwd, env=env).stdout
+    assert "* realization: nominal_build" in spice_deck
+    assert re.search(r"(?im)^\.ac\s", spice_deck)
+    assert re.search(r"(?im)^\.end\s*$", spice_deck)
+    assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", spice_deck)
 
 
 def _probe_wizard(python: Path, *, cwd: Path, env: dict[str, str]) -> None:
@@ -225,15 +225,13 @@ def main() -> int:
             ]
         _run(install_command, cwd=work_dir, env=clean_env)
         package_details = _probe_installed_package(python, cwd=work_dir, env=clean_env)
-        spice_available = _probe_cli(filter_calc, cwd=work_dir, env=clean_env)
+        _probe_cli(filter_calc, cwd=work_dir, env=clean_env)
         _probe_wizard(python, cwd=work_dir, env=clean_env)
 
     print(
         "wheel smoke passed: "
         f"version={package_details['version']}, "
-        f"loaded_cores={package_details['loaded_core_count']}, "
-        f"spice_module={'imported' if package_details['spice_module'] else 'not exposed'}, "
-        f"spice_cli={'tested' if spice_available else 'not exposed'}"
+        f"loaded_cores={package_details['loaded_core_count']}"
     )
     return 0
 

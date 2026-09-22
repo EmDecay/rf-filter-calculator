@@ -203,7 +203,8 @@ change:
 
 ```bash
 uv run pytest -q tests/test_relevant_module.py
-uv run pytest --cov=filter_lib --cov-report=term-missing --cov-fail-under=90
+uv run pytest -m runtime_budget
+uv run pytest -m "not runtime_budget" --cov=filter_lib --cov-report=term-missing --cov-fail-under=90
 uv run ruff check .
 uv run ruff format --check .
 uv lock --check

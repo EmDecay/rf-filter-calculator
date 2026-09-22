@@ -7,9 +7,11 @@ import pytest
 
 from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.lowpass.calculations import calculate_butterworth as lp_butterworth
+from filter_lib.shared.build_response import build_frequency_grid, measure_circuit
 from filter_lib.shared.build_simulation import (
     BuildConfig,
     analyze_build,
+    build_named_circuit,
     derive_series_resistance,
     realize_nominal_build,
 )
@@ -88,6 +90,9 @@ class TestBuildConfig:
             ({"grid_points": 20}, "grid_points"),
             ({"reference_frequency_hz": 0}, "reference_frequency_hz"),
             ({"eseries": "E7"}, "eseries"),
+            ({"eseries": 24}, "eseries"),
+            ({"use_toroid_candidates": 1}, "use_toroid_candidates must be boolean"),
+            ({"match_policy": {}}, "match_policy must be a MatchPolicy"),
         ],
     )
     def test_invalid_config_rejected(self, kwargs, message):
@@ -99,6 +104,41 @@ class TestBuildConfig:
     def test_public_build_operations_reject_wrong_config_type(self, operation, config):
         with pytest.raises(ValueError, match="config must be a BuildConfig or None"):
             operation(_lp_result(), "lowpass", config)
+
+
+class TestDesignResultValidation:
+    @pytest.mark.parametrize(
+        "category, key, value, message",
+        [
+            ("lowpass", "freq_hz", float("nan"), "freq_hz must be positive and finite"),
+            ("lowpass", "impedance", 0.0, "impedance must be positive and finite"),
+            ("bandpass", "f0", -1.0, "f0 must be positive and finite"),
+            ("bandpass", "z0", float("inf"), "z0 must be positive and finite"),
+        ],
+    )
+    def test_analysis_rejects_nonphysical_design_frequency_or_impedance(
+        self, category, key, value, message
+    ):
+        result = (
+            _lp_result()
+            if category == "lowpass"
+            else calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top")
+        )
+        result[key] = value
+
+        with pytest.raises(ValueError, match=message):
+            analyze_build(
+                result, category, BuildConfig(grid_points=51, use_toroid_candidates=False)
+            )
+
+    def test_nonphysical_synthesis_loss_reference_is_rejected(self):
+        result = calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top", qu=150)
+        result["q_model"]["reference_frequency_hz"] = float("nan")
+
+        with pytest.raises(
+            ValueError, match="q_model reference_frequency_hz must be positive and finite"
+        ):
+            realize_nominal_build(result, "bandpass", BuildConfig(use_toroid_candidates=False))
 
 
 class TestNominalRealization:
@@ -137,13 +177,14 @@ class TestNominalRealization:
         )
 
         assert [element.name for element in realization.circuit.elements] == ["C1A", "C1B"]
+        # abs=0: pytest.approx's default 1e-12 absolute tolerance would accept +/-1 pF.
         assert [element.value for element in realization.circuit.elements] == pytest.approx(
-            [47e-12, 270e-12]
+            [47e-12, 270e-12], rel=1e-9, abs=0
         )
         substitution = realization.substitutions[0]
         assert substitution.method == "e_series_parallel"
-        assert substitution.physical_parts == pytest.approx((47e-12, 270e-12))
-        assert substitution.nominal_value == pytest.approx(317e-12)
+        assert substitution.physical_parts == pytest.approx((47e-12, 270e-12), rel=1e-9, abs=0)
+        assert substitution.nominal_value == pytest.approx(317e-12, rel=1e-9, abs=0)
 
     def test_sub_pf_policy_refusal_is_an_explicit_exact_fallback(self):
         target = 0.5e-12
@@ -166,12 +207,24 @@ class TestNominalRealization:
             substitution for substitution in realization.substitutions if substitution.kind == "L"
         ]
 
+        simulated = {
+            element.logical_name: element.value
+            for element in realization.circuit.elements
+            if element.kind == "L"
+        }
         assert inductor_substitutions
         for substitution in inductor_substitutions:
             assert substitution.method == "verified_toroid_integer_turns"
+            assert substitution.status == "screened_candidate"
             assert isinstance(substitution.turns, int) and substitution.turns >= 1
             assert substitution.core_name is not None
-            assert substitution.nominal_value > 0
+            # Qualified cores accept an integer-turn error within their 5% AL tolerance.
+            assert substitution.nominal_value != substitution.calculated_value
+            assert substitution.nominal_value == pytest.approx(
+                substitution.calculated_value, rel=0.05, abs=0
+            )
+            # The simulated nominal circuit uses the wound value, not the calculated one.
+            assert simulated[substitution.logical_name] == substitution.nominal_value
 
     def test_no_verified_candidate_is_recorded_as_fallback(self):
         realization = realize_nominal_build(_lp_result(frequency_hz=1e12), "lowpass", BuildConfig())
@@ -247,19 +300,36 @@ class TestNominalRealization:
             assert element.series_resistance_ohm == pytest.approx(expected)
             assert element.series_resistance_ohm > 0
 
-    def test_bandpass_complete_resonator_q_uses_one_equivalent_loss_channel(self):
-        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=150)
+    @pytest.mark.parametrize(
+        "synthesis_q, config_q, limitation",
+        [
+            ({"qu": 150}, {}, "complete resonator Q from synthesis"),
+            ({}, {"resonator_q": 150}, "supplied complete resonator Q"),
+        ],
+        ids=["synthesis-qu", "build-config-resonator-q"],
+    )
+    def test_bandpass_complete_resonator_q_uses_one_equivalent_loss_channel(
+        self, synthesis_q, config_q, limitation
+    ):
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", **synthesis_q)
         realization = realize_nominal_build(
             result,
             "bandpass",
-            BuildConfig(use_toroid_candidates=False),
+            BuildConfig(use_toroid_candidates=False, **config_q),
         )
 
         inductors = [element for element in realization.circuit.elements if element.kind == "L"]
         capacitors = [element for element in realization.circuit.elements if element.kind == "C"]
-        assert all(element.quality_factor == 150 for element in inductors)
+        assert len(inductors) == 3
+        for inductor in inductors:
+            assert inductor.quality_factor == 150
+            # Series loss of an inductor with Q at f0: R = 2*pi*f0*L / Q.
+            assert inductor.series_resistance_ohm == pytest.approx(
+                2 * math.pi * 10e6 * result["L_resonant"] / 150
+            )
         assert all(element.quality_factor is None for element in capacitors)
-        assert any("complete resonator Q" in limitation for limitation in realization.limitations)
+        assert all(element.series_resistance_ohm == 0 for element in capacitors)
+        assert any(limitation in item for item in realization.limitations)
 
     def test_complete_resonator_q_is_rejected_for_non_resonator_ladders(self):
         with pytest.raises(ValueError, match="only for bandpass"):
@@ -318,6 +388,7 @@ class TestBuildAnalysis:
             BuildConfig(
                 capacitor_tolerance_pct=0,
                 inductor_tolerance_pct=0,
+                grid_points=101,
                 use_toroid_candidates=False,
             ),
         )
@@ -329,6 +400,7 @@ class TestBuildAnalysis:
                 inductor_tolerance_pct=0,
                 inductor_q=40,
                 capacitor_q=80,
+                grid_points=101,
                 use_toroid_candidates=False,
             ),
         )
@@ -344,6 +416,7 @@ class TestBuildAnalysis:
             BuildConfig(
                 source_resistance_ohm=25,
                 load_resistance_ohm=100,
+                grid_points=101,
                 use_toroid_candidates=False,
             ),
         )
@@ -445,29 +518,7 @@ class TestBuildAnalysis:
         assert "cutoff_hz" in metrics
         assert metrics.isdisjoint({"f_low_hz", "f_high_hz", "f0_hz", "bw_hz"})
 
-    def test_default_grid_resolves_very_narrow_bandpass_bandwidth(self):
-        result = calculate_bandpass_filter(
-            10e6,
-            1e3,
-            50,
-            3,
-            "butterworth",
-            "top",
-        )
-        analysis = analyze_build(
-            result,
-            "bandpass",
-            BuildConfig(
-                capacitor_tolerance_pct=0,
-                inductor_tolerance_pct=0,
-                use_toroid_candidates=False,
-            ),
-        )
-
-        assert analysis.calculated.bw == pytest.approx(1e3, rel=0.03)
-        assert analysis.calculated.at_grid_edge is False
-
-    def test_cutoff_summary_excludes_and_counts_grid_censored_cases(self):
+    def test_cutoff_summary_counts_and_discloses_grid_censored_cases(self):
         analysis = analyze_build(
             _lp_result(),
             "lowpass",
@@ -485,12 +536,112 @@ class TestBuildAnalysis:
         assert cutoff.maximum < 100e6
         assert any("grid-boundary-censored" in item for item in analysis.limitations)
 
+    def test_one_sided_censored_bandpass_edge_is_excluded_from_its_summary(self):
+        result = calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top")
+        analysis = analyze_build(
+            result,
+            "bandpass",
+            BuildConfig(
+                eseries="E96",
+                capacitor_tolerance_pct=50,
+                inductor_tolerance_pct=50,
+                grid_points=51,
+                use_toroid_candidates=False,
+            ),
+        )
+        # All parts 50% low double the center, pushing the upper skirt past the window.
+        censored = next(case for case in analysis.cases if case.case_id == "coherent:low")
+        assert censored.measurement.at_grid_edge is True
+        assert censored.measurement.f_low is not None and censored.measurement.f_high is None
+
+        uncensored = [
+            case.measurement.f_low for case in analysis.cases if not case.measurement.at_grid_edge
+        ]
+        f_low = next(item for item in analysis.metric_summaries if item.metric == "f_low_hz")
+        assert f_low.included_cases == len(uncensored)
+        assert f_low.grid_censored_cases == len(analysis.cases) - len(uncensored)
+        assert (f_low.minimum, f_low.maximum) == (min(uncensored), max(uncensored))
+        assert censored.measurement.f_low > f_low.maximum
+
+    def test_edge_metrics_are_omitted_when_every_case_loses_the_passband(self):
+        """Integer-turn toroids detune a 0.01% fractional-bandwidth design far beyond its
+        passband, so no screened case has two half-power edges to summarize."""
+        result = calculate_bandpass_filter(10e6, 1e3, 50, 2, "butterworth", "top")
+        analysis = analyze_build(result, "bandpass", BuildConfig(eseries="E96", grid_points=51))
+
+        assert analysis.calculated.bw == pytest.approx(1e3, rel=0.03)
+        assert analysis.nominal_build.at_grid_edge is True
+        assert (analysis.nominal_build.f0, analysis.nominal_build.bw) == (None, None)
+        assert all(case.measurement.at_grid_edge for case in analysis.cases)
+        assert [summary.metric for summary in analysis.metric_summaries] == [
+            "peak_transducer_gain_db",
+            "worst_passband_db",
+        ]
+        assert (
+            f"Edge/cutoff summaries omit {len(analysis.cases)} grid-boundary-censored "
+            "screening cases; inspect their case records before extending the sweep."
+        ) in analysis.limitations
+
+    @pytest.mark.runtime_budget
     def test_default_analysis_runtime_is_bounded(self):
         started = time.perf_counter()
         analysis = analyze_build(_lp_result(order=5), "lowpass", BuildConfig())
         elapsed = time.perf_counter() - started
         assert analysis.cases
         assert elapsed < 2.0
+
+
+class TestBandpassMeasurement:
+    """Calculated-circuit measurements that every build analysis starts from."""
+
+    @staticmethod
+    def _measure_calculated(result: dict):
+        grid = build_frequency_grid(result, "bandpass", BuildConfig().grid_points)
+        circuit = build_named_circuit(result, "bandpass")
+        return measure_circuit(circuit, result, "bandpass", grid, result["z0"], result["z0"])
+
+    def test_default_grid_resolves_very_narrow_bandpass_bandwidth(self):
+        result = calculate_bandpass_filter(10e6, 1e3, 50, 3, "butterworth", "top")
+
+        measurement = self._measure_calculated(result)
+
+        assert measurement.bw == pytest.approx(1e3, rel=0.03)
+        assert measurement.at_grid_edge is False
+
+    def test_measurement_anchors_the_region_containing_the_requested_center(self):
+        """A 3 dB-ripple Chebyshev response also crosses half power below the passband;
+        the reported edges must come from the region around the requested center."""
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "chebyshev", "top", ripple_db=3.0)
+
+        measurement = self._measure_calculated(result)
+
+        assert len(measurement.threshold_regions) > 1  # precondition for this regression
+        assert measurement.center_in_selected_region is True
+        assert measurement.f_low < result["f0"] < measurement.f_high
+        assert measurement.f0 == pytest.approx(result["f0"], rel=0.03)
+
+
+class TestSeriesLossConversion:
+    @pytest.mark.parametrize(
+        "kind, value, quality_factor, frequency, message",
+        [
+            ("R", 1e-6, 100, 10e6, "kind must be 'C' or 'L'"),
+            (None, 1e-6, 100, 10e6, "kind must be 'C' or 'L'"),
+            ("L", 0.0, 100, 10e6, "value must be positive and finite"),
+            ("L", float("nan"), 100, 10e6, "value must be positive and finite"),
+            ("C", 1e-9, True, 10e6, "quality_factor must be positive and finite"),
+            ("C", 1e-9, -5, 10e6, "quality_factor must be positive and finite"),
+            ("L", 1e-6, 100, float("inf"), "reference_frequency_hz must be positive and finite"),
+            # exp() overflow and underflow of the derived resistance.
+            ("L", 1e300, 1e-300, 1e300, "outside the finite numeric range"),
+            ("C", 1e300, 1e300, 1e300, "outside the finite numeric range"),
+        ],
+    )
+    def test_invalid_inputs_and_unrepresentable_results_are_rejected(
+        self, kind, value, quality_factor, frequency, message
+    ):
+        with pytest.raises(ValueError, match=message):
+            derive_series_resistance(kind, value, quality_factor, frequency)
 
 
 def test_loss_formula_reference_values():

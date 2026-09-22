@@ -65,16 +65,12 @@ jobs:
         run: uv sync --locked --group dev
 
       - name: Check runtimes without coverage overhead
-        run: >-
-          uv run --locked pytest
-          tests/test_build_simulation.py::TestBuildAnalysis::test_default_analysis_runtime_is_bounded
-          tests/test_netlist_simulation.py::TestBandpassTopCAcceptance::test_calibration_runtime_is_bounded
+        run: uv run --locked pytest tests/ -m runtime_budget
 
       - name: Run correctness suite with coverage
         run: >-
           uv run --locked pytest tests/
-          --deselect=tests/test_build_simulation.py::TestBuildAnalysis::test_default_analysis_runtime_is_bounded
-          --deselect=tests/test_netlist_simulation.py::TestBandpassTopCAcceptance::test_calibration_runtime_is_bounded
+          -m "not runtime_budget"
           --cov=filter_lib
           --cov-report=term-missing
           --cov-report=xml

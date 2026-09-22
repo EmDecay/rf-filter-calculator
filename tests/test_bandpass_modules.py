@@ -1,17 +1,16 @@
-"""Tests for bandpass modules: g_values, formatters, display, diagrams, calculations."""
+"""Bandpass prototype g-values and the JSON, CSV, quiet, table, and diagram outputs."""
 
+import copy
+import csv
+import io
 import json
+import math
 
 import pytest
 
-from filter_lib.bandpass.calculations import (
-    _get_fbw_warnings,
-    _validate_inputs,
-    calculate_bandpass_filter,
-    calculate_min_q,
-)
-from filter_lib.bandpass.diagrams import print_top_c_diagram
-from filter_lib.bandpass.display import display_results
+from filter_lib.bandpass.calculations import calculate_bandpass_filter
+from filter_lib.bandpass.diagrams import format_top_c_diagram, print_top_c_diagram
+from filter_lib.bandpass.display import PLOT_POINTS, display_results, format_q_model_lines
 from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
 from filter_lib.bandpass.g_values import (
     calculate_butterworth_g_values,
@@ -19,6 +18,9 @@ from filter_lib.bandpass.g_values import (
     get_chebyshev_g_values,
     get_g_values,
 )
+
+_SI_PREFIX = {"f": 1e-15, "p": 1e-12, "n": 1e-9, "µ": 1e-6, "m": 1e-3, "": 1.0}
+_COMPONENT_ORDER = ["Cp1", "Cp2", "Cp3", "L1", "L2", "L3", "Cs12", "Cs23", "Ce_in", "Ce_out"]
 
 
 def _make_result(**overrides):
@@ -30,51 +32,88 @@ def _make_result(**overrides):
     return calculate_bandpass_filter(**kwargs)
 
 
+@pytest.fixture(scope="module")
+def _reference_result():
+    return _make_result()
+
+
+@pytest.fixture
+def result(_reference_result):
+    """Fresh copy of the 14.175 MHz / 350 kHz Butterworth n=3 design."""
+    return copy.deepcopy(_reference_result)
+
+
+def _expected_values(result):
+    """Component values in export order, from the synthesis result."""
+    n = result["n_resonators"]
+    return (
+        list(result["c_tank"])
+        + [result["L_resonant"]] * n
+        + list(result["c_coupling"])
+        + [result["c_end_in"], result["c_end_out"]]
+    )
+
+
+def _si_value(value: str, unit: str) -> float:
+    """Parse a formatted ``value unit`` pair such as ``185.84 pF`` into SI units."""
+    return float(value) * _SI_PREFIX[unit[:-1]]
+
+
 # --- g_values ---
 
 
-class TestGValues:
-    def test_butterworth_order3(self):
-        g = calculate_butterworth_g_values(3)
-        assert len(g) == 3
-        assert all(v > 0 for v in g)
+class TestPrototypeGValues:
+    def test_butterworth_closed_form_reference_values(self):
+        assert calculate_butterworth_g_values(3) == pytest.approx([1.0, 2.0, 1.0], rel=1e-12)
+        assert calculate_butterworth_g_values(5) == pytest.approx(
+            [0.6180339887, 1.6180339887, 2.0, 1.6180339887, 0.6180339887], rel=1e-9
+        )
 
-    def test_chebyshev_valid(self):
-        g = get_chebyshev_g_values(5, 0.5)
-        assert len(g) == 5
+    @pytest.mark.parametrize(
+        "n, ripple_db, expected",
+        [
+            (3, 0.1, [1.0316, 1.1474, 1.0316]),
+            (3, 0.5, [1.5963, 1.0967, 1.5963]),
+            (5, 0.5, [1.7058, 1.2296, 2.5408, 1.2296, 1.7058]),
+        ],
+    )
+    def test_chebyshev_matches_published_equal_ripple_tables(self, n, ripple_db, expected):
+        """Matthaei/Young/Jones tables list g1..gn; the unused g0 slot is not returned."""
+        assert get_chebyshev_g_values(n, ripple_db) == pytest.approx(expected, abs=1e-4)
 
-    def test_chebyshev_arbitrary_ripple(self):
-        """Any ripple in (0, 3.0] computes, not just former table entries."""
+    def test_chebyshev_ripple_between_table_entries_is_computed(self):
+        """Any ripple in (0, 3.0] computes; 0.2 dB lies between the 0.1 and 0.5 dB rows."""
         g = get_chebyshev_g_values(3, 0.2)
-        assert len(g) == 3
-        assert all(v > 0 for v in g)
+        assert 1.0316 < g[0] < 1.5963
+        assert g[0] == pytest.approx(g[2], rel=1e-12)
 
-    def test_chebyshev_ripple_above_ceiling(self):
-        with pytest.raises(ValueError, match="Ripple .* not supported"):
-            get_chebyshev_g_values(3, 3.5)
+    @pytest.mark.parametrize(
+        "n, ripple_db, message",
+        [
+            (3, 3.5, "Ripple .* not supported"),
+            (3, 0.0, "must be positive"),
+            (3, float("nan"), "must be positive"),
+            (4, 0.5, "odd resonator count"),
+        ],
+    )
+    def test_chebyshev_rejects_unsupported_designs(self, n, ripple_db, message):
+        with pytest.raises(ValueError, match=message):
+            get_chebyshev_g_values(n, ripple_db)
 
-    def test_chebyshev_nonpositive_ripple(self):
-        with pytest.raises(ValueError, match="must be positive"):
-            get_chebyshev_g_values(3, 0.0)
-        with pytest.raises(ValueError, match="must be positive"):
-            get_chebyshev_g_values(3, float("nan"))
-
-    def test_chebyshev_even_order(self):
-        with pytest.raises(ValueError, match="odd resonator count"):
-            get_chebyshev_g_values(4, 0.5)
-
-    def test_bessel_valid(self):
-        g = get_bessel_g_values(5)
-        assert len(g) == 5
+    def test_bessel_returns_zverev_row_as_independent_copy(self):
+        g = get_bessel_g_values(3)
+        assert g == [0.3374, 0.9705, 2.2034]
+        g[0] = 99.0
+        assert get_bessel_g_values(3)[0] == 0.3374
 
     def test_bessel_invalid_order(self):
         with pytest.raises(ValueError, match="2-9 resonators"):
             get_bessel_g_values(10)
 
-    def test_get_g_values_dispatch(self):
-        assert len(get_g_values("butterworth", 4)) == 4
-        assert len(get_g_values("chebyshev", 5, 1.0)) == 5
-        assert len(get_g_values("bessel", 3)) == 3
+    def test_get_g_values_dispatches_by_family(self):
+        assert get_g_values("butterworth", 4) == calculate_butterworth_g_values(4)
+        assert get_g_values("chebyshev", 5, 1.0) == get_chebyshev_g_values(5, 1.0)
+        assert get_g_values("bessel", 3) == get_bessel_g_values(3)
 
     def test_get_g_values_unknown(self):
         with pytest.raises(ValueError, match="Unknown filter type"):
@@ -82,17 +121,16 @@ class TestGValues:
 
     @pytest.mark.parametrize("order", [True, 3.0, "3", None])
     @pytest.mark.parametrize(
-        "calculator",
-        [calculate_butterworth_g_values, get_bessel_g_values],
+        "calculator, message",
+        [
+            (calculate_butterworth_g_values, "n must be a positive integer"),
+            (get_bessel_g_values, "only available for 2-9 resonators"),
+            (lambda order: get_chebyshev_g_values(order, 0.5), "n must be a positive integer"),
+        ],
     )
-    def test_public_g_value_helpers_reject_noninteger_orders(self, calculator, order):
-        with pytest.raises(ValueError):
+    def test_public_g_value_helpers_reject_noninteger_orders(self, calculator, message, order):
+        with pytest.raises(ValueError, match=message):
             calculator(order)
-
-    @pytest.mark.parametrize("order", [True, 3.0, "3", None])
-    def test_public_chebyshev_helper_rejects_noninteger_orders(self, order):
-        with pytest.raises(ValueError):
-            get_chebyshev_g_values(order, 0.5)
 
     @pytest.mark.parametrize("ripple", [True, "0.5", None])
     def test_public_chebyshev_helper_rejects_nonnumeric_ripple(self, ripple):
@@ -104,16 +142,30 @@ class TestGValues:
 
 
 class TestFormatters:
-    def test_format_json_structure(self):
-        result = _make_result()
-        output = format_json(result)
-        data = json.loads(output)
+    def test_format_json_reports_requested_design_and_every_component(self, result):
+        data = json.loads(format_json(result, include_toroids=False))
+
         assert data["filter_type"] == "butterworth"
         assert data["coupling"] == "top"
-        assert "components" in data
+        assert data["center_frequency_hz"] == result["f0"]
+        assert data["bandwidth_hz"] == result["bw"]
+        assert (data["f_low_hz"], data["f_high_hz"]) == (result["f_low"], result["f_high"])
+        assert data["impedance_ohms"] == 50.0
+        assert data["n_resonators"] == 3
+        components = data["components"]
+        assert [c["name"] for c in components["tank_capacitors"]] == ["Cp1", "Cp2", "Cp3"]
+        assert [c["value_farads"] for c in components["tank_capacitors"]] == result["c_tank"]
+        assert [c["name"] for c in components["inductors"]] == ["L1", "L2", "L3"]
+        assert {c["value_henries"] for c in components["inductors"]} == {result["L_resonant"]}
+        assert [c["name"] for c in components["coupling_capacitors"]] == ["Cs12", "Cs23"]
+        assert [c["value_farads"] for c in components["coupling_capacitors"]] == (
+            result["c_coupling"]
+        )
+        assert data["external_q"] == {"input": result["qe_in"], "output": result["qe_out"]}
+        assert "ripple_db" not in data
+        assert "resonator_toroid_candidates" not in data
 
-    def test_format_json_eseries_matches_capacitors_only(self):
-        result = _make_result()
+    def test_format_json_eseries_matches_capacitors_only(self, result):
         data = json.loads(format_json(result, eseries="E24", include_toroids=False))
         first_tank_cap = data["components"]["tank_capacitors"][0]
         first_inductor = data["components"]["inductors"][0]
@@ -125,18 +177,21 @@ class TestFormatters:
 
     def test_format_json_with_ripple(self):
         result = _make_result(filter_type="chebyshev", n_resonators=5, ripple_db=0.5)
-        data = json.loads(format_json(result))
+        data = json.loads(format_json(result, include_toroids=False))
         assert data["ripple_db"] == 0.5
 
-    def test_format_csv_structure(self):
-        output = format_csv(_make_result())
-        assert "Component,Value,Unit" in output
-        assert "Cp1" in output
-        assert "L1" in output
-        assert "Cs12" in output
+    def test_format_csv_lists_every_component_with_si_units(self, result):
+        rows = list(csv.reader(io.StringIO(format_csv(result, include_toroids=False))))
 
-    def test_format_csv_eseries_leaves_inductor_match_columns_empty(self):
-        output = format_csv(_make_result(), eseries="E24", include_toroids=False)
+        assert rows[0] == ["Component", "Value", "Unit"]
+        assert [row[0] for row in rows[1:]] == _COMPONENT_ORDER
+        assert [row[2][-1] for row in rows[1:]] == list("FFFHHHFFFF")
+        parsed = [_si_value(value, unit) for _, value, unit in rows[1:]]
+        # Two-decimal display rounding bounds the relative error of these values.
+        assert parsed == pytest.approx(_expected_values(result), rel=2e-3, abs=0)
+
+    def test_format_csv_eseries_leaves_inductor_match_columns_empty(self, result):
+        output = format_csv(result, eseries="E24", include_toroids=False)
         rows = [line.split(",") for line in output.splitlines()]
         inductor_row = next(row for row in rows if row[0] == "L1")
         cap_row = next(row for row in rows if row[0] == "Cp1")
@@ -144,159 +199,146 @@ class TestFormatters:
         assert inductor_row[3:9] == [""] * 6
         assert cap_row[3] != ""
 
-    def test_format_quiet_formatted(self):
-        output = format_quiet(_make_result(), raw=False)
-        assert "Cp1:" in output
-        assert "L1:" in output
+    def test_format_quiet_lists_every_component_with_units(self, result):
+        lines = format_quiet(result, raw=False).splitlines()
+        names = [line.split(": ")[0] for line in lines]
+        assert names == _COMPONENT_ORDER
+        parsed = [_si_value(*line.split(": ")[1].split(" ")) for line in lines]
+        assert parsed == pytest.approx(_expected_values(result), rel=2e-3, abs=0)
 
-    def test_format_quiet_raw(self):
-        output = format_quiet(_make_result(), raw=True)
-        assert "e" in output.lower()  # scientific notation
+    def test_format_quiet_raw_prints_scientific_si_values(self, result):
+        lines = format_quiet(result, raw=True).splitlines()
+        assert [line.split(": ")[0] for line in lines] == _COMPONENT_ORDER
+        units = [line.rsplit(" ", 1)[1] for line in lines]
+        assert units == list("FFFHHHFFFF")
+        values = [float(line.split(": ")[1].split(" ")[0]) for line in lines]
+        assert values == pytest.approx(_expected_values(result), rel=1e-6, abs=0)
 
 
 # --- display ---
 
 
 class TestDisplay:
-    @pytest.fixture
-    def sample_result(self):
-        return _make_result()
+    @pytest.mark.parametrize(
+        "options, expected",
+        [
+            ({"output_format": "json"}, lambda r: format_json(r, eseries="E24") + "\n"),
+            ({"output_format": "csv"}, lambda r: format_csv(r, eseries="E24")),
+            ({"quiet": True}, lambda r: format_quiet(r) + "\n"),
+        ],
+    )
+    def test_machine_and_quiet_modes_print_exact_formatter_output(
+        self, result, capsys, options, expected
+    ):
+        display_results(result, **options)
+        assert capsys.readouterr().out == expected(result)
 
-    def test_display_json(self, sample_result, capsys):
-        display_results(sample_result, output_format="json")
-        data = json.loads(capsys.readouterr().out)
-        assert data["filter_type"] == "butterworth"
-
-    def test_display_csv(self, sample_result, capsys):
-        display_results(sample_result, output_format="csv")
-        assert "Component,Value,Unit" in capsys.readouterr().out
-
-    def test_display_quiet(self, sample_result, capsys):
-        display_results(sample_result, quiet=True)
+    def test_display_table_header_describes_the_design(self, result, capsys):
+        display_results(result, output_format="table", include_toroids=False)
         out = capsys.readouterr().out
-        assert "Cp1:" in out
-
-    def test_display_table(self, sample_result, capsys):
-        display_results(sample_result, output_format="table")
-        out = capsys.readouterr().out
-        assert "Butterworth" in out
+        assert "Butterworth Coupled Resonator Bandpass Filter" in out
+        assert "Center Frequency f₀: 14.18 MHz" in out
+        assert "Bandwidth BW:        350 kHz" in out
+        assert "Resonators:          3" in out
+        assert "Coupling:            Top-C (Series)" in out
+        assert "Ripple:" not in out
 
     def test_display_table_shows_ripple_and_warnings(self, capsys):
         result = _make_result(filter_type="chebyshev", ripple_db=0.5)
         result["warnings"] = ["synthetic warning for display"]
         display_results(result, output_format="table")
         out = capsys.readouterr().out
-        assert "Ripple:" in out
-        assert "synthetic warning for display" in out
+        assert "Ripple:              0.5 dB" in out
+        assert "⚠ synthetic warning for display" in out
 
-    def test_display_with_eseries(self, sample_result, capsys):
-        display_results(sample_result, eseries="E12")
-        assert "E12" in capsys.readouterr().out
+    @pytest.mark.parametrize(
+        "q_model, expected_lines",
+        [
+            (
+                {"resonator_qu": None},
+                ["", "Loss examples use complete-resonator unloaded Q (not inductor Q alone)."],
+            ),
+            (
+                {"resonator_qu": 150.0},
+                ["", "Loss-model complete-resonator unloaded Q: 150"],
+            ),
+            (
+                {"resonator_qu": 400.0 / 3.0, "inductor_ql": 200.0, "capacitor_qc": 400.0},
+                [
+                    "",
+                    "Loss-model complete-resonator unloaded Q: 133.3",
+                    "  Derived from QL=200 and QC=400 at f₀",
+                ],
+            ),
+            (
+                {"resonator_qu": 400.0, "inductor_ql": None, "capacitor_qc": 400.0},
+                [
+                    "",
+                    "Loss-model complete-resonator unloaded Q: 400",
+                    "  Derived from QC=400 at f₀",
+                ],
+            ),
+        ],
+    )
+    def test_q_model_lines_name_the_component_q_sources(self, q_model, expected_lines):
+        assert format_q_model_lines({"q_model": q_model}) == expected_lines
 
-    def test_display_with_plot(self, sample_result, capsys):
-        display_results(sample_result, show_plot=True)
+    def test_display_with_eseries(self, result, capsys):
+        display_results(result, eseries="E12", include_toroids=False)
         out = capsys.readouterr().out
-        assert "Butterworth" in out
-        assert "│" in out
+        assert "E12 Preferred-Value Capacitor Selection" in out
+        assert "Cp1 Calculated:" in out
 
-    def test_display_plot_data_json(self, sample_result, capsys):
-        display_results(sample_result, plot_data="json")
+        display_results(result, eseries="E12", raw=True, include_toroids=False)
+        assert "Preferred-Value Capacitor Selection" not in capsys.readouterr().out
+
+    def test_display_plot_appends_simulated_response_and_thresholds(self, result, capsys):
+        display_results(result, include_toroids=False)
+        without_plot = capsys.readouterr().out
+        display_results(result, show_plot=True, include_toroids=False)
+        with_plot = capsys.readouterr().out
+
+        for marker in (
+            "Butterworth 3-pole Response",
+            "Passband Detail",
+            "Threshold reference: local peak",
+            "dB Threshold Summary",
+        ):
+            assert marker in with_plot
+            assert marker not in without_plot
+
+    def test_display_plot_data_json(self, result, capsys):
+        display_results(result, plot_data="json")
         data = json.loads(capsys.readouterr().out)
         assert data["filter"]["category"] == "bandpass"
-        assert data["data"]
+        assert len(data["data"]) == PLOT_POINTS
+        peak_db = max(point["magnitude_db"] for point in data["data"])
+        assert peak_db == pytest.approx(0.0, abs=0.01)
 
-    def test_display_plot_data_csv(self, sample_result, capsys):
-        display_results(sample_result, plot_data="csv")
-        out = capsys.readouterr().out
-        assert "frequency_hz,magnitude_db" in out
+    def test_display_plot_data_csv(self, result, capsys):
+        display_results(result, plot_data="csv")
+        rows = list(csv.reader(io.StringIO(capsys.readouterr().out.strip())))
+        assert rows[0] == ["frequency_hz", "magnitude_db"]
+        assert len(rows) == PLOT_POINTS + 1
+        assert all(math.isfinite(float(value)) for row in rows[1:] for value in row)
 
 
 # --- diagrams ---
 
 
 class TestDiagrams:
-    def test_top_c_3_resonators(self, capsys):
-        print_top_c_diagram(3)
+    @pytest.mark.parametrize("n", [2, 5, 9])
+    def test_top_c_diagram_labels_every_tank_and_coupling_capacitor(self, n, capsys):
+        print_top_c_diagram(n)
         out = capsys.readouterr().out
-        assert "IN" in out
-        assert "Cs12" in out
-        assert "GND" in out
-
-    def test_top_c_5_resonators(self, capsys):
-        print_top_c_diagram(5)
-        assert "Cs45" in capsys.readouterr().out
-
-
-# --- calculations (extended) ---
-
-
-class TestCalculationsExtended:
-    def test_calculate_min_q(self):
-        q = calculate_min_q(f0=14.175e6, bw=350e3, safety_factor=2.0)
-        assert q == pytest.approx((14.175e6 / 350e3) * 2.0, rel=1e-6)
-
-    def test_validate_negative_frequency(self):
-        with pytest.raises(ValueError, match="Center frequency must be positive"):
-            _validate_inputs(-1e6, 100e3, 50.0, 3, "butterworth", "top")
-
-    def test_validate_negative_bandwidth(self):
-        with pytest.raises(ValueError, match="Bandwidth must be positive"):
-            _validate_inputs(14e6, -100e3, 50.0, 3, "butterworth", "top")
-
-    def test_validate_bandwidth_too_wide(self):
-        with pytest.raises(ValueError, match="Bandwidth must be less"):
-            _validate_inputs(14e6, 15e6, 50.0, 3, "butterworth", "top")
-
-    def test_validate_negative_impedance(self):
-        with pytest.raises(ValueError, match="Impedance must be positive"):
-            _validate_inputs(14e6, 100e3, -50.0, 3, "butterworth", "top")
-
-    def test_validate_invalid_resonator_count(self):
-        with pytest.raises(ValueError, match="between 2 and 9"):
-            _validate_inputs(14e6, 100e3, 50.0, 10, "butterworth", "top")
-
-    def test_validate_invalid_filter_type(self):
-        with pytest.raises(ValueError, match="Filter type must be"):
-            _validate_inputs(14e6, 100e3, 50.0, 3, "invalid", "top")
-
-    def test_validate_invalid_coupling(self):
-        with pytest.raises(ValueError, match="Coupling must be"):
-            _validate_inputs(14e6, 100e3, 50.0, 3, "butterworth", "invalid")
-
-    def test_fbw_warnings_above_studied_edge_calibration_range(self):
-        warnings = _get_fbw_warnings(0.15)
-        assert any("studied edge-calibration range" in w for w in warnings)
-
-    def test_fbw_warnings_very_wide(self):
-        warnings = _get_fbw_warnings(0.45)
-        assert len(warnings) > 0
-
-    def test_bandpass_top_extreme_fbw_infeasible_end_coupling(self):
-        # At 70% FBW the required end-tank parallel resistance drops below Z0,
-        # so the end-coupling transformation fails before tank caps go negative
-        with pytest.raises(ValueError, match="too wide"):
-            calculate_bandpass_filter(
-                f0=14.175e6,
-                bw=10e6,
-                z0=50.0,
-                n_resonators=5,
-                filter_type="butterworth",
-                coupling="top",
-            )
-
-    def test_bandpass_shunt_coupling_removed(self):
-        with pytest.raises(ValueError, match="Shunt-C coupling has been removed"):
-            _make_result(coupling="shunt")
-
-    def test_bandpass_chebyshev(self):
-        result = _make_result(filter_type="chebyshev", n_resonators=5, ripple_db=0.5)
-        assert result["filter_type"] == "chebyshev"
-        assert result["ripple_db"] == 0.5
-
-    def test_bandpass_bessel(self):
-        result = _make_result(filter_type="bessel")
-        assert result["filter_type"] == "bessel"
-        assert result["ripple_db"] is None
+        assert out == format_top_c_diagram(n) + "\n"
+        assert out.count("GND") == n
+        for index in range(1, n + 1):
+            assert f"Cp{index}" in out
+            assert f"L{index}" in out
+        for index in range(1, n):
+            assert f"Cs{index}{index + 1}" in out
+        assert f"Cs{n}{n + 1}" not in out
 
 
 # --- end-coupling capacitors across output surfaces ---
@@ -306,62 +348,46 @@ class TestEndCapOutputs:
     """Ce_in/Ce_out must appear in every Top-C output format."""
 
     def test_diagram_shows_end_caps(self):
-        from filter_lib.bandpass.diagrams import format_top_c_diagram
-
         diagram = format_top_c_diagram(3)
         assert "Ce_in" in diagram
         assert "Ce_out" in diagram
         assert "IN ──┤├──" in diagram
         assert "──┤├── OUT" in diagram
 
-    def test_json_includes_end_coupling_capacitors(self):
-        result = _make_result()
+    def test_json_includes_end_coupling_capacitors(self, result):
         data = json.loads(format_json(result, eseries="E24", include_toroids=False))
         end_caps = data["components"]["end_coupling_capacitors"]
         assert [c["name"] for c in end_caps] == ["Ce_in", "Ce_out"]
-        assert end_caps[0]["value_farads"] == pytest.approx(result["c_end_in"])
+        assert end_caps[0]["value_farads"] == result["c_end_in"]
         assert "standard_match" in end_caps[0]
 
-    def test_json_omits_end_caps_when_absent(self):
+    def test_json_omits_end_caps_when_absent(self, result):
         # Formatter stays tolerant of result dicts without end caps
-        result = {**_make_result(), "c_end_in": None, "c_end_out": None}
+        result = {**result, "c_end_in": None, "c_end_out": None}
         data = json.loads(format_json(result, include_toroids=False))
         assert "end_coupling_capacitors" not in data["components"]
 
-    def test_csv_includes_end_cap_rows(self):
-        result = _make_result()
-        csv_text = format_csv(result, include_toroids=False)
-        assert "Ce_in," in csv_text
-        assert "Ce_out," in csv_text
-
-    def test_quiet_includes_end_caps(self):
-        result = _make_result()
-        quiet = format_quiet(result)
-        assert any(line.startswith("Ce_in:") for line in quiet.splitlines())
-        assert any(line.startswith("Ce_out:") for line in quiet.splitlines())
-
-    def test_table_includes_end_caps_and_realized_q(self, capsys):
-        display_results(_make_result(), output_format="table")
+    def test_table_includes_end_caps_and_realized_q(self, result, capsys):
+        display_results(result, output_format="table")
         out = capsys.readouterr().out
         assert "Ce_in" in out
         assert "Ce_out" in out
         assert "(realized by Ce_in)" in out
         assert "(realized by Ce_out)" in out
 
-    def test_table_eseries_section_covers_end_caps(self, capsys):
-        display_results(_make_result(), output_format="table", eseries="E24")
+    def test_table_eseries_section_covers_end_caps(self, result, capsys):
+        display_results(result, output_format="table", eseries="E24")
         out = capsys.readouterr().out
         assert "Ce_in Calculated:" in out
         assert "Ce_out Calculated:" in out
 
-    def test_wizard_table_and_recs_include_end_caps(self):
+    def test_wizard_table_and_recs_include_end_caps(self, result):
         from filter_lib.wizard.formatting_helpers import (
             format_bandpass_eseries_recs,
             format_bandpass_table,
         )
         from filter_lib.wizard.state import FilterState
 
-        result = _make_result()
         state = FilterState()
         table = "\n".join(format_bandpass_table(result, state))
         assert "Ce_in" in table

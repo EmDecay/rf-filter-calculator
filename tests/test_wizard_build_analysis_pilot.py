@@ -7,29 +7,12 @@ import asyncio
 from textual.widgets import Button, Checkbox, Input
 
 from filter_lib.wizard.app import FilterWizardApp
-from filter_lib.wizard.screens.output_options import OutputOptionsScreen
-from filter_lib.wizard.screens.results import ResultsScreen
-from filter_lib.wizard.screens.welcome import WelcomeScreen
+from filter_lib.wizard.screens import OutputOptionsScreen, ResultsScreen
 from filter_lib.wizard.state import FilterState
-
-_OUTPUT_OPTIONS_APP_PROPERTY = OutputOptionsScreen.app
-_RESULTS_APP_PROPERTY = ResultsScreen.app
-_WELCOME_APP_PROPERTY = WelcomeScreen.app
-
-
-def _restore_screen_app_descriptors() -> None:
-    """Undo class-level app stubs left by direct-handler unit tests."""
-    WelcomeScreen.app = _WELCOME_APP_PROPERTY
-    OutputOptionsScreen.app = _OUTPUT_OPTIONS_APP_PROPERTY
-    ResultsScreen.app = _RESULTS_APP_PROPERTY
 
 
 def test_advanced_build_controls_are_keyboard_accessible() -> None:
     async def exercise() -> None:
-        # Several direct-handler tests replace Screen.app at class scope.
-        # Restore Textual's descriptor so this remains a real integration test
-        # regardless of module execution order.
-        _restore_screen_app_descriptors()
         app = FilterWizardApp()
         async with app.run_test(size=(120, 80)) as pilot:
             await pilot.pause()
@@ -73,7 +56,6 @@ def test_advanced_build_controls_are_keyboard_accessible() -> None:
 
 def test_complete_resonator_q_is_visible_only_for_bandpass() -> None:
     async def exercise() -> None:
-        _restore_screen_app_descriptors()
         app = FilterWizardApp()
         app.filter_state.category = "bandpass"
         async with app.run_test(size=(120, 80)) as pilot:
@@ -92,7 +74,6 @@ def test_complete_resonator_q_is_visible_only_for_bandpass() -> None:
 
 def test_realized_build_worker_completes_in_running_app() -> None:
     async def exercise() -> None:
-        _restore_screen_app_descriptors()
         app = FilterWizardApp()
         app.filter_state = FilterState(
             category="lowpass",

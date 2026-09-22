@@ -1,388 +1,237 @@
-"""Unit tests for E-series component matching.
+"""E-series preferred-value matching and the builder-facing recommendation policy.
 
-Tests verify correct standard component value matching and parallel combinations.
+Raw search (``find_closest_single``/``find_parallel_combo``) returns the nearest
+preferred values. ``match_component`` then applies the calculator policy: a single
+part within 1 % wins, a parallel pair must improve the absolute error by at least
+0.5 percentage points, and additive (capacitor) targets below 1 pF require an
+explicit expert override. Expected values below are worked by hand from the
+IEC 60063 tables.
 """
 
 import math
+import sys
 
 import pytest
 
 from filter_lib.shared.eseries import (
     DEFAULT_MATCH_POLICY,
-    ESeriesMatch,
+    E_SERIES,
     MatchPolicy,
-    _denormalize,
-    _error_pct,
-    _normalize,
     find_closest_single,
     find_parallel_combo,
     match_component,
 )
 
+PF = 1e-12
 
-class TestNormalization:
-    """Test mantissa extraction and normalization."""
 
-    def test_normalize_unity(self):
-        """Test normalization of 1.0."""
-        mantissa, decade = _normalize(1.0)
-        assert mantissa == 1.0
-        assert decade == 0
+class TestPreferredValueTables:
+    @pytest.mark.parametrize(("series", "size"), [("E12", 12), ("E24", 24), ("E96", 96)])
+    def test_series_is_one_strictly_increasing_decade(self, series, size):
+        values = E_SERIES[series]
 
-    def test_normalize_10(self):
-        """Test normalization of 10.0."""
-        mantissa, decade = _normalize(10.0)
-        assert 1.0 <= mantissa < 10.0
-        assert decade == 1
+        assert len(values) == size
+        assert values[0] == 1.0
+        assert all(low < high for low, high in zip(values, values[1:]))
+        assert values[-1] < 10.0
 
-    def test_normalize_100pf(self):
-        """Test normalization of 100 pF."""
-        mantissa, decade = _normalize(100e-12)
-        assert 1.0 <= mantissa < 10.0
-        # 100e-12 = 1.0e-10, so decade = -10
-        assert decade == -10
+    def test_e12_is_every_other_e24_value(self):
+        assert E_SERIES["E12"] == E_SERIES["E24"][::2]
 
-    def test_normalize_1uH(self):
-        """Test normalization of 1 µH."""
-        mantissa, decade = _normalize(1e-6)
-        assert 1.0 <= mantissa < 10.0
-        assert decade == -6
+    def test_e96_is_the_three_digit_geometric_series(self):
+        assert E_SERIES["E96"] == [round(10 ** (k / 96), 2) for k in range(96)]
 
-    def test_denormalize_roundtrip(self):
-        """Test denormalize reverses normalize."""
-        original = 150e-12
-        mantissa, decade = _normalize(original)
-        reconstructed = _denormalize(mantissa, decade)
-        assert abs(reconstructed - original) < 1e-20
 
-    def test_minimum_subnormal_normalizes_and_roundtrips(self):
-        mantissa, decade = _normalize(5e-324)
+class TestClosestSingle:
+    @pytest.mark.parametrize("series", ["E12", "E24", "E96"])
+    def test_every_preferred_value_matches_itself_in_any_decade(self, series):
+        for decade in (-12, -6, 0, 3):
+            for value in E_SERIES[series]:
+                target = value * 10.0**decade
+                matched, error = find_closest_single(target, series)
+                assert matched == pytest.approx(target, rel=1e-12, abs=0)
+                assert error == pytest.approx(0.0, abs=1e-9)
 
-        assert 1.0 <= mantissa < 10.0
-        assert decade == -324
-        assert _denormalize(mantissa, decade) == 5e-324
+    @pytest.mark.parametrize(
+        ("target_pf", "series", "expected_pf", "expected_error_pct"),
+        [
+            (108.0, "E24", 110.0, 1.851852),  # 110 is closer than 100 (-7.41 %)
+            (95.0, "E24", 91.0, -4.210526),  # 91 is closer than 100 (+5.26 %)
+            (123.0, "E12", 120.0, -2.439024),  # E12 has no 1.3
+            (123.0, "E96", 124.0, 0.813008),  # E96 has no 1.20
+            (347.0, "E12", 330.0, -4.899135),
+            (347.0, "E24", 360.0, 3.746398),
+            (347.0, "E96", 348.0, 0.288184),
+        ],
+    )
+    def test_nearest_value_and_signed_error_relative_to_target(
+        self, target_pf, series, expected_pf, expected_error_pct
+    ):
+        matched, error = find_closest_single(target_pf * PF, series)
 
-    def test_normalize_negative_raises(self):
-        """Test that negative values raise error."""
-        with pytest.raises(ValueError):
-            _normalize(-100e-12)
+        assert matched == pytest.approx(expected_pf * PF, rel=1e-12, abs=0)
+        assert error == pytest.approx(expected_error_pct, abs=1e-6)
 
-    def test_normalize_zero_raises(self):
-        """Test that zero raises error."""
-        with pytest.raises(ValueError):
-            _normalize(0)
+    def test_next_decade_value_wins_near_upper_boundary(self):
+        # E12 tops out at 8.2 within a decade, so 9.8 pF is far closer to 10 pF.
+        matched, error = find_closest_single(9.8 * PF, "E12")
 
-    @pytest.mark.parametrize("target", [True, "1e-12", None])
-    def test_public_matchers_reject_non_real_targets(self, target):
+        assert matched == pytest.approx(10 * PF, rel=1e-12, abs=0)
+        assert error == pytest.approx(2.040816, abs=1e-6)
+
+    @pytest.mark.parametrize("target", [5e-324, 1e-320, 1e308])
+    def test_extreme_preferred_values_match_exactly(self, target):
+        assert find_closest_single(target, "E24") == (target, 0.0)
+
+    def test_candidates_that_overflow_are_skipped(self):
+        """At the float maximum the in-decade 1.8e308 is infinite, so 1.6e308 is chosen."""
+        matched, error = find_closest_single(sys.float_info.max, "E24")
+
+        assert matched == pytest.approx(1.6e308, rel=1e-12)
+        assert error == pytest.approx(-10.997046, abs=1e-6)
+
+
+_MATCHERS = {
+    "single": lambda target, series: find_closest_single(target, series),
+    "parallel": lambda target, series: find_parallel_combo(target, series, mode="additive"),
+    "match": lambda target, series: match_component(target, series, parallel_mode="additive"),
+}
+
+
+class TestInputValidation:
+    @pytest.mark.parametrize("target", [0, -1e-12, float("nan"), float("inf"), True, "1e-12", None])
+    @pytest.mark.parametrize("matcher", sorted(_MATCHERS))
+    def test_target_must_be_a_positive_finite_real(self, matcher, target):
         with pytest.raises(ValueError, match="positive and finite"):
-            find_closest_single(target)
-        with pytest.raises(ValueError, match="positive and finite"):
-            match_component(target, parallel_mode="additive")
+            _MATCHERS[matcher](target, "E24")
 
-    @pytest.mark.parametrize("series", [[], None, 24])
-    def test_public_matchers_reject_non_string_series(self, series):
+    @pytest.mark.parametrize("series", ["E48", "e24", None, 24, []])
+    @pytest.mark.parametrize("matcher", sorted(_MATCHERS))
+    def test_series_must_be_e12_e24_or_e96(self, matcher, series):
         with pytest.raises(ValueError, match="Unknown series"):
-            find_closest_single(1e-12, series)
-        with pytest.raises(ValueError, match="Unknown series"):
-            match_component(1e-12, series, parallel_mode="additive")
+            _MATCHERS[matcher](PF, series)
 
+    @pytest.mark.parametrize("mode", [None, "auto", "series"])
+    def test_parallel_mode_is_required(self, mode):
+        """Component physics (sum vs reciprocal sum) cannot be inferred from a value."""
+        with pytest.raises(ValueError, match="Mode is required"):
+            find_parallel_combo(50 * PF, "E24", mode=mode)
+        with pytest.raises(ValueError, match="Mode is required"):
+            match_component(50 * PF, "E24", parallel_mode=mode)
 
-class TestMatchPolicyValidation:
+    @pytest.mark.parametrize("mode", ["additive", "harmonic"])
+    @pytest.mark.parametrize("ratio_limit", [0.5, True, "10", None, float("nan"), float("inf")])
+    def test_ratio_limit_must_be_finite_and_at_least_one(self, mode, ratio_limit):
+        with pytest.raises(ValueError, match="ratio_limit must be finite and >= 1"):
+            find_parallel_combo(1e-9, "E24", mode=mode, ratio_limit=ratio_limit)
+
+    @pytest.mark.parametrize("minimum_value", [0.0, -PF, float("nan"), True, "1e-12"])
+    def test_minimum_part_value_must_be_positive_and_finite(self, minimum_value):
+        with pytest.raises(ValueError, match="minimum_value must be positive and finite"):
+            find_parallel_combo(PF, "E24", mode="additive", minimum_value=minimum_value)
+
+    @pytest.mark.parametrize("policy", [0, object(), {"allow_sub_pf": True}])
+    def test_match_component_requires_policy_instance(self, policy):
+        with pytest.raises(ValueError, match="MatchPolicy"):
+            match_component(PF, parallel_mode="additive", policy=policy)
+
     @pytest.mark.parametrize(
         ("field", "value"),
         [
             ("prefer_single_within_pct", True),
             ("prefer_single_within_pct", "1"),
+            ("prefer_single_within_pct", -0.001),
+            ("prefer_single_within_pct", float("inf")),
             ("min_parallel_improvement_pct_points", True),
+            ("min_parallel_improvement_pct_points", -0.5),
+            ("min_parallel_improvement_pct_points", float("nan")),
             ("minimum_capacitance_f", True),
+            ("minimum_capacitance_f", 0.0),
+            ("minimum_capacitance_f", float("inf")),
             ("allow_sub_pf", 1),
+            ("allow_sub_pf", None),
         ],
     )
-    def test_policy_rejects_wrong_types(self, field, value):
-        with pytest.raises(ValueError):
+    def test_policy_rejects_invalid_fields(self, field, value):
+        with pytest.raises(ValueError, match=field):
             MatchPolicy(**{field: value})
 
-    @pytest.mark.parametrize("policy", [0, object()])
-    def test_match_component_requires_policy_instance(self, policy):
-        with pytest.raises(ValueError, match="MatchPolicy"):
-            match_component(1e-12, parallel_mode="additive", policy=policy)
+    def test_zero_single_part_window_is_allowed_and_always_considers_a_pair(self):
+        # 100 pF is +0.990 %, inside the default window; 24 pF + 75 pF = 99 pF is -0.020 %.
+        policy = MatchPolicy(prefer_single_within_pct=0, min_parallel_improvement_pct_points=0)
+        match = match_component(99.0197 * PF, "E24", parallel_mode="additive", policy=policy)
 
-    @pytest.mark.parametrize("ratio_limit", [True, "10", None])
-    def test_parallel_ratio_limit_rejects_wrong_types(self, ratio_limit):
-        with pytest.raises(ValueError, match="ratio_limit"):
-            match_component(1e-12, parallel_mode="additive", ratio_limit=ratio_limit)
-
-    @pytest.mark.parametrize("minimum_value", [True, "1e-12"])
-    def test_parallel_minimum_value_rejects_wrong_types(self, minimum_value):
-        with pytest.raises(ValueError, match="minimum_value"):
-            find_parallel_combo(
-                1e-12,
-                mode="additive",
-                minimum_value=minimum_value,
-            )
-
-
-class TestErrorCalculation:
-    """Test error percentage calculations."""
-
-    def test_error_pct_exact_match(self):
-        """Test error when actual equals target."""
-        assert _error_pct(100, 100) == 0.0
-
-    def test_error_pct_10_percent_high(self):
-        """Test error when actual is 10% above target."""
-        error = _error_pct(110, 100)
-        assert abs(error - 10.0) < 1e-10
-
-    def test_error_pct_negative(self):
-        """Test error when actual is below target."""
-        error = _error_pct(90, 100)
-        assert abs(error - (-10.0)) < 1e-10
-
-    def test_error_pct_small_values(self):
-        """Test error calculation with small values."""
-        error = _error_pct(150e-12, 138.8e-12)
-        assert error > 0  # 150 pF is higher than 138.8 pF
-
-
-class TestClosestSingle:
-    """Test finding closest single E-series value."""
-
-    def test_exact_match_e24(self):
-        """Test finding exact E24 value."""
-        matched, error = find_closest_single(1.0, "E24")
-        assert matched == 1.0
-        assert error == 0.0
-
-    def test_e24_standard_values(self):
-        """Test matching various E24 standard values."""
-        test_cases = [
-            (100e-12, "E24"),  # 100 pF (E24 has 1.0 in 100p decade)
-            (470e-12, "E24"),  # 470 pF
-            (1e-6, "E24"),  # 1 µH
-        ]
-        for target, series in test_cases:
-            matched, error = find_closest_single(target, series)
-            assert matched > 0
-            assert abs(error) <= 7.5  # E24 typical tolerance
-
-    def test_e12_coarser_matching(self):
-        """Test E12 has fewer values than E24."""
-        target = 475e-12  # Between E24 values
-        matched_e12, error_e12 = find_closest_single(target, "E12")
-        matched_e24, error_e24 = find_closest_single(target, "E24")
-
-        # E24 should generally match better for arbitrary values
-        assert abs(error_e24) <= abs(error_e12)
-
-    def test_e96_finest_matching(self):
-        """Test E96 provides finest matching."""
-        target = 151e-12  # Arbitrary value
-        matched_e12, error_e12 = find_closest_single(target, "E12")
-        matched_e24, error_e24 = find_closest_single(target, "E24")
-        matched_e96, error_e96 = find_closest_single(target, "E96")
-
-        # E96 should match better than E24, which should match better than E12
-        assert abs(error_e96) <= abs(error_e24)
-        assert abs(error_e24) <= abs(error_e12)
-
-    def test_decade_boundary_matching(self):
-        """Test matching at decade boundaries."""
-        # 9.5 is close to 10 (next decade)
-        matched, error = find_closest_single(9.5, "E24")
-        assert matched in (9.1, 10.0)
-
-    def test_adjacent_decade_value_wins_near_boundary(self):
-        """A value from the next decade beats the best in-decade candidate."""
-        # E12 tops out at 8.2 within a decade, so 9.8 pF is far closer to
-        # 10 pF (the next decade's 1.0) than to 8.2 pF.
-        matched, error = find_closest_single(9.8e-12, "E12")
-        assert matched == pytest.approx(1e-11)
-        assert abs(error) < 3.0
-
-    def test_all_e24_values_available(self):
-        """Test that all E24 values can be matched."""
-        from filter_lib.shared.eseries import E_SERIES
-
-        e24_values = E_SERIES["E24"]
-
-        for base_value in e24_values:
-            matched, error = find_closest_single(base_value, "E24")
-            assert error == 0.0
-            assert matched == base_value
-
-    def test_invalid_series_raises(self):
-        """Test that invalid series raises error."""
-        with pytest.raises(ValueError, match="Unknown series"):
-            find_closest_single(100e-12, "E48")
-
-    @pytest.mark.parametrize("target", [1e-320, 1e308])
-    def test_extreme_finite_targets_never_leak_non_finite_matches(self, target):
-        try:
-            matched, error = find_closest_single(target, "E24")
-        except ValueError as exc:
-            assert "finite" in str(exc) or "range" in str(exc)
-        else:
-            assert math.isfinite(matched) and matched > 0
-            assert math.isfinite(error)
+        assert match.recommended_kind == "parallel"
+        assert match.parallel_value == pytest.approx(99 * PF, rel=1e-12, abs=0)
 
 
 class TestParallelCombinations:
-    """Test parallel combination matching."""
+    def test_additive_pair_sums_to_target(self):
+        """99 pF = 24 pF + 75 pF (or 43 + 56) exactly."""
+        (low, high), value, error = find_parallel_combo(99 * PF, "E24", mode="additive")
 
-    def test_parallel_harmonic_basic(self):
-        """Test harmonic parallel (resistors/inductors)."""
-        # For inductors, parallel formula: L = L1*L2/(L1+L2)
-        result = find_parallel_combo(1e-6, "E24", mode="harmonic")
+        assert (low, high) in [
+            pytest.approx((24 * PF, 75 * PF), rel=1e-12, abs=0),
+            pytest.approx((43 * PF, 56 * PF), rel=1e-12, abs=0),
+        ]
+        assert value == pytest.approx(low + high, rel=1e-15, abs=0)
+        assert value == pytest.approx(99 * PF, rel=1e-12, abs=0)
+        assert error == pytest.approx(0.0, abs=1e-9)
 
-        if result:
-            (v1, v2), par_val, error = result
-            # Both values should be standard E24, ordered as (smaller, larger)
-            assert v1 <= v2
-            # Verify parallel formula: 1/L = 1/L1 + 1/L2
-            calc_par = (v1 * v2) / (v1 + v2)
-            assert abs(calc_par - par_val) < 1e-15
+    def test_harmonic_pair_combines_reciprocally(self):
+        """0.75 uH = 1 uH || 3 uH = 1.2 uH || 2 uH = 1.5 uH || 1.5 uH exactly."""
+        (low, high), value, error = find_parallel_combo(0.75e-6, "E24", mode="harmonic")
 
-    def test_parallel_additive_basic(self):
-        """Test additive parallel (capacitors)."""
-        # For capacitors, parallel formula: C = C1 + C2
-        result = find_parallel_combo(150e-12, "E24", mode="additive")
+        assert low <= high
+        assert low > 0.75e-6
+        assert value == pytest.approx(low * high / (low + high), rel=1e-12)
+        assert value == pytest.approx(0.75e-6, rel=1e-12)
+        assert error == pytest.approx(0.0, abs=1e-9)
 
-        if result:
-            (v1, v2), par_val, error = result
-            assert v1 + v2 == par_val
+    def test_ratio_limit_excludes_wider_pairs(self):
+        """99.2 pF is exactly 8.2 pF + 91 pF, a spread of 11.1 that the default limit forbids."""
+        (low, high), value, error = find_parallel_combo(
+            99.2 * PF, "E24", mode="additive", ratio_limit=12
+        )
+        assert (low, high) == pytest.approx((8.2 * PF, 91 * PF), rel=1e-12, abs=0)
+        assert error == pytest.approx(0.0, abs=1e-9)
 
-    def test_explicit_additive_mode_small_capacitor(self):
-        """Explicit additive mode applies capacitor math regardless of magnitude."""
-        result = find_parallel_combo(50e-12, "E24", mode="additive")
+        (low, high), value, error = find_parallel_combo(99.2 * PF, "E24", mode="additive")
+        assert high / low <= 10
+        assert value == pytest.approx(99 * PF, rel=1e-12, abs=0)
+        assert error == pytest.approx(-0.201613, abs=1e-6)
 
-        if result:
-            (v1, v2), par_val, error = result
-            # Additive: C = C1 + C2
-            assert abs(v1 + v2 - par_val) < 1e-24
+    @pytest.mark.parametrize(
+        ("target", "mode", "minimum_value"),
+        [(PF, "additive", 1e-9), (1e-6, "harmonic", 1e-3)],
+    )
+    def test_no_pair_when_every_candidate_is_below_minimum(self, target, mode, minimum_value):
+        assert find_parallel_combo(target, "E24", mode=mode, minimum_value=minimum_value) is None
 
-    def test_explicit_harmonic_mode_large_inductor(self):
-        """Explicit harmonic mode applies inductor math regardless of magnitude."""
-        result = find_parallel_combo(1e-3, "E24", mode="harmonic")
+    @pytest.mark.parametrize(
+        ("target", "mode", "minimum_value", "expected_pair"),
+        [
+            # 0.62 pF + 0.75 pF would be exact; the smallest legal sum is 1 + 1 pF.
+            (1.37 * PF, "additive", PF, (PF, PF)),
+            # 1.3 uH || 3 uH is within 0.33 %, but 1.3 uH is below the floor.
+            (0.91e-6, "harmonic", 1.5e-6, (1.8e-6, 1.8e-6)),
+        ],
+    )
+    def test_minimum_part_value_applies_to_both_parts(
+        self, target, mode, minimum_value, expected_pair
+    ):
+        unconstrained = find_parallel_combo(target, "E24", mode=mode)
+        assert min(unconstrained[0]) < minimum_value
 
-        if result:
-            (v1, v2), par_val, error = result
-            # Harmonic: L = L1*L2/(L1+L2)
-            calc_par = (v1 * v2) / (v1 + v2)
-            assert abs(calc_par - par_val) < 1e-15
+        pair, _, _ = find_parallel_combo(target, "E24", mode=mode, minimum_value=minimum_value)
+        assert pair == pytest.approx(expected_pair, rel=1e-12, abs=0)
 
-    def test_mode_is_required(self):
-        """Omitting mode raises: component physics cannot be inferred from value."""
-        with pytest.raises(ValueError, match="additive.*harmonic|harmonic.*additive"):
-            find_parallel_combo(50e-12, "E24")
-
-    def test_auto_mode_rejected(self):
-        """The former magnitude-based auto mode is no longer accepted."""
-        with pytest.raises(ValueError):
-            find_parallel_combo(50e-12, "E24", mode="auto")
-
-    def test_match_component_requires_parallel_mode(self):
-        """match_component also requires an explicit parallel mode."""
-        with pytest.raises(ValueError):
-            match_component(150e-12, "E24")
-
-    def test_explicit_additive_combo_for_microhenry_scale_value(self):
-        """A 3.2e-6 target with additive mode gets capacitor-style (sum) combos."""
-        result = find_parallel_combo(3.2e-6, "E24", "additive")
-        assert result is not None
-        (v1, v2), par_val, _ = result
-        assert abs(v1 + v2 - par_val) < 1e-18
-
-    def test_parallel_ratio_limit(self):
-        """Test ratio limit prevents extreme value differences."""
-        result = find_parallel_combo(1e-6, "E24", mode="harmonic", ratio_limit=5)
-
-        if result:
-            (v1, v2), _, _ = result
-            ratio = max(v1, v2) / min(v1, v2)
-            assert ratio <= 5.0
-
-    def test_no_valid_combo_returns_none(self):
-        """Test that invalid parameters return None."""
-        result = find_parallel_combo(1e-15, "E24", mode="harmonic", ratio_limit=1.1)
-        # Should return None if no valid combination found
-        if result is None:
-            pass  # Expected
-
-
-class TestComponentMatching:
-    """Test full component matching workflow."""
-
-    def test_match_component_returns_eseriesmatch(self):
-        """Test that match_component returns ESeriesMatch object."""
-        result = match_component(150e-12, "E24", parallel_mode="additive")
-
-        assert isinstance(result, ESeriesMatch)
-        assert result.target == 150e-12
-        assert result.single_value > 0
-        assert result.single_error_pct is not None
-
-    def test_eseriesmatch_fields(self):
-        """Test ESeriesMatch data structure."""
-        target = 138.8e-12
-        result = match_component(target, "E24", parallel_mode="additive")
-
-        # Must have single value
-        assert result.single_value > 0
-        assert abs(result.single_error_pct) <= 7.5
-
-        # May have parallel combo
-        if result.parallel:
-            assert len(result.parallel) == 2
-            assert result.parallel_value > 0
-            assert result.parallel_error_pct is not None
-
-    def test_parallel_better_than_single(self):
-        """Test case where parallel matches better than single."""
-        # 138.8 pF might match better with parallel combination
-        target = 138.8e-12
-        result = match_component(target, "E24", parallel_mode="additive")
-
-        if result.parallel:
-            # Parallel should be better or equal
-            assert abs(result.parallel_error_pct) <= abs(result.single_error_pct)
-
-    def test_matching_real_world_capacitor(self):
-        """Test matching real-world capacitor value from lowpass filter."""
-        # From lowpass Butterworth example: 138.8 pF
-        result = match_component(138.8e-12, "E24", parallel_mode="additive")
-
-        assert result.single_value > 0
-        # Should match within E24 tolerance
-        assert abs(result.single_error_pct) < 10
-
-    def test_matching_real_world_inductor(self):
-        """Test matching real-world inductor value from lowpass filter."""
-        # From lowpass Butterworth example: 1.457 µH
-        result = match_component(1.457e-6, "E24", parallel_mode="harmonic")
-
-        assert result.single_value > 0
-        # Should match within tolerance
-        assert abs(result.single_error_pct) < 10
-
-    def test_all_series_available(self):
-        """Test matching with all E-series types."""
-        target = 150e-12
-
-        for series in ["E12", "E24", "E96"]:
-            result = match_component(target, series, parallel_mode="additive")
-            assert result.single_value > 0
-            assert result.single_error_pct is not None
-
-    def test_invalid_series_raises(self):
-        """Test invalid series raises error."""
-        with pytest.raises(ValueError):
-            match_component(150e-12, "E48", parallel_mode="additive")
+    def test_harmonic_search_skips_companions_beyond_float_range(self):
+        """Every companion needed to reach 1e308 in parallel overflows, so there is no pair."""
+        assert find_parallel_combo(1e308, "E24", mode="harmonic") is None
 
 
 class TestRecommendationPolicy:
-    """Builder-facing selection is stricter than raw nearest-value search."""
-
     def test_default_policy_contract(self):
         assert DEFAULT_MATCH_POLICY == MatchPolicy(
             prefer_single_within_pct=1.0,
@@ -391,109 +240,170 @@ class TestRecommendationPolicy:
             allow_sub_pf=False,
         )
 
-    def test_single_part_wins_when_already_within_one_percent(self):
-        match = match_component(100.9e-12, "E24", parallel_mode="additive")
+    def test_single_part_within_one_percent_wins_even_when_a_pair_is_better(self):
+        # 100 pF is +0.990 %; 24 pF + 75 pF = 99 pF would be -0.020 %.
+        match = match_component(99.0197 * PF, "E24", parallel_mode="additive")
 
-        assert abs(match.single_error_pct) < 1.0
+        assert match.single_error_pct == pytest.approx(0.990005, abs=1e-6)
+        assert match.parallel_improvement_pct_points == pytest.approx(0.970110, abs=1e-6)
         assert match.recommended_kind == "single"
+        assert match.recommendation_reason == "single_within_preferred_error"
         assert match.prefers_parallel is False
-        assert match.selected_value == match.single_value
+        assert match.selected_components == (match.single_value,)
+        assert match.parallel is None and match.parallel_value is None
 
-    def test_parallel_requires_half_percentage_point_improvement(self):
-        # 240 pF is +1.091%; 36 pF + 200 pF is -0.594%.  The pair improves
-        # absolute error by only 0.497 percentage points, below policy.
-        match = match_component(237.41e-12, "E24", parallel_mode="additive")
+    def test_single_part_just_outside_one_percent_yields_to_a_better_pair(self):
+        # 100 pF is +1.010 %; 24 pF + 75 pF = 99 pF is -0.0001 %.
+        match = match_component(99.0001 * PF, "E24", parallel_mode="additive")
 
-        assert match.parallel is None
-        assert match.parallel_improvement_pct_points == pytest.approx(0.49703, abs=1e-4)
-        assert match.recommended_kind == "single"
-
-    def test_materially_better_parallel_pair_is_selected(self):
-        match = match_component(138.8e-12, "E24", parallel_mode="additive")
-
+        assert match.single_error_pct == pytest.approx(1.009999, abs=1e-6)
         assert match.recommended_kind == "parallel"
+        assert match.recommendation_reason == "parallel_materially_improves_error"
         assert match.prefers_parallel is True
         assert match.selected_value == match.parallel_value
+        assert match.parallel_value == pytest.approx(99 * PF, rel=1e-12, abs=0)
+        assert match.selected_components == match.parallel
 
-    def test_sub_pf_target_has_no_automatic_recommendation(self):
-        match = match_component(0.62e-12, "E24", parallel_mode="additive")
+    @pytest.mark.parametrize(
+        ("target_pf", "improvement", "kind", "reason"),
+        [
+            # 240 pF is +1.0952 %; 36 pF + 200 pF = 236 pF is -0.5897 %.
+            (237.40, 0.505476, "parallel", "parallel_materially_improves_error"),
+            # 240 pF is +1.0909 %; 236 pF is -0.5939 %.
+            (237.41, 0.497030, "single", "parallel_improvement_below_policy_threshold"),
+        ],
+    )
+    def test_pair_must_improve_absolute_error_by_half_a_percentage_point(
+        self, target_pf, improvement, kind, reason
+    ):
+        match = match_component(target_pf * PF, "E24", parallel_mode="additive")
 
-        assert match.recommended_kind == "none"
-        assert match.selected_value is None
-        assert match.best_value == match.target  # legacy nominal-substitution fallback
-        assert "below the 1 pF automatic-selection floor" in " ".join(match.warnings)
+        assert match.parallel_improvement_pct_points == pytest.approx(improvement, abs=1e-6)
+        assert match.recommended_kind == kind
+        assert match.recommendation_reason == reason
+        if kind == "single":
+            assert match.parallel is None
+            assert match.parallel_value is None
+            assert match.parallel_error_pct is None
+        else:
+            assert match.parallel == pytest.approx((36 * PF, 200 * PF), rel=1e-12, abs=0)
 
-    def test_minimum_subnormal_target_requests_expert_override_without_substitution(self):
-        match = match_component(5e-324, "E24", parallel_mode="additive")
+    def test_policy_thresholds_are_inclusive(self):
+        """A reported error or improvement exactly at a threshold satisfies it."""
+        reference = match_component(138.8 * PF, "E24", parallel_mode="additive")
+        single_error = abs(reference.single_error_pct)
+        improvement = reference.parallel_improvement_pct_points
 
-        assert match.status == "expert_override_required"
-        assert match.selected_value is None
-        assert match.best_value == 5e-324
+        def kind(**policy_fields):
+            policy = MatchPolicy(**policy_fields)
+            return match_component(
+                138.8 * PF, "E24", parallel_mode="additive", policy=policy
+            ).recommended_kind
 
-    def test_sub_pf_expert_override_is_explicit(self):
-        match = match_component(
-            0.62e-12,
-            "E24",
-            parallel_mode="additive",
-            policy=MatchPolicy(allow_sub_pf=True),
+        assert kind(prefer_single_within_pct=single_error) == "single"
+        assert kind(prefer_single_within_pct=math.nextafter(single_error, 0)) == "parallel"
+        assert kind(min_parallel_improvement_pct_points=improvement) == "parallel"
+        assert (
+            kind(min_parallel_improvement_pct_points=math.nextafter(improvement, math.inf))
+            == "single"
         )
 
+    @pytest.mark.parametrize(
+        ("mode", "expected_pair_pf", "expected_error_pct"),
+        [
+            ("additive", (39.0, 100.0), 0.144092),  # 39 + 100 = 139 pF
+            ("harmonic", (240.0, 330.0), 0.106173),  # 240 || 330 = 138.947 pF
+        ],
+    )
+    def test_materially_better_pair_is_selected(self, mode, expected_pair_pf, expected_error_pct):
+        # The single 130 pF part is -6.340 % from 138.8 pF.
+        match = match_component(138.8 * PF, "E24", parallel_mode=mode)
+
+        assert match.single_value == pytest.approx(130 * PF, rel=1e-12, abs=0)
+        assert match.single_error_pct == pytest.approx(-6.340058, abs=1e-6)
+        assert match.recommended_kind == "parallel"
+        assert match.parallel == pytest.approx(
+            tuple(v * PF for v in expected_pair_pf), rel=1e-12, abs=0
+        )
+        assert match.parallel_error_pct == pytest.approx(expected_error_pct, abs=1e-6)
+
+    @pytest.mark.parametrize("scale", [1e-12, 1e-9, 1e-6])
+    def test_recommendation_is_decade_invariant(self, scale):
+        match = match_component(138.8 * scale, "E24", parallel_mode="additive")
+
+        assert match.recommended_kind == "parallel"
+        assert match.single_error_pct == pytest.approx(-6.340058, abs=1e-6)
+        assert match.parallel == pytest.approx((39 * scale, 100 * scale), rel=1e-12, abs=0)
+
+    def test_one_picofarad_is_automatically_selectable(self):
+        match = match_component(PF, "E24", parallel_mode="additive")
+
+        assert match.status == "recommended"
         assert match.recommended_kind == "single"
-        assert match.selected_value == pytest.approx(0.62e-12)
+        assert match.selected_components == (PF,)
+        assert match.warnings == ()
 
-    def test_parallel_parts_below_floor_are_not_considered_by_default(self):
-        match = match_component(1.2e-12, "E24", parallel_mode="additive")
+    @pytest.mark.parametrize("target", [math.nextafter(PF, 0), 0.62 * PF, 5e-324])
+    def test_capacitance_below_one_picofarad_requires_expert_override(self, target):
+        match = match_component(target, "E24", parallel_mode="additive")
 
-        if match.parallel is not None:
-            assert min(match.parallel) >= 1e-12
+        assert match.status == "expert_override_required"
+        assert match.recommended_kind == "none"
+        assert match.recommendation_reason == "target_below_automatic_capacitance_floor"
+        assert match.selected_value is None
+        assert match.selected_components is None
+        assert match.best_value == target  # exact target, never a disallowed part
+        assert match.parallel is None
+        assert "below the 1 pF automatic-selection floor" in " ".join(match.warnings)
 
-    @pytest.mark.parametrize("target", [1e-320, 1e308])
-    def test_extreme_full_match_is_finite_or_descriptively_rejected(self, target):
-        try:
-            match = match_component(target, "E24", parallel_mode="additive")
-        except ValueError as exc:
-            assert "finite" in str(exc) or "range" in str(exc)
-        else:
-            assert math.isfinite(match.single_value) and match.single_value > 0
-            assert math.isfinite(match.single_error_pct)
-            if match.parallel_value is not None:
-                assert math.isfinite(match.parallel_value) and match.parallel_value > 0
-                assert math.isfinite(match.parallel_error_pct)
+    def test_capacitance_floor_applies_only_to_additive_matching(self):
+        match = match_component(0.62 * PF, "E24", parallel_mode="harmonic")
 
+        assert match.status == "recommended"
+        assert match.recommended_kind == "single"
+        assert match.selected_value == pytest.approx(0.62 * PF, rel=1e-12, abs=0)
 
-class TestMatchingPhysicalReality:
-    """Test matching with physically realistic component values."""
+    def test_default_floor_excludes_sub_pf_parts_from_pairs(self):
+        """1.37 pF = 0.62 pF + 0.75 pF, but every pair of >= 1 pF parts sums to >= 2 pF."""
+        default = match_component(1.37 * PF, "E24", parallel_mode="additive")
+        assert default.recommended_kind == "single"
+        assert default.selected_value == pytest.approx(1.3 * PF, rel=1e-12, abs=0)
+        assert default.recommendation_reason == "parallel_improvement_below_policy_threshold"
 
-    def test_100pf_standard_capacitor(self):
-        """Test matching 100 pF (very common)."""
-        result = match_component(100e-12, "E24", parallel_mode="additive")
-        assert result.single_error_pct == 0.0  # Exact match
+        expert = match_component(
+            1.37 * PF, "E24", parallel_mode="additive", policy=MatchPolicy(allow_sub_pf=True)
+        )
+        assert expert.recommended_kind == "parallel"
+        assert expert.parallel == pytest.approx((0.62 * PF, 0.75 * PF), rel=1e-12, abs=0)
 
-    def test_1uh_standard_inductor(self):
-        """Test matching 1 µH (very common)."""
-        result = match_component(1e-6, "E24", parallel_mode="harmonic")
-        # Should match either 1.0 or nearby value
-        assert abs(result.single_error_pct) < 5
+    def test_expert_override_selects_a_sub_pf_single_part(self):
+        match = match_component(
+            0.62 * PF, "E24", parallel_mode="additive", policy=MatchPolicy(allow_sub_pf=True)
+        )
 
-    def test_matching_decade_scaling(self):
-        """Test matching works across decades."""
-        target_pf = 150e-12
-        target_nf = 150e-9
+        assert match.status == "recommended"
+        assert match.recommended_kind == "single"
+        assert match.selected_value == pytest.approx(0.62 * PF, rel=1e-12, abs=0)
 
-        result_pf = match_component(target_pf, "E24", parallel_mode="additive")
-        result_nf = match_component(target_nf, "E24", parallel_mode="additive")
+    def test_pair_search_skips_overflowing_candidates_at_float_maximum(self):
+        match = match_component(sys.float_info.max, "E24", parallel_mode="additive")
 
-        # Both should have same error percentage despite different scales
-        assert abs(result_pf.single_error_pct - result_nf.single_error_pct) < 1e-10
+        assert match.recommended_kind == "parallel"
+        assert match.parallel == pytest.approx((1.8e307, 1.6e308), rel=1e-12)
+        assert math.isfinite(match.parallel_value)
+        assert match.parallel_error_pct == pytest.approx(-0.984213, abs=1e-6)
 
-    def test_series_tolerance_progression(self):
-        """Test typical tolerance progression E12 > E24 > E96."""
-        target = 347e-12  # Not exact in any series
-
-        match_component(target, "E12", parallel_mode="additive")
-        result_e24 = match_component(target, "E24", parallel_mode="additive")
-        result_e96 = match_component(target, "E96", parallel_mode="additive")
-
-        # E24 tolerance ±5%, E12 ±10%, E96 ±1%
-        # For odd values, E96 should match better
-        assert abs(result_e96.single_error_pct) <= abs(result_e24.single_error_pct)
+    def test_policy_summary_describes_thresholds_and_floor(self):
+        assert DEFAULT_MATCH_POLICY.summary() == (
+            "single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF"
+        )
+        expert = MatchPolicy(
+            prefer_single_within_pct=2.5, min_parallel_improvement_pct_points=0, allow_sub_pf=True
+        )
+        assert expert.summary() == "single<=2.5%;parallel-improvement>=0pp;minimum-cap=disabled"
+        assert expert.as_dict() == {
+            "prefer_single_within_pct": 2.5,
+            "min_parallel_improvement_pct_points": 0,
+            "minimum_capacitance_f": 1e-12,
+            "allow_sub_pf": True,
+        }

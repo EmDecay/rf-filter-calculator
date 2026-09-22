@@ -1,221 +1,35 @@
-"""Tests for CLI commands, plotting, cli_helpers, and formatting modules."""
+"""CLI subcommand ``run()`` contracts exercised with argparse Namespaces.
 
+``_lp_args()``/``_hp_args()``/``_bp_args()`` mirror the parsed defaults so each test
+overrides only the fields it exercises; validation branches run without re-parsing argv.
+Usage problems exit 2 through the subcommand's argparse error; invalid numeric design
+input raises ``ValueError`` (``cli.main`` turns it into exit 1).
+"""
+
+import csv
+import io
 import json
+import math
 from argparse import ArgumentParser, Namespace
 
 import pytest
 
+from filter_lib.bandpass import calculate_bandpass_filter
+from filter_lib.bandpass.formatters import format_quiet as bandpass_format_quiet
 from filter_lib.cli.bandpass_cmd import run as bandpass_run
+from filter_lib.cli.bandpass_cmd import setup_parser as bandpass_setup
 from filter_lib.cli.highpass_cmd import run as highpass_run
+from filter_lib.cli.highpass_cmd import setup_parser as highpass_setup
 from filter_lib.cli.lowpass_cmd import run as lowpass_run
+from filter_lib.cli.lowpass_cmd import setup_parser as lowpass_setup
+from filter_lib.shared.cli_aliases import (
+    FILTER_EXPLANATIONS,
+    FILTER_EXPLANATIONS_BANDPASS,
+    FILTER_EXPLANATIONS_HIGHPASS,
+)
 from filter_lib.shared.cli_helpers import export_plot_data, validate_filter_args
-from filter_lib.shared.formatting import (
-    format_capacitance,
-    format_frequency,
-    format_impedance,
-    format_inductance,
-)
-from filter_lib.shared.plotting import (
-    _find_3db_frequency,
-    _format_freq_compact,
-    render_ascii_plot,
-    render_bandpass_plot,
-)
-from filter_lib.shared.response_export import export_response_json
-from filter_lib.shared.transfer_functions import generate_frequency_points
 
-# --- cli_helpers ---
-
-
-class TestCliHelpers:
-    def test_validate_valid(self):
-        validate_filter_args(10e6, 50, 5)
-
-    def test_validate_negative_freq(self):
-        with pytest.raises(ValueError, match="Frequency must be positive"):
-            validate_filter_args(-10e6, 50, 5)
-
-    def test_validate_zero_impedance(self):
-        with pytest.raises(ValueError, match="Impedance must be positive"):
-            validate_filter_args(10e6, 0, 5)
-
-    def test_validate_invalid_components_low(self):
-        with pytest.raises(ValueError, match="Components must be 2-9"):
-            validate_filter_args(10e6, 50, 1)
-
-    def test_validate_invalid_components_high(self):
-        with pytest.raises(ValueError, match="Components must be 2-9"):
-            validate_filter_args(10e6, 50, 10)
-
-    @pytest.mark.parametrize("frequency", [float("nan"), float("inf")])
-    def test_validate_non_finite_frequency(self, frequency):
-        with pytest.raises(ValueError, match="Frequency must be positive and finite"):
-            validate_filter_args(frequency, 50, 3)
-
-    @pytest.mark.parametrize("impedance", [float("nan"), float("inf")])
-    def test_validate_non_finite_impedance(self, impedance):
-        with pytest.raises(ValueError, match="Impedance must be positive and finite"):
-            validate_filter_args(10e6, impedance, 3)
-
-    @pytest.mark.parametrize("frequency", [True, "10MHz", None])
-    def test_validate_non_numeric_frequency(self, frequency):
-        with pytest.raises(ValueError, match="Frequency must be positive and finite"):
-            validate_filter_args(frequency, 50, 3)
-
-    @pytest.mark.parametrize("impedance", [True, "50", None])
-    def test_validate_non_numeric_impedance(self, impedance):
-        with pytest.raises(ValueError, match="Impedance must be positive and finite"):
-            validate_filter_args(10e6, impedance, 3)
-
-    def test_export_plot_data_json(self, capsys):
-        args = Namespace(plot_data="json")
-        meta = {
-            "category": "lowpass",
-            "response_type": "butterworth",
-            "order": 3,
-            "cutoff_hz": 1e6,
-        }
-        exported = export_plot_data(args, [1e6], [-3.0], meta)
-        assert exported is True
-        out = json.loads(capsys.readouterr().out)
-        assert out["filter"]["category"] == "lowpass"
-        assert out["data"] == [{"frequency_hz": 1e6, "magnitude_db": -3.0}]
-
-    def test_export_plot_data_csv(self, capsys):
-        args = Namespace(plot_data="csv")
-        exported = export_plot_data(args, [1e6], [-3.0], {})
-        assert exported is True
-        assert capsys.readouterr().out.startswith("frequency_hz,magnitude_db")
-
-    def test_export_plot_data_none(self):
-        args = Namespace(plot_data=None)
-        assert export_plot_data(args, [], [], {}) is False
-
-
-# --- plotting ---
-
-
-class TestPlotting:
-    def test_format_freq_compact_ghz(self):
-        assert _format_freq_compact(2.4e9) == "2.4G"
-
-    def test_format_freq_compact_mhz(self):
-        assert _format_freq_compact(14.2e6) == "14.2M"
-
-    def test_format_freq_compact_khz(self):
-        assert _format_freq_compact(500e3) == "500k"
-
-    def test_format_freq_compact_hz(self):
-        assert _format_freq_compact(100) == "100"
-
-    def test_find_3db_falling(self):
-        freqs = [1e6, 10e6, 20e6, 30e6]
-        resp = [-0.1, -0.5, -4.0, -10.0]
-        f = _find_3db_frequency(freqs, resp, direction="falling")
-        assert f is not None
-        assert 10e6 < f < 20e6
-
-    def test_find_3db_rising(self):
-        freqs = [1e6, 10e6, 20e6, 30e6]
-        resp = [-30.0, -10.0, -0.5, -0.1]
-        f = _find_3db_frequency(freqs, resp, direction="rising")
-        assert f is not None
-        assert 10e6 < f < 20e6
-
-    def test_find_3db_not_found(self):
-        assert _find_3db_frequency([1e6, 10e6], [-0.1, -0.5], "falling") is None
-
-    def test_render_ascii_plot_basic(self):
-        freqs = [1e6, 5e6, 10e6, 20e6, 50e6]
-        resp = [-0.1, -0.5, -3.0, -10.0, -30.0]
-        plot = render_ascii_plot(freqs, resp, 10e6, filter_type="lowpass")
-        assert "Frequency Response" in plot
-        assert "│" in plot
-
-    def test_render_ascii_plot_mismatched(self):
-        with pytest.raises(ValueError, match="same length"):
-            render_ascii_plot([1e6, 2e6], [-3.0], 1e6)
-
-    def test_render_ascii_plot_empty(self):
-        assert "No data" in render_ascii_plot([], [], 1e6)
-
-    def test_render_bandpass_plot(self):
-        sweep = [(13e6, -30.0), (14e6, -3.0), (14.5e6, 0.0), (15e6, -3.0), (16e6, -30.0)]
-        plot = render_bandpass_plot(sweep, 14.5e6, 1e6)
-        assert "│" in plot
-
-    def test_render_bandpass_plot_empty(self):
-        assert "No data" in render_bandpass_plot([], 14e6, 1e6)
-
-    def test_generate_frequency_points(self):
-        pts = generate_frequency_points(10e6)
-        assert len(pts) == 51  # 2 decades * 25 pts/decade + 1
-
-    def test_generate_frequency_points_custom(self):
-        pts = generate_frequency_points(1e6, decades=1.0, points_per_decade=10)
-        assert len(pts) == 11
-
-    def test_export_json_plotting(self):
-        meta = {
-            "category": "bandpass",
-            "response_type": "butterworth",
-            "order": 5,
-            "f0_hz": 15e6,
-            "bw_hz": 5e6,
-        }
-        s = export_response_json([10e6, 20e6], [-3.0, -10.0], meta)
-        data = json.loads(s)
-        assert data["filter"]["response_type"] == "butterworth"
-        assert data["filter"]["f0_hz"] == 15e6
-
-
-# --- formatting ---
-
-
-class TestFormatting:
-    def test_format_frequency_ghz(self):
-        assert "GHz" in format_frequency(2.4e9)
-
-    def test_format_frequency_mhz(self):
-        assert "MHz" in format_frequency(14.2e6)
-
-    def test_format_frequency_khz(self):
-        assert "kHz" in format_frequency(500e3)
-
-    def test_format_frequency_hz(self):
-        assert "Hz" in format_frequency(100)
-
-    def test_format_capacitance_pf(self):
-        assert "pF" in format_capacitance(100e-12)
-
-    def test_format_capacitance_ff(self):
-        assert format_capacitance(1e-15) == "1.00 fF"
-
-    def test_format_capacitance_sub_ff(self):
-        assert format_capacitance(0.1e-15) == "1.00e-16 F"
-
-    @pytest.mark.parametrize("value", [True, "1", None, 10**400])
-    def test_format_capacitance_rejects_non_finite_real_input(self, value):
-        with pytest.raises(ValueError, match="finite real"):
-            format_capacitance(value)
-
-    def test_format_capacitance_nf(self):
-        assert "nF" in format_capacitance(10e-9)
-
-    def test_format_inductance_nh(self):
-        assert "nH" in format_inductance(100e-9)
-
-    def test_format_inductance_uh(self):
-        assert "µH" in format_inductance(10e-6)
-
-    def test_format_impedance_ohm(self):
-        assert "Ω" in format_impedance(50)
-
-    def test_format_impedance_kohm(self):
-        assert "kΩ" in format_impedance(1000)
-
-
-# --- CLI commands ---
+# --- Namespace builders ---
 
 
 def _lp_args(**overrides):
@@ -312,436 +126,478 @@ def _bp_args(**overrides):
     return Namespace(**defaults)
 
 
-class TestLowpassCmd:
-    def test_butterworth_pi(self, capsys):
-        lowpass_run(_lp_args())
-        assert capsys.readouterr().out  # produces output
+_ARGS = {"lowpass": _lp_args, "highpass": _hp_args, "bandpass": _bp_args}
+_RUN = {"lowpass": lowpass_run, "highpass": highpass_run, "bandpass": bandpass_run}
+_CATEGORIES = tuple(_RUN)
+_LADDERS = ("lowpass", "highpass")
 
-    def test_chebyshev_t(self, capsys):
-        lowpass_run(_lp_args(filter_type="chebyshev", topology_pos="t"))
-        assert capsys.readouterr().out
 
-    def test_bessel_pi(self, capsys):
-        lowpass_run(_lp_args(filter_type="bessel"))
-        assert capsys.readouterr().out
+def _run(category: str, **overrides) -> None:
+    _RUN[category](_ARGS[category](**overrides))
 
-    def test_missing_filter_type_exits_with_usage(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
-            lowpass_run(_lp_args(filter_type=None))
-        assert exc_info.value.code == 2
-        err = capsys.readouterr().err
-        assert "filter type required" in err
-        assert "usage:" in err
 
-    def test_missing_topology_exits_with_usage(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
-            lowpass_run(_lp_args(topology_pos=None))
-        assert exc_info.value.code == 2
-        assert "topology required" in capsys.readouterr().err
+def _usage_error(category: str, capsys, **overrides) -> str:
+    """Run a command that must fail with an argparse usage error; return stderr."""
+    with pytest.raises(SystemExit) as exc_info:
+        _run(category, **overrides)
+    assert exc_info.value.code == 2
+    err = capsys.readouterr().err
+    assert err.startswith(f"usage: filter-calc {category}")
+    return err
 
-    def test_explain(self, capsys):
-        lowpass_run(
-            _lp_args(
-                explain=True,
-                topology_pos=None,
-                frequency=None,
-                quiet=False,
-                no_match=False,
-                no_toroids=False,
-            )
+
+@pytest.mark.parametrize(
+    ("category", "setup", "argv"),
+    [
+        ("lowpass", lowpass_setup, ["butterworth", "pi", "10MHz"]),
+        ("highpass", highpass_setup, ["butterworth", "t", "10MHz"]),
+        ("bandpass", bandpass_setup, ["butterworth", "top", "-f", "14.175MHz", "-b", "350kHz"]),
+    ],
+)
+def test_namespace_helpers_mirror_real_parser_defaults(category, setup, argv):
+    """Helpers may only deviate from parsed defaults where they deliberately trim output."""
+    parser = ArgumentParser()
+    setup(parser)
+    parsed = vars(parser.parse_args(argv))
+    helper = vars(_ARGS[category]())
+    deliberate = {"quiet": True, "no_match": True, "no_toroids": True}
+
+    fields = set(helper) - {"_parser"} - set(deliberate)
+    assert set(helper) - {"_parser"} <= set(parsed)
+    assert {key: helper[key] for key in fields} == {key: parsed[key] for key in fields}
+    assert {key: parsed[key] for key in deliberate} == dict.fromkeys(deliberate, False)
+
+
+# --- validate_filter_args / export_plot_data ---
+
+
+class TestValidateFilterArgs:
+    @pytest.mark.parametrize("components", [2, 9])
+    def test_accepts_order_boundaries(self, components):
+        assert validate_filter_args(10e6, 50, components) is None
+
+    @pytest.mark.parametrize(
+        ("frequency", "impedance", "components", "message"),
+        [
+            (-10e6, 50, 5, "Frequency must be positive"),
+            (0.0, 50, 5, "Frequency must be positive"),
+            (10e6, 0, 5, "Impedance must be positive"),
+            (10e6, 50, 1, "Components must be 2-9"),
+            (10e6, 50, 10, "Components must be 2-9"),
+            (10e6, 50, True, "Components must be 2-9"),
+            (10e6, 50, 3.0, "Components must be 2-9"),
+        ],
+    )
+    def test_rejects_out_of_range_values(self, frequency, impedance, components, message):
+        with pytest.raises(ValueError, match=message):
+            validate_filter_args(frequency, impedance, components)
+
+    @pytest.mark.parametrize("frequency", [float("nan"), float("inf"), True, "10MHz", None])
+    def test_rejects_non_finite_or_non_numeric_frequency(self, frequency):
+        with pytest.raises(ValueError, match="Frequency must be positive and finite"):
+            validate_filter_args(frequency, 50, 3)
+
+    @pytest.mark.parametrize("impedance", [float("nan"), float("inf"), True, "50", None])
+    def test_rejects_non_finite_or_non_numeric_impedance(self, impedance):
+        with pytest.raises(ValueError, match="Impedance must be positive and finite"):
+            validate_filter_args(10e6, impedance, 3)
+
+
+class TestExportPlotData:
+    def test_json_carries_metadata_and_points(self, capsys):
+        meta = {"category": "lowpass", "response_type": "butterworth", "order": 3, "cutoff_hz": 1e6}
+        assert export_plot_data(Namespace(plot_data="json"), [1e6], [-3.0], meta) is True
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["filter"]["category"] == "lowpass"
+        assert out["data"] == [{"frequency_hz": 1e6, "magnitude_db": -3.0}]
+
+    def test_csv_writes_header_and_rows(self, capsys):
+        assert export_plot_data(Namespace(plot_data="csv"), [1e6], [-3.0], {}) is True
+        assert capsys.readouterr().out == "frequency_hz,magnitude_db\n1e+06,-3.00\n"
+
+    def test_disabled_export_prints_nothing(self, capsys):
+        assert export_plot_data(Namespace(plot_data=None), [1e6], [-3.0], {}) is False
+        assert capsys.readouterr().out == ""
+
+
+# --- Design dispatch ---
+
+# Quiet listings at 10 MHz, 50 ohm, n=3 from published normalized prototypes:
+# Butterworth g = (1, 2, 1); Chebyshev 0.5 dB g = (1.5963, 1.0967, 1.5963);
+# Bessel (3 dB normalized) g = (0.3374, 0.9705, 2.2034).
+# LP: C = g/(Z*w), L = g*Z/w.  HP: C = 1/(g*Z*w), L = Z/(g*w).
+_LADDER_QUIET_CASES = [
+    ("lowpass", "butterworth", "pi", "C1: 318.31 pF\nC2: 318.31 pF\nL1: 1.59 µH\n"),
+    ("lowpass", "ch", "t", "L1: 1.27 µH\nL2: 1.27 µH\nC1: 349.09 pF\n"),
+    ("lowpass", "bs", "pi", "C1: 107.40 pF\nC2: 701.36 pF\nL1: 772.30 nH\n"),
+    ("highpass", "b", "t", "C1: 318.31 pF\nC2: 318.31 pF\nL1: 397.89 nH\n"),
+    ("highpass", "c", "pi", "L1: 498.52 nH\nL2: 498.52 nH\nC1: 290.25 pF\n"),
+    ("highpass", "bessel", "t", "C1: 943.42 pF\nC2: 144.46 pF\nL1: 819.96 nH\n"),
+]
+
+
+class TestDesignDispatch:
+    @pytest.mark.parametrize(
+        ("category", "filter_type", "topology", "expected"), _LADDER_QUIET_CASES
+    )
+    def test_ladder_type_alias_and_topology_reach_textbook_values(
+        self, category, filter_type, topology, expected, capsys
+    ):
+        _run(category, filter_type=filter_type, topology_pos=topology)
+        assert capsys.readouterr().out == expected
+
+    def test_bandpass_run_matches_library_design(self, capsys):
+        _run("bandpass", filter_type="bw", coupling_pos="t")
+
+        expected = calculate_bandpass_filter(14.175e6, 350e3, 50.0, 3, "butterworth", "top")
+        assert capsys.readouterr().out == bandpass_format_quiet(expected) + "\n"
+
+    @pytest.mark.parametrize(
+        ("category", "positional", "flagged"),
+        [
+            (
+                "lowpass",
+                dict(filter_type="chebyshev", frequency="5MHz"),
+                dict(filter_type=None, type_flag="chebyshev", frequency=None, freq_flag="5MHz"),
+            ),
+            ("lowpass", dict(topology_pos="t"), dict(topology_pos=None, topology_flag="t")),
+            (
+                "highpass",
+                dict(filter_type="bessel", frequency="5MHz"),
+                dict(filter_type=None, type_flag="bessel", frequency=None, freq_flag="5MHz"),
+            ),
+            ("highpass", dict(topology_pos="pi"), dict(topology_pos=None, topology_flag="pi")),
+            ("bandpass", dict(filter_type="bessel"), dict(filter_type=None, type_flag="bessel")),
+            ("bandpass", dict(coupling_pos="t"), dict(coupling_pos=None, coupling_flag="t")),
+        ],
+    )
+    def test_flag_forms_design_the_same_filter_as_positional_forms(
+        self, category, positional, flagged, capsys
+    ):
+        _run(category)
+        default_design = capsys.readouterr().out
+        _run(category, **positional)
+        positional_design = capsys.readouterr().out
+        _run(category, **flagged)
+
+        assert capsys.readouterr().out == positional_design
+        if category != "bandpass" or "filter_type" in positional:
+            # Non-default values prove the flag was read rather than defaulted.
+            assert positional_design != default_design
+
+    @pytest.mark.parametrize(
+        ("category", "alias", "explanation"),
+        [
+            ("lowpass", "bs", FILTER_EXPLANATIONS["bessel"]),
+            ("highpass", "c", FILTER_EXPLANATIONS_HIGHPASS["chebyshev"]),
+            ("bandpass", "bw", FILTER_EXPLANATIONS_BANDPASS["butterworth"]),
+        ],
+    )
+    def test_explain_prints_category_explanation_for_resolved_alias(
+        self, category, alias, explanation, capsys
+    ):
+        design_fields = (
+            dict(coupling_pos=None, frequency=None, bandwidth=None)
+            if category == "bandpass"
+            else dict(topology_pos=None, frequency=None)
         )
-        assert capsys.readouterr().out
-
-    def test_json_output(self, capsys):
-        lowpass_run(_lp_args(format="json", quiet=False, no_match=True))
-        data = json.loads(capsys.readouterr().out)
-        assert "capacitors" in data or "filter_type" in data
-
-    def test_chebyshev_ripple_at_ceiling_accepted(self, capsys):
-        lowpass_run(_lp_args(filter_type="chebyshev", ripple=3.0))
-        assert capsys.readouterr().out
-
-    def test_chebyshev_ripple_above_ceiling_rejected(self):
-        with pytest.raises(ValueError, match="at most 3.0 dB"):
-            lowpass_run(_lp_args(filter_type="chebyshev", ripple=3.01))
-
-    def test_chebyshev_ripple_below_ceiling_unchanged(self, capsys):
-        lowpass_run(_lp_args(filter_type="chebyshev", ripple=0.5))
-        assert capsys.readouterr().out
-
-
-class TestHighpassCmd:
-    def test_butterworth_t(self, capsys):
-        highpass_run(_hp_args())
-        assert capsys.readouterr().out
-
-    def test_chebyshev_t(self, capsys):
-        highpass_run(_hp_args(filter_type="chebyshev"))
-        assert capsys.readouterr().out
-
-    def test_bessel_t(self, capsys):
-        highpass_run(_hp_args(filter_type="bessel"))
-        assert capsys.readouterr().out
-
-    def test_missing_filter_type_exits_with_usage(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
-            highpass_run(_hp_args(filter_type=None))
-        assert exc_info.value.code == 2
-        assert "filter type required" in capsys.readouterr().err
-
-    def test_missing_topology_exits_with_usage(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
-            highpass_run(_hp_args(topology_pos=None))
-        assert exc_info.value.code == 2
-        assert "topology required" in capsys.readouterr().err
-
-    def test_explain(self, capsys):
-        highpass_run(
-            _hp_args(
-                explain=True,
-                topology_pos=None,
-                frequency=None,
-                quiet=False,
-                no_match=False,
-                no_toroids=False,
-            )
+        _run(
+            category,
+            filter_type=alias,
+            explain=True,
+            quiet=False,
+            no_match=False,
+            no_toroids=False,
+            **design_fields,
         )
-        assert capsys.readouterr().out
 
-    def test_chebyshev_ripple_at_ceiling_accepted(self, capsys):
-        highpass_run(_hp_args(filter_type="chebyshev", ripple=3.0))
-        assert capsys.readouterr().out
-
-    def test_chebyshev_ripple_above_ceiling_rejected(self):
-        with pytest.raises(ValueError, match="at most 3.0 dB"):
-            highpass_run(_hp_args(filter_type="chebyshev", ripple=3.01))
+        assert capsys.readouterr().out == explanation + "\n"
 
 
-class TestBandpassCmd:
-    def test_butterworth_top(self, capsys):
-        bandpass_run(_bp_args())
-        assert capsys.readouterr().out
+# --- Missing and duplicated design arguments ---
 
-    def test_chebyshev_ripple_above_ceiling_raises(self):
-        with pytest.raises(ValueError, match="at most 3.0 dB"):
-            bandpass_run(_bp_args(filter_type="chebyshev", ripple=3.5))
 
-    def test_chebyshev_nan_ripple_raises(self):
-        with pytest.raises(ValueError, match="must be positive and finite"):
-            bandpass_run(_bp_args(filter_type="chebyshev", ripple=float("nan")))
+class TestDesignArgumentUsageErrors:
+    @pytest.mark.parametrize("category", _CATEGORIES)
+    def test_missing_filter_type(self, category, capsys):
+        err = _usage_error(category, capsys, filter_type=None)
+        assert "error: filter type required: butterworth/chebyshev/bessel" in err
 
-    def test_wide_fbw_warning_goes_to_stderr(self, capsys):
-        # 2 MHz BW at 14.175 MHz is ~14% FBW, above the simulation-proven 10%.
-        bandpass_run(_bp_args(bandwidth="2MHz"))
-        captured = capsys.readouterr()
-        assert captured.out
-        assert "Warning:" in captured.err
-
-    def test_missing_filter_type_exits_with_usage(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(filter_type=None))
-        assert exc_info.value.code == 2
-        assert "filter type required" in capsys.readouterr().err
-
-    def test_missing_coupling_exits_with_usage(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(coupling_pos=None))
-        assert exc_info.value.code == 2
-        assert "coupling topology required" in capsys.readouterr().err
-
-    def test_missing_frequency_spec_exits_with_usage(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(frequency=None, bandwidth=None))
-        assert exc_info.value.code == 2
-        assert "frequency required" in capsys.readouterr().err
-
-    def test_both_frequency_specs_exit_with_usage(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(f_low="14MHz", f_high="14.35MHz"))
-        assert exc_info.value.code == 2
-        assert "not both" in capsys.readouterr().err
-
-    def test_ripple_warns_when_ignored(self, capsys):
-        bandpass_run(_bp_args(ripple=0.5))
-        captured = capsys.readouterr()
-        assert "only used by Chebyshev" in captured.err
-        assert captured.out
-
-    def test_chebyshev_ripple_no_warning(self, capsys):
-        bandpass_run(_bp_args(filter_type="chebyshev", ripple=0.5))
-        captured = capsys.readouterr()
-        assert "only used by Chebyshev" not in captured.err
-        assert captured.out
-
-    def test_chebyshev_ripple_above_ceiling_rejected(self):
-        with pytest.raises(ValueError, match="at most 3.0 dB"):
-            bandpass_run(_bp_args(filter_type="chebyshev", ripple=3.5))
-
-    def test_explain(self, capsys):
-        bandpass_run(
-            _bp_args(
-                explain=True,
-                coupling_pos=None,
-                frequency=None,
-                bandwidth=None,
-                quiet=False,
-                no_match=False,
-                no_toroids=False,
-            )
+    @pytest.mark.parametrize("category", _CATEGORIES)
+    def test_explain_without_filter_type(self, category, capsys):
+        err = _usage_error(
+            category, capsys, filter_type=None, explain=True, quiet=False, no_match=False
         )
-        assert capsys.readouterr().out
+        assert "error: filter type required for --explain" in err
 
-    def test_fl_fh_method(self, capsys):
-        bandpass_run(_bp_args(frequency=None, bandwidth=None, f_low="14MHz", f_high="14.35MHz"))
-        assert capsys.readouterr().out
+    @pytest.mark.parametrize("category", _LADDERS)
+    def test_ladder_missing_frequency(self, category, capsys):
+        err = _usage_error(category, capsys, frequency=None)
+        assert "error: frequency required (try: filter-calc" in err
 
-    def test_il_estimates_shown_in_table(self, capsys):
-        bandpass_run(_bp_args(quiet=False))
+    @pytest.mark.parametrize("category", _LADDERS)
+    def test_ladder_missing_topology(self, category, capsys):
+        err = _usage_error(category, capsys, topology_pos=None)
+        assert "error: topology required: pi or t, positional or -T" in err
+
+    def test_bandpass_missing_coupling(self, capsys):
+        err = _usage_error("bandpass", capsys, coupling_pos=None)
+        assert "error: coupling topology required: top" in err
+
+    @pytest.mark.parametrize(
+        ("category", "overrides", "label"),
+        [
+            ("lowpass", {"type_flag": "chebyshev"}, "filter type"),
+            ("lowpass", {"freq_flag": "5MHz"}, "frequency"),
+            ("lowpass", {"topology_flag": "t"}, "topology"),
+            ("highpass", {"type_flag": "chebyshev"}, "filter type"),
+            ("highpass", {"freq_flag": "5MHz"}, "frequency"),
+            ("highpass", {"topology_flag": "pi"}, "topology"),
+            ("bandpass", {"type_flag": "chebyshev"}, "filter type"),
+            ("bandpass", {"coupling_flag": "top"}, "coupling"),
+        ],
+    )
+    def test_value_supplied_positionally_and_by_flag(self, category, overrides, label, capsys):
+        err = _usage_error(category, capsys, **overrides)
+        assert f"error: {label} supplied both positionally and by flag; use only one form" in err
+
+
+# --- Chebyshev ripple ---
+
+
+class TestRippleHandling:
+    @pytest.mark.parametrize("category", _CATEGORIES)
+    def test_ripple_ceiling_is_inclusive(self, category, capsys):
+        _run(category, filter_type="chebyshev", ripple=3.0, quiet=False, format="json")
+        assert json.loads(capsys.readouterr().out)["ripple_db"] == 3.0
+
+    @pytest.mark.parametrize(
+        ("category", "ripple", "message"),
+        [
+            ("lowpass", 3.01, "Ripple must be at most 3.0 dB"),
+            ("highpass", 3.01, "Ripple must be at most 3.0 dB"),
+            ("bandpass", 3.5, "Ripple must be at most 3.0 dB"),
+            ("lowpass", -0.1, "Ripple must be positive"),
+            ("highpass", -0.5, "Ripple must be positive"),
+            ("bandpass", -0.5, "Ripple must be positive and finite"),
+            ("lowpass", float("nan"), "ripple_db must be positive, finite"),
+            ("bandpass", float("nan"), "Ripple must be positive and finite"),
+        ],
+    )
+    def test_ripple_outside_supported_range_is_rejected(self, category, ripple, message):
+        with pytest.raises(ValueError, match=message):
+            _run(category, filter_type="chebyshev", ripple=ripple)
+
+    @pytest.mark.parametrize("category", _CATEGORIES)
+    def test_ripple_is_ignored_with_warning_for_non_chebyshev(self, category, capsys):
+        _run(category)
+        baseline = capsys.readouterr().out
+        _run(category, ripple=0.5)
+        captured = capsys.readouterr()
+
+        assert captured.out == baseline
+        assert captured.err == "Warning: ripple is only used by Chebyshev; ignoring\n"
+
+    @pytest.mark.parametrize("category", _CATEGORIES)
+    def test_chebyshev_ripple_is_used_without_warning(self, category, capsys):
+        _run(category, filter_type="chebyshev", ripple=1.0, quiet=False, format="json")
+        captured = capsys.readouterr()
+
+        assert json.loads(captured.out)["ripple_db"] == 1.0
+        assert "ripple is only used by Chebyshev" not in captured.err
+
+
+# --- Bandpass-only inputs ---
+
+
+class TestBandpassInputs:
+    @pytest.mark.parametrize(
+        ("overrides", "message"),
+        [
+            (
+                {"f_low": "14MHz", "f_high": "14.35MHz"},
+                "use (-f + -b) OR (--fl + --fh), not both",
+            ),
+            ({"f_low": "13MHz"}, "use (-f + -b) OR (--fl + --fh), not both"),
+            ({"f_high": "15MHz"}, "use (-f + -b) OR (--fl + --fh), not both"),
+            (
+                {"frequency": None, "bandwidth": None},
+                "frequency required: (-f + -b) or (--fl + --fh)",
+            ),
+            ({"bandwidth": None}, "-f/--frequency and -b/--bandwidth must be supplied together"),
+            ({"frequency": None}, "-f/--frequency and -b/--bandwidth must be supplied together"),
+            (
+                {"frequency": None, "bandwidth": None, "f_low": "13MHz"},
+                "--fl and --fh must be supplied together",
+            ),
+            (
+                {"frequency": None, "bandwidth": None, "f_high": "15MHz"},
+                "--fl and --fh must be supplied together",
+            ),
+        ],
+    )
+    def test_frequency_specification_usage_errors(self, overrides, message, capsys):
+        err = _usage_error("bandpass", capsys, **overrides)
+        assert f"error: {message}" in err
+
+    @pytest.mark.parametrize(("f_low", "f_high"), [("15MHz", "14MHz"), ("14MHz", "14MHz")])
+    def test_edge_frequencies_must_be_increasing(self, f_low, f_high):
+        with pytest.raises(ValueError, match="Lower frequency must be less than upper"):
+            _run("bandpass", frequency=None, bandwidth=None, f_low=f_low, f_high=f_high)
+
+    @pytest.mark.parametrize("q_safety", [0.0, -1.5])
+    def test_q_safety_must_be_positive(self, q_safety):
+        with pytest.raises(ValueError, match="Q safety factor must be positive"):
+            _run("bandpass", q_safety=q_safety)
+
+    def test_chebyshev_requires_odd_resonator_count(self):
+        with pytest.raises(ValueError, match="Chebyshev requires odd resonator count"):
+            _run("bandpass", filter_type="chebyshev", resonators=4)
+
+    def test_wide_fractional_bandwidth_warns_on_stderr(self, capsys):
+        _run("bandpass", bandwidth="2MHz")
+        captured = capsys.readouterr()
+
+        assert captured.out.startswith("Cp1: ")
+        assert captured.err.startswith(
+            "Warning: FBW 14.1% exceeds the studied edge-calibration range (<=10%) for Top-C"
+        )
+
+    def test_table_reports_cohn_insertion_loss_at_standard_qu(self, capsys):
+        _run("bandpass", quiet=False)
         out = capsys.readouterr().out
-        assert "Est. insertion loss (Cohn):" in out
-        assert "Qu=100" in out and "Qu=250" in out
-        assert "complete-resonator unloaded Q" in out
+
+        assert "Est. insertion loss (Cohn): 7.0 dB @ Qu=100, 2.8 dB @ Qu=250" in out
+        assert "Loss examples use complete-resonator unloaded Q (not inductor Q alone)." in out
         assert "Minimum usable Q" not in out
         assert "Q safety factor" not in out
-        assert "Minimum Component Q" not in out
 
-    def test_qu_adds_third_il_entry(self, capsys):
-        bandpass_run(_bp_args(quiet=False, qu=150.0))
-        assert "Qu=150" in capsys.readouterr().out
+    def test_user_qu_adds_a_third_estimate(self, capsys):
+        _run("bandpass", quiet=False, qu=150.0)
+        assert "2.8 dB @ Qu=250, 4.7 dB @ Qu=150" in capsys.readouterr().out
 
     @pytest.mark.parametrize("qu", [0.0, -5.0, float("inf"), float("nan")])
-    def test_invalid_qu_rejected(self, qu):
+    def test_invalid_qu_is_rejected(self, qu):
         with pytest.raises(ValueError, match="must be positive and finite"):
-            bandpass_run(_bp_args(qu=qu))
+            _run("bandpass", qu=qu)
 
-    def test_json_carries_il_estimates(self, capsys):
-        bandpass_run(_bp_args(quiet=False, format="json"))
+    def test_json_carries_standard_il_estimates(self, capsys):
+        _run("bandpass", quiet=False, format="json")
+        estimates = json.loads(capsys.readouterr().out)["il_estimates"]
+
+        assert set(estimates) == {"100", "250"}
+        # Cohn's dissipation loss is inversely proportional to resonator Qu.
+        assert estimates["100"] / estimates["250"] == pytest.approx(2.5)
+
+
+# --- Output-mode combinations ---
+
+
+class TestOutputModeConflicts:
+    @pytest.mark.parametrize("category", _CATEGORIES)
+    @pytest.mark.parametrize(
+        ("overrides", "message"),
+        [
+            ({"plot": True, "format": "json"}, "--plot cannot be used with --format json"),
+            ({"plot": True, "format": "csv"}, "--plot cannot be used with --format csv"),
+            ({"raw": True, "format": "json"}, "--raw cannot be used with --format json"),
+            ({"quiet": True, "plot": True}, "--quiet and --plot cannot be used together"),
+            (
+                {"plot": True, "plot_data": "json"},
+                "--plot-data is a standalone output mode; remove --plot",
+            ),
+        ],
+    )
+    def test_contradictory_output_modes_are_usage_errors(
+        self, category, overrides, message, capsys
+    ):
+        settings = {"quiet": False, **overrides}
+        err = _usage_error(category, capsys, **settings)
+        assert f"error: {message}" in err
+
+
+def _first_capacitor(category: str) -> str:
+    return "Cp1" if category == "bandpass" else "C1"
+
+
+class TestOutputModes:
+    @pytest.mark.parametrize(
+        ("category", "expected_line"),
+        [
+            ("lowpass", "│ C1: 3.183099e-10 F     │ L1: 1.591549e-06 H     │"),
+            ("highpass", "│ C1: 3.183099e-10 F     │ L1: 3.978874e-07 H     │"),
+            ("bandpass", "│ Cp1: 1.858357e-10 F    │ L1: 5.614516e-07 H     │"),
+        ],
+    )
+    def test_raw_table_uses_si_notation_and_omits_preferred_values(
+        self, category, expected_line, capsys
+    ):
+        _run(category, raw=True, quiet=False, no_match=False, eseries="E12")
+        out = capsys.readouterr().out
+
+        assert expected_line in out.splitlines()
+        assert "Preferred-Value" not in out
+
+    @pytest.mark.parametrize(
+        ("category", "nearest_e96"),
+        [("lowpass", "316.00"), ("highpass", "316.00"), ("bandpass", "187.00")],
+    )
+    def test_csv_reports_selected_series_for_capacitors_only(self, category, nearest_e96, capsys):
+        _run(category, format="csv", quiet=False, no_match=False, eseries="E96")
+        rows = list(csv.DictReader(io.StringIO(capsys.readouterr().out)))
+        by_name = {row["Component"]: row for row in rows}
+
+        first_cap = by_name[_first_capacitor(category)]
+        assert (first_cap["NearestStdValue"], first_cap["NearestStdUnit"]) == (nearest_e96, "pF")
+        for row in rows:
+            expected_series = "E96" if row["Component"].startswith("C") else ""
+            assert row["Eseries"] == expected_series
+
+    @pytest.mark.parametrize("category", _CATEGORIES)
+    def test_no_match_removes_preferred_values_from_every_format(self, category, capsys):
+        _run(category, quiet=False, format="table")
+        assert "Preferred-Value" not in capsys.readouterr().out
+
+        _run(category, quiet=False, format="json")
+        components = json.loads(capsys.readouterr().out)["components"]
+        entries = [entry for group in components.values() for entry in group]
+        assert entries
+        assert not any("standard_match" in entry for entry in entries)
+
+        _run(category, quiet=False, format="csv")
+        header = capsys.readouterr().out.splitlines()[0]
+        assert header == "Component,Value,Unit"
+
+    @pytest.mark.parametrize("category", _LADDERS)
+    def test_ladder_plot_data_json_is_the_analytic_response(self, category, capsys):
+        _run(category, quiet=False, plot_data="json")
         payload = json.loads(capsys.readouterr().out)
-        assert set(payload["il_estimates"]) == {"100", "250"}
-        assert payload["q_min"] > 0
 
+        assert payload["filter"]["category"] == category
+        assert payload["filter"]["cutoff_hz"] == 10e6
+        points = payload["data"]
+        assert len(points) == 51
+        at_cutoff = next(p for p in points if p["frequency_hz"] == pytest.approx(10e6))
+        # Butterworth is 3.01 dB down at the cutoff for every order.
+        assert at_cutoff["magnitude_db"] == pytest.approx(-3.01, abs=0.01)
 
-# --- Flag combination tests ---
+    @pytest.mark.parametrize(("category", "rows"), [("lowpass", 51), ("bandpass", 601)])
+    def test_plot_data_csv_is_a_rectangular_numeric_table(self, category, rows, capsys):
+        _run(category, quiet=False, plot_data="csv")
+        lines = capsys.readouterr().out.splitlines()
 
+        assert lines[0] == "frequency_hz,magnitude_db"
+        values = [tuple(map(float, line.split(","))) for line in lines[1:]]
+        assert len(values) == rows
+        assert all(math.isfinite(f) and math.isfinite(db) for f, db in values)
+        assert max(db for _, db in values) == pytest.approx(0.0, abs=0.05)
 
-class TestLowpassFlagCombinations:
-    """Test lowpass CLI with various flag combinations."""
-
-    def test_plot_with_json_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            lowpass_run(_lp_args(plot=True, format="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_plot_with_csv_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            lowpass_run(_lp_args(plot=True, format="csv", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_raw_with_json_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            lowpass_run(_lp_args(raw=True, format="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_quiet_with_plot_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            lowpass_run(_lp_args(quiet=True, plot=True))
-        assert exc_info.value.code == 2
-
-    def test_eseries_e12_with_raw(self, capsys):
-        """--eseries E12 + --raw"""
-        lowpass_run(_lp_args(eseries="E12", raw=True, no_match=False, quiet=False))
+    @pytest.mark.parametrize("category", _LADDERS)
+    def test_plot_with_table_shows_components_response_and_thresholds(self, category, capsys):
+        _run(category, quiet=False, plot=True)
         out = capsys.readouterr().out
-        assert out
 
-    def test_eseries_e96_with_csv(self, capsys):
-        """--eseries E96 + --format csv"""
-        lowpass_run(_lp_args(eseries="E96", format="csv", no_match=False, quiet=False))
-        out = capsys.readouterr().out
-        assert "component" in out.lower() and "value" in out.lower()
-
-    def test_no_match_with_various_outputs(self, capsys):
-        """--no-match with table/json/csv"""
-        for fmt in ["table", "json", "csv"]:
-            lowpass_run(_lp_args(no_match=True, format=fmt, quiet=False))
-            out = capsys.readouterr().out
-            assert out
-
-    def test_plot_data_json(self, capsys):
-        """--plot-data json"""
-        lowpass_run(_lp_args(plot_data="json", quiet=False))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "data" in data or "cutoff_hz" in data
-
-    def test_plot_data_csv(self, capsys):
-        """--plot-data csv"""
-        lowpass_run(_lp_args(plot_data="csv", quiet=False))
-        out = capsys.readouterr().out
-        assert "frequency" in out.lower() and "magnitude" in out.lower()
-
-    def test_plot_with_plot_data_json_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            lowpass_run(_lp_args(plot=True, plot_data="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_plot_with_table_format(self, capsys):
-        """--plot + --format table (both should work)"""
-        lowpass_run(_lp_args(plot=True, format="table", quiet=False))
-        out = capsys.readouterr().out
-        # Table format with plot should show both
-        assert out
-        assert "│" in out or "C1" in out  # Either plot or table markers
-
-    def test_raw_with_table_and_eseries(self, capsys):
-        """--raw + --format table + --eseries E24"""
-        lowpass_run(_lp_args(raw=True, format="table", eseries="E24", no_match=False, quiet=False))
-        out = capsys.readouterr().out
-        assert out
-
-
-class TestHighpassFlagCombinations:
-    """Test highpass CLI with various flag combinations."""
-
-    def test_plot_with_json_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            highpass_run(_hp_args(plot=True, format="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_plot_with_csv_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            highpass_run(_hp_args(plot=True, format="csv", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_raw_with_json_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            highpass_run(_hp_args(raw=True, format="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_quiet_with_plot_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            highpass_run(_hp_args(quiet=True, plot=True))
-        assert exc_info.value.code == 2
-
-    def test_eseries_e12_with_raw(self, capsys):
-        """--eseries E12 + --raw"""
-        highpass_run(_hp_args(eseries="E12", raw=True, no_match=False, quiet=False))
-        out = capsys.readouterr().out
-        assert out
-
-    def test_eseries_e96_with_csv(self, capsys):
-        """--eseries E96 + --format csv"""
-        highpass_run(_hp_args(eseries="E96", format="csv", no_match=False, quiet=False))
-        out = capsys.readouterr().out
-        assert "component" in out.lower() and "value" in out.lower()
-
-    def test_no_match_with_various_outputs(self, capsys):
-        """--no-match with table/json/csv"""
-        for fmt in ["table", "json", "csv"]:
-            highpass_run(_hp_args(no_match=True, format=fmt, quiet=False))
-            out = capsys.readouterr().out
-            assert out
-
-    def test_plot_data_json(self, capsys):
-        """--plot-data json"""
-        highpass_run(_hp_args(plot_data="json", quiet=False))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "data" in data or "cutoff_hz" in data
-
-    def test_plot_data_csv(self, capsys):
-        """--plot-data csv"""
-        highpass_run(_hp_args(plot_data="csv", quiet=False))
-        out = capsys.readouterr().out
-        assert "frequency" in out.lower() and "magnitude" in out.lower()
-
-    def test_plot_with_plot_data_json_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            highpass_run(_hp_args(plot=True, plot_data="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_plot_with_table_format(self, capsys):
-        """--plot + --format table (both should work)"""
-        highpass_run(_hp_args(plot=True, format="table", quiet=False))
-        out = capsys.readouterr().out
-        assert out
-        assert "│" in out or "L1" in out
-
-    def test_raw_with_table_and_eseries(self, capsys):
-        """--raw + --format table + --eseries E24"""
-        highpass_run(_hp_args(raw=True, format="table", eseries="E24", no_match=False, quiet=False))
-        out = capsys.readouterr().out
-        assert out
-
-
-class TestBandpassFlagCombinations:
-    """Test bandpass CLI with various flag combinations."""
-
-    def test_plot_with_json_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(plot=True, format="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_plot_with_csv_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(plot=True, format="csv", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_raw_with_json_format_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(raw=True, format="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_quiet_with_plot_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(quiet=True, plot=True))
-        assert exc_info.value.code == 2
-
-    def test_eseries_e12_with_raw(self, capsys):
-        """--eseries E12 + --raw"""
-        bandpass_run(_bp_args(eseries="E12", raw=True, no_match=False, quiet=False))
-        out = capsys.readouterr().out
-        assert out
-
-    def test_eseries_e96_with_csv(self, capsys):
-        """--eseries E96 + --format csv"""
-        bandpass_run(_bp_args(eseries="E96", format="csv", no_match=False, quiet=False))
-        out = capsys.readouterr().out
-        assert "component" in out.lower() and "value" in out.lower()
-
-    def test_no_match_with_various_outputs(self, capsys):
-        """--no-match with table/json/csv"""
-        for fmt in ["table", "json", "csv"]:
-            bandpass_run(_bp_args(no_match=True, format=fmt, quiet=False))
-            out = capsys.readouterr().out
-            assert out
-
-    def test_plot_data_json(self, capsys):
-        """--plot-data json"""
-        bandpass_run(_bp_args(plot_data="json", quiet=False))
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert "data" in data or "filter_type" in data
-
-    def test_plot_data_csv(self, capsys):
-        """--plot-data csv"""
-        bandpass_run(_bp_args(plot_data="csv", quiet=False))
-        out = capsys.readouterr().out
-        assert "frequency" in out.lower() and "magnitude" in out.lower()
-
-    def test_plot_with_plot_data_json_is_rejected(self):
-        with pytest.raises(SystemExit) as exc_info:
-            bandpass_run(_bp_args(plot=True, plot_data="json", quiet=False))
-        assert exc_info.value.code == 2
-
-    def test_plot_with_table_format(self, capsys):
-        """--plot + --format table (both should work)"""
-        bandpass_run(_bp_args(plot=True, format="table", quiet=False))
-        out = capsys.readouterr().out
-        assert out
-        assert "│" in out or "C1" in out
-
-    def test_raw_with_table_and_eseries(self, capsys):
-        """--raw + --format table + --eseries E24"""
-        bandpass_run(_bp_args(raw=True, format="table", eseries="E24", no_match=False, quiet=False))
-        out = capsys.readouterr().out
-        assert out
+        assert out.index("Component Values") < out.index("Frequency Response (dB)")
+        assert "Passband Detail (0 to -6 dB)" in out
+        assert "dB Threshold Summary" in out

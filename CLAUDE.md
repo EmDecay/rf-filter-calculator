@@ -91,7 +91,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs Ruff, coverage-gated tests on P
 
 ## Testing wizard screens
 
-Wizard Textual screens are testable without a running app: mock widgets with `Mock(spec=RadioSet)`, override `type(screen).app` via `property`, then call the screen method directly. Pattern lives in `tests/test_wizard_screens_regressions.py`.
+Wizard Textual screens are testable without a running app: mock widgets with `Mock(spec=RadioSet)`, install the stub app with `monkeypatch.setattr(type(screen), "app", property(...))` so the class-level override is undone after the test, then call the screen method directly. Pattern lives in `tests/test_wizard_design_screens.py::_mount`. Widget ids and focus chains are only proven by mounted `App.run_test()` journeys (`tests/test_wizard_design_screen_journeys.py`); keep those few and use them where compose/event-loop behavior matters.
 
 ## Testing CLI subcommands
 

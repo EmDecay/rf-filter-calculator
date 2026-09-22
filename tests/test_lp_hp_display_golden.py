@@ -1,7 +1,17 @@
-"""Golden-string snapshots for LP/HP rendered display output."""
+"""Golden LP/HP display output for order-3 designs (10 MHz LP, 1 MHz HP, 50 ohm).
+
+The table strings are exact layout snapshots. Their component values are not merely
+whatever the code emitted: ``test_golden_component_values_match_published_prototypes``
+re-derives every tabulated value from published g-values without calling production code.
+The JSON and CSV strings predate the recommendation fields; those fields are checked
+against the documented selection policy (single part within 1 %, otherwise a parallel
+pair only when it improves the error by at least 0.5 percentage points).
+"""
 
 import csv
 import json
+import math
+import re
 from contextlib import redirect_stdout
 from copy import deepcopy
 from io import StringIO
@@ -883,7 +893,7 @@ def test_lp_hp_json_output_matches_golden(case: dict) -> None:
         actual_match = actual_cap["standard_match"]
         expected_match = expected_cap["standard_match"]
         assert actual_match["series"] == expected_match["series"]
-        assert actual_match["nearest"] == pytest.approx(expected_match["nearest"])
+        assert actual_match["nearest"] == pytest.approx(expected_match["nearest"], rel=1e-9, abs=0)
         assert actual_match["policy"] == {
             "prefer_single_within_pct": 1.0,
             "min_parallel_improvement_pct_points": 0.5,
@@ -893,32 +903,31 @@ def test_lp_hp_json_output_matches_golden(case: dict) -> None:
         assert actual_match["status"] == "recommended"
         assert actual_match["warnings"] == []
 
-        nearest_error = abs(expected_match["nearest"]["error_pct"])
         parallel = expected_match.get("parallel")
-        parallel_improvement = (
-            nearest_error - abs(parallel["error_pct"]) if parallel is not None else 0.0
-        )
-        expected_kind = (
-            "single" if nearest_error <= 1.0 or parallel_improvement < 0.5 else "parallel"
+        expected_kind = _policy_kind(
+            expected_match["nearest"]["error_pct"],
+            parallel["error_pct"] if parallel is not None else None,
         )
         selected = actual_match["selected"]
         assert selected["kind"] == expected_kind
         assert selected["value_farads"] == pytest.approx(
-            sum(component["value_farads"] for component in selected["components"])
+            sum(component["value_farads"] for component in selected["components"]), rel=1e-9, abs=0
         )
         assert selected["error_pct"] == pytest.approx(
-            (selected["value_farads"] / actual_cap["value_farads"] - 1.0) * 100.0
+            (selected["value_farads"] / actual_cap["value_farads"] - 1.0) * 100.0, rel=1e-9, abs=0
         )
 
         if expected_kind == "single":
             assert "parallel" not in actual_match
             assert selected["value_farads"] == pytest.approx(
-                expected_match["nearest"]["value_farads"]
+                expected_match["nearest"]["value_farads"], rel=1e-9, abs=0
             )
             assert actual_match["reason"] == "single_within_preferred_error"
         else:
-            assert actual_match["parallel"] == pytest.approx(parallel)
-            assert selected["value_farads"] == pytest.approx(parallel["value_farads"])
+            assert actual_match["parallel"] == pytest.approx(parallel, rel=1e-9, abs=0)
+            assert selected["value_farads"] == pytest.approx(
+                parallel["value_farads"], rel=1e-9, abs=0
+            )
             assert actual_match["reason"] == "parallel_materially_improves_error"
 
 
@@ -982,7 +991,12 @@ def test_lp_hp_csv_output_matches_golden(case: dict) -> None:
             actual_row["RecommendationPolicy"]
             == "single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF"
         )
-        if abs(float(actual_row["NearestStdErrorPct"])) <= 1.0:
+        parallel_error = expected_row["ParallelStdErrorPct"]
+        expected_kind = _policy_kind(
+            float(expected_row["NearestStdErrorPct"]),
+            float(parallel_error) if parallel_error else None,
+        )
+        if expected_kind == "single":
             assert actual_row["RecommendedStdKind"] == "single"
             assert actual_row["ParallelStdValues"] == ""
             assert actual_row["ParallelStdErrorPct"] == ""
@@ -1000,6 +1014,51 @@ def test_lp_hp_csv_output_matches_golden(case: dict) -> None:
             assert actual_row["RecommendationReason"] == "parallel_materially_improves_error"
 
 
+def _policy_kind(nearest_error_pct: float, parallel_error_pct: float | None) -> str:
+    """Documented selection policy: single within 1 %, else a pair improving >= 0.5 pp."""
+    nearest_error = abs(nearest_error_pct)
+    if nearest_error <= 1.0 or parallel_error_pct is None:
+        return "single"
+    return "parallel" if nearest_error - abs(parallel_error_pct) >= 0.5 else "single"
+
+
+# Published normalized prototypes (Matthaei/Zverev), equal terminations, n=3.
+_PROTOTYPE_G = {"butterworth": (1.0, 2.0, 1.0), "chebyshev": (1.5963, 1.0967, 1.5963)}
+_UNIT_SCALE = {"pF": 1e-12, "nF": 1e-9, "nH": 1e-9, "µH": 1e-6}
+
+
+def _textbook_ladder(category: str, filter_type: str, topology: str) -> dict[str, float]:
+    """Element values from g-values: LP C=g/(Z*w), L=g*Z/w; HP C=1/(g*Z*w), L=Z/(g*w)."""
+    omega = 2 * math.pi * (10e6 if category == "lowpass" else 1e6)
+    impedance = 50.0
+    values: dict[str, float] = {}
+    for position, g in enumerate(_PROTOTYPE_G[filter_type], start=1):
+        shunt = (position % 2 == 1) == (topology == "pi")
+        is_capacitor = shunt == (category == "lowpass")
+        prefix = "C" if is_capacitor else "L"
+        name = f"{prefix}{sum(key.startswith(prefix) for key in values) + 1}"
+        if category == "lowpass":
+            values[name] = g / (impedance * omega) if is_capacitor else g * impedance / omega
+        else:
+            values[name] = 1 / (g * impedance * omega) if is_capacitor else impedance / (g * omega)
+    return values
+
+
+@pytest.mark.parametrize("case", GOLDENS.values(), ids=GOLDENS.keys())
+def test_golden_component_values_match_published_prototypes(case: dict) -> None:
+    tabulated = {
+        name: float(number) * _UNIT_SCALE[unit]
+        for name, number, unit in re.findall(r"│ ([CL]\d): ([\d.]+) (pF|nF|nH|µH)", case["table"])
+    }
+    expected = _textbook_ladder(case["category"], case["filter_type"], case["topology"])
+
+    assert tabulated.keys() == expected.keys()
+    for name, value in expected.items():
+        # Two printed decimals plus the four-decimal rounding of published g-values.
+        unit_scale = 1e-6 if value >= 1e-6 else (1e-9 if value >= 1e-9 else 1e-12)
+        assert tabulated[name] == pytest.approx(value, rel=1e-4, abs=0.005 * unit_scale), name
+
+
 def _assert_nested_approximately_equal(actual, expected) -> None:
     """Compare a decoded JSON tree while tolerating harmless float roundoff."""
     assert type(actual) is type(expected)
@@ -1012,6 +1071,7 @@ def _assert_nested_approximately_equal(actual, expected) -> None:
         for actual_item, expected_item in zip(actual, expected, strict=True):
             _assert_nested_approximately_equal(actual_item, expected_item)
     elif isinstance(expected, float):
-        assert actual == pytest.approx(expected)
+        # abs=0: component values are ~1e-10, below pytest's default 1e-12 absolute floor.
+        assert actual == pytest.approx(expected, rel=1e-9, abs=0)
     else:
         assert actual == expected

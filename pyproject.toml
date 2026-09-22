@@ -83,4 +83,7 @@ ignore = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "runtime_budget: wall-clock budget check; run without coverage (-m runtime_budget)",
+]

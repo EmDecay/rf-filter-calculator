@@ -1,6 +1,6 @@
 # Testing Guide
 
-**Last updated:** September 7, 2026
+**Last updated:** September 22, 2026
 **Applies to:** RF Filter Calculator 2.1.0
 
 ## Quality gates
@@ -16,11 +16,16 @@ Run the same primary gates locally:
 uv sync --locked --group dev
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked pytest tests/ \
+uv run --locked pytest tests/ -m runtime_budget
+uv run --locked pytest tests/ -m "not runtime_budget" \
   --cov=filter_lib \
   --cov-report=term-missing \
   --cov-fail-under=90
 ```
+
+Tests marked `runtime_budget` assert wall-clock limits on the application itself. Coverage
+tracing slows them down, so they run in their own pass without `--cov`; every other test runs
+under the coverage gate. `--strict-markers` is on, so a misspelled marker fails collection.
 
 For a quick count without executing tests:
 
@@ -47,7 +52,8 @@ uv run pytest \
   tests/test_spice_export.py
 
 # Full suite and coverage before handoff
-uv run pytest tests/ --cov=filter_lib --cov-report=term-missing --cov-fail-under=90
+uv run pytest tests/ -m runtime_budget
+uv run pytest tests/ -m "not runtime_budget" --cov=filter_lib --cov-report=term-missing --cov-fail-under=90
 ```
 
 Do not weaken assertions or exclude code merely to restore a green gate. A numeric bug
@@ -57,7 +63,11 @@ should normally get a regression that reproduces the original values.
 
 ### Synthesis and public APIs
 
-- Butterworth, Chebyshev, and Bessel LP/HP ladder values and scaling laws
+- Butterworth, Chebyshev, and Bessel LP/HP ladder values against published Matthaei and
+  Zverev prototype tables, plus exact impedance/frequency scaling and LP/HP duality
+- Each normalized prototype, evaluated as an independent ABCD ladder, against the closed-form
+  Butterworth, Chebyshev equal-ripple, and Bessel-polynomial responses
+  ([test_prototype_ladder_responses.py](../tests/test_prototype_ladder_responses.py))
 - Pi/T topology placement and public tuple return contracts
 - Chebyshev formula-based g-values over `(0, 3]` dB, including minimum-subnormal ripple
 - Top-C series-coupled bandpass synthesis, end coupling, tank compensation, and custom
@@ -128,7 +138,11 @@ Numerical comparisons are simulations, not measured hardware or an external-SPIC
 
 - parameter validation and state propagation
 - category forms, output/build controls, and help labels
-- real Textual pilot navigation where event-loop behavior matters
+- real Textual pilot navigation where event-loop behavior matters, including mounted keyboard
+  journeys through each design screen
+  ([test_wizard_design_screen_journeys.py](../tests/test_wizard_design_screen_journeys.py)).
+  These prove widget ids, default selections, and focus chains that the direct-handler tests
+  stub out.
 - calculation revisioning: stale, cancelled, or popped-screen workers cannot publish
 - failure clearing, pending-save blocking, component export preselection, and independent
   response sidecars
@@ -203,15 +217,24 @@ the installed command and package data rather than importing the source checkout
   describe bounded samples as yield or Monte Carlo statistics.
 - Keep fixtures small and real. Avoid mocks where a fast deterministic calculation can be
   exercised directly.
+- `pytest.approx(x, rel=r)` still applies a default absolute tolerance of 1e-12, which
+  swamps the relative check for picofarad, nanohenry, and near-zero values. Pass
+  `rel=..., abs=0` for small magnitudes. Passing `abs` alone disables `rel` entirely.
+- Install class-level stubs, such as a wizard screen's `app` property, with `monkeypatch` so
+  they are undone. A leaked stub makes later tests pass or fail depending on order.
+- Mutation spot-check a new test group by breaking the code under test once. Run with
+  `PYTHONDONTWRITEBYTECODE=1` and clear `__pycache__` afterward; a same-size edit restored
+  within one second can otherwise reuse a stale `.pyc`.
 
 ## CI workflow
 
 `.github/workflows/ci.yml` contains three jobs:
 
 1. **Ruff quality** — lint and format check.
-2. **Python matrix** — all tests on 3.10–3.13, with build-analysis and calibration runtime checks
-   run separately from coverage instrumentation. Their unchanged two-second limits measure
-   application runtime; the remaining suite enforces the coverage gate.
+2. **Python matrix** — all tests on 3.10–3.13. Tests marked `runtime_budget` (build-analysis
+   and calibration runtime checks) run first without coverage instrumentation, so their
+   two-second limits measure application runtime; the remaining suite (`-m "not
+   runtime_budget"`) enforces the coverage gate.
 3. **Build and smoke distributions** — build, inspect, install, smoke, and upload
    artifacts after quality/tests pass.
 

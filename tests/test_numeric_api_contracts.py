@@ -1,8 +1,14 @@
-"""Regression tests for public order validation and deep-stopband stability."""
+"""Public numeric contracts: shared validators, exact-type rejection, and extreme scales.
+
+Public numeric inputs reject booleans, wrong types, NaN/infinity, and integers outside
+binary64 with a clear ``ValueError``; calculations whose inputs sit at the edges of the
+float range either return a finite representable result or say why they cannot.
+"""
 
 import json
 import math
 import sys
+from decimal import Decimal, localcontext
 
 import pytest
 
@@ -57,7 +63,16 @@ from filter_lib.shared.netlist_simulation import (
     passband_ripple_db,
     solve_s21,
 )
-from filter_lib.shared.numeric import positive_geometric_mean
+from filter_lib.shared.numeric import (
+    is_finite_real,
+    positive_float_from_log,
+    positive_geometric_mean,
+    require_finite_real,
+    require_integer,
+    require_nonnegative_finite,
+    require_positive_finite,
+    ripple_log_epsilon,
+)
 from filter_lib.shared.strict_json import dumps_strict
 from filter_lib.shared.transfer_functions import (
     chebyshev_polynomial,
@@ -66,13 +81,6 @@ from filter_lib.shared.transfer_functions import (
 )
 
 HUGE_INTEGER = 10**400
-
-
-@pytest.mark.parametrize("calculator", [calculate_lowpass, calculate_highpass])
-@pytest.mark.parametrize("order", [True, 3.5, "3"])
-def test_ladder_calculators_reject_non_integer_order(calculator, order):
-    with pytest.raises(ValueError, match="between 2 and 9"):
-        calculator(10e6, 50, order, "pi")
 
 
 @pytest.mark.parametrize(
@@ -275,7 +283,118 @@ def test_enum_like_public_inputs_reject_unhashable_wrong_types(operation):
     ],
 )
 def test_positive_geometric_mean_avoids_product_overflow_and_underflow(first, second, expected):
-    assert positive_geometric_mean(first, second) == pytest.approx(expected)
+    assert positive_geometric_mean(first, second) == pytest.approx(expected, rel=1e-12, abs=0)
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "name"),
+    [
+        (0.0, 1.0, "first"),
+        (float("nan"), 1.0, "first"),
+        (1.0, -1.0, "second"),
+        (1.0, True, "second"),
+    ],
+)
+def test_positive_geometric_mean_rejects_non_positive_or_non_real_inputs(first, second, name):
+    with pytest.raises(ValueError, match=f"^{name} must be positive and finite$"):
+        positive_geometric_mean(first, second)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (0, True),
+        (-2.5, True),
+        (5e-324, True),
+        (sys.float_info.max, True),
+        (10**308, True),
+        (True, False),
+        (False, False),
+        (float("nan"), False),
+        (float("inf"), False),
+        (float("-inf"), False),
+        (HUGE_INTEGER, False),
+        ("1", False),
+        (None, False),
+        (Decimal("1"), False),
+    ],
+)
+def test_is_finite_real_accepts_only_binary64_finite_ints_and_floats(value, expected):
+    assert is_finite_real(value) is expected
+
+
+@pytest.mark.parametrize(
+    ("validator", "accepted", "rejected", "requirement"),
+    [
+        (
+            require_positive_finite,
+            5e-324,
+            [0, -1.0, float("nan"), True, HUGE_INTEGER],
+            "positive and finite",
+        ),
+        (
+            require_nonnegative_finite,
+            0,
+            [-5e-324, float("inf"), False, "0"],
+            "non-negative and finite",
+        ),
+        (
+            require_finite_real,
+            -sys.float_info.max,
+            [float("nan"), float("-inf"), None, HUGE_INTEGER],
+            "a finite real number",
+        ),
+    ],
+)
+def test_real_validators_return_value_or_raise_labelled_error(
+    validator, accepted, rejected, requirement
+):
+    assert validator(accepted, "Width") == accepted
+    for value in rejected:
+        with pytest.raises(ValueError, match=f"^Width must be {requirement}$"):
+            validator(value, "Width")
+
+
+def test_require_integer_accepts_exact_integers_at_or_above_minimum():
+    assert require_integer(0, "Count", minimum=0) == 0
+    assert require_integer(1, "Count", minimum=1) == 1
+    with pytest.raises(ValueError, match="^Count must be a non-negative integer$"):
+        require_integer(-1, "Count", minimum=0)
+    with pytest.raises(ValueError, match="^Count must be a positive integer$"):
+        require_integer(0, "Count", minimum=1)
+    for value in (True, 1.0, "1", None):
+        with pytest.raises(ValueError, match="^Count must be a non-negative integer$"):
+            require_integer(value, "Count", minimum=0)
+
+
+def test_positive_float_from_log_materializes_only_representable_results():
+    assert positive_float_from_log(math.log(2.5e-300), "Value") == pytest.approx(
+        2.5e-300, rel=1e-12, abs=0
+    )
+    # e^710 overflows; e^-746 is below half the smallest subnormal and rounds to zero.
+    for log_value in (710.0, -746.0):
+        with pytest.raises(ValueError, match="^Value is outside the positive finite"):
+            positive_float_from_log(log_value, "Value")
+    for log_value in (float("nan"), float("inf"), True):
+        with pytest.raises(ValueError, match="^Value logarithm must be finite$"):
+            positive_float_from_log(log_value, "Value")
+
+
+def _reference_log_epsilon(ripple_db: float) -> float:
+    """log(sqrt(10**(ripple/10) - 1)) evaluated with 60-digit decimal arithmetic."""
+    with localcontext() as context:
+        context.prec = 60
+        x = Decimal(ripple_db) * Decimal(10).ln() / 10
+        epsilon_squared = x * (1 + x / 2) if x < Decimal("1e-30") else x.exp() - 1
+        return float(epsilon_squared.ln() / 2)
+
+
+@pytest.mark.parametrize("ripple_db", [5e-324, 1e-12, 0.5, 3.0, 5000.0])
+def test_ripple_log_epsilon_matches_high_precision_reference(ripple_db):
+    """Covers the tiny-ripple, direct, and overflow-avoiding branches."""
+    assert ripple_log_epsilon(ripple_db) == pytest.approx(
+        _reference_log_epsilon(ripple_db), rel=1e-12
+    )
 
 
 def test_inverse_bandpass_deviation_avoids_overflowing_shift_product():
@@ -297,7 +416,7 @@ def test_insertion_loss_preserves_finite_result_across_extreme_scales():
 def test_insertion_loss_scales_prototype_sum_before_combining_extremes():
     result = estimate_insertion_loss([1e308, 1e308], 1e308, 1e308)
 
-    assert result == pytest.approx(8.686e-308, rel=1e-12)
+    assert result == pytest.approx(8.686e-308, rel=1e-12, abs=0)
 
 
 @pytest.mark.parametrize("frequency", [-1.0, float("nan"), float("inf")])

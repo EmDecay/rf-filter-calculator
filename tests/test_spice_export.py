@@ -1,12 +1,44 @@
 """Generic SPICE export from the same named circuits used by simulation."""
 
+import math
 import re
 
 import pytest
 
-from filter_lib.shared.build_simulation import BuildConfig
+from filter_lib.shared.build_simulation import BuildConfig, realize_nominal_build
 from filter_lib.shared.netlist_builders import build_named_circuit
 from filter_lib.shared.spice_export import export_spice_deck
+
+
+def _netlist(deck: str) -> dict[str, tuple[str, str, float]]:
+    """Parse two-terminal deck branches as ``name -> (node1, node2, value)``."""
+    branches = {}
+    for line in deck.splitlines():
+        if line.startswith(("*", ".", "VINPUT ")):
+            continue
+        name, node1, node2, value = line.split()
+        branches[name] = (node1, node2, float(value))
+    return branches
+
+
+def _expected_netlist(circuit, source: float, load: float) -> dict[str, tuple[str, str, float]]:
+    """Deck branches implied by a named circuit: series loss sits behind each lossy part."""
+    expected = {
+        "RSOURCE": ("NSOURCE", str(circuit.in_node), source),
+        "RLOAD": (str(circuit.out_node), "0", load),
+    }
+    for element in circuit.elements:
+        if element.series_resistance_ohm:
+            internal = f"NLOSS{element.name}"
+            expected[element.name] = (str(element.node1), internal, element.value)
+            expected[f"RLOSS{element.name}"] = (
+                internal,
+                str(element.node2),
+                element.series_resistance_ohm,
+            )
+        else:
+            expected[element.name] = (str(element.node1), str(element.node2), element.value)
+    return expected
 
 
 def _lp_result() -> dict:
@@ -115,9 +147,47 @@ RLOAD 2 0 75
         for line in expected_lines:
             assert re.search(rf"(?m)^{re.escape(line)}\s", deck)
 
-        circuit = build_named_circuit(result, category)
-        for element in circuit.elements:
-            assert re.search(rf"(?m)^{re.escape(element.name)}\s", deck)
+
+class TestDeckMatchesNamedCircuit:
+    @pytest.mark.parametrize(
+        "category, result",
+        [("lowpass", _lp_result()), ("highpass", _hp_result()), ("bandpass", _bp_result())],
+        ids=["lowpass", "highpass", "bandpass"],
+    )
+    @pytest.mark.parametrize("realization", ["exact", "nominal_build"])
+    def test_deck_branches_nodes_values_and_controls_match_the_simulated_circuit(
+        self, category, result, realization
+    ):
+        config = BuildConfig(
+            inductor_q=100,
+            capacitor_q=400,
+            source_resistance_ohm=25,
+            load_resistance_ohm=100,
+            use_toroid_candidates=False,
+        )
+        deck = export_spice_deck(result, category, realization=realization, config=config)
+        circuit = (
+            build_named_circuit(result, category)
+            if realization == "exact"
+            else realize_nominal_build(result, category, config).circuit
+        )
+
+        netlist = _netlist(deck)
+        expected = _expected_netlist(circuit, 25.0, 100.0)
+        assert netlist.keys() == expected.keys()
+        for name, (node1, node2, value) in expected.items():
+            assert netlist[name][:2] == (node1, node2), name
+            # abs=0 keeps the 12-significant-digit check meaningful for pF/nH values.
+            assert netlist[name][2] == pytest.approx(value, rel=1e-11, abs=0), name
+        has_loss = any(name.startswith("RLOSS") for name in netlist)
+        assert has_loss is (realization == "nominal_build")
+
+        lines = deck.splitlines()
+        assert "VINPUT NSOURCE 0 AC 1" in lines
+        sweep_kind = "lin" if category == "bandpass" else "dec"
+        assert re.fullmatch(rf"\.ac {sweep_kind} \d+ [0-9.e+-]+ [0-9.e+-]+", lines[-3])
+        assert lines[-2:] == [f".print ac vm({circuit.out_node})", ".end"]
+        assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", deck)
 
 
 class TestNominalSpiceDecks:
@@ -141,14 +211,24 @@ class TestNominalSpiceDecks:
             ),
         )
 
-        assert re.search(r"(?m)^C1A\s", deck)
-        assert re.search(r"(?m)^C1B\s", deck)
-        assert re.search(r"(?m)^RLOSSC1A\s", deck)
-        assert re.search(r"(?m)^RLOSSC1B\s", deck)
+        netlist = _netlist(deck)
+        # 318.31 pF is realized as 47 pF || 270 pF, each with its own Q=200 series loss
+        # R = 1 / (2*pi*f*C*Q) at the 10 MHz design frequency.
+        for name, capacitance in (("C1A", 47e-12), ("C1B", 270e-12)):
+            assert netlist[name] == (
+                "1",
+                f"NLOSS{name}",
+                pytest.approx(capacitance, rel=1e-12, abs=0),
+            )
+            assert netlist[f"RLOSS{name}"] == (
+                f"NLOSS{name}",
+                "0",
+                pytest.approx(1 / (2 * math.pi * 10e6 * capacitance * 200), rel=1e-11, abs=0),
+            )
         assert "e_series_parallel" in deck
         assert "47e-12" not in deck  # values are canonical generic SPICE numbers
-        assert "4.7e-11" in deck
-        assert "2.7e-10" in deck
+        assert "C1A 1 NLOSSC1A 4.7e-11" in deck
+        assert "C1B 1 NLOSSC1B 2.7e-10" in deck
 
     def test_missing_toroid_candidate_fallback_is_visible_in_comments(self):
         result = {
@@ -176,24 +256,6 @@ class TestNominalSpiceDecks:
 
 
 class TestSpiceValidation:
-    @pytest.mark.parametrize(
-        "category, result",
-        [("lowpass", _lp_result()), ("highpass", _hp_result()), ("bandpass", _bp_result())],
-    )
-    @pytest.mark.parametrize("realization", ["exact", "nominal_build"])
-    def test_decks_are_finite_and_have_generic_ac_control(self, category, result, realization):
-        deck = export_spice_deck(
-            result,
-            category,
-            realization=realization,
-            config=BuildConfig(use_toroid_candidates=False),
-        )
-        sweep_kind = "lin" if category == "bandpass" else "dec"
-        assert re.search(rf"(?im)^\.ac\s+{sweep_kind}\s+\d+\s+[0-9.e+-]+\s+[0-9.e+-]+$", deck)
-        assert re.search(r"(?im)^\.end\s*$", deck)
-        assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", deck)
-        assert "VINPUT" in deck and "RSOURCE" in deck and "RLOAD" in deck
-
     def test_invalid_realization_rejected(self):
         with pytest.raises(ValueError, match="realization"):
             export_spice_deck(_lp_result(), "lowpass", realization="measured")
@@ -203,8 +265,21 @@ class TestSpiceValidation:
         with pytest.raises(ValueError, match="config must be a BuildConfig or None"):
             export_spice_deck(_lp_result(), "lowpass", config=config)
 
-    def test_nonfinite_frequency_span_rejected(self):
-        result = _lp_result()
-        result["freq_hz"] = 1e308
-        with pytest.raises(ValueError, match="finite"):
-            export_spice_deck(result, "lowpass")
+    @pytest.mark.parametrize(
+        "category, key, value, message",
+        [
+            ("lowpass", "freq_hz", 1e308, "frequency span must be positive and finite"),
+            ("lowpass", "freq_hz", float("nan"), "freq_hz must be positive and finite"),
+            ("lowpass", "impedance", -50.0, "impedance must be positive and finite"),
+            ("bandpass", "bw", 0.0, "bandpass f0 and bw must be positive and finite"),
+            # 10 * bw is below the resolution of f0, so the sweep would have zero width.
+            ("bandpass", "bw", 1e-12, "frequency span must be finite"),
+        ],
+    )
+    def test_nonphysical_design_values_are_rejected_before_rendering(
+        self, category, key, value, message
+    ):
+        result = _lp_result() if category == "lowpass" else _bp_result()
+        result[key] = value
+        with pytest.raises(ValueError, match=message):
+            export_spice_deck(result, category)

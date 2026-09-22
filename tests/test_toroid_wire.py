@@ -1,10 +1,11 @@
-"""Tests for toroid wire/mechanical module (Phase 3)."""
+"""Toroid wire gauge, winding length, DC resistance, and winding-capacity screening."""
+
+import dataclasses
 
 import pytest
 
-from filter_lib.shared.toroid_core_data import get_core
+from filter_lib.shared.toroid_core_data import get_core, list_cores
 from filter_lib.shared.toroid_wire import (
-    MechanicalFit,
     awg_to_diameter_mm,
     dc_resistance_ohms,
     default_awg_for_core,
@@ -15,147 +16,172 @@ from filter_lib.shared.toroid_wire import (
 
 
 @pytest.mark.parametrize(
-    "awg,expected_mm,tol",
+    ("awg", "expected_mm", "tol"),
     [
-        (10, 2.588, 0.005),
-        (20, 0.8118, 0.002),
-        (22, 0.6438, 0.002),
-        (30, 0.2546, 0.002),
-        (40, 0.0799, 0.002),
+        (0, 8.251, 0.001),
+        (10, 2.588, 0.001),
+        (20, 0.8118, 0.0001),
+        (22, 0.6438, 0.0001),
+        (30, 0.2546, 0.0001),
+        (36, 0.127, 1e-12),  # defining anchor of the AWG scale
+        (40, 0.0799, 0.0001),
+        (50, 0.02505, 0.00001),
     ],
 )
-def test_awg_to_diameter_mm(awg, expected_mm, tol):
+def test_awg_diameter_matches_standard_wire_table(awg, expected_mm, tol):
     assert awg_to_diameter_mm(awg) == pytest.approx(expected_mm, abs=tol)
 
 
-def test_awg_out_of_range_low():
-    with pytest.raises(ValueError):
-        awg_to_diameter_mm(-1)
+def test_t50_2_ten_turns_awg22_wire_length_hand_calculation():
+    """Per turn: 2π·r_wire + 2·H + (OD − ID) = 2π·0.3219 + 9.66 + 5.0 = 16.683 mm.
 
-
-def test_awg_out_of_range_high():
-    with pytest.raises(ValueError):
-        awg_to_diameter_mm(51)
-
-
-def test_default_awg_for_each_family():
-    """Every non-anomaly family has a default AWG."""
-    for family_core in ("T25-2", "T37-2", "T50-2", "T68-2", "T80-2", "T106-2", "T200-2"):
-        awg = default_awg_for_core(get_core(family_core))
-        assert 10 <= awg <= 30
-
-
-def test_t50_2_n10_awg22_wire_length():
-    """T50-2 N=10 AWG22 ≈ 170 mm.
-
-    Analytic: cross/turn = 2π·0.3219 + 2·4.83 + (12.7 − 7.7) = 16.68 mm,
-    ×10 turns = 166.8 mm; axial = π·(12.7+7.7)/2 = 32.04 mm;
-    √(166.8² + 32.04²) ≈ 169.9 mm.
+    Ten turns: 166.83 mm radially; circumferential advance π·(OD + ID)/2 =
+    32.04 mm; √(166.83² + 32.04²) = 169.88 mm.
     """
-    length = wire_length_mm(get_core("T50-2"), 10, 22)
-    assert 169 <= length <= 171
+    assert wire_length_mm(get_core("T50-2"), 10, 22) == pytest.approx(169.875, abs=0.01)
 
 
-def test_t50_2_n10_awg22_dcr():
-    """T50-2 N=10 AWG22 DCR ≈ 8.8 mOhm (169.9 mm of AWG22 copper at 20 C)."""
-    length = wire_length_mm(get_core("T50-2"), 10, 22)
-    r = dc_resistance_ohms(length, 22)
-    assert 0.008 <= r <= 0.009
+def test_t68_2_twelve_turns_awg14_wire_length_hand_calculation():
+    """Per turn: 2π·0.8139 + 2·4.83 + (17.5 − 9.4) = 22.874 mm; twelve turns 274.48 mm.
+
+    Circumferential advance π·(17.5 + 9.4)/2 = 42.25 mm; √(274.48² + 42.25²) = 277.72 mm.
+    """
+    assert wire_length_mm(get_core("T68-2"), 12, 14) == pytest.approx(277.717, abs=0.01)
 
 
-def test_wire_length_n_zero_raises():
-    with pytest.raises(ValueError):
-        wire_length_mm(get_core("T50-2"), 0, 22)
+def test_copper_dc_resistance_per_metre_of_awg22():
+    """ρ/A = 1.68e-8 Ω·m / (π·(0.32186e-3 m)²) = 51.61 mΩ/m at 20 °C.
+
+    The standard AWG table lists 52.96 mΩ/m using the IACS resistivity 1.724e-8 Ω·m.
+    """
+    assert dc_resistance_ohms(1000.0, 22) == pytest.approx(0.05161, rel=1e-3)
+    assert dc_resistance_ohms(0.0, 22) == 0.0
 
 
-def test_dc_resistance_negative_length_raises():
-    with pytest.raises(ValueError):
-        dc_resistance_ohms(-1, 22)
+def test_published_single_layer_fit_reports_gauge_length_and_scaled_dcr():
+    """T68-2 datasheet: AWG 14 holds 12 single-layer turns at 2.4 mΩ."""
+    fit = fit_wire(get_core("T68-2"), 12)
 
-
-def test_t25_2_n30_does_not_fit():
-    """T25 is tiny (ID=3.05 mm); AWG 26 cannot fit 30 turns single-layer."""
-    m = fit_wire(get_core("T25-2"), 30)
-    assert m.fits is False
-
-
-def test_t25_6_awg26_uses_manufacturer_capacity_not_geometry_guess():
-    core = get_core("T25-6")
-
-    assert max_turns(core, 26) == 15
-    assert fit_wire(core, 14, awg=26).capacity_status == "manufacturer_full_winding"
-    assert fit_wire(core, 16, awg=26).capacity_status == "manufacturer_exceeded"
-
-
-def test_sourced_table_selects_thickest_single_layer_wire_that_fits():
-    fit = fit_wire(get_core("T50-2"), 17)
-
-    assert fit.awg == 20
+    assert fit.awg == 14
+    assert fit.wire_diameter_mm == 1.6  # published metric diameter for the row
+    assert (fit.n_max, fit.single_layer_capacity, fit.full_winding_capacity) == (12, 12, 12)
+    assert fit.fits is True
     assert fit.capacity_status == "manufacturer_single_layer"
+    assert fit.winding_style == "single_layer"
+    assert fit.capacity_source_id == "micrometals-t68-2-datasheet"
+    assert fit.wire_length_mm == pytest.approx(277.717, abs=0.01)
+    assert fit.wire_length_m == pytest.approx(0.277717, abs=1e-5)
+    assert fit.dc_resistance_ohm == pytest.approx(0.0024)
+    assert fit.dcr_method == "manufacturer_table_scaled_by_turn_count"
+
+
+@pytest.mark.parametrize(
+    ("turns", "awg", "status", "fits", "dcr_ohm"),
+    [
+        # Thickest single-layer rows: AWG 16 holds 12 turns, AWG 20 holds 20.
+        (10, 16, "manufacturer_single_layer", True, 0.0032 * 10 / 12),
+        (17, 20, "manufacturer_single_layer", True, 0.0135 * 17 / 20),
+        # No single-layer row holds 200 turns; AWG 30 is the thickest full winding (259).
+        (200, 30, "manufacturer_full_winding", True, 1.8 * 200 / 259),
+        # Beyond every published row (max 962 turns of AWG 36): exceeded, not a fit.
+        (1000, 36, "manufacturer_exceeded", False, 26.6 * 1000 / 962),
+    ],
+)
+def test_published_table_selects_thickest_wire_that_holds_the_turns(
+    turns, awg, status, fits, dcr_ohm
+):
+    fit = fit_wire(get_core("T50-2"), turns)
+
+    assert (fit.awg, fit.capacity_status, fit.fits) == (awg, status, fits)
+    assert fit.dc_resistance_ohm == pytest.approx(dcr_ohm)
     assert fit.capacity_source_id == "micrometals-t50-2-datasheet"
 
 
-def test_unsourced_capacity_is_labeled_estimated():
-    fit = fit_wire(get_core("T37-2"), 10)
+@pytest.mark.parametrize(
+    ("turns", "status", "fits"),
+    [
+        (13, "manufacturer_single_layer", True),
+        (14, "manufacturer_full_winding", True),
+        (15, "manufacturer_full_winding", True),
+        (16, "manufacturer_exceeded", False),
+    ],
+)
+def test_explicit_published_gauge_uses_manufacturer_capacity_boundaries(turns, status, fits):
+    """T25-6 datasheet, AWG 26: 13 single-layer turns, 15 full-winding turns."""
+    core = get_core("T25-6")
 
+    fit = fit_wire(core, turns, awg=26)
+
+    assert max_turns(core, 26) == 15
+    assert (fit.awg, fit.capacity_status, fit.fits) == (26, status, fits)
+
+
+def test_explicit_published_gauge_scales_the_matching_table_row():
+    fit = fit_wire(get_core("T50-2"), 10, awg=24)  # AWG 24: 32 turns at 54.6 mΩ
+
+    assert (fit.awg, fit.capacity_status, fit.n_max) == (24, "manufacturer_single_layer", 70)
+    assert fit.dc_resistance_ohm == pytest.approx(0.0546 * 10 / 32)
+
+
+def test_unpublished_gauge_on_sourced_core_falls_back_to_labeled_estimate():
+    """T50-2 publishes even gauges only, so AWG 23 (0.5733 mm) gets a geometry estimate.
+
+    Capacity: 0.9 fill of π·7.7 mm by 1.07 × 0.5733 mm enamelled wire = 35.5 -> 35 turns.
+    Length: √((10·(2π·0.2867 + 9.66 + 5.0))² + 32.04²) = 167.70 mm of copper, so
+    DCR = 1.68e-8 Ω·m × 0.16770 m / (π·(0.2867e-3 m)²) = 10.91 mΩ.
+    """
+    fit = fit_wire(get_core("T50-2"), 10, awg=23)
+
+    assert (fit.awg, fit.n_max, fit.fits) == (23, 35, True)
     assert fit.capacity_status == "estimated"
     assert fit.capacity_source_id is None
+    assert fit.dcr_method == "geometry_estimate"
+    assert fit.wire_length_mm == pytest.approx(167.70, abs=0.01)
+    assert fit.dc_resistance_ohm == pytest.approx(0.010913, rel=1e-3)
+    assert max_turns(get_core("T50-2"), 22) == 45  # published row wins over geometry
 
 
-def test_t200_2_has_plenty_of_room():
-    """T200-2 AWG 22 should fit at least 100 turns."""
-    assert max_turns(get_core("T200-2"), 22) >= 100
+def test_legacy_core_capacity_is_an_estimate_with_the_family_default_gauge():
+    """T25-2 (ID 3.05 mm), default AWG 26 (0.4049 mm): 0.9·π·3.05 / (1.07·0.4049) = 19.9."""
+    core = get_core("T25-2")
+
+    fit = fit_wire(core, 30)
+
+    assert (fit.awg, fit.n_max, fit.fits) == (26, 19, False)
+    assert (fit.capacity_status, fit.winding_style) == ("estimated", "estimated_single_layer")
+    assert fit.capacity_source_id is None
+    assert fit.full_winding_capacity is None
 
 
-def test_fit_wire_default_awg_applied():
-    """fit_wire uses the thickest published single-layer gauge that fits."""
-    m = fit_wire(get_core("T50-2"), 10)
-    assert m.awg == 16
+def test_every_catalog_core_has_a_default_gauge():
+    for core in list_cores():
+        assert 14 <= default_awg_for_core(core) <= 26, core.name
 
 
-def test_fit_wire_explicit_awg():
-    """Caller can override the default AWG."""
-    m = fit_wire(get_core("T50-2"), 10, awg=24)
-    assert m.awg == 24
+def test_unknown_core_family_has_no_default_gauge():
+    unknown_family = dataclasses.replace(get_core("T37-2"), name="T12-2")
+
+    with pytest.raises(ValueError, match="No default AWG known for family 'T12'"):
+        default_awg_for_core(unknown_family)
 
 
-def test_fit_wire_result_shape():
-    """MechanicalFit carries every expected field."""
-    m = fit_wire(get_core("T50-2"), 10)
-    assert isinstance(m, MechanicalFit)
-    assert m.wire_length_m == pytest.approx(m.wire_length_mm * 1e-3)
-    assert m.dc_resistance_ohm > 0
-    assert m.n_max > 0
-
-
-def test_max_turns_prefers_published_capacity_over_geometry_estimate():
-    import math
-
-    c = get_core("T50-2")
-    awg = 22
-    d_insulated = awg_to_diameter_mm(awg) * 1.07
-    theoretical = math.pi * c.id_mm / d_insulated
-    assert max_turns(c, awg) == 45
-    assert max_turns(c, awg) != pytest.approx(theoretical * 0.9, abs=1)
-
-
-@pytest.mark.parametrize("awg", [True, 20.5, "20", None])
-def test_wire_helpers_require_integer_awg(awg):
+@pytest.mark.parametrize("awg", [-1, 51, True, 20.5, "20", None])
+def test_wire_helpers_require_integer_awg_in_range(awg):
     core = get_core("T50-2")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="AWG out of range"):
         awg_to_diameter_mm(awg)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="AWG out of range"):
         max_turns(core, awg)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="AWG out of range"):
         wire_length_mm(core, 10, awg)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="AWG out of range"):
         dc_resistance_ohms(100, awg)
-    if awg is not None:  # None intentionally selects the default/published gauge.
-        with pytest.raises(ValueError):
+    if awg is not None:  # None intentionally selects the published/default gauge.
+        with pytest.raises(ValueError, match="AWG out of range"):
             fit_wire(core, 10, awg)
 
 
-@pytest.mark.parametrize("turns", [True, 1.5, "10", None])
+@pytest.mark.parametrize("turns", [0, -1, True, 1.5, "10", None])
 def test_wire_helpers_require_positive_integer_turns(turns):
     core = get_core("T50-2")
     with pytest.raises(ValueError, match="positive integer"):
@@ -164,13 +190,21 @@ def test_wire_helpers_require_positive_integer_turns(turns):
         fit_wire(core, turns)
 
 
-@pytest.mark.parametrize("length", [True, "100", None, float("inf"), float("nan")])
+@pytest.mark.parametrize("length", [-1.0, True, "100", None, float("inf"), float("nan")])
 def test_dc_resistance_requires_nonnegative_finite_length(length):
-    with pytest.raises(ValueError, match="non-negative and finite"):
+    with pytest.raises(ValueError, match="length_mm must be non-negative and finite"):
         dc_resistance_ohms(length, 20)
 
 
-@pytest.mark.parametrize("function,args", [(wire_length_mm, (10, 20)), (fit_wire, (10,))])
+@pytest.mark.parametrize(
+    ("function", "args"),
+    [
+        (wire_length_mm, (10, 20)),
+        (fit_wire, (10,)),
+        (max_turns, (20,)),
+        (default_awg_for_core, ()),
+    ],
+)
 def test_wire_helpers_reject_invalid_core_type(function, args):
-    with pytest.raises(ValueError, match="ToroidCore"):
+    with pytest.raises(ValueError, match="core must be a ToroidCore"):
         function("T50-2", *args)
