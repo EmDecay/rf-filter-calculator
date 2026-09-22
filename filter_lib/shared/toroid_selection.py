@@ -13,6 +13,11 @@ from .toroid_core_data import ToroidCore, iter_auto_selectable_cores_for_frequen
 from .toroid_inductance import WindingSolution, compute_ideal_turns, solve_winding
 from .toroid_wire import MechanicalFit, fit_wire
 
+# Stated once per table section and once per JSON/CSV candidate.
+NOT_ASSESSED_WARNING = (
+    "RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed."
+)
+
 
 @dataclass(frozen=True)
 class ToroidRecommendation:
@@ -117,9 +122,7 @@ def find_core_candidates(
         if mechanical.capacity_status == "manufacturer_exceeded":
             continue
 
-        warnings = [
-            "RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed."
-        ]
+        warnings = [NOT_ASSESSED_WARNING]
         if mechanical.capacity_status == "estimated":
             warnings.append(
                 "Mechanical capacity is a geometry estimate and was not used as an exclusion."

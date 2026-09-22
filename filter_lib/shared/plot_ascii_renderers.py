@@ -8,8 +8,10 @@ Provides adaptive ASCII frequency response plots with:
 - Support for lowpass, highpass, and bandpass filters
 """
 
+import bisect
 import math
 
+from .numeric import is_finite_real
 from .plot_threshold_analysis import _find_3db_frequency
 
 
@@ -26,6 +28,69 @@ def _format_freq_compact(freq_hz: float) -> str:
     elif freq_hz >= 1e3:
         return f"{freq_hz / 1e3:.3g}k"
     return f"{freq_hz:.3g}"
+
+
+def _plottable_samples(freqs, response_db) -> list[tuple[float, float]]:
+    """Return the (frequency, dB) samples a log axis can place.
+
+    Non-positive frequencies are skipped; a NaN, infinite, or non-numeric
+    frequency is invalid input and raises ``ValueError``.
+    """
+    samples = []
+    for freq, db in zip(freqs, response_db):
+        if not is_finite_real(freq):
+            raise ValueError(f"Plot frequencies must be finite real numbers, got {freq!r}")
+        if freq > 0:
+            samples.append((freq, db))
+    return samples
+
+
+def _draw_filled_response(
+    grid: list[list[str]],
+    freqs: list[float],
+    response_db: list[float],
+    log_min: float,
+    log_range: float,
+    db_max: float,
+    db_range: float,
+) -> None:
+    """Draw positive-frequency samples as a filled area, leaving no gap columns.
+
+    Each sample fills its column from its dB row to the bottom, so a column shared
+    by several samples shows the highest one and narrow peaks are never smoothed
+    away. Filled blocks read better at terminal resolution than a 1-char-thin line,
+    which fragments on steep skirts where adjacent samples skip rows. Columns
+    between the first and last drawn column that no sample reached (for example,
+    51 log-spaced samples on 52 columns) take the dB value at the column centre,
+    interpolated linearly in log-frequency from the neighbouring samples.
+    """
+    n_rows, n_cols = len(grid), len(grid[0])
+
+    def fill(col: int, db: float) -> None:
+        row = int((db_max - db) / db_range * (n_rows - 1))
+        for r in range(max(0, min(n_rows - 1, row)), n_rows):
+            grid[r][col] = "\u2588"
+
+    # Positions are in column units: an empty column c has no sample in [c, c + 1)
+    # but samples on both sides, so its centre is interpolated between them.
+    samples = sorted(
+        ((math.log10(f) - log_min) / log_range * (n_cols - 1), db)
+        for f, db in zip(freqs, response_db)
+    )
+    drawn = set()
+    for position, db in samples:
+        col = max(0, min(n_cols - 1, int(position)))
+        fill(col, db)
+        drawn.add(col)
+
+    positions = [position for position, _db in samples]
+    for col in range(min(drawn) + 1, max(drawn)):
+        if col in drawn:
+            continue
+        centre = col + 0.5
+        right = bisect.bisect_right(positions, centre)
+        (x0, db0), (x1, db1) = samples[right - 1], samples[right]
+        fill(col, db0 + (db1 - db0) * (centre - x0) / (x1 - x0))
 
 
 def render_ascii_plot(
@@ -58,8 +123,13 @@ def render_ascii_plot(
     """
     if len(freqs) != len(response_db):
         raise ValueError("Frequency and response lists must have same length")
-    if not freqs:
+    # A log axis cannot place non-positive frequencies, so they are skipped
+    # before any axis ranging.
+    positive = _plottable_samples(freqs, response_db)
+    if not positive:
         return "No data to plot"
+    freqs = [freq for freq, _db in positive]
+    response_db = [db for _freq, db in positive]
 
     width = max(40, width)
     height = max(6, height)
@@ -109,18 +179,7 @@ def render_ascii_plot(
             if grid[db_3db_row][col] == " ":
                 grid[db_3db_row][col] = "\u00b7" if col % 2 == 0 else " "
 
-    # Plot the response as a filled area (curve down to bottom): solid
-    # blocks read better at terminal resolution than a 1-char-thin line,
-    # which fragments on steep skirts where adjacent samples skip rows.
-    for freq, db in zip(freqs, response_db):
-        if freq <= 0:
-            continue
-        col = int((math.log10(freq) - log_min) / log_range * (plot_width - 1))
-        col = max(0, min(plot_width - 1, col))
-        row = int((db_max - db) / db_range * (plot_height - 1))
-        row = max(0, min(plot_height - 1, row))
-        for r in range(row, plot_height):
-            grid[r][col] = "\u2588"
+    _draw_filled_response(grid, freqs, response_db, log_min, log_range, db_max, db_range)
 
     # Mark -3dB crossing point
     if show_3db_marker and f_3db_col is not None and 0 < db_3db_row < plot_height - 1:
@@ -210,6 +269,9 @@ def render_bandpass_plot(
     Returns:
         Multi-line string with ASCII plot
     """
+    # A log axis cannot place non-positive frequencies, so they are skipped
+    # before any axis ranging.
+    sweep_data = _plottable_samples([f for f, _db in sweep_data], [db for _f, db in sweep_data])
     if not sweep_data:
         return "No data to plot"
 
@@ -224,25 +286,14 @@ def render_bandpass_plot(
         db_min = max(-60, min(response_db) - 5)
     db_range = db_max - db_min or 1.0
 
-    log_min = math.log10(f_min) if f_min > 0 else 0
-    log_max = math.log10(f_max) if f_max > 0 else 1
+    log_min, log_max = math.log10(f_min), math.log10(f_max)
     log_range = log_max - log_min or 1.0
 
     width = max(40, width)
     height = max(6, height)
     grid = [[" " for _ in range(width)] for _ in range(height)]
 
-    # Filled-area rendering, same rationale as render_ascii_plot
-    for f, db in sweep_data:
-        if f <= 0:
-            continue
-        log_f = math.log10(f)
-        col = int((log_f - log_min) / log_range * (width - 1))
-        col = max(0, min(width - 1, col))
-        row = int((db_max - db) / db_range * (height - 1))
-        row = max(0, min(height - 1, row))
-        for r in range(row, height):
-            grid[r][col] = "\u2588"
+    _draw_filled_response(grid, freqs, response_db, log_min, log_range, db_max, db_range)
 
     # Draw -3dB reference line — skip if outside plot range
     row_3db = int((db_max - (-3)) / db_range * (height - 1))

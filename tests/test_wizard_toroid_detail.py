@@ -28,6 +28,9 @@ from filter_lib.wizard.state import FilterState, ToroidDetail
 
 TOROID_HEADER = "Screened Toroid Winding Candidates (Iron-Powder T-Series)"
 ACCURACY_NOTE = "(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)"
+NOT_ASSESSED_NOTE = (
+    "RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed."
+)
 # Ranked candidate rows in both detail levels start "  1. ", "  2. ", ...
 CANDIDATE_ROW = re.compile(r"^  \d\. ")
 
@@ -82,6 +85,7 @@ def test_lp_hp_full_detail_lists_up_to_three_candidates_per_inductor(category):
     assert expected > len(inductors), "fixture must exercise more than one candidate"
     assert TOROID_HEADER in output
     assert ACCURACY_NOTE in output
+    assert output.count(NOT_ASSESSED_NOTE) == 1
     assert "Inductors: wind to value (see toroid recommendations)" in output
     for index in range(len(inductors)):
         assert f"L{index + 1} target:" in output
@@ -100,6 +104,7 @@ def test_lp_hp_compact_detail_is_one_line_for_best_candidate(category):
     assert expected == len(inductors)
     assert TOROID_HEADER in output
     assert ACCURACY_NOTE not in output
+    assert output.count(NOT_ASSESSED_NOTE) == 1
     assert "     Wire: " not in output
     rows = _candidate_rows(lines)
     assert len(rows) == expected

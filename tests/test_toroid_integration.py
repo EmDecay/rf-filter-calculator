@@ -275,3 +275,32 @@ def test_cli_no_toroids_removes_candidates_from_every_format(monkeypatch, capsys
         )
         main()
         assert "toroid" not in capsys.readouterr().out.lower(), output_format
+
+
+@pytest.mark.parametrize("detail", ["--toroid-full", "--toroid-compact"])
+def test_cli_table_section_states_every_not_assessed_quantity(monkeypatch, capsys, detail):
+    monkeypatch.setattr(sys, "argv", ["filter-calc", "lp", "bw", "pi", "10MHz", detail])
+
+    main()
+    out = capsys.readouterr().out
+
+    assert out.count(NOT_ASSESSED_WARNING) == 1
+    section = out[out.index(SECTION_TITLE) :]
+    assert section.splitlines()[2] == NOT_ASSESSED_WARNING
+    for quantity in ("RF Q", "core loss", "SRF", "saturation", "thermal rise", "power handling"):
+        assert quantity in section
+
+
+def test_cli_json_and_csv_keep_the_not_assessed_warning_per_candidate(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["filter-calc", "lp", "bw", "pi", "10MHz", "--format", "json"])
+    main()
+    inductors = json.loads(capsys.readouterr().out)["components"]["inductors"]
+    candidates = [c for item in inductors for c in item["toroid_recommendations"]]
+    assert candidates
+    assert all(c["warnings"] == [NOT_ASSESSED_WARNING] for c in candidates)
+
+    monkeypatch.setattr(sys, "argv", ["filter-calc", "lp", "bw", "pi", "10MHz", "--format", "csv"])
+    main()
+    rows = list(csv.DictReader(io.StringIO(capsys.readouterr().out)))
+    warnings = {row["ToroidWarnings"] for row in rows if row["ToroidCore"]}
+    assert warnings == {NOT_ASSESSED_WARNING}

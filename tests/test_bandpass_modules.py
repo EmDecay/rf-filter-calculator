@@ -283,6 +283,36 @@ class TestDisplay:
     def test_q_model_lines_name_the_component_q_sources(self, q_model, expected_lines):
         assert format_q_model_lines({"q_model": q_model}) == expected_lines
 
+    @pytest.mark.parametrize(
+        ("q_model", "expected_lines"),
+        [
+            ({"resonator_qu": 12345.0}, ["", "Loss-model complete-resonator unloaded Q: 12345"]),
+            ({"resonator_qu": 1e6}, ["", "Loss-model complete-resonator unloaded Q: 1e+06"]),
+            ({"resonator_qu": 123456.7}, ["", "Loss-model complete-resonator unloaded Q: 123457"]),
+            (
+                {
+                    "resonator_qu": 12345.0 * 20000.0 / 32345.0,
+                    "inductor_ql": 12345.0,
+                    "capacitor_qc": 20000.0,
+                },
+                [
+                    "",
+                    "Loss-model complete-resonator unloaded Q: 7633",
+                    "  Derived from QL=12345 and QC=20000 at f₀",
+                ],
+            ),
+        ],
+    )
+    def test_large_q_values_use_the_insertion_loss_qu_labels(self, q_model, expected_lines):
+        assert format_q_model_lines({"q_model": q_model}) == expected_lines
+
+    def test_widened_user_qu_label_matches_the_insertion_loss_line(self):
+        result = calculate_bandpass_filter(10e6, 350e3, 50, 3, "butterworth", "top", qu=100.00001)
+
+        assert format_q_model_lines(result)[1] == (
+            "Loss-model complete-resonator unloaded Q: 100.00001"
+        )
+
     def test_display_with_eseries(self, result, capsys):
         display_results(result, eseries="E12", include_toroids=False)
         out = capsys.readouterr().out

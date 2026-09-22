@@ -4,7 +4,7 @@ import math
 
 from .build_types import BuildConfig, CircuitMeasurement
 from .circuit_model import NamedCircuit
-from .nodal_solver import solve_transducer_power_gain
+from .nodal_solver import make_transducer_gain_evaluator
 from .numeric import is_finite_real
 from .response_refinement import refine_response
 
@@ -28,8 +28,11 @@ def build_frequency_grid(result: dict, category: str, points: int) -> list[float
         ):
             raise ValueError("bandpass f0 and bw must be positive and finite")
         upper_ratio = (center + 10.0 * bandwidth) / center
-        if not math.isfinite(upper_ratio) or upper_ratio <= 1:
+        if not math.isfinite(upper_ratio):
             raise ValueError("frequency span must be finite")
+        if upper_ratio <= 1:
+            # 10 * bw is below the binary64 resolution of f0, so the sweep has zero width.
+            raise ValueError("bandpass bandwidth is too small relative to f0 to form a sweep span")
         decades = min(1.0, math.log10(upper_ratio))
     else:
         center = result.get("freq_hz")
@@ -72,18 +75,17 @@ def measure_circuit(
     load_resistance: float,
 ) -> CircuitMeasurement:
     """Measure evaluated extrema and crossings, checking mesh convergence."""
-    branches = circuit.branches()
+    transducer_gain = make_transducer_gain_evaluator(
+        circuit.n_nodes,
+        circuit.branches(),
+        source_resistance,
+        load_resistance,
+        circuit.in_node,
+        circuit.out_node,
+    )
 
     def response(frequency: float) -> float:
-        gain = solve_transducer_power_gain(
-            circuit.n_nodes,
-            branches,
-            source_resistance,
-            load_resistance,
-            circuit.in_node,
-            circuit.out_node,
-            [frequency],
-        )[0]
+        gain = transducer_gain(frequency)
         return 10 * math.log10(gain) if gain > 0 else -math.inf
 
     reference = result["f0"] if category == "bandpass" else None

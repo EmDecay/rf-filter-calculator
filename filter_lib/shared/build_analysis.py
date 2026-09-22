@@ -1,7 +1,15 @@
 """Orchestration for calculated, nominal, and bounded build analysis."""
 
+from dataclasses import dataclass
+
 from .build_response import build_frequency_grid, evaluation_ports, measure_circuit
-from .build_types import BuildAnalysisResult, BuildConfig, resolve_build_config
+from .build_types import (
+    BuildAnalysisResult,
+    BuildConfig,
+    CircuitMeasurement,
+    NominalRealization,
+    resolve_build_config,
+)
 from .circuit_builders import build_named_circuit
 from .nominal_realization import realize_nominal_build
 from .tolerance_screening import run_screening_cases, summarize_cases
@@ -47,21 +55,77 @@ def _analysis_limitations(
     return tuple(limitations)
 
 
-def analyze_build(
-    result: dict, category: str, config: BuildConfig | None = None
-) -> BuildAnalysisResult:
-    """Analyze calculated, nominal-build, corners, and seeded uniform cases."""
+@dataclass(frozen=True)
+class CalculatedAndNominalMeasurement:
+    """Calculated and nominal-build measurements without tolerance screening."""
+
+    config: BuildConfig
+    source_resistance_ohm: float
+    load_resistance_ohm: float
+    calculated: CircuitMeasurement
+    nominal_realization: NominalRealization
+    nominal_build: CircuitMeasurement
+
+
+@dataclass(frozen=True)
+class _PreparedAnalysis:
+    config: BuildConfig
+    nominal: NominalRealization
+    freqs: list[float]
+    source: float
+    load: float
+    calculated: CircuitMeasurement
+
+
+def _prepare_analysis(result: dict, category: str, config: BuildConfig | None) -> _PreparedAnalysis:
+    """Resolve the config, realize the nominal build, and measure the calculated circuit."""
     active_config = resolve_build_config(config)
     exact_circuit = build_named_circuit(result, category)
     nominal = realize_nominal_build(result, category, active_config)
     freqs = build_frequency_grid(result, category, active_config.grid_points)
     source, load = evaluation_ports(result, category, active_config)
     calculated_measurement = measure_circuit(exact_circuit, result, category, freqs, source, load)
+    return _PreparedAnalysis(active_config, nominal, freqs, source, load, calculated_measurement)
+
+
+def measure_calculated_and_nominal(
+    result: dict, category: str, config: BuildConfig | None = None
+) -> CalculatedAndNominalMeasurement:
+    """Measure only the calculated and nominal-build circuits.
+
+    The nominal measurement equals ``analyze_build(...).nominal_build``; the
+    deterministic corners and seeded samples are skipped.
+    """
+    prepared = _prepare_analysis(result, category, config)
+    return CalculatedAndNominalMeasurement(
+        config=prepared.config,
+        source_resistance_ohm=prepared.source,
+        load_resistance_ohm=prepared.load,
+        calculated=prepared.calculated,
+        nominal_realization=prepared.nominal,
+        nominal_build=measure_circuit(
+            prepared.nominal.circuit,
+            result,
+            category,
+            prepared.freqs,
+            prepared.source,
+            prepared.load,
+        ),
+    )
+
+
+def analyze_build(
+    result: dict, category: str, config: BuildConfig | None = None
+) -> BuildAnalysisResult:
+    """Analyze calculated, nominal-build, corners, and seeded uniform cases."""
+    prepared = _prepare_analysis(result, category, config)
+    active_config, nominal = prepared.config, prepared.nominal
+    source, load = prepared.source, prepared.load
     cases = run_screening_cases(
         nominal.circuit,
         result,
         category,
-        freqs,
+        prepared.freqs,
         source,
         load,
         active_config,
@@ -73,7 +137,7 @@ def analyze_build(
         source_resistance_ohm=source,
         load_resistance_ohm=load,
         gain_metric="transducer_power_gain_db",
-        calculated=calculated_measurement,
+        calculated=prepared.calculated,
         nominal_build=cases[0].measurement,
         nominal_realization=nominal,
         cases=cases,

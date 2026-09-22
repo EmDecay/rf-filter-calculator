@@ -11,8 +11,10 @@ import copy
 import math
 from dataclasses import dataclass
 
-from .build_simulation import BuildConfig, CircuitMeasurement, analyze_build
+from .build_analysis import measure_calculated_and_nominal
+from .build_simulation import BuildConfig, CircuitMeasurement
 from .eseries import match_component
+from .formatting import format_fixed
 from .netlist_builders import (
     build_bandpass_top_c_netlist,
     build_hp_netlist,
@@ -160,8 +162,12 @@ def run_matched_simulation(
     *,
     use_toroid_candidates: bool = True,
 ) -> MatchedSimSummary:
-    """Deprecated wrapper over calculated/nominal build-realization analysis."""
-    analysis = analyze_build(
+    """Deprecated wrapper over calculated/nominal build-realization analysis.
+
+    Only the calculated and nominal-build circuits are measured; the tolerance
+    screening that ``--sim-build`` reports is not part of this legacy output.
+    """
+    analysis = measure_calculated_and_nominal(
         result,
         category,
         BuildConfig(
@@ -182,7 +188,7 @@ def run_matched_simulation(
 def _fmt_delta_pct(exact: float | None, matched: float | None) -> str:
     if exact is None or matched is None or exact == 0:
         return ""
-    return f"{(matched - exact) / exact * 100:+.2f}%"
+    return f"{format_fixed((matched - exact) / exact * 100, 2, explicit_sign=True)}%"
 
 
 def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
@@ -201,7 +207,10 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
             lines.append(f"{name}: UNRESOLVED response measurement (refinement budget exhausted)")
         if item.reference_peak_gain_db is not None:
             lines.append(
-                f"{name} half-power reference: {item.reference_peak_gain_db:.3f} dB at {item.reference_peak_frequency_hz:.9g} Hz; {len(item.threshold_regions)} connected region(s)"
+                f"{name} half-power reference: "
+                f"{format_fixed(item.reference_peak_gain_db, 3)} dB at "
+                f"{item.reference_peak_frequency_hz:.9g} Hz; "
+                f"{len(item.threshold_regions)} connected region(s)"
             )
 
     has_required_edges = (
@@ -268,13 +277,14 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
         lines.append(
             row("-3 dB cutoff:", e_cut, m_cut, format_frequency, _fmt_delta_pct(e_cut, m_cut))
         )
+    worst_delta_db = matched.worst_passband_db - exact.worst_passband_db
     lines.append(
         row(
             "Worst passband dev:",
             exact.worst_passband_db,
             matched.worst_passband_db,
-            lambda v: f"{v:.2f} dB",
-            f"{matched.worst_passband_db - exact.worst_passband_db:+.2f} dB",
+            lambda v: f"{format_fixed(v, 2)} dB",
+            f"{format_fixed(worst_delta_db, 2, explicit_sign=True)} dB",
         )
     )
     return lines

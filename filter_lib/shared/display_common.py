@@ -10,7 +10,7 @@ from typing import Any
 
 from .display_helpers import format_component_value, split_value_unit
 from .eseries import match_component
-from .formatting import format_capacitance, format_inductance
+from .formatting import format_capacitance, format_fixed, format_inductance
 from .strict_json import dumps_strict, validate_finite_tree
 from .toroid_display import CSV_TOROID_HEADER, build_json_recommendations, csv_columns_for_best
 from .toroid_selection import recommend_cores
@@ -129,13 +129,13 @@ def csv_match_fields(value: float, formatter, eseries: str | None, parallel_mode
         p1_fmt = formatter(match.parallel[0])
         p2_fmt = formatter(match.parallel[1])
         parallel_vals = f"{p1_fmt} || {p2_fmt}"
-        parallel_err = f"{match.parallel_error_pct:.1f}"
+        parallel_err = format_fixed(match.parallel_error_pct, 1)
 
     selected_values = ""
     selected_error = ""
     if match.recommended_kind == "single":
         selected_values = nearest_fmt
-        selected_error = f"{match.single_error_pct:.1f}"
+        selected_error = format_fixed(match.single_error_pct, 1)
     elif match.prefers_parallel:
         selected_values = parallel_vals
         selected_error = parallel_err
@@ -143,7 +143,7 @@ def csv_match_fields(value: float, formatter, eseries: str | None, parallel_mode
     return [
         nearest_val,
         nearest_unit,
-        f"{match.single_error_pct:.1f}",
+        format_fixed(match.single_error_pct, 1),
         parallel_vals,
         parallel_err,
         eseries,

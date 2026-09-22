@@ -92,6 +92,29 @@ class TestRenderPlotPair:
 
         assert pair == render_ascii_plot(freqs, response_db, 1e3)
 
+    def test_non_positive_samples_are_skipped_in_both_views(self, lowpass_response):
+        freqs, response_db = lowpass_response
+
+        pair = render_plot_pair(
+            [0.0, *freqs], [-80.0, *response_db], FC, response_fn=_butterworth_db
+        )
+
+        assert pair == render_plot_pair(freqs, response_db, FC, response_fn=_butterworth_db)
+
+    @pytest.mark.parametrize("response_fn", [None, _butterworth_db])
+    def test_all_non_positive_samples_return_one_placeholder(self, response_fn):
+        pair = render_plot_pair([0.0, -1.0], [-3.0, -6.0], FC, response_fn=response_fn)
+
+        assert pair == "No data to plot"
+
+    def test_response_below_the_zoom_window_skips_the_zoom(self):
+        freqs, response_db = [100, 1e3, 1e4], [-30.0, -30.0, -30.0]
+
+        pair = render_plot_pair(freqs, response_db, 1e3, response_fn=lambda _f: -30.0)
+
+        assert pair == render_ascii_plot(freqs, response_db, 1e3)
+        assert "Passband Detail" not in pair
+
     def test_response_function_resamples_zoom_at_double_density(self, lowpass_response):
         freqs, response_db = lowpass_response
         sampled = []
@@ -177,3 +200,24 @@ class TestRenderBandpassPlotPair:
         sweep = [(9e6, -0.05), (10e6, 0.0), (11e6, -0.05)]
 
         assert render_bandpass_plot_pair(sweep, 10e6, 2e6) == render_bandpass_plot(sweep, 10e6, 2e6)
+
+    def test_non_positive_samples_are_skipped_in_both_views(self):
+        sweep = [(9e6, -6.0), (10e6, 0.0), (11e6, -6.0)]
+
+        pair = render_bandpass_plot_pair([(0.0, -80.0), *sweep], 10e6, 2e6)
+
+        assert pair == render_bandpass_plot_pair(sweep, 10e6, 2e6)
+
+    @pytest.mark.parametrize("response_fn", [None, lambda _f: -1.0])
+    def test_all_non_positive_samples_return_one_placeholder(self, response_fn):
+        pair = render_bandpass_plot_pair([(0.0, -3.0)], 10e6, 2e6, response_fn=response_fn)
+
+        assert pair == "No data to plot"
+
+    def test_response_below_the_zoom_window_skips_the_zoom(self):
+        sweep = [(9e6, -30.0), (10e6, -30.0), (11e6, -30.0)]
+
+        pair = render_bandpass_plot_pair(sweep, 10e6, 2e6, response_fn=lambda _f: -30.0)
+
+        assert pair == render_bandpass_plot(sweep, 10e6, 2e6)
+        assert "Passband Detail" not in pair

@@ -278,7 +278,11 @@ def test_deprecated_alias_has_json_parity_and_warning(
         ),
         (
             (*_LOWPASS, "--cap-tolerance", "5"),
-            "--capacitor-tolerance require --sim-build or --format spice",
+            "--capacitor-tolerance requires --sim-build or --format spice",
+        ),
+        (
+            (*_LOWPASS, "--cap-tolerance", "5", "--seed", "7"),
+            "--capacitor-tolerance, --seed require --sim-build or --format spice",
         ),
         (
             (*_LOWPASS, "--sim-build", "--seed", "7"),
@@ -290,7 +294,12 @@ def test_deprecated_alias_has_json_parity_and_warning(
         ),
         (
             (*_LOWPASS, "--format", "spice", "--cap-tolerance", "5"),
-            "--capacitor-tolerance affect tolerance analysis, not a SPICE deck; use --sim-build",
+            "--capacitor-tolerance affects tolerance analysis, not a SPICE deck; use --sim-build",
+        ),
+        (
+            (*_LOWPASS, "--format", "spice", "--cap-tolerance", "5", "--seed", "7"),
+            "--capacitor-tolerance, --seed affect tolerance analysis, not a SPICE deck; "
+            "use --sim-build",
         ),
         (
             (*_LOWPASS, "--format", "spice", "--no-match"),

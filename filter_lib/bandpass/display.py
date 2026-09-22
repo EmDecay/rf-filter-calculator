@@ -5,7 +5,12 @@ Orchestrates output formatting, topology diagrams, and E-series matching.
 
 from typing import Any
 
-from ..shared.formatting import format_capacitance, format_frequency, format_inductance
+from ..shared.formatting import (
+    format_capacitance,
+    format_fixed,
+    format_frequency,
+    format_inductance,
+)
 from ..shared.plotting import (
     find_db_thresholds,
     format_threshold_table,
@@ -160,7 +165,8 @@ def format_insertion_loss_line(result: BandpassResult) -> str:
     il_estimates = result.get("il_estimates")
     if not il_estimates:
         return ""
-    parts = [f"{il:.1f} dB @ Qu={qu}" for qu, il in il_estimates.items()]
+    labels = _qu_labels(il_estimates)
+    parts = [f"{il:.1f} dB @ Qu={labels[qu]}" for qu, il in il_estimates.items()]
     line = f"Est. insertion loss (Cohn): {', '.join(parts)}"
     validation = result.get("loss_estimate_validation")
     if validation:
@@ -168,8 +174,36 @@ def format_insertion_loss_line(result: BandpassResult) -> str:
         for key, check in validation["comparisons"].items():
             loss = check.get("circuit_added_center_loss_db")
             detail = f"{loss:.2f} dB added loss" if loss is not None else "unavailable"
-            line += f"\n  Qu={key}: {detail}; {check['status'].replace('_', ' ')}"
+            line += f"\n  Qu={labels[key]}: {detail}; {check['status'].replace('_', ' ')}"
     return line
+
+
+def _qu_label(value: float, extra_digits: int = 0) -> str:
+    """Display text for one Q value without printing a precise value at full precision.
+
+    A compact value that ``:g`` reproduces (``100``, ``12345``, ``1e+06``) prints as is.
+    A precise value such as 132.3529411764706 keeps four significant digits, or all of
+    its integer digits, plus ``extra_digits`` (``132.4``, ``123457``).
+    """
+    compact = f"{value:g}"
+    if float(compact) == value:
+        return compact
+    digits = max(4, len(f"{abs(value):.0f}")) + extra_digits
+    return f"{value:.{min(17, digits)}g}"
+
+
+def _qu_labels(qu_keys) -> dict[str, str]:
+    """Map Qu keys to :func:`_qu_label` text, widened only as far as needed to stay distinct.
+
+    A user Qu of 100.00001 therefore still prints apart from the standard ``100``.
+    """
+    keys = list(qu_keys)
+    # 17 significant digits always separate distinct binary64 values.
+    for extra_digits in range(14):
+        labels = {key: _qu_label(float(key), extra_digits) for key in keys}
+        if len(set(labels.values())) == len(labels):
+            break
+    return labels
 
 
 def format_validation_scope_lines(result: BandpassResult) -> list[str]:
@@ -196,12 +230,18 @@ def format_q_model_lines(result: BandpassResult) -> list[str]:
     if resonator_qu is None:
         return ["", "Loss examples use complete-resonator unloaded Q (not inductor Q alone)."]
 
-    lines = ["", f"Loss-model complete-resonator unloaded Q: {resonator_qu:.4g}"]
+    # Reuse the insertion-loss label so a widened Qu reads the same on both lines.
+    il_labels = _qu_labels(result.get("il_estimates") or {})
+    qu_text = next(
+        (label for key, label in il_labels.items() if float(key) == resonator_qu),
+        _qu_label(resonator_qu),
+    )
+    lines = ["", f"Loss-model complete-resonator unloaded Q: {qu_text}"]
     component_parts = []
     if q_model.get("inductor_ql") is not None:
-        component_parts.append(f"QL={q_model['inductor_ql']:.4g}")
+        component_parts.append(f"QL={_qu_label(q_model['inductor_ql'])}")
     if q_model.get("capacitor_qc") is not None:
-        component_parts.append(f"QC={q_model['capacitor_qc']:.4g}")
+        component_parts.append(f"QC={_qu_label(q_model['capacitor_qc'])}")
     if component_parts:
         lines.append(f"  Derived from {' and '.join(component_parts)} at f₀")
     return lines
@@ -354,7 +394,7 @@ def format_bandpass_thresholds(result: BandpassResult, sweep, response_fn) -> st
         frequency_tolerance_hz=result["bw"] * 1e-7,
     )
     lines.append(
-        f"Threshold reference: local peak {refined.reference_db:.3f} dB at "
+        f"Threshold reference: local peak {format_fixed(refined.reference_db, 3)} dB at "
         f"{refined.reference_frequency:.9g} Hz; {len(refined.regions)} connected -3 dB region(s)."
     )
     lines.append(format_threshold_table(thresholds, filter_type="bandpass"))

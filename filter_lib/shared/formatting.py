@@ -74,3 +74,15 @@ def format_inductance(value_henries: float) -> str:
 def format_impedance(value_ohms: float) -> str:
     """Format impedance with appropriate unit (MΩ, kΩ, Ω)."""
     return _format_with_units(value_ohms, [(1e6, "MΩ"), (1e3, "kΩ"), (1, "Ω")], base_unit="Ω")
+
+
+def format_fixed(value: float, decimals: int, *, explicit_sign: bool = False) -> str:
+    """Format ``value`` with ``decimals`` fixed places, never printing a negative zero.
+
+    A small negative value that rounds to zero prints as ``0.00`` (or ``+0.00`` with
+    ``explicit_sign``) instead of ``-0.00``. Python 3.10 has no ``z`` format flag.
+    """
+    rendered = f"{value:{'+' if explicit_sign else ''}.{decimals}f}"
+    if rendered.startswith("-") and float(rendered) == 0:
+        return ("+" if explicit_sign else "") + rendered[1:]
+    return rendered

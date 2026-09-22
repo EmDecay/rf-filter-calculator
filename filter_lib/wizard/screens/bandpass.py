@@ -4,7 +4,7 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.validation import Number
+from textual.validation import Integer
 from textual.widgets import Button, Footer, Input, RadioButton, RadioSet, Static
 
 from ..bandpass_form import (
@@ -13,6 +13,7 @@ from ..bandpass_form import (
     fractional_bandwidth_feedback,
     parse_bandpass_form,
 )
+from ..design_field_validation import RippleValidator
 from ..filter_screen_navigation_mixin import FilterScreenNavigationMixin
 from ..radio_button_helpers import get_selected_radio
 from ..state import FilterState
@@ -86,14 +87,14 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                 yield Input(
                     value="3",
                     id="resonators",
-                    validators=[Number(minimum=2, maximum=9)],
+                    validators=[Integer(minimum=2, maximum=9)],
                 )
                 with Vertical(id="ripple-section"):
                     yield Static("Ripple (dB):")
                     yield Input(
                         value="0.5",
                         id="ripple",
-                        validators=[Number(minimum=0.01, maximum=3.0)],
+                        validators=[RippleValidator()],
                     )
 
             with Vertical(classes="form-section"):

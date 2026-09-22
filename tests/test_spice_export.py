@@ -273,7 +273,14 @@ class TestSpiceValidation:
             ("lowpass", "impedance", -50.0, "impedance must be positive and finite"),
             ("bandpass", "bw", 0.0, "bandpass f0 and bw must be positive and finite"),
             # 10 * bw is below the resolution of f0, so the sweep would have zero width.
-            ("bandpass", "bw", 1e-12, "frequency span must be finite"),
+            (
+                "bandpass",
+                "bw",
+                1e-12,
+                "bandpass bandwidth is too small relative to f0 to form a sweep span",
+            ),
+            # f0 + 10 * bw overflows binary64.
+            ("bandpass", "bw", 1e308, "frequency span must be finite"),
         ],
     )
     def test_nonphysical_design_values_are_rejected_before_rendering(

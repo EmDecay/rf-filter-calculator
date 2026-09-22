@@ -68,9 +68,42 @@ class TestRenderAsciiPlot:
             render_ascii_plot([100, 200], [-3], 150)
 
     @pytest.mark.parametrize("first_frequency", [0.0, -100.0])
-    def test_rejects_non_positive_frequency(self, first_frequency):
-        with pytest.raises(ValueError):
-            render_ascii_plot([first_frequency, 100, 1000], [-50, -3, -10], 100)
+    def test_non_positive_samples_are_skipped_before_axis_ranging(self, first_frequency):
+        plot = render_ascii_plot([first_frequency, 100, 1000], [-50, -3, -10], 100)
+
+        assert plot == render_ascii_plot([100, 1000], [-3, -10], 100)
+
+    def test_all_non_positive_samples_return_placeholder(self):
+        assert render_ascii_plot([0.0, -1.0], [-3.0, -6.0], 100) == "No data to plot"
+
+    @pytest.mark.parametrize("frequency", [math.nan, math.inf, "100"])
+    def test_non_finite_frequency_is_rejected_not_skipped(self, frequency):
+        with pytest.raises(ValueError, match="Plot frequencies must be finite real numbers"):
+            render_ascii_plot([frequency, 100, 1000], [-50, -3, -10], 100)
+
+    def test_default_lowpass_grid_leaves_no_gap_column(self):
+        freqs = generate_frequency_points(FC)
+        assert len(freqs) == 51
+        response_db = [magnitude_to_db(butterworth_response(f, FC, 5)) for f in freqs]
+
+        grid = [row[7:] for row in _lp_hp_rows(render_ascii_plot(freqs, response_db, FC), 12)]
+
+        filled_columns = {col for row in grid for col, cell in enumerate(row) if cell == BLOCK}
+        assert filled_columns == set(range(52))
+
+    def test_gap_column_is_interpolated_in_log_frequency(self):
+        # Columns 0 and 51 hold the two samples; column 17's centre (17.5) interpolates
+        # to -9 * 17.5 / 51 = -3.09 dB.
+        rows = _lp_hp_rows(
+            render_ascii_plot([1e3, 1e6], [0.0, -9.0], 1e4, width=60, db_floor=-10), 12
+        )
+        grid = [row[7:] for row in rows]
+
+        def filled(column: int) -> int:
+            return sum(row[column] == BLOCK for row in grid)
+
+        # -3.09 dB maps to row int(3.09 / 10 * 9) = 2, so 8 of 10 rows are filled.
+        assert [filled(0), filled(17), filled(51)] == [10, 8, 2]
 
     def test_minimum_dimensions_are_enforced(self):
         plot = render_ascii_plot([100, 1000, 10000], [-3, -10, -20], 1000, width=10, height=3)
@@ -183,7 +216,8 @@ class TestRenderBandpassPlot:
         rows = plot.split("\n")[2:12]
 
         center_column = 6 + 29  # f0 is the log midpoint of 5..20 MHz on 60 columns
-        assert [row[center_column] for row in rows] == ["│"] * 4 + ["┼"] + ["│"] * 5
+        # The clamped -40 dB response fills the bottom row, which the marker never erases.
+        assert [row[center_column] for row in rows] == ["│"] * 4 + ["┼"] + ["│"] * 4 + [BLOCK]
         assert rows[0].startswith("   0 │")
         assert rows[4].startswith("  -3 │")
         assert rows[-1].startswith("  -6 │")
@@ -194,10 +228,29 @@ class TestRenderBandpassPlot:
         assert plot.split("\n")[-1].split() == ["100", "-50", "0(f₀)", "50", "300"]
         assert "│" not in "".join(row[6:] for row in plot.split("\n")[2:12])
 
-    def test_non_positive_sweep_frequencies_are_not_plotted(self):
-        plot = render_bandpass_plot([(-100, -50), (100, -3), (200, -10)], 100, 50)
+    @pytest.mark.parametrize("first_frequency", [0.0, -100.0])
+    def test_non_positive_sweep_frequencies_are_skipped_before_axis_ranging(self, first_frequency):
+        plot = render_bandpass_plot([(first_frequency, -50), (100, -3), (200, -10)], 150, 50)
+
+        assert plot == render_bandpass_plot([(100, -3), (200, -10)], 150, 50)
+        assert plot.split("\n")[-1].split()[0] == "100"
+
+    @pytest.mark.parametrize("frequency", [math.nan, -math.inf, None])
+    def test_non_finite_sweep_frequency_is_rejected_not_skipped(self, frequency):
+        with pytest.raises(ValueError, match="Plot frequencies must be finite real numbers"):
+            render_bandpass_plot([(frequency, -50), (100, -3), (200, -10)], 150, 50)
+
+    def test_all_non_positive_sweep_returns_placeholder(self):
+        assert render_bandpass_plot([(0.0, -3.0), (-5.0, -6.0)], 1e6, 1e5) == "No data to plot"
+
+    def test_one_sample_peak_keeps_its_height_after_gap_fill(self):
+        # Sparse skirts leave empty columns; the lone 0 dB sample must stay a full column.
+        sweep = [(9e6, -40.0), (9.9e6, -30.0), (10e6, 0.0), (10.1e6, -30.0), (11e6, -40.0)]
+        plot = render_bandpass_plot(sweep, 10.5e6, 1e6, db_floor=-45)
         grid = [row[6:] for row in plot.split("\n")[2:12]]
 
-        filled_columns = {i for row in grid for i, cell in enumerate(row) if cell == BLOCK}
-        # A non-positive minimum pins the log axis at 10^0; only 100 Hz and 200 Hz plot.
-        assert filled_columns == {int(2 / math.log10(200) * 59), 59}
+        heights = [sum(row[col] == BLOCK for row in grid) for col in range(60)]
+        peak_column = int((math.log10(10e6) - math.log10(9e6)) / math.log10(11 / 9) * 59)
+        assert heights[peak_column] == 10
+        assert max(h for col, h in enumerate(heights) if col != peak_column) < 10
+        assert all(heights)

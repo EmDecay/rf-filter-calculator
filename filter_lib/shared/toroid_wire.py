@@ -10,10 +10,11 @@ around the core. Bare copper diameter is used for DC resistance; insulated
 import math
 from dataclasses import dataclass
 
-from .numeric import require_nonnegative_finite
+from .numeric import require_nonnegative_finite, require_positive_finite
 from .toroid_core_data import ToroidCore, _require_toroid_core
 
-_COPPER_RESISTIVITY_OHM_M = 1.68e-8  # 20 C
+# IACS annealed copper at 20 C (1/58 ohm·mm²/m), the basis of standard AWG resistance tables.
+_COPPER_RESISTIVITY_OHM_M = 1.724e-8
 _ENAMEL_FACTOR = 1.07  # bare copper -> insulated diameter
 _WINDING_FILL_FACTOR = 0.9  # realistic single-layer coverage
 
@@ -72,7 +73,9 @@ def max_turns(core: ToroidCore, awg: int) -> int:
     return max(1, int(theoretical * _WINDING_FILL_FACTOR))
 
 
-def wire_length_mm(core: ToroidCore, n: int, awg: int) -> float:
+def wire_length_mm(
+    core: ToroidCore, n: int, awg: int, wire_diameter_mm: float | None = None
+) -> float:
     """Pythagorean (VK3CPU) wire-length including wire-radius contribution.
 
     Each turn wraps the rectangular core cross-section with the wire
@@ -80,11 +83,17 @@ def wire_length_mm(core: ToroidCore, n: int, awg: int) -> float:
     side are unchanged, and the four quarter-circle corner arcs of radius r
     sum to one full circle, adding 2πr per turn. The Pythagorean combination
     with the mean circumferential advance accounts for the helical path.
+
+    ``wire_diameter_mm`` is the reported (for example datasheet) diameter; the
+    AWG formula diameter is used when it is not supplied.
     """
     core = _require_toroid_core(core)
     if isinstance(n, bool) or not isinstance(n, int) or n <= 0:
         raise ValueError("n must be a positive integer")
-    r_wire = awg_to_diameter_mm(awg) / 2.0
+    formula_diameter_mm = awg_to_diameter_mm(awg)
+    if wire_diameter_mm is None:
+        wire_diameter_mm = formula_diameter_mm
+    r_wire = require_positive_finite(wire_diameter_mm, "wire_diameter_mm") / 2.0
     axial = math.pi * (core.od_mm + core.id_mm) / 2.0
     cross = n * (2.0 * math.pi * r_wire + 2.0 * core.height_mm + core.od_mm - core.id_mm)
     return math.sqrt(axial**2 + cross**2)
@@ -194,7 +203,7 @@ def fit_wire(core: ToroidCore, n_turns: int, awg: int | None = None) -> Mechanic
         full_winding_capacity = None
         diameter_mm = awg_to_diameter_mm(gauge)
 
-    length_mm = wire_length_mm(core, n_turns, gauge)
+    length_mm = wire_length_mm(core, n_turns, gauge, wire_diameter_mm=diameter_mm)
     if published_choice is None:
         dcr = dc_resistance_ohms(length_mm, gauge)
     return MechanicalFit(

@@ -49,12 +49,29 @@ def test_t68_2_twelve_turns_awg14_wire_length_hand_calculation():
     assert wire_length_mm(get_core("T68-2"), 12, 14) == pytest.approx(277.717, abs=0.01)
 
 
-def test_copper_dc_resistance_per_metre_of_awg22():
-    """ρ/A = 1.68e-8 Ω·m / (π·(0.32186e-3 m)²) = 51.61 mΩ/m at 20 °C.
+def test_wire_length_uses_a_supplied_datasheet_diameter():
+    """The T68-2 datasheet lists AWG 14 at 1.600 mm, not the formula's 1.628 mm.
 
-    The standard AWG table lists 52.96 mΩ/m using the IACS resistivity 1.724e-8 Ω·m.
+    Per turn: 2π·0.800 + 2·4.83 + (17.5 − 9.4) = 22.787 mm; twelve turns 273.44 mm;
+    √(273.44² + 42.25²) = 276.68 mm.
     """
-    assert dc_resistance_ohms(1000.0, 22) == pytest.approx(0.05161, rel=1e-3)
+    length = wire_length_mm(get_core("T68-2"), 12, 14, wire_diameter_mm=1.6)
+
+    assert length == pytest.approx(276.684, abs=0.01)
+
+
+@pytest.mark.parametrize("diameter", [0.0, -1.0, float("nan"), float("inf"), True, "1.6"])
+def test_wire_length_rejects_invalid_wire_diameter(diameter):
+    with pytest.raises(ValueError, match="wire_diameter_mm must be positive and finite"):
+        wire_length_mm(get_core("T68-2"), 12, 14, wire_diameter_mm=diameter)
+
+
+def test_copper_dc_resistance_per_metre_of_awg22():
+    """ρ/A = 1.724e-8 Ω·m / (π·(0.32190e-3 m)²) = 52.96 mΩ/m at 20 °C.
+
+    IACS annealed copper is the basis of the standard AWG table, which also lists 52.96 mΩ/m.
+    """
+    assert dc_resistance_ohms(1000.0, 22) == pytest.approx(0.052959, rel=1e-4)
     assert dc_resistance_ohms(0.0, 22) == 0.0
 
 
@@ -69,8 +86,9 @@ def test_published_single_layer_fit_reports_gauge_length_and_scaled_dcr():
     assert fit.capacity_status == "manufacturer_single_layer"
     assert fit.winding_style == "single_layer"
     assert fit.capacity_source_id == "micrometals-t68-2-datasheet"
-    assert fit.wire_length_mm == pytest.approx(277.717, abs=0.01)
-    assert fit.wire_length_m == pytest.approx(0.277717, abs=1e-5)
+    # Length uses the reported 1.600 mm datasheet diameter (see the hand calculation above).
+    assert fit.wire_length_mm == pytest.approx(276.684, abs=0.01)
+    assert fit.wire_length_m == pytest.approx(0.276684, abs=1e-5)
     assert fit.dc_resistance_ohm == pytest.approx(0.0024)
     assert fit.dcr_method == "manufacturer_table_scaled_by_turn_count"
 
@@ -128,7 +146,7 @@ def test_unpublished_gauge_on_sourced_core_falls_back_to_labeled_estimate():
 
     Capacity: 0.9 fill of π·7.7 mm by 1.07 × 0.5733 mm enamelled wire = 35.5 -> 35 turns.
     Length: √((10·(2π·0.2867 + 9.66 + 5.0))² + 32.04²) = 167.70 mm of copper, so
-    DCR = 1.68e-8 Ω·m × 0.16770 m / (π·(0.2867e-3 m)²) = 10.91 mΩ.
+    DCR = 1.724e-8 Ω·m × 0.16770 m / (π·(0.2867e-3 m)²) = 11.20 mΩ.
     """
     fit = fit_wire(get_core("T50-2"), 10, awg=23)
 
@@ -137,7 +155,7 @@ def test_unpublished_gauge_on_sourced_core_falls_back_to_labeled_estimate():
     assert fit.capacity_source_id is None
     assert fit.dcr_method == "geometry_estimate"
     assert fit.wire_length_mm == pytest.approx(167.70, abs=0.01)
-    assert fit.dc_resistance_ohm == pytest.approx(0.010913, rel=1e-3)
+    assert fit.dc_resistance_ohm == pytest.approx(0.011196, rel=1e-3)
     assert max_turns(get_core("T50-2"), 22) == 45  # published row wins over geometry
 
 

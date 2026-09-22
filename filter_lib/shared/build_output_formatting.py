@@ -1,7 +1,7 @@
 """Concise text rendering for realized-build analysis."""
 
 from .build_types import BuildAnalysisResult, CircuitMeasurement, ComponentSubstitution
-from .formatting import format_capacitance, format_frequency, format_inductance
+from .formatting import format_capacitance, format_fixed, format_frequency, format_inductance
 
 
 def _format_measurement(category: str, measurement: CircuitMeasurement) -> str:
@@ -26,7 +26,7 @@ def _format_measurement(category: str, measurement: CircuitMeasurement) -> str:
     detail = ""
     if measurement.reference_peak_gain_db is not None:
         detail += (
-            f"; half-power reference {measurement.reference_peak_gain_db:.3f} dB"
+            f"; half-power reference {format_fixed(measurement.reference_peak_gain_db, 3)} dB"
             f" at {measurement.reference_peak_frequency_hz:.9g} Hz"
         )
     if len(measurement.threshold_regions) > 1:
@@ -39,8 +39,9 @@ def _format_measurement(category: str, measurement: CircuitMeasurement) -> str:
     if measurement.at_grid_edge:
         detail += "; skirt outside simulation window"
     return (
-        f"{landmarks}; peak Gt {measurement.peak_transducer_gain_db:.2f} dB; "
-        f"worst requested-passband Gt {measurement.worst_passband_db:.2f} dB{detail}"
+        f"{landmarks}; peak Gt {format_fixed(measurement.peak_transducer_gain_db, 2)} dB; "
+        f"worst requested-passband Gt {format_fixed(measurement.worst_passband_db, 2)} dB"
+        f"{detail}"
     )
 
 
@@ -58,7 +59,7 @@ def _format_substitution(substitution: ComponentSubstitution) -> str:
 def _format_metric_value(metric: str, value: float) -> str:
     if metric.endswith("_hz"):
         return format_frequency(value)
-    return f"{value:.3f} dB"
+    return f"{format_fixed(value, 3)} dB"
 
 
 def _format_summary(summary) -> str:

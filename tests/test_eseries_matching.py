@@ -230,6 +230,25 @@ class TestParallelCombinations:
         """Every companion needed to reach 1e308 in parallel overflows, so there is no pair."""
         assert find_parallel_combo(1e308, "E24", mode="harmonic") is None
 
+    def test_harmonic_pair_value_survives_reciprocal_overflow(self):
+        """1/v overflows for subnormal parts, which once collapsed the pair to 0.0 (-100 %)."""
+        target = 1e-310
+        (low, high), value, error = find_parallel_combo(target, "E24", mode="harmonic")
+
+        scale = 1e300
+        scaled_low, scaled_high = low * scale, high * scale
+        expected = scaled_low * scaled_high / (scaled_low + scaled_high) / scale
+        assert value > 0
+        assert value == pytest.approx(expected, rel=1e-12, abs=0)
+        assert error == pytest.approx((value - target) / target * 100, rel=1e-12, abs=0)
+        assert abs(error) < 5
+
+        match = match_component(target, "E24", parallel_mode="harmonic")
+        assert match.raw_parallel_improvement_pct_points == pytest.approx(
+            abs(match.single_error_pct) - abs(error), rel=1e-12, abs=0
+        )
+        assert match.raw_parallel_improvement_pct_points > -5
+
 
 class TestRecommendationPolicy:
     def test_default_policy_contract(self):

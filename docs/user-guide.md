@@ -679,6 +679,7 @@ uv run filter-calc lp bw pi 10MHz
 ```text
 Screened Toroid Winding Candidates (Iron-Powder T-Series)
 -------------------------------------------------------
+RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed.
 (Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)
 
   L1 target: 1.59 µH  (design freq 10 MHz)
@@ -729,7 +730,7 @@ uses a screened winding, the substitution line names the core, turns, wire gauge
 wire length. For `uv run filter-calc bp bw top -f 10MHz -b 500kHz -n 3 --sim-build`:
 
 ```text
-  LT1: verified_toroid_integer_turns: 820.80 nH on T68-2, 12 turns of AWG 14 (278 mm) [screened_candidate]
+  LT1: verified_toroid_integer_turns: 820.80 nH on T68-2, 12 turns of AWG 14 (277 mm) [screened_candidate]
 ```
 
 The JSON substitution record carries the same values as `wire_awg` and `wire_length_mm`.

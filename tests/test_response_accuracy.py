@@ -374,3 +374,47 @@ def test_threshold_evaluation_rejects_invalid_accuracy_tolerance(tolerance):
         find_db_thresholds(
             [1, 2], [0, -6], response_fn=lambda f: 6 - 6 * f, frequency_tolerance_hz=tolerance
         )
+
+
+def test_derived_user_qu_is_displayed_at_four_significant_digits():
+    result = _bp(bw=350e3, order=3, ql=180, qc=500)
+
+    text = format_insertion_loss_line(result)
+
+    assert "@ Qu=100, " in text
+    assert "@ Qu=250, " in text
+    assert "@ Qu=132.4" in text
+    assert "\n  Qu=132.4: " in text
+    assert "132.35" not in text
+    assert set(result["il_estimates"]) == {"100", "250", "132.3529411764706"}
+
+
+def test_user_qu_near_a_standard_example_keeps_a_distinct_label():
+    result = _bp(bw=350e3, order=3, qu=100.00001)
+
+    text = format_insertion_loss_line(result)
+
+    assert "@ Qu=100, " in text
+    assert "@ Qu=100.00001" in text
+    assert "\n  Qu=100.00001: " in text
+
+
+def test_user_qu_one_ulp_from_a_standard_example_uses_round_trip_labels():
+    qu = math.nextafter(100.0, math.inf)
+    result = _bp(bw=350e3, order=3, qu=qu)
+
+    text = format_insertion_loss_line(result)
+
+    assert "@ Qu=100, " in text
+    assert f"@ Qu={qu!r}" in text
+
+
+@pytest.mark.parametrize(
+    ("qu", "label"),
+    [(12345.0, "12345"), (10000.0, "10000"), (1e6, "1e+06"), (123456.7, "123457")],
+)
+def test_large_user_qu_keeps_compact_keys_and_integer_digits(qu, label):
+    text = format_insertion_loss_line(_bp(bw=350e3, order=3, qu=qu))
+
+    assert f"@ Qu={label}" in text
+    assert f"\n  Qu={label}: " in text
