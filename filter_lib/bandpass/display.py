@@ -12,11 +12,7 @@ from ..shared.plotting import (
     render_bandpass_plot_pair,
 )
 from ..shared.response_export import export_response_csv, export_response_json, response_meta
-from ..shared.toroid_display import (
-    format_recommendation_block,
-    format_recommendation_block_compact,
-)
-from ..shared.toroid_selection import recommend_cores
+from ..shared.toroid_display import format_winding_candidate_section
 from .diagrams import print_top_c_diagram
 from .formatters import format_csv, format_eseries_match, format_json, format_quiet
 from .transfer import netlist_frequency_sweep
@@ -211,23 +207,24 @@ def format_q_model_lines(result: BandpassResult) -> list[str]:
     return lines
 
 
+def format_toroid_block_lines(
+    result: BandpassResult, compact: bool = False, top_n: int = 1
+) -> list[str]:
+    """Shared-L_resonant toroid section as lines for the CLI and wizard.
+
+    Every resonator uses the same inductance, so one block labelled for
+    L1…Ln replaces per-inductor repetition.
+    """
+    label = f"L_resonant (applies to L1…L{result['n_resonators']})"
+    return format_winding_candidate_section(
+        [(label, result["L_resonant"])], result["f0"], compact, top_n
+    )
+
+
 def _print_toroid_block(result: BandpassResult, compact: bool, top_n: int = 1) -> None:
     """Render shared-L_resonant toroid recommendations (full or compact)."""
-    formatter = format_recommendation_block_compact if compact else format_recommendation_block
-    L0 = result["L_resonant"]
-    n = result["n_resonators"]
-    f0 = result["f0"]
-    recs = recommend_cores(L0, f0, top_n=top_n)
-    label = f"L_resonant (applies to L1…L{n})"
-    print()
-    print("Screened Toroid Winding Candidates (Iron-Powder T-Series)")
-    print("-" * 55)
-    if not compact:
-        print("(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)")
-    print()
-    for line in formatter(label, L0, f0, recs):
+    for line in format_toroid_block_lines(result, compact, top_n):
         print(line)
-    print()
 
 
 def _print_topology(result: BandpassResult) -> None:

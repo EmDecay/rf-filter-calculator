@@ -71,6 +71,19 @@ class OutputOptionsScreen(Screen):
                 )
 
             with Vertical(classes="form-section"):
+                yield Static("Toroid Winding Detail (table output)", classes="form-section-title")
+                with RadioSet(id="toroid-detail"):
+                    yield RadioButton(
+                        "Full - up to three cores with wire length, DCR, and size (default)",
+                        value=True,
+                        id="toroid-full",
+                    )
+                    yield RadioButton(
+                        "Compact - one line for the best core (turns, AWG, actual L)",
+                        id="toroid-compact",
+                    )
+
+            with Vertical(classes="form-section"):
                 yield Static("Export Plot Data", classes="form-section-title")
                 with RadioSet(id="export"):
                     yield RadioButton("No export", value=True, id="no-export")
@@ -173,6 +186,7 @@ class OutputOptionsScreen(Screen):
                 eseries_set = self.query_one("#eseries", RadioSet)
                 format_set = self.query_one("#format", RadioSet)
                 options_list = self.query_one("#options-list", SelectionList)
+                toroid_set = self.query_one("#toroid-detail", RadioSet)
                 export_set = self.query_one("#export", RadioSet)
 
                 if eseries_set.has_focus:
@@ -184,6 +198,10 @@ class OutputOptionsScreen(Screen):
                     event.prevent_default()
                     event.stop()
                 elif options_list.has_focus:
+                    toroid_set.focus()
+                    event.prevent_default()
+                    event.stop()
+                elif toroid_set.has_focus:
                     export_set.focus()
                     event.prevent_default()
                     event.stop()
@@ -268,6 +286,8 @@ class OutputOptionsScreen(Screen):
         state.raw_units = raw
         state.quiet = quiet
         state.show_plot = show_plot
+        toroid_choice = get_selected_radio(self, "toroid-detail")
+        state.toroid_detail = "compact" if toroid_choice == "toroid-compact" else "full"
         apply_build_config(state, build_enabled, build_config)
 
         # None (not a string) signals "no response-data export"; the results

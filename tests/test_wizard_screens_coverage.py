@@ -702,6 +702,7 @@ def _make_output_options(
     build_enabled: bool = False,
     build_values: dict[str, str] | None = None,
     use_toroids: bool = True,
+    toroid_detail_id: str = "toroid-full",
 ):
     screen = OutputOptionsScreen()
     app = Mock()
@@ -728,6 +729,12 @@ def _make_output_options(
     opts = Mock(spec=SelectionList)
     opts.has_focus = make_focus_flag("options-list", focus_target)
     opts.selected = list(options_selected)
+
+    toroid_detail = Mock(spec=RadioSet)
+    toroid_detail.has_focus = make_focus_flag("toroid-detail", focus_target)
+    tbtn = Mock()
+    tbtn.id = toroid_detail_id
+    toroid_detail.pressed_button = tbtn
 
     export = Mock(spec=RadioSet)
     export.has_focus = make_focus_flag("export", focus_target)
@@ -768,6 +775,7 @@ def _make_output_options(
         "#eseries": eseries,
         "#format": fmt,
         "#options-list": opts,
+        "#toroid-detail": toroid_detail,
         "#export": export,
         "#build-analysis-enabled": build_toggle,
         "#build-analysis-options": build_options,
@@ -806,8 +814,14 @@ class TestOutputOptionsOnKey:
         screen.on_key(event)
         widgets["#options-list"].focus.assert_called_once()
 
-    def test_enter_on_options_list_focuses_export(self):
+    def test_enter_on_options_list_focuses_toroid_detail(self):
         screen, _app, _pushed, widgets = _make_output_options("options-list")
+        event = _make_event("enter")
+        screen.on_key(event)
+        widgets["#toroid-detail"].focus.assert_called_once()
+
+    def test_enter_on_toroid_detail_focuses_export(self):
+        screen, _app, _pushed, widgets = _make_output_options("toroid-detail")
         event = _make_event("enter")
         screen.on_key(event)
         widgets["#export"].focus.assert_called_once()
@@ -849,6 +863,18 @@ class TestOutputOptionsButtons:
         screen, app, _pushed, _ = _make_output_options("eseries")
         screen.action_back()
         app.pop_screen.assert_called_once()
+
+
+class TestShowResultsToroidDetail:
+    @pytest.mark.parametrize(
+        ("toroid_detail_id", "expected"),
+        [("toroid-full", "full"), ("toroid-compact", "compact"), ("", "full")],
+    )
+    def test_show_results_maps_toroid_detail_to_state(self, toroid_detail_id, expected):
+        screen, app, pushed, _ = _make_output_options("eseries", toroid_detail_id=toroid_detail_id)
+        screen._show_results()
+        assert pushed
+        assert app.filter_state.toroid_detail == expected
 
 
 class TestShowResultsExportFlags:

@@ -20,8 +20,7 @@ from .display_common import (
 from .display_helpers import format_eseries_match
 from .formatting import format_capacitance
 from .plotting import find_db_thresholds, format_threshold_table, render_plot_pair
-from .toroid_display import format_recommendation_block, format_recommendation_block_compact
-from .toroid_selection import recommend_cores
+from .toroid_display import format_winding_candidate_section
 
 # Injection points supplied by each filter module's display config:
 #   ComponentFormatter: value in F/H -> display string
@@ -265,20 +264,8 @@ def _extend_match_lines(lines: list[str], result: dict, match: MatchConfig, eser
 
 def _toroid_lines(result: dict, compact: bool, top_n: int) -> list[str]:
     """Build the toroid winding recommendation section (one block per inductor)."""
-    formatter = format_recommendation_block_compact if compact else format_recommendation_block
-    lines = [
-        "",
-        "Screened Toroid Winding Candidates (Iron-Powder T-Series)",
-        "-" * 55,
-    ]
-    if not compact:
-        lines.append("(Accuracy: A_L tolerance \u00b15% per spec; N rounding shown as %)")
-    lines.append("")
-    for i, value in enumerate(result["inductors"]):
-        recs = recommend_cores(value, result["freq_hz"], top_n=top_n)
-        lines.extend(formatter(f"L{i + 1}", value, result["freq_hz"], recs))
-        lines.append("")
-    return lines
+    targets = [(f"L{i + 1}", value) for i, value in enumerate(result["inductors"])]
+    return format_winding_candidate_section(targets, result["freq_hz"], compact, top_n)
 
 
 def _plot_lines(result: dict, config: LpHpDisplayConfig) -> list[str]:
