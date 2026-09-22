@@ -40,6 +40,7 @@ from filter_lib.shared.netlist_simulation import (
     solve_s21,
     solve_transducer_power_gain,
 )
+from filter_lib.shared.nodal_solver import make_transducer_gain_evaluator
 
 
 def test_netlist_facades_preserve_models_builders_solver_and_measurements():
@@ -248,6 +249,77 @@ class TestSolverSelfTests:
     def test_lossy_solver_rejects_invalid_values(self, branches, freqs, message):
         with pytest.raises(ValueError, match=message):
             solve_transducer_power_gain(1, branches, 50.0, 50.0, 1, 1, freqs)
+
+
+def _evaluator_circuit(category: str) -> tuple[int, list, int, int]:
+    if category == "lowpass":
+        circuit = build_named_circuit(_lp_result("chebyshev", 10e6, 50.0, 5, "pi"), category)
+    elif category == "highpass":
+        circuit = build_named_circuit(_hp_result("butterworth", 14e6, 50.0, 5, "t"), category)
+    else:
+        circuit = build_named_circuit(
+            calculate_bandpass_filter(14.175e6, 350e3, 50, 3, "butterworth", "top"), category
+        )
+    return circuit.n_nodes, circuit.branches(), circuit.in_node, circuit.out_node
+
+
+class TestTransducerGainEvaluator:
+    """The validate-once evaluator must be arithmetically identical to the list solver."""
+
+    @pytest.mark.parametrize("category", ["lowpass", "highpass", "bandpass"])
+    def test_matches_list_solver_exactly_on_dense_grid(self, category):
+        n_nodes, branches, in_node, out_node = _evaluator_circuit(category)
+        freqs = logspace(5, 8.5, 701)
+        evaluate = make_transducer_gain_evaluator(n_nodes, branches, 50.0, 75.0, in_node, out_node)
+
+        expected = solve_transducer_power_gain(
+            n_nodes, branches, 50.0, 75.0, in_node, out_node, freqs
+        )
+
+        assert [evaluate(frequency) for frequency in freqs] == expected
+
+    def test_matches_list_solver_exactly_through_decimal_fallback(self, monkeypatch):
+        from filter_lib.shared import nodal_solver
+
+        decimal_calls = []
+        real_decimal_solver = nodal_solver.solve_decimal_nodal
+
+        def counting_decimal_solver(*args):
+            decimal_calls.append(args)
+            return real_decimal_solver(*args)
+
+        monkeypatch.setattr(nodal_solver, "solve_decimal_nodal", counting_decimal_solver)
+        branches = [(1, 2, "R", 1e-9), (2, 0, "C", 1e-12), (2, 3, "L", 1e-6, 0.5)]
+        freqs = logspace(5, 9, 81)
+        evaluate = make_transducer_gain_evaluator(3, branches, 50.0, 50.0, 1, 3)
+
+        expected = solve_transducer_power_gain(3, branches, 50.0, 50.0, 1, 3, freqs)
+        list_decimal_calls = len(decimal_calls)
+        actual = [evaluate(frequency) for frequency in freqs]
+
+        assert list_decimal_calls == len(freqs)
+        assert len(decimal_calls) == 2 * len(freqs)
+        assert actual == expected
+
+    @pytest.mark.parametrize("frequency", [0.0, -1.0, math.nan, math.inf, True, "1e6"])
+    def test_rejects_invalid_frequency_with_list_solver_message(self, frequency):
+        evaluate = make_transducer_gain_evaluator(1, [(1, 0, "C", 1e-12)], 50.0, 50.0, 1, 1)
+        with pytest.raises(ValueError, match="frequencies must be positive and finite"):
+            evaluate(frequency)
+
+    @pytest.mark.parametrize(
+        "arguments, message",
+        [
+            ((0, [], 50.0, 50.0, 1, 1), "n_nodes must be a positive integer"),
+            ((1, [], 0.0, 50.0, 1, 1), "rs must be positive and finite"),
+            ((1, [], 50.0, math.inf, 1, 1), "rl must be positive and finite"),
+            ((1, [], 50.0, 50.0, 1, 2), "within 1..n_nodes"),
+            ((1, [(1, 2, "C", 1e-12)], 50.0, 50.0, 1, 1), "out of range"),
+        ],
+    )
+    def test_validates_circuit_once_at_construction(self, arguments, message):
+        with pytest.raises(ValueError, match=message):
+            make_transducer_gain_evaluator(*arguments)
 
 
 class TestNamedCircuitBuilders:

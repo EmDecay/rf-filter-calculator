@@ -1,6 +1,7 @@
 """Small-matrix AC nodal solver for passive RLC circuits."""
 
 import math
+from collections.abc import Callable
 
 from .branch_admittance import (
     _branch_admittance_at_frequency,
@@ -11,6 +12,8 @@ from .circuit_model import Branch
 from .decimal_nodal_solver import solve_decimal_nodal
 
 _DECIMAL_FALLBACK_LOG_RANGE = math.log(1e7)
+
+NormalisedBranch = tuple[int, int, str, float, float]
 
 
 def _finite_complex(value: complex) -> bool:
@@ -67,7 +70,7 @@ def _validate_and_normalise(
     in_node: int,
     out_node: int,
     freqs: list[float],
-) -> list[tuple[int, int, str, float, float]]:
+) -> list[NormalisedBranch]:
     if not isinstance(n_nodes, int) or isinstance(n_nodes, bool) or n_nodes < 1:
         raise ValueError("n_nodes must be a positive integer")
     if not is_finite_number(rs) or rs <= 0:
@@ -95,6 +98,52 @@ def _validate_and_normalise(
     return normalised
 
 
+def _output_voltage_at(
+    n_nodes: int,
+    normalised: list[NormalisedBranch],
+    rs: float,
+    rl: float,
+    in_node: int,
+    out_node: int,
+    frequency: float,
+) -> complex:
+    """Solve one frequency for branches already checked by ``_validate_and_normalise``."""
+    polar_stamps: list[tuple[int, int, float, complex]] = []
+    for n1, n2, kind, value, series_resistance in normalised:
+        log_magnitude, unit = _branch_admittance_at_frequency(
+            kind, value, frequency, series_resistance
+        )
+        polar_stamps.append((n1, n2, log_magnitude, unit))
+    source_log_admittance = -math.log(rs)
+    load_log_admittance = -math.log(rl)
+    polar_stamps.extend(
+        (
+            (in_node, 0, source_log_admittance, 1 + 0j),
+            (out_node, 0, load_log_admittance, 1 + 0j),
+        )
+    )
+    log_scale = max(log_magnitude for _n1, _n2, log_magnitude, _unit in polar_stamps)
+    if not math.isfinite(log_scale):
+        raise ValueError("nodal admittance scale must be positive and finite")
+    log_minimum = min(log_magnitude for _n1, _n2, log_magnitude, _unit in polar_stamps)
+    if log_scale - log_minimum >= _DECIMAL_FALLBACK_LOG_RANGE:
+        return solve_decimal_nodal(
+            n_nodes,
+            polar_stamps,
+            source_log_admittance,
+            in_node,
+            out_node,
+        )
+    matrix: list[list[complex]] = [[0j] * n_nodes for _ in range(n_nodes)]
+    for n1, n2, log_magnitude, unit in polar_stamps:
+        scaled_admittance = unit * math.exp(log_magnitude - log_scale)
+        _stamp(matrix, n1, n2, scaled_admittance)
+    rhs: list[complex] = [0j] * n_nodes
+    rhs[in_node - 1] = math.exp(source_log_admittance - log_scale)
+    voltages = _solve_complex_linear(matrix, rhs)
+    return voltages[out_node - 1]
+
+
 def _solve_output_voltages(
     n_nodes: int,
     branches: list[Branch],
@@ -105,46 +154,26 @@ def _solve_output_voltages(
     freqs: list[float],
 ) -> list[complex]:
     normalised = _validate_and_normalise(n_nodes, branches, rs, rl, in_node, out_node, freqs)
-    result: list[complex] = []
-    for frequency in freqs:
-        polar_stamps: list[tuple[int, int, float, complex]] = []
-        for n1, n2, kind, value, series_resistance in normalised:
-            log_magnitude, unit = _branch_admittance_at_frequency(
-                kind, value, frequency, series_resistance
-            )
-            polar_stamps.append((n1, n2, log_magnitude, unit))
-        source_log_admittance = -math.log(rs)
-        load_log_admittance = -math.log(rl)
-        polar_stamps.extend(
-            (
-                (in_node, 0, source_log_admittance, 1 + 0j),
-                (out_node, 0, load_log_admittance, 1 + 0j),
-            )
-        )
-        log_scale = max(log_magnitude for _n1, _n2, log_magnitude, _unit in polar_stamps)
-        if not math.isfinite(log_scale):
-            raise ValueError("nodal admittance scale must be positive and finite")
-        log_minimum = min(log_magnitude for _n1, _n2, log_magnitude, _unit in polar_stamps)
-        if log_scale - log_minimum >= _DECIMAL_FALLBACK_LOG_RANGE:
-            result.append(
-                solve_decimal_nodal(
-                    n_nodes,
-                    polar_stamps,
-                    source_log_admittance,
-                    in_node,
-                    out_node,
-                )
-            )
-            continue
-        matrix: list[list[complex]] = [[0j] * n_nodes for _ in range(n_nodes)]
-        for n1, n2, log_magnitude, unit in polar_stamps:
-            scaled_admittance = unit * math.exp(log_magnitude - log_scale)
-            _stamp(matrix, n1, n2, scaled_admittance)
-        rhs: list[complex] = [0j] * n_nodes
-        rhs[in_node - 1] = math.exp(source_log_admittance - log_scale)
-        voltages = _solve_complex_linear(matrix, rhs)
-        result.append(voltages[out_node - 1])
-    return result
+    return [
+        _output_voltage_at(n_nodes, normalised, rs, rl, in_node, out_node, frequency)
+        for frequency in freqs
+    ]
+
+
+def _transducer_gain_from_voltage(voltage: complex, rs: float, rl: float) -> float:
+    magnitude = abs(voltage)
+    if not math.isfinite(magnitude):
+        raise ValueError("output voltage magnitude must be finite")
+    if magnitude == 0:
+        return 0.0
+    log_gain = math.log(4.0) + (math.log(rs) - math.log(rl)) + 2.0 * math.log(magnitude)
+    try:
+        gain = math.exp(log_gain)
+    except OverflowError as error:
+        raise ValueError("transducer power gain is outside the finite numeric range") from error
+    if not math.isfinite(gain) or gain < 0:
+        raise ValueError("transducer power gain is outside the finite numeric range")
+    return gain
 
 
 def solve_transducer_power_gain(
@@ -158,23 +187,32 @@ def solve_transducer_power_gain(
 ) -> list[float]:
     """Return transducer power gain for finite, independently specified ports."""
     voltages = _solve_output_voltages(n_nodes, branches, rs, rl, in_node, out_node, freqs)
-    gains: list[float] = []
-    for voltage in voltages:
-        magnitude = abs(voltage)
-        if not math.isfinite(magnitude):
-            raise ValueError("output voltage magnitude must be finite")
-        if magnitude == 0:
-            gains.append(0.0)
-            continue
-        log_gain = math.log(4.0) + (math.log(rs) - math.log(rl)) + 2.0 * math.log(magnitude)
-        try:
-            gain = math.exp(log_gain)
-        except OverflowError as error:
-            raise ValueError("transducer power gain is outside the finite numeric range") from error
-        if not math.isfinite(gain) or gain < 0:
-            raise ValueError("transducer power gain is outside the finite numeric range")
-        gains.append(gain)
-    return gains
+    return [_transducer_gain_from_voltage(voltage, rs, rl) for voltage in voltages]
+
+
+def make_transducer_gain_evaluator(
+    n_nodes: int,
+    branches: list[Branch],
+    rs: float,
+    rl: float,
+    in_node: int,
+    out_node: int,
+) -> Callable[[float], float]:
+    """Validate a circuit once and return a single-frequency transducer-gain function.
+
+    Each call runs exactly the arithmetic of ``solve_transducer_power_gain`` for one
+    frequency, so results are bit-identical; only the per-call circuit validation and
+    branch normalisation are skipped.
+    """
+    normalised = _validate_and_normalise(n_nodes, branches, rs, rl, in_node, out_node, [])
+
+    def evaluate(frequency: float) -> float:
+        if not is_finite_number(frequency) or frequency <= 0:
+            raise ValueError("frequencies must be positive and finite")
+        voltage = _output_voltage_at(n_nodes, normalised, rs, rl, in_node, out_node, frequency)
+        return _transducer_gain_from_voltage(voltage, rs, rl)
+
+    return evaluate
 
 
 def solve_s21(

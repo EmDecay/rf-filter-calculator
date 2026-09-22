@@ -7,6 +7,7 @@ import pytest
 
 from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.lowpass.calculations import calculate_butterworth as lp_butterworth
+from filter_lib.shared.build_analysis import measure_calculated_and_nominal
 from filter_lib.shared.build_response import build_frequency_grid, measure_circuit
 from filter_lib.shared.build_simulation import (
     BuildConfig,
@@ -581,6 +582,26 @@ class TestBuildAnalysis:
             f"Edge/cutoff summaries omit {len(analysis.cases)} grid-boundary-censored "
             "screening cases; inspect their case records before extending the sweep."
         ) in analysis.limitations
+
+    @pytest.mark.parametrize(
+        "category, result",
+        [
+            ("lowpass", _lp_result(order=5)),
+            ("bandpass", calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top")),
+        ],
+    )
+    def test_calculated_and_nominal_helper_matches_full_analysis(self, category, result):
+        config = BuildConfig(inductor_q=60, capacitor_q=400, grid_points=201)
+        analysis = analyze_build(result, category, config)
+
+        measured = measure_calculated_and_nominal(result, category, config)
+
+        assert measured.config == analysis.config
+        assert measured.source_resistance_ohm == analysis.source_resistance_ohm
+        assert measured.load_resistance_ohm == analysis.load_resistance_ohm
+        assert measured.calculated == analysis.calculated
+        assert measured.nominal_realization == analysis.nominal_realization
+        assert measured.nominal_build == analysis.nominal_build == analysis.cases[0].measurement
 
     @pytest.mark.runtime_budget
     def test_default_analysis_runtime_is_bounded(self):

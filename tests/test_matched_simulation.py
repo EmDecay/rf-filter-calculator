@@ -16,8 +16,11 @@ from filter_lib.cli.bandpass_cmd import run as bandpass_run
 from filter_lib.cli.highpass_cmd import run as highpass_run
 from filter_lib.cli.lowpass_cmd import run as lowpass_run
 from filter_lib.lowpass.calculations import calculate_butterworth as lp_butterworth
+from filter_lib.shared.build_analysis import analyze_build
+from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.eseries import match_component
 from filter_lib.shared.matched_simulation import (
+    GRID_POINTS,
     CircuitMeasurement,
     MatchedSimSummary,
     _fmt_delta_pct,
@@ -113,12 +116,12 @@ class TestRunMatchedSimulation:
         calculated = CircuitMeasurement(None, 1.0, -3.0, False)
         nominal = CircuitMeasurement(None, 2.0, -3.0, False)
 
-        def fake_analyze_build(result, category, config):
+        def fake_measure(result, category, config):
             captured.update(result=result, category=category, config=config)
             return SimpleNamespace(calculated=calculated, nominal_build=nominal)
 
         monkeypatch.setattr(
-            "filter_lib.shared.matched_simulation.analyze_build", fake_analyze_build
+            "filter_lib.shared.matched_simulation.measure_calculated_and_nominal", fake_measure
         )
         result = _lp_result()
 
@@ -127,6 +130,7 @@ class TestRunMatchedSimulation:
         assert captured["result"] is result
         assert captured["category"] == "lowpass"
         assert captured["config"].eseries == "E96"
+        assert captured["config"].grid_points == 1201
         assert captured["config"].use_toroid_candidates is False
         assert summary.exact is calculated
         assert summary.matched is nominal
@@ -135,6 +139,32 @@ class TestRunMatchedSimulation:
         assert summary.deprecated is True
         assert summary.series == "E96"
         assert summary.uses_toroid_candidates is False
+
+    def test_facade_skips_tolerance_screening(self, monkeypatch):
+        def fail_screening(*_args, **_kwargs):
+            raise AssertionError("--sim-matched must not run tolerance screening")
+
+        monkeypatch.setattr("filter_lib.shared.build_analysis.run_screening_cases", fail_screening)
+
+        summary = run_matched_simulation(_lp_result(order=3), "lowpass", "E24")
+
+        assert summary.matched.f_high is not None
+
+    @pytest.mark.parametrize(
+        "category, result",
+        [
+            ("lowpass", _lp_result(order=5)),
+            ("bandpass", calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top")),
+        ],
+    )
+    def test_facade_measurements_equal_full_build_analysis(self, category, result):
+        config = BuildConfig(eseries="E24", grid_points=GRID_POINTS)
+        analysis = analyze_build(result, category, config)
+
+        summary = run_matched_simulation(result, category, "E24")
+
+        assert summary.calculated == analysis.calculated
+        assert summary.nominal_build == analysis.nominal_build
 
 
 class TestDisplayBlock:
