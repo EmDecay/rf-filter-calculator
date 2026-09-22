@@ -21,7 +21,7 @@ def test_lp_hp_csv_rejects_non_finite_component(formatter) -> None:
         "topology": "pi",
     }
 
-    with pytest.raises(ValueError, match="finite"):
+    with pytest.raises(ValueError, match=r"\$\.capacitors\[0\] must be finite"):
         formatter(result, include_toroids=False)
 
 
@@ -36,5 +36,5 @@ def test_bandpass_csv_rejects_non_finite_component() -> None:
     )
     result["c_tank"][0] = float("inf")
 
-    with pytest.raises(ValueError, match="finite"):
+    with pytest.raises(ValueError, match=r"\$\.tank_capacitors\[0\] must be finite"):
         format_bandpass_csv(result, include_toroids=False)

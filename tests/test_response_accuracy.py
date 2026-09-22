@@ -9,6 +9,7 @@ from filter_lib.bandpass.bandpass_design import calculate_bandpass_filter
 from filter_lib.bandpass.display import format_insertion_loss_line, format_validation_scope_lines
 from filter_lib.bandpass.formatters import format_json
 from filter_lib.bandpass.response_sweep import netlist_frequency_sweep
+from filter_lib.shared import response_refinement
 from filter_lib.shared.build_response import build_frequency_grid, measure_circuit
 from filter_lib.shared.build_types import BuildConfig, CircuitMeasurement, ScreeningCase
 from filter_lib.shared.circuit_builders import build_named_circuit
@@ -140,6 +141,38 @@ def test_refinement_resolves_interior_dip_and_reports_budget_exhaustion():
     assert len(resolved.regions) == 2
     exhausted = refine_response(response, grid, (9, 11), frequency_scale=2, max_passes=1)
     assert not exhausted.converged
+
+
+def test_refinement_keeps_meshing_while_worst_passband_gain_changes():
+    """A 1 dB dip between initial grid points changes the worst gain on the second mesh."""
+
+    def response(f):
+        return -math.exp(-(((f - 2.5) / 0.05) ** 2))
+
+    two_meshes = refine_response(response, [1, 2, 3, 4, 5], (1, 5), frequency_scale=4, max_passes=2)
+    three_meshes = refine_response(response, [1, 2, 3, 4, 5], (1, 5), frequency_scale=4)
+
+    assert not two_meshes.converged
+    assert three_meshes.converged
+    assert three_meshes.worst_db == pytest.approx(-1.0, rel=1e-12, abs=0)
+
+
+@pytest.mark.parametrize(
+    ("edge_shift_fraction", "agrees"), [(0.9e-5, True), (1.1e-5, False)], ids=["inside", "outside"]
+)
+def test_successive_meshes_agree_only_within_the_band_edge_tolerance(edge_shift_fraction, agrees):
+    """Band edges must match to 1e-5 of the frequency scale before refinement stops."""
+    scale = 4.0
+    previous = refine_response(
+        lambda f: -((f - 3) ** 2), [1, 2, 3, 4, 5], (2, 4), frequency_scale=scale
+    )
+    low, high = previous.regions[0]
+    current = replace(previous, regions=((low, high + edge_shift_fraction * scale),))
+
+    assert response_refinement._agrees(previous, current, scale) is agrees
+
+
+def test_screening_summaries_omit_unresolved_measurements():
     good = CircuitMeasurement(9, 11, -3, False, 0)
     cases = (
         ScreeningCase("good", (), good),
@@ -275,8 +308,14 @@ def test_crossing_equality_invalid_brackets_and_nonfinite_responses():
     assert refine_crossing(lambda f: -f, 1, 2, -2, 1e-6) == 2
     with pytest.raises(ValueError, match="bracket"):
         refine_crossing(lambda f: -f, 1, 2, -3, 1e-6)
+    with pytest.raises(ValueError, match="finite and ordered"):
+        refine_crossing(lambda f: -f, 2, 1, -1.5, 1e-6)
+    with pytest.raises(ValueError, match="finite and ordered"):
+        refine_crossing(lambda f: -f, 1, 2, -1.5, 0)
     with pytest.raises(ValueError, match="finite"):
         refine_crossing(lambda f: math.nan, 1, 2, -1, 1e-6)
+    with pytest.raises(ValueError, match="crossing response must be finite"):
+        refine_crossing(lambda f: -f if f in (1, 2) else math.nan, 1, 2, -1.5, 1e-6)
     with pytest.raises(ValueError, match="finite"):
         refine_response(lambda f: math.inf, [1, 2], (1, 2), frequency_scale=1)
 

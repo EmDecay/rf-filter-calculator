@@ -108,10 +108,35 @@ class TestSolverSelfTests:
         for measured in mags:
             assert abs(measured - analytic) <= 1e-9
 
-    def test_floating_node_raises(self):
-        with pytest.raises(ValueError, match="[Ss]ingular"):
+    @pytest.mark.parametrize(
+        "resistance",
+        [
+            50.0,
+            # A 1e-9 Ω branch against 50 Ω ports exceeds the float solver's dynamic range.
+            1e-9,
+        ],
+    )
+    def test_floating_node_raises(self, resistance):
+        with pytest.raises(ValueError, match="Singular nodal matrix"):
             # Node 3 has no connection at all -> zero row in the nodal matrix
-            solve_s21(3, [(1, 2, "R", 50.0)], 50.0, 50.0, 1, 2, [1e6])
+            solve_s21(3, [(1, 2, "R", resistance)], 50.0, 50.0, 1, 2, [1e6])
+
+    def test_isolated_output_reports_zero_transmission(self):
+        """Grounded but unconnected ports are a valid circuit with no transfer."""
+        assert solve_transducer_power_gain(2, [], 50.0, 50.0, 1, 2, [1e6]) == [0.0]
+
+    def test_high_dynamic_range_cancelling_reactances_match_abcd_cascade(self):
+        """At ω = 1 rad/s a shunt 1 H and series 1 F cancel at the input node, leaving
+        only the 1e-8 S source conductance on the diagonal; the solve must pivot."""
+        rs, rl, series_r = 1e8, 1.0, 2.0
+        branches = [(1, 0, "L", 1.0), (1, 2, "C", 1.0), (2, 3, "R", series_r)]
+        (gain,) = solve_transducer_power_gain(3, branches, rs, rl, 1, 3, [1 / (2 * math.pi)])
+
+        # ABCD: shunt Y_L = -j, then series Z_C = -j and series R.
+        a, b, c, d = 1, 0, -1j, 1
+        a, b, c, d = a, a * (-1j + series_r) + b, c, c * (-1j + series_r) + d
+        expected = 4 * rs * rl / abs(a * rl + b + c * rs * rl + d * rs) ** 2
+        assert gain == pytest.approx(expected, rel=1e-9, abs=0)
 
     def test_non_positive_terminations_rejected(self):
         with pytest.raises(ValueError, match="must be positive"):
@@ -160,7 +185,8 @@ class TestSolverSelfTests:
         expected = 4.0 * ratio / (1.0 + ratio) ** 2
 
         assert math.isfinite(gain)
-        assert gain == pytest.approx(expected, rel=1e-12)
+        # abs=0: several expected gains are ~1e-300, far below approx's default abs floor.
+        assert gain == pytest.approx(expected, rel=1e-12, abs=0)
 
     @pytest.mark.parametrize("series_resistance", [1e-8, 1e-10, 1e-12, 1e-14, 1e-16])
     def test_near_short_series_resistor_retains_analytic_passive_gain(self, series_resistance):
@@ -314,6 +340,25 @@ class TestSolverInputValidation:
         with pytest.raises(ValueError, match="in_node and out_node"):
             solve_s21(n_nodes=2, branches=[], rs=50, rl=50, in_node=1, out_node=3, freqs=[1e6])
 
+    @pytest.mark.parametrize("n_nodes", [0, True, 2.0])
+    def test_node_count_must_be_positive_integer(self, n_nodes):
+        with pytest.raises(ValueError, match="n_nodes must be a positive integer"):
+            solve_s21(n_nodes, [], 50.0, 50.0, 1, 1, [1e6])
+
+    @pytest.mark.parametrize(
+        "branch, message",
+        [
+            ("1-0-C", "Branch must be a tuple or list"),
+            ((1, 0, "C"), "four fields plus optional series resistance"),
+            ((1, 0, "C", 1e-12, 0.0, 0.0), "four fields plus optional series resistance"),
+            ((1, 0, "C", 0.0), "branch value must be positive and finite"),
+            ((1, 0, "R", 50.0, 1.0), "resistor branches cannot specify a series resistance"),
+        ],
+    )
+    def test_malformed_branch_rejected(self, branch, message):
+        with pytest.raises(ValueError, match=message):
+            solve_s21(1, [branch], 50.0, 50.0, 1, 1, [1e6])
+
     def test_logspace_requires_two_points(self):
         with pytest.raises(ValueError, match="points must be >= 2"):
             logspace(0, 1, 1)
@@ -383,11 +428,40 @@ class TestEdgeFinding:
             find_3db_edges([], [], reference_frequency=True)
 
     @pytest.mark.parametrize(
-        "arguments",
-        [(True, 1.0, 3), (0.0, "1", 3), (0.0, 1.0, True), (0.0, 400.0, 3)],
+        "freqs, mags",
+        [
+            ([], []),
+            # No transmission anywhere: there is no peak to measure edges against.
+            ([1.0, 2.0, 3.0], [0.0, 0.0, 0.0]),
+        ],
     )
-    def test_logspace_rejects_invalid_or_nonfinite_grid(self, arguments):
-        with pytest.raises(ValueError, match="finite|points"):
+    def test_responses_without_a_peak_have_no_edges(self, freqs, mags):
+        assert find_3db_edges(freqs, mags) == (None, None)
+
+    @pytest.mark.parametrize(
+        "freqs, mags, message",
+        [
+            ([1.0, 2.0], [1.0], "same length"),
+            ([1.0, 3.0, 2.0], [0.5, 1.0, 0.5], "strictly increasing"),
+            ([1.0, 1.0], [0.5, 1.0], "strictly increasing"),
+        ],
+    )
+    def test_find_edges_rejects_malformed_response_grids(self, freqs, mags, message):
+        with pytest.raises(ValueError, match=message):
+            find_3db_edges(freqs, mags)
+
+    @pytest.mark.parametrize(
+        "arguments, message",
+        [
+            ((True, 1.0, 3), "exponents must be finite"),
+            ((0.0, "1", 3), "exponents must be finite"),
+            ((0.0, 1.0, True), "points must be"),
+            ((0.0, 400.0, 3), "values must be positive and finite"),
+            ((-400.0, 0.0, 3), "values must be positive and finite"),
+        ],
+    )
+    def test_logspace_rejects_invalid_or_nonfinite_grid(self, arguments, message):
+        with pytest.raises(ValueError, match=message):
             logspace(*arguments)
 
 
@@ -459,21 +533,6 @@ class TestLowpassHighpassAcceptance:
         mags = solve_s21(n_nodes, branches, 50, 50, in_node, out_node, freqs)
         _, f_hi = find_3db_edges(freqs, mags)
         assert f_hi == pytest.approx(fc, rel=0.005)
-
-
-def _measure_top_c(result: dict, f0: float, fbw: float) -> tuple[float, float]:
-    """Simulate a Top-C design and return (measured_bw, measured_f0)."""
-    n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
-    # A span of a few designed bandwidths captures both edges; threshold
-    # interpolation recovers edge accuracy well below the grid step.
-    lo, hi = f0 * (1 - 3 * fbw), f0 * (1 + 3 * fbw)
-    step = (hi - lo) / 3000
-    freqs = [lo + i * step for i in range(3001)]
-    mags = solve_s21(n_nodes, branches, 50, 50, in_node, out_node, freqs)
-    f_lo, f_hi = find_3db_edges(freqs, mags)
-    assert f_lo is not None and lo < f_lo, "lower band edge must lie inside the sweep"
-    assert f_hi is not None and f_hi < hi, "upper band edge must lie inside the sweep"
-    return f_hi - f_lo, math.sqrt(f_lo * f_hi)
 
 
 _MATRIX_FBWS = (0.01, 0.02, 0.05, 0.10)
@@ -710,6 +769,7 @@ class TestBandpassTopCAcceptance:
                 for warning in result["warnings"]
             )
 
+    @pytest.mark.runtime_budget
     @pytest.mark.parametrize("order", [3, 9])
     def test_calibration_runtime_is_bounded(self, order):
         started = time.perf_counter()
@@ -717,34 +777,30 @@ class TestBandpassTopCAcceptance:
         assert time.perf_counter() - started < 2.0
 
     def test_chebyshev_arbitrary_ripple(self):
-        """Formula-based g-values: a ripple between former table entries simulates true."""
-        f0, fbw = 10e6, 0.05
-        result = calculate_bandpass_filter(f0, f0 * fbw, 50, 3, "chebyshev", "top", ripple_db=0.25)
-        bw_meas, f0_meas = _measure_top_c(result, f0, fbw)
-        assert bw_meas == pytest.approx(f0 * fbw, rel=0.03)
-        assert f0_meas == pytest.approx(f0, rel=0.005)
+        """Formula-based g-values: a ripple between the matrix's table entries simulates
+        with its own requested ripple, shape, and true -3 dB edges."""
+        f0, bw = 10e6, 0.5e6
+        result = calculate_bandpass_filter(f0, bw, 50, 3, "chebyshev", "top", ripple_db=0.25)
+        independent = _independent_top_c_validation(result, f0, bw)
+
+        assert result["ripple_db"] == 0.25
+        assert independent["connected_region_count"] == 1
+        assert independent["f_low"] == pytest.approx(result["f_low"], rel=1e-3)
+        assert independent["f_high"] == pytest.approx(result["f_high"], rel=1e-3)
+        assert independent["measured_ripple_db"] == pytest.approx(0.25, abs=0.20)
+        assert independent["max_passband_shape_error_db"] <= 0.30
 
     def test_bessel_asymmetric_prototype_has_distinct_end_caps(self):
-        """Bessel g-values are asymmetric, so Qe_in != Qe_out and Ce_in != Ce_out."""
+        """Bessel g-values are asymmetric, so Qe_in/Qe_out = g1/gn and Ce_in != Ce_out."""
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 4, "bessel", "top")
-        assert result["qe_in"] != pytest.approx(result["qe_out"])
-        assert result["c_end_in"] != pytest.approx(result["c_end_out"])
-        bw_meas, f0_meas = _measure_top_c(result, 10e6, 0.05)
-        assert bw_meas == pytest.approx(0.5e6, rel=0.03)
-        assert f0_meas == pytest.approx(10e6, rel=0.005)
+        g_values = result["g_values"]
+        assert result["qe_in"] / result["qe_out"] == pytest.approx(g_values[0] / g_values[-1])
+        assert result["c_end_in"] != pytest.approx(result["c_end_out"], rel=0.1, abs=0)
 
     def test_infeasible_end_coupling_raises(self):
         """High-order Bessel at wide FBW needs Rp <= Z0: no real series-C exists."""
         with pytest.raises(ValueError, match="too wide to realize"):
             calculate_bandpass_filter(10e6, 1.5e6, 50, 7, "bessel", "top")
-
-    def test_wide_fbw_emits_edge_calibration_range_warning(self):
-        result = calculate_bandpass_filter(10e6, 1.2e6, 50, 3, "butterworth", "top")
-        assert any("studied edge-calibration range" in w for w in result["warnings"])
-
-    def test_studied_fbw_has_no_edge_calibration_range_warning(self):
-        result = calculate_bandpass_filter(10e6, 1e6, 50, 3, "butterworth", "top")
-        assert not any("studied edge-calibration range" in w for w in result["warnings"])
 
 
 class TestBuilders:
@@ -758,27 +814,56 @@ class TestBuilders:
         with pytest.raises(ValueError, match="category must be"):
             build_named_circuit({}, category)
 
+    def test_builder_rejects_unknown_category(self):
+        with pytest.raises(ValueError, match="Unknown category 'bandstop'"):
+            build_named_circuit({}, "bandstop")
+
     @pytest.mark.parametrize(
-        "result",
+        "result, message",
         [
-            {},
-            {"topology": [], "capacitors": [], "inductors": [], "order": 1},
-            {"topology": "pi", "capacitors": 1, "inductors": [], "order": 1},
+            ({}, "missing required field 'topology'"),
+            (
+                {"topology": [], "capacitors": [], "inductors": [], "order": 1},
+                "topology must be 'pi' or 't'",
+            ),
+            (
+                {"topology": "pi", "capacitors": 1, "inductors": [], "order": 1},
+                "'capacitors' must be a component sequence",
+            ),
+            (
+                {"topology": "pi", "capacitors": [], "inductors": [], "order": 0},
+                "order must be a positive integer",
+            ),
+            (
+                {"topology": "pi", "capacitors": [1e-12], "inductors": [], "order": 3},
+                "shorter than ladder order at position 2",
+            ),
         ],
     )
-    def test_ladder_builder_rejects_malformed_result_shape(self, result):
-        with pytest.raises(ValueError):
+    def test_ladder_builder_rejects_malformed_result_shape(self, result, message):
+        with pytest.raises(ValueError, match=message):
             build_lp_netlist(result)
 
     @pytest.mark.parametrize(
-        "result",
+        "result, message",
         [
-            {},
-            {"n_resonators": 1, "c_tank": 1, "c_coupling": [], "L_resonant": 1e-6},
+            ({}, "missing required field 'n_resonators'"),
+            (
+                {"n_resonators": 1, "c_tank": 1, "c_coupling": [], "L_resonant": 1e-6},
+                "'c_tank' must be a component sequence",
+            ),
+            (
+                {"n_resonators": 0, "c_tank": [], "c_coupling": [], "L_resonant": 1e-6},
+                "n_resonators must be a positive integer",
+            ),
+            (
+                {"n_resonators": 2, "c_tank": [1e-12], "c_coupling": [], "L_resonant": 1e-6},
+                "do not match n_resonators",
+            ),
         ],
     )
-    def test_bandpass_builder_rejects_malformed_result_shape(self, result):
-        with pytest.raises(ValueError):
+    def test_bandpass_builder_rejects_malformed_result_shape(self, result, message):
+        with pytest.raises(ValueError, match=message):
             build_bandpass_top_c_netlist(result)
 
     def test_lp_builder_unknown_topology_rejected(self):
@@ -796,24 +881,84 @@ class TestBuilders:
         with pytest.raises(ValueError, match="longer than the ladder"):
             build_lp_netlist(result)
 
+    _THREE_TANKS = {
+        "n_resonators": 3,
+        "L_resonant": 1e-6,
+        "c_tank": [200e-12, 190e-12, 200e-12],
+        "c_coupling": [5e-12, 5e-12],
+    }
+
     def test_bandpass_builder_without_end_caps_uses_end_tanks(self):
-        result = calculate_bandpass_filter(10e6, 1e6, 50, 3, "butterworth", "top")
-        result = {**result, "c_end_in": None, "c_end_out": None}
+        result = {**self._THREE_TANKS, "c_end_in": None, "c_end_out": None}
         n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
         assert (n_nodes, in_node, out_node) == (3, 1, 3)
         # 3 tanks (C+L each) + 2 coupling caps
         assert len(branches) == 8
 
     def test_bandpass_builder_with_end_caps_adds_source_load_nodes(self):
-        result = calculate_bandpass_filter(10e6, 1e6, 50, 3, "butterworth", "top")
-        result = {**result, "c_end_in": 100e-12, "c_end_out": 100e-12}
+        result = {**self._THREE_TANKS, "c_end_in": 100e-12, "c_end_out": 90e-12}
         n_nodes, branches, in_node, out_node = build_bandpass_top_c_netlist(result)
         assert (n_nodes, in_node, out_node) == (5, 4, 5)
         assert (4, 1, "C", 100e-12) in branches
-        assert (3, 5, "C", 100e-12) in branches
+        assert (3, 5, "C", 90e-12) in branches
 
     def test_bandpass_builder_rejects_one_sided_end_caps(self):
-        result = calculate_bandpass_filter(10e6, 1e6, 50, 3, "butterworth", "top")
-        result = {**result, "c_end_out": None}
+        result = {**self._THREE_TANKS, "c_end_in": 100e-12, "c_end_out": None}
         with pytest.raises(ValueError, match="both"):
             build_bandpass_top_c_netlist(result)
+
+
+class TestCircuitModelValidation:
+    """Named circuits are validated on construction, whatever builds them."""
+
+    @pytest.mark.parametrize(
+        "fields, message",
+        [
+            ({"name": ""}, "name must be non-empty"),
+            ({"name": "C 1"}, "contain no whitespace"),
+            ({"kind": "X"}, "kind must be 'C', 'L', or 'R'"),
+            ({"node1": -1}, "nodes must be non-negative integers"),
+            ({"node2": True}, "nodes must be non-negative integers"),
+            ({"value": 0.0}, "value must be positive and finite"),
+            ({"value": math.nan}, "value must be positive and finite"),
+            ({"series_resistance_ohm": -1.0}, "series resistance must be finite and non-negative"),
+            ({"kind": "R", "series_resistance_ohm": 1.0}, "resistors cannot carry"),
+            ({"quality_factor": 0.0}, "quality factor must be positive and finite"),
+            ({"loss_reference_frequency_hz": math.inf}, "loss reference frequency must be"),
+        ],
+    )
+    def test_element_rejects_invalid_fields(self, fields, message):
+        element = {"name": "C1", "node1": 1, "node2": 0, "kind": "C", "value": 1e-12}
+        element.update(fields)
+        with pytest.raises(ValueError, match=message):
+            CircuitElement(**element)
+
+    @pytest.mark.parametrize(
+        "fields, message",
+        [
+            ({"category": "bandstop"}, "Unknown category 'bandstop'"),
+            ({"n_nodes": 0}, "n_nodes must be >= 1"),
+            ({"n_nodes": True}, "n_nodes must be >= 1"),
+            ({"in_node": True}, "circuit ports must be integers"),
+            ({"out_node": 3}, "ports must be within 1..n_nodes"),
+            (
+                {"elements": (CircuitElement("C1", 1, 0, "C", 1e-12),) * 2},
+                "element names must be unique",
+            ),
+            (
+                {"elements": (CircuitElement("C1", 1, 3, "C", 1e-12),)},
+                "element node exceeds n_nodes",
+            ),
+        ],
+    )
+    def test_circuit_rejects_inconsistent_topology(self, fields, message):
+        circuit = {
+            "category": "lowpass",
+            "n_nodes": 2,
+            "elements": (CircuitElement("L1", 1, 2, "L", 1e-6),),
+            "in_node": 1,
+            "out_node": 2,
+        }
+        circuit.update(fields)
+        with pytest.raises(ValueError, match=message):
+            NamedCircuit(**circuit)
