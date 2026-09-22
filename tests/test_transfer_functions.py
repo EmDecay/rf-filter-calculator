@@ -13,6 +13,7 @@ import pytest
 
 from filter_lib.highpass import transfer as hp_transfer
 from filter_lib.lowpass import transfer as lp_transfer
+from filter_lib.shared.cli_aliases import FILTER_TYPE_ALIASES
 from filter_lib.shared.transfer_functions import (
     chebyshev_polynomial,
     generate_frequency_points,
@@ -352,13 +353,29 @@ class TestFrequencyResponseWrappers:
         expected = [20 * math.log10(_REFERENCES[family](r, 5)) for r in prototype_ratios]
         assert response_db == pytest.approx(expected, abs=1e-9)
 
+    @pytest.mark.parametrize("module", [lp_transfer, hp_transfer], ids=["lowpass", "highpass"])
+    @pytest.mark.parametrize(
+        "alias",
+        sorted(FILTER_TYPE_ALIASES) + [alias.upper() for alias in sorted(FILTER_TYPE_ALIASES)],
+    )
+    def test_every_shared_alias_matches_its_canonical_name(self, module, alias):
+        freqs = [0.3 * FC, FC, 3.0 * FC]
+        canonical = FILTER_TYPE_ALIASES[alias.lower()]
+
+        assert module.frequency_response(alias, freqs, FC, 5, 0.5) == module.frequency_response(
+            canonical, freqs, FC, 5, 0.5
+        )
+
     def test_deep_stopband_is_floored_at_minus_120_db(self):
         assert lp_transfer.frequency_response("bw", [1000 * FC], FC, 9) == [-120.0]
         assert hp_transfer.frequency_response("bw", [0.0, FC / 1000], FC, 9) == [-120.0, -120.0]
 
     @pytest.mark.parametrize("module", [lp_transfer, hp_transfer], ids=["lowpass", "highpass"])
     def test_validates_definition_even_for_an_empty_grid(self, module):
-        with pytest.raises(ValueError, match="Unknown filter type"):
+        with pytest.raises(
+            ValueError,
+            match=r"Unknown filter type 'elliptic'; expected one of butterworth, chebyshev, bessel",
+        ):
             module.frequency_response("elliptic", [], FC, 3)
         with pytest.raises(ValueError, match="positive and finite"):
             module.frequency_response("bw", [], 0.0, 3)

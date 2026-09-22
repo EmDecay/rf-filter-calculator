@@ -16,6 +16,10 @@ from ..shared.transfer_functions import (
     magnitude_to_db,
     validate_frequency_sequence,
 )
+from ..shared.transfer_response_dispatch import (
+    _CANONICAL_LP_HP_TYPES,
+    _canonicalize_filter_type,
+)
 
 
 def butterworth_response(freq_hz: float, cutoff_hz: float, order: int) -> float:
@@ -49,7 +53,8 @@ def frequency_response(
     """Calculate frequency response in dB for a list of frequencies.
 
     Args:
-        filter_type: 'butterworth'/'bw', 'chebyshev'/'ch', or 'bessel'/'bs'
+        filter_type: 'butterworth', 'chebyshev', 'bessel', or any
+            ``FILTER_TYPE_ALIASES`` key (bw/b, ch/c, bs), case-insensitive
         freqs: Frequencies to evaluate, in Hz
         cutoff_hz: Cutoff frequency in Hz (ripple-band edge for Chebyshev)
         order: Filter order
@@ -64,24 +69,21 @@ def frequency_response(
     if not isinstance(filter_type, str):
         raise ValueError("filter_type must be a string")
     freqs = validate_frequency_sequence(freqs)
-    filter_type = filter_type.lower()
-    if filter_type in ("butterworth", "bw"):
+    filter_type = _canonicalize_filter_type(filter_type, _CANONICAL_LP_HP_TYPES)
+    if filter_type == "butterworth":
 
         def response_fn(f: float) -> float:
             return butterworth_response(f, cutoff_hz, order)
 
-    elif filter_type in ("chebyshev", "ch"):
+    elif filter_type == "chebyshev":
 
         def response_fn(f: float) -> float:
             return chebyshev_response(f, cutoff_hz, order, ripple_db)
 
-    elif filter_type in ("bessel", "bs"):
+    else:
 
         def response_fn(f: float) -> float:
             return bessel_response(f, cutoff_hz, order)
-
-    else:
-        raise ValueError(f"Unknown filter type: {filter_type}")
 
     response_fn(1.0)
     return [magnitude_to_db(response_fn(f)) for f in freqs]

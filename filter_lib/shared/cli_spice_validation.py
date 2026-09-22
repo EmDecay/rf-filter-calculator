@@ -21,9 +21,10 @@ def validate_spice_mode(args: Namespace) -> None:
         if value is not None
     ]
     if unused:
+        verb = "affects" if len(unused) == 1 else "affect"
         usage_error(
             args,
-            f"{', '.join(unused)} affect tolerance analysis, not a SPICE deck; use --sim-build",
+            f"{', '.join(unused)} {verb} tolerance analysis, not a SPICE deck; use --sim-build",
         )
     realization = getattr(args, "spice_realization", None) or "nominal-build"
     if realization == "exact":

@@ -340,7 +340,14 @@ def find_parallel_combo(
             # Check ratio constraint
             if max(v1, v2) / min(v1, v2) > ratio_limit:
                 continue
-            parallel_val = 1.0 / (1.0 / v1 + 1.0 / v2)
+            # 1/v overflows for subnormal parts, so evaluate 1/(1/v1 + 1/v2) on values
+            # scaled by an exact power of two. Scaling commutes with every rounding in
+            # the normal range, so the result is bit-identical to the unscaled formula
+            # wherever that formula stays in range; v2/v1 is bounded by ratio_limit.
+            _, exponent = math.frexp(v1)
+            scaled_v1 = math.ldexp(v1, -exponent)
+            scaled_v2 = math.ldexp(v2, -exponent)
+            parallel_val = math.ldexp(1.0 / (1.0 / scaled_v1 + 1.0 / scaled_v2), exponent)
             err = abs(_error_pct(parallel_val, target))
             if err < best_error:
                 best_error = err

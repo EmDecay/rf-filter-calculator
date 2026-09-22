@@ -1,7 +1,10 @@
 """Tests for input parsing and validation functions."""
 
+import sys
+
 import pytest
 
+from filter_lib.cli import main
 from filter_lib.shared.parsing import parse_frequency, parse_impedance, parse_inductance
 
 
@@ -192,3 +195,30 @@ class TestParseInductance:
 def test_parsers_require_text_input(parser, label, value):
     with pytest.raises(ValueError, match=f"^{label} must be supplied as text$"):
         parser(value)
+
+
+@pytest.mark.parametrize(
+    ("parser", "text", "label"),
+    [
+        (parse_frequency, "1e1000000000", "Frequency"),
+        (parse_frequency, "1e999999GHz", "Frequency"),
+        (parse_impedance, "1e999999k", "Impedance"),
+        (parse_inductance, "1e1000000000", "Inductance"),
+    ],
+)
+def test_decimal_context_overflow_is_a_clear_value_error(parser, text, label):
+    """Exponents beyond the decimal context overflow before binary64 conversion."""
+    with pytest.raises(ValueError, match=f"^{label} must be positive and finite: {text}$"):
+        parser(text)
+
+
+def test_cli_reports_decimal_overflow_as_one_line_usage_error(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["filter-calc", "lp", "bw", "pi", "1e1000000000"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+
+    captured = capsys.readouterr()
+    assert exit_info.value.code == 1
+    assert captured.out == ""
+    assert captured.err == "Error: Frequency must be positive and finite: 1e1000000000\n"

@@ -181,7 +181,8 @@ def _validate_build_mode(args: Namespace) -> None:
         usage_error(args, f"{flag} requires selected nominal capacitor values; remove --no-match")
     explicit = _enabled_build_options(args)
     if explicit and not sim_build and output_format != "spice":
-        usage_error(args, f"{', '.join(explicit)} require --sim-build or --format spice")
+        verb = "requires" if len(explicit) == 1 else "require"
+        usage_error(args, f"{', '.join(explicit)} {verb} --sim-build or --format spice")
     if spice_realization is not None and output_format != "spice":
         usage_error(args, "--spice-realization requires --format spice")
     if output_format == "spice":

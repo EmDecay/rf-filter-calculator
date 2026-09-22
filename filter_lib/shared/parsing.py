@@ -23,6 +23,9 @@ def _parse_scaled_positive(
         scaled = Decimal(number_text) * Decimal(str(multiplier))
     except (InvalidOperation, ValueError) as error:
         raise ValueError(f"Invalid {label.lower()}: {original}") from error
+    except ArithmeticError as error:
+        # Any other decimal signal is an exponent beyond the decimal context (Overflow).
+        raise ValueError(f"{label} must be positive and finite: {original}") from error
     if not scaled.is_finite() or scaled <= 0:
         raise ValueError(f"{label} must be positive: {original}")
     try:
