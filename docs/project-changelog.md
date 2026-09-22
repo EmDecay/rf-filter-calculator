@@ -1,5 +1,19 @@
 # Project Changelog
 
+## Unreleased — 2026-09-22 — Wizard Toroid Output
+
+- Wizard table output for lowpass, highpass, and bandpass now includes the screened toroid
+  winding candidates. It previously omitted them even though wizard JSON and CSV output
+  included them. The saved text file follows the on-screen output.
+- Output Options adds **Toroid Winding Detail**: Full (default, up to three candidates, as
+  `--toroid-full`) or Compact (one line for the best candidate, as `--toroid-compact`).
+- Realized-build substitution lines now show winding wire gauge and length, for example
+  `on T68-2, 12 turns of AWG 14 (278 mm)`. Build JSON substitution records add `wire_awg`
+  and `wire_length_mm`, which are `null` when no screened winding was used. This applies to
+  both the CLI `--sim-build` and the wizard.
+- CLI table and toroid output are unchanged. CLI and wizard now share one toroid-section
+  formatter.
+
 ## Unreleased — 2026-09-07 — Response Measurement Accuracy
 
 - Build analysis now evaluates requested passband boundaries, refines extrema and half-power

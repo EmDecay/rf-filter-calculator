@@ -410,6 +410,11 @@ Configure output format and display options:
 │ ☐ Raw units (Farads/Henries)│
 │ ☐ Quiet mode (minimal)      │
 │                              │
+│ Toroid Winding Detail        │
+│ (table output):              │
+│ ❯ Full (up to 3 cores)      │
+│   Compact (best, one line)  │
+│                              │
 │ Realized-Build Analysis:     │
 │ ☐ Analyze nominal parts and │
 │   bounded tolerances         │
@@ -434,6 +439,8 @@ View calculated filter components:
 │ - Circuit topology diagram   │
 │ - Component table            │
 │ - E-series recommendations   │
+│ - Toroid winding candidates  │
+│   (Full or Compact)          │
 │ - Frequency plot (if chosen  │
 │   on Output Options screen)  │
 │                              │
@@ -665,20 +672,23 @@ the calculator does not fill the list with unqualified cores.
 
 ### Default text output (top-1 core)
 
+```bash
+uv run filter-calc lp bw pi 10MHz
 ```
+
+```text
 Screened Toroid Winding Candidates (Iron-Powder T-Series)
 -------------------------------------------------------
-(Integer turns, published frequency guidance, and winding capacity only)
+(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)
 
-  L1 target: 1.29 µH  (design freq 10 MHz)
+  L1 target: 1.59 µH  (design freq 10 MHz)
   ────────────────────────────────────────────────────────────
-  1. T68-2  (Red/Clear, mix 2, 95 ppm/°C)
-     Turns: 15 of AWG 20   Actual L: 1.28 µH  (-0.40%)
-     L range (A_L ±5%): 1.22 µH – 1.35 µH
-     Wire: 294 mm of AWG 20 (0.812 mm)   DCR: 9.5 mΩ
-     Wire-only ωL/Rdc diagnostic ceiling: 8,450 @ 10 MHz
-     RF Q / SRF / power: not assessed
-     Dims: 17.50 × 9.40 × 4.83 mm (OD × ID × H)
+  1. T50-2 screened candidate  (Red/Clear, mix 2, 95 ppm/°C)
+     Turns: 18 of AWG 20   Actual L: 1.59 µH  (-0.25%)
+     L range (A_L ±5%): 1.51 µH – 1.67 µH
+     Wire: 311 mm of AWG 20 (0.800 mm)   DCR: 12.1 mΩ   Capacity: manufacturer_single_layer
+     Wire-only ωL/Rdc ceiling: 8,210 @ 10 MHz; RF Q: not assessed; SRF/power: not assessed/not assessed
+     Dims: 12.70 × 7.70 × 4.83 mm (OD × ID × H); data: primary_verified (Micrometals, Inc.)
 ```
 
 ### Full output: show top-3 (`--toroid-full`)
@@ -687,17 +697,43 @@ Use `--toroid-full` to show up to three qualified cores in table format.
 
 ### Compact output (`--toroid-compact`)
 
-```
-  L1 target: 1.29 µH @ 10 MHz
-  1. T68-2    N=15 AWG20 L=1.283µH (-0.40%) Rdc=10mΩ ωL/Rdc≤8,450
+```bash
+uv run filter-calc lp bw pi 10MHz --toroid-compact
 ```
 
-Use `--toroid-compact` for one line per qualified candidate in table output.
+```text
+  L1 target: 1.59 µH @ 10 MHz
+  1. T50-2    N=18 AWG20 L=1.588µH (-0.25%) Rdc=12mΩ ωL/Rdc≤8,210 [RF Q/SRF/power not assessed]
+```
+
+`--toroid-compact` prints one line for the best qualified candidate in table output. It
+cannot be combined with `--toroid-full`.
 
 ### Disable toroid output (`--no-toroids`)
 
 `--no-toroids` skips candidate computation. Contradictory combinations such as
 `--no-toroids --toroid-full` are usage errors rather than silently ignored controls.
+
+### Wizard toroid detail
+
+In the wizard, **Output Options → Toroid Winding Detail** sets how table output shows
+candidates. **Full** (the default) matches `--toroid-full`: up to three cores with wire
+length, DCR, and dimensions. **Compact** matches `--toroid-compact`: one line for the best
+core, without wire length or dimensions. The choice applies to table output and the saved
+text file. JSON always includes up to three candidates and CSV the best one.
+
+### Realized-build winding wire
+
+When realized-build analysis (`--sim-build`, or the wizard's Realized-Build Analysis)
+uses a screened winding, the substitution line names the core, turns, wire gauge, and
+wire length. For `uv run filter-calc bp bw top -f 10MHz -b 500kHz -n 3 --sim-build`:
+
+```text
+  LT1: verified_toroid_integer_turns: 820.80 nH on T68-2, 12 turns of AWG 14 (278 mm) [screened_candidate]
+```
+
+The JSON substitution record carries the same values as `wire_awg` and `wire_length_mm`.
+Both are `null` for capacitors and exact-value inductor fallbacks.
 
 ### Bandpass behaviour
 

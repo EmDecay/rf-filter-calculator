@@ -180,6 +180,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 **FR-1.6.3: Output Options**
 - E-series selection menu (E12/E24/E96/None)
 - Output format selection (table/json/csv) and independent response-data export
+- Toroid winding detail for table output: Full (default; up to three screened cores with wire, DCR, and size) or Compact (one line for the best core)
 - Advanced realized-build controls for tolerances, Q/loss, evaluation ports, screening count/seed, initial grid size, and toroid use; refined measurements expose convergence and connected-region semantics
 - Export frequency response data option
 - Toggleable flags: raw units, quiet mode

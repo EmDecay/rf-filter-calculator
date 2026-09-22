@@ -70,7 +70,7 @@ Full module map: `docs/codebase-summary.md`.
 - **Chebyshev constraints**: LP, HP, and BP require odd order (3/5/7/9) for equal terminations and `0 < ripple <= 3.0 dB` across CLI, wizard, and public synthesis APIs.
 - **Bandpass end-coupling**: External Q is realized by series end capacitors. Tank inductance or tank impedance can be chosen independently from the equal design terminations. Shunt/bottom coupling is unsupported.
 - **Bandpass validation**: Top-C is the only coupling topology. The maintained 128-cell matrix spans 1%, 2%, 5%, and 10% FBW: 106 cells are validated, 17 return `outside_validated_envelope`, and 5 known-unrealizable cells are rejected. Do not replace per-design status with a blanket ≤10% claim.
-- **Toroid candidates**: Default table output shows the best qualified candidate, `--toroid-full` shows up to three, JSON includes up to three, and CSV carries the best available candidate. A requested detail count is not a guarantee that enough qualified cores exist.
+- **Toroid candidates**: Default table output shows the best qualified candidate, `--toroid-full` shows up to three, JSON includes up to three, and CSV carries the best available candidate. A requested detail count is not a guarantee that enough qualified cores exist. The wizard's table output offers only Full (default, same as `--toroid-full`) or Compact (same as `--toroid-compact`) via `FilterState.toroid_detail`. The CLI and wizard share `shared/toroid_display.py::format_winding_candidate_section`.
 
 ## Ruff config
 
