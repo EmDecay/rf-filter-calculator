@@ -11,7 +11,9 @@ from filter_lib.shared.build_output import (
     build_analysis_fields,
     format_build_analysis_block,
 )
-from filter_lib.shared.build_simulation import BuildConfig, analyze_build
+from filter_lib.shared.build_output_formatting import _format_measurement
+from filter_lib.shared.build_output_payloads import _measurement_payload
+from filter_lib.shared.build_simulation import BuildConfig, CircuitMeasurement, analyze_build
 from filter_lib.shared.toroid_selection import recommend_cores
 
 
@@ -72,10 +74,6 @@ def test_json_fields_keep_target_ideal_nominal_and_tolerance_results_separate():
 
 
 def test_unresolved_and_disconnected_measurements_remain_explicit_in_text_and_json():
-    from filter_lib.shared.build_output_formatting import _format_measurement
-    from filter_lib.shared.build_output_payloads import _measurement_payload
-    from filter_lib.shared.build_types import CircuitMeasurement
-
     measurement = CircuitMeasurement(
         9,
         11,
@@ -99,20 +97,65 @@ def test_unresolved_and_disconnected_measurements_remain_explicit_in_text_and_js
     assert payload["half_power_regions"][0] == {"f_low_hz": 5, "f_high_hz": 6}
 
 
+@pytest.mark.parametrize(
+    "category, measurement, text_claim, missing_keys",
+    [
+        (
+            "bandpass",
+            CircuitMeasurement(9e6, None, -60, True),
+            "no complete -3 dB passband on the simulation grid",
+            ("f_high_hz", "f0_hz", "bandwidth_hz"),
+        ),
+        (
+            "lowpass",
+            CircuitMeasurement(None, None, -60, True),
+            "no -3 dB cutoff on the simulation grid",
+            ("cutoff_hz", "f0_hz", "bandwidth_hz"),
+        ),
+        (
+            "highpass",
+            CircuitMeasurement(None, None, -60, True),
+            "no -3 dB cutoff on the simulation grid",
+            ("cutoff_hz", "f0_hz", "bandwidth_hz"),
+        ),
+    ],
+)
+def test_missing_skirt_is_reported_instead_of_invented(
+    category, measurement, text_claim, missing_keys
+):
+    text = _format_measurement(category, measurement)
+    payload = _measurement_payload(measurement, category)
+
+    assert text.startswith(text_claim)
+    assert "skirt outside simulation window" in text
+    assert payload["edge_at_simulation_grid_boundary"] is True
+    assert all(payload[key] is None for key in missing_keys)
+
+
 def test_bandpass_target_carries_per_design_validation_status():
-    result = calculate_bandpass_filter(10e6, 0.5e6, 50.0, 3, "butterworth", "top")
+    result = calculate_bandpass_filter(10e6, 0.5e6, 50.0, 2, "butterworth", "top")
     analysis = analyze_build(
         result,
         "bandpass",
-        BuildConfig(grid_points=101, use_toroid_candidates=False),
+        BuildConfig(grid_points=51, use_toroid_candidates=False),
     )
 
     target = build_analysis_fields(result, analysis)["target"]
 
-    assert target["center_frequency_hz"] == 10e6
-    assert target["bandwidth_hz"] == 0.5e6
-    assert target["frequency_specification"] == "center_and_bandwidth"
-    assert target["response_validation_status"] == result["response_validation_status"]
+    assert result["response_validation_status"] == "validated"
+    assert target == {
+        "category": "bandpass",
+        "response_type": "butterworth",
+        "order": 2,
+        "frequency_specification": "center_and_bandwidth",
+        "center_frequency_hz": 10e6,
+        "bandwidth_hz": 0.5e6,
+        "f_low_hz": result["f_low"],
+        "f_high_hz": result["f_high"],
+        "design_impedance_ohm": 50.0,
+        "equal_termination_synthesis": True,
+        "response_validation_status": "validated",
+    }
 
 
 def test_toroid_substitutions_report_winding_wire_in_text_and_json():
@@ -228,3 +271,27 @@ def test_metric_outputs_expose_included_omitted_and_grid_censored_counts():
         f"cases included {cutoff.included_cases}, omitted {cutoff.omitted_cases} "
         f"({cutoff.grid_censored_cases} grid-boundary-censored)"
     ) in text
+
+
+def test_unresolved_case_counts_are_disclosed_in_text_and_json():
+    result = _lowpass_result()
+    analysis = analyze_build(
+        result, "lowpass", BuildConfig(grid_points=51, use_toroid_candidates=False)
+    )
+    unresolved = replace(
+        analysis,
+        metric_summaries=tuple(
+            replace(item, unresolved_cases=2) for item in analysis.metric_summaries
+        ),
+    )
+
+    summary_lines = [
+        line
+        for line in format_build_analysis_block(unresolved)
+        if line.startswith("  ") and "cases included" in line
+    ]
+    payload = build_analysis_fields(result, unresolved)["tolerance_analysis"]
+
+    assert len(summary_lines) == len(analysis.metric_summaries) == 3
+    assert all(line.endswith("(2 unresolved)") for line in summary_lines)
+    assert [item["unresolved_cases"] for item in payload["metric_summaries"]] == [2, 2, 2]
