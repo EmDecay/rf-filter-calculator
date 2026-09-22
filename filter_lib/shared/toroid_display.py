@@ -7,9 +7,9 @@ rise, and power handling are not assessed.
 
 from collections.abc import Sequence
 
-from .formatting import format_frequency, format_inductance
+from .formatting import format_fixed, format_frequency, format_inductance
 from .toroid_core_data import ToroidCore, get_source
-from .toroid_selection import ToroidRecommendation, recommend_cores
+from .toroid_selection import NOT_ASSESSED_WARNING, ToroidRecommendation, recommend_cores
 
 CSV_TOROID_HEADER: list[str] = [
     "ToroidCore",
@@ -73,14 +73,18 @@ def _fmt_core_title(rec: ToroidRecommendation) -> str:
     )
 
 
+def _fmt_error_pct(error_pct: float) -> str:
+    """Signed two-decimal turn error; a tiny negative error prints as +0.00, not -0.00."""
+    return f"{format_fixed(error_pct, 2, explicit_sign=True)}%"
+
+
 def _fmt_turns_line(rec: ToroidRecommendation) -> str:
     winding = rec.winding
     mechanical = rec.mechanical
-    sign = "+" if winding.error_pct >= 0 else ""
     return (
         f"     Turns: {winding.n_turns} of AWG {mechanical.awg}   "
         f"Actual L: {format_inductance(winding.l_actual_h)}  "
-        f"({sign}{winding.error_pct:.2f}%)"
+        f"({_fmt_error_pct(winding.error_pct)})"
     )
 
 
@@ -126,12 +130,11 @@ def _fmt_dims_line(core: ToroidCore) -> str:
 def _fmt_compact_line(idx: int, rec: ToroidRecommendation) -> str:
     winding = rec.winding
     mechanical = rec.mechanical
-    sign = "+" if winding.error_pct >= 0 else ""
     dcr_milliohm = mechanical.dc_resistance_ohm * 1000.0
     return (
         f"  {idx}. {rec.core.name:<8} "
         f"N={winding.n_turns} AWG{mechanical.awg} "
-        f"L={winding.l_actual_h * 1e6:.3f}µH ({sign}{winding.error_pct:.2f}%) "
+        f"L={winding.l_actual_h * 1e6:.3f}µH ({_fmt_error_pct(winding.error_pct)}) "
         f"Rdc={dcr_milliohm:.0f}mΩ ωL/Rdc≤"
         f"{rec.wire_dcr_reactance_ratio_ceiling:,.0f} "
         "[RF Q/SRF/power not assessed]"
@@ -202,16 +205,29 @@ def format_winding_candidate_section(
         after each target block.
     """
     formatter = format_recommendation_block_compact if compact else format_recommendation_block
+    blocks = [
+        (label, inductance_h, recommend_cores(inductance_h, design_freq_hz, top_n=top_n))
+        for label, inductance_h in targets
+    ]
     lines = [
         "",
         "Screened Toroid Winding Candidates (Iron-Powder T-Series)",
         "-" * 55,
+        NOT_ASSESSED_WARNING,
     ]
     if not compact:
-        lines.append("(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)")
+        tolerances = {rec.core.al_tolerance_pct for _label, _l, recs in blocks for rec in recs}
+        if len(tolerances) == 1:
+            lines.append(
+                f"(Accuracy: A_L tolerance ±{tolerances.pop():g}% per spec; N rounding shown as %)"
+            )
+        elif tolerances:
+            lines.append(
+                "(Accuracy: A_L tolerance per candidate, shown in each L range; "
+                "N rounding shown as %)"
+            )
     lines.append("")
-    for label, inductance_h in targets:
-        recs = recommend_cores(inductance_h, design_freq_hz, top_n=top_n)
+    for label, inductance_h, recs in blocks:
         lines.extend(formatter(label, inductance_h, design_freq_hz, recs))
         lines.append("")
     return lines
@@ -315,7 +331,7 @@ def csv_columns_for_best(recs: list[ToroidRecommendation]) -> list[str]:
         str(winding.n_turns),
         str(mechanical.awg),
         f"{winding.l_actual_h * 1e6:.4f}",
-        f"{winding.error_pct:.2f}",
+        format_fixed(winding.error_pct, 2),
         f"{mechanical.wire_length_mm:.1f}",
         f"{mechanical.dc_resistance_ohm * 1000:.2f}",
         f"{recommendation.wire_dcr_reactance_ratio_ceiling:.0f}",
