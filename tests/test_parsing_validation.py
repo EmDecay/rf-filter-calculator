@@ -43,7 +43,7 @@ class TestParseFrequency:
         assert parse_frequency("1g") == 1e9
 
     def test_suffix_scaling_preserves_representable_subnormal_token_result(self):
-        assert parse_frequency("1e-325GHz") == pytest.approx(1e-316)
+        assert parse_frequency("1e-325GHz") == pytest.approx(1e-316, rel=1e-12, abs=0)
 
     def test_negative_frequency_raises(self):
         """Negative frequency should raise ValueError."""
@@ -61,12 +61,21 @@ class TestParseFrequency:
         with pytest.raises(ValueError, match="must be positive"):
             parse_frequency("0")
 
-    def test_invalid_format_raises(self):
-        """Invalid format should raise ValueError."""
-        with pytest.raises(ValueError):
-            parse_frequency("abc")
-        with pytest.raises(ValueError):
-            parse_frequency("")
+    @pytest.mark.parametrize("text", ["abc", "", "MHz", "1,000"])
+    def test_invalid_format_raises(self, text):
+        with pytest.raises(ValueError, match="^Invalid frequency: "):
+            parse_frequency(text)
+
+    @pytest.mark.parametrize("text", ["inf", "nan", "-infMHz"])
+    def test_non_finite_token_is_rejected(self, text):
+        with pytest.raises(ValueError, match="^Frequency must be positive"):
+            parse_frequency(text)
+
+    @pytest.mark.parametrize("text", ["1e400", "1e300GHz", "1e-400", "1e-330kHz"])
+    def test_result_outside_binary64_range_is_rejected(self, text):
+        """Decimal scaling succeeds, but the Hz value overflows or rounds to zero."""
+        with pytest.raises(ValueError, match="^Frequency must be positive and finite: "):
+            parse_frequency(text)
 
 
 class TestParseImpedance:
@@ -123,12 +132,15 @@ class TestParseImpedance:
         with pytest.raises(ValueError, match="must be positive"):
             parse_impedance("0")
 
-    def test_invalid_format_raises(self):
-        """Invalid format should raise ValueError."""
-        with pytest.raises(ValueError):
-            parse_impedance("abc")
-        with pytest.raises(ValueError):
-            parse_impedance("")
+    @pytest.mark.parametrize("text", ["abc", "", "kohm"])
+    def test_invalid_format_raises(self, text):
+        with pytest.raises(ValueError, match="^Invalid impedance: "):
+            parse_impedance(text)
+
+    @pytest.mark.parametrize("text", ["1e400", "1e306kohm", "1e-400ohm"])
+    def test_result_outside_binary64_range_is_rejected(self, text):
+        with pytest.raises(ValueError, match="^Impedance must be positive and finite: "):
+            parse_impedance(text)
 
     def test_whitespace_handling(self):
         """Whitespace should be handled correctly."""
@@ -164,5 +176,19 @@ class TestParseInductance:
 
     @pytest.mark.parametrize("text", ["", "abc", "10pF", "4.7u"])
     def test_invalid_format_rejected(self, text):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="^Invalid inductance: "):
             parse_inductance(text)
+
+
+@pytest.mark.parametrize(
+    ("parser", "label"),
+    [
+        (parse_frequency, "Frequency"),
+        (parse_impedance, "Impedance"),
+        (parse_inductance, "Inductance"),
+    ],
+)
+@pytest.mark.parametrize("value", [10e6, None, b"10MHz"])
+def test_parsers_require_text_input(parser, label, value):
+    with pytest.raises(ValueError, match=f"^{label} must be supplied as text$"):
+        parser(value)
