@@ -7,7 +7,7 @@ Generates 2x resolution frequency data for smoother zoomed views.
 import math
 from collections.abc import Callable
 
-from .plot_ascii_renderers import render_ascii_plot, render_bandpass_plot
+from .plot_ascii_renderers import _plottable_samples, render_ascii_plot, render_bandpass_plot
 
 
 def _compute_zoom_range(ripple_db: float | None) -> float:
@@ -57,6 +57,13 @@ def render_plot_pair(
     """
     full = render_ascii_plot(freqs, response_db, cutoff_hz, filter_type=filter_type, **kwargs)
 
+    # The zoom view uses the same plottable samples as the full view.
+    positive = _plottable_samples(freqs, response_db)
+    if not positive:
+        return full
+    freqs = [f for f, _db in positive]
+    response_db = [db for _f, db in positive]
+
     zoom_db = _compute_zoom_range(ripple_db)
 
     # Resample at 2x density when a response function is available: the
@@ -68,10 +75,11 @@ def render_plot_pair(
     else:
         zoom_freqs, zoom_response = freqs, response_db
 
-    # Skip the zoom entirely when every in-range point sits within 0.1 dB
-    # of 0 dB — a flat line adds no information over the full plot.
+    # Skip the zoom entirely when no point reaches the zoom window (it would be
+    # an empty grid) or every in-range point sits within 0.1 dB of 0 dB — a
+    # flat line adds no information over the full plot.
     in_range = [db for db in zoom_response if db >= -zoom_db]
-    if in_range and all(abs(db) < 0.1 for db in in_range):
+    if not in_range or all(abs(db) < 0.1 for db in in_range):
         return full
 
     zoomed = render_ascii_plot(
@@ -124,9 +132,14 @@ def render_bandpass_plot_pair(
         **kwargs,
     )
 
+    # The zoom view uses the same plottable samples as the full view.
+    sweep_data = _plottable_samples([f for f, _db in sweep_data], [db for _f, db in sweep_data])
+    if not sweep_data:
+        return full
+
     zoom_db = _compute_zoom_range(ripple_db)
 
-    # 2x resampling and flat-passband skip: same rationale as
+    # 2x resampling and empty/flat zoom skip: same rationale as
     # render_plot_pair above.
     if response_fn:
         freqs = [f for f, _ in sweep_data]
@@ -141,7 +154,7 @@ def render_bandpass_plot_pair(
         zoom_sweep = sweep_data
 
     zoom_dbs = [db for _, db in zoom_sweep if db >= -zoom_db]
-    if zoom_dbs and all(abs(db) < 0.1 for db in zoom_dbs):
+    if not zoom_dbs or all(abs(db) < 0.1 for db in zoom_dbs):
         return full
 
     zoomed = render_bandpass_plot(
