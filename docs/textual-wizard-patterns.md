@@ -16,8 +16,8 @@ One `FilterState` lives at `FilterWizardApp.filter_state`. Screens read or updat
 `query_one()`.
 
 Parameter screens store validated design inputs. Output Options stores component-output,
-response-sidecar, and optional build-analysis controls. Results receives a snapshot and
-publishes a detached `CalculationOutcome` only after the calculation succeeds.
+toroid-detail, response-sidecar, and optional build-analysis controls. Results receives a
+snapshot and publishes a detached `CalculationOutcome` only after the calculation succeeds.
 
 ## Navigation and Validation
 
@@ -26,6 +26,10 @@ publishes a detached `CalculationOutcome` only after the calculation succeeds.
 - Enter advances through the documented field flow; Tab/Shift+Tab remain available.
 - Escape goes back. `Q` on Results or Ctrl+C exits.
 - Output choices that would hide selected data are rejected rather than silently ignored.
+
+Toroid Winding Detail always has a selection (Full by default), so it is labelled as a
+table-output choice instead of being rejected for JSON or CSV. Those formats keep their own
+candidate contracts: JSON carries up to three candidates and CSV the best one.
 
 The raw-table/E-series combination is normally rejected because raw rows hide preferred-value
 selection. It is allowed when realized-build analysis is enabled, because the E-series still

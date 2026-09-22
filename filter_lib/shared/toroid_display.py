@@ -5,9 +5,11 @@ turns and winding capacity are screened; RF Q, SRF, loss, saturation, thermal
 rise, and power handling are not assessed.
 """
 
+from collections.abc import Sequence
+
 from .formatting import format_frequency, format_inductance
 from .toroid_core_data import ToroidCore, get_source
-from .toroid_selection import ToroidRecommendation
+from .toroid_selection import ToroidRecommendation, recommend_cores
 
 CSV_TOROID_HEADER: list[str] = [
     "ToroidCore",
@@ -176,6 +178,42 @@ def format_recommendation_block_compact(
         return lines
     for idx, rec in enumerate(recs, start=1):
         lines.append(_fmt_compact_line(idx, rec))
+    return lines
+
+
+def format_winding_candidate_section(
+    targets: Sequence[tuple[str, float]],
+    design_freq_hz: float,
+    compact: bool = False,
+    top_n: int = 1,
+) -> list[str]:
+    """Build the table-output toroid section shared by CLI and wizard renderers.
+
+    Args:
+        targets: ``(label, inductance_h)`` per block; band-pass passes a single
+            shared ``L_resonant`` entry, LP/HP one entry per inductor.
+        design_freq_hz: Frequency used for core gating and ωL/Rdc ceilings.
+        compact: One line per candidate instead of the multi-line block.
+        top_n: Maximum qualified candidates per target (1 by default, 3 for
+            the "full" detail level).
+
+    Returns:
+        Lines starting with a blank separator and ending with a blank line
+        after each target block.
+    """
+    formatter = format_recommendation_block_compact if compact else format_recommendation_block
+    lines = [
+        "",
+        "Screened Toroid Winding Candidates (Iron-Powder T-Series)",
+        "-" * 55,
+    ]
+    if not compact:
+        lines.append("(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)")
+    lines.append("")
+    for label, inductance_h in targets:
+        recs = recommend_cores(inductance_h, design_freq_hz, top_n=top_n)
+        lines.extend(formatter(label, inductance_h, design_freq_hz, recs))
+        lines.append("")
     return lines
 
 

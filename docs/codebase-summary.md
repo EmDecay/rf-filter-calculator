@@ -124,6 +124,8 @@ detail flags outside table mode.
 - `formatting.py` — finite SI/scientific rendering
 - `strict_json.py` — non-finite-tree rejection and JSON serialization
 - `display_common.py`, `lp_hp_display.py` — common table/JSON/CSV presentation
+- `toroid_display.py` — toroid candidate text/JSON/CSV; the table section shared by CLI
+  and wizard
 - `response_export.py` — standalone response schema
 
 ### Mathematics and circuits

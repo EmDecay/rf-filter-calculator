@@ -85,7 +85,9 @@ def calculate_lowpass(state: FilterState) -> list[str]:
             eseries=eseries,
             show_match=eseries is not None,
             show_plot=state.show_plot,
-            include_toroids=False,
+            include_toroids=True,
+            toroid_compact=state.toroid_detail == "compact",
+            toroid_full=state.toroid_detail == "full",
             match=LP_WIZARD_MATCH,
             trailing_blank=False,
         ),
@@ -161,7 +163,9 @@ def calculate_highpass(state: FilterState) -> list[str]:
             eseries=eseries,
             show_match=eseries is not None,
             show_plot=state.show_plot,
-            include_toroids=False,
+            include_toroids=True,
+            toroid_compact=state.toroid_detail == "compact",
+            toroid_full=state.toroid_detail == "full",
             match=HP_WIZARD_MATCH,
             trailing_blank=False,
         ),
@@ -180,7 +184,7 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         Display lines in the format selected by `state.output_format`.
     """
     from filter_lib.bandpass import calculate_bandpass_filter
-    from filter_lib.bandpass.display import format_bandpass_thresholds
+    from filter_lib.bandpass.display import format_bandpass_thresholds, format_toroid_block_lines
     from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
     from filter_lib.bandpass.transfer import netlist_frequency_sweep
     from filter_lib.shared.plotting import (
@@ -217,6 +221,11 @@ def calculate_bandpass(state: FilterState) -> list[str]:
 
     if state.eseries != "none" and not state.raw_units:
         lines.extend(format_bandpass_eseries_recs(result, state.eseries))
+
+    compact = state.toroid_detail == "compact"
+    # Drop the section's trailing blank: the wizard joins lines itself and the
+    # plot (when shown) supplies its own leading separator.
+    lines.extend(format_toroid_block_lines(result, compact, 1 if compact else 3)[:-1])
 
     if state.show_plot:
         from filter_lib.shared.transfer_response_dispatch import make_bp_netlist_response_db

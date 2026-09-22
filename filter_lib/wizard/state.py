@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from filter_lib.shared.build_simulation import BuildAnalysisResult, BuildConfig
 
 CalculationStatus = Literal["idle", "pending", "success", "error"]
+ToroidDetail = Literal["full", "compact"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,11 @@ class FilterState:
     export_format: str | None = None
     raw_units: bool = False
     quiet: bool = False
+    # Table-output toroid section: "full" lists up to three screened
+    # candidates with wire, DCR, and dimensions (CLI --toroid-full);
+    # "compact" is one line for the best candidate (CLI --toroid-compact).
+    # JSON always carries up to three candidates and CSV the best one.
+    toroid_detail: ToroidDetail = "full"
 
     # Optional realized-build analysis. It is deliberately off by default;
     # these values map one-to-one onto shared.build_simulation.BuildConfig.

@@ -187,6 +187,7 @@ uv run filter-calc lp bw pi 10MHz --toroid-compact
 ```text
 Screened Toroid Winding Candidates (Iron-Powder T-Series)
 -------------------------------------------------------
+
   L1 target: 1.59 µH @ 10 MHz
   1. T50-2    N=18 AWG20 L=1.588µH (-0.25%) Rdc=12mΩ ωL/Rdc≤8,210 [RF Q/SRF/power not assessed]
 ```

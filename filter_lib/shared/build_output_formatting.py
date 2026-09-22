@@ -50,6 +50,8 @@ def _format_substitution(substitution: ComponentSubstitution) -> str:
     detail = f"{substitution.method}: {parts}"
     if substitution.core_name is not None:
         detail += f" on {substitution.core_name}, {substitution.turns} turns"
+        if substitution.wire_awg is not None and substitution.wire_length_mm is not None:
+            detail += f" of AWG {substitution.wire_awg} ({substitution.wire_length_mm:.0f} mm)"
     return f"  {substitution.logical_name}: {detail} [{substitution.status}]"
 
 

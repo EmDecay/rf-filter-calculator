@@ -99,6 +99,10 @@ class ComponentSubstitution:
     warnings: tuple[str, ...] = ()
     core_name: str | None = None
     turns: int | None = None
+    # Screened winding wire for toroid substitutions; None for capacitors and
+    # exact-value fallbacks.
+    wire_awg: int | None = None
+    wire_length_mm: float | None = None
 
 
 @dataclass(frozen=True)

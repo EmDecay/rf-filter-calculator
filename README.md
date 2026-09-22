@@ -143,7 +143,7 @@ Running with no arguments starts a Textual TUI wizard with screen-based navigati
 
 1. **Welcome Screen** - Select filter type (lowpass, highpass, bandpass)
 2. **Filter Configuration** - Set response type, topology, frequency, impedance, order
-3. **Output Options** - Choose E-series matching, output/export settings, and optional realized-build controls
+3. **Output Options** - Choose E-series matching, output/export settings, toroid winding detail (Full or Compact), and optional realized-build controls
 4. **Results** - View the current calculation; stale or canceled workers cannot overwrite a newer result, and Save exports the component format independently of an optional response-data sidecar
 
 **Keyboard shortcuts:**

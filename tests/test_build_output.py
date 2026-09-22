@@ -12,6 +12,7 @@ from filter_lib.shared.build_output import (
     format_build_analysis_block,
 )
 from filter_lib.shared.build_simulation import BuildConfig, analyze_build
+from filter_lib.shared.toroid_selection import recommend_cores
 
 
 def _lowpass_result() -> dict:
@@ -112,6 +113,50 @@ def test_bandpass_target_carries_per_design_validation_status():
     assert target["bandwidth_hz"] == 0.5e6
     assert target["frequency_specification"] == "center_and_bandwidth"
     assert target["response_validation_status"] == result["response_validation_status"]
+
+
+def test_toroid_substitutions_report_winding_wire_in_text_and_json():
+    result = _lowpass_result()
+    analysis = analyze_build(result, "lowpass", BuildConfig(grid_points=101))
+    toroid_substitutions = [
+        item
+        for item in analysis.nominal_realization.substitutions
+        if item.method == "verified_toroid_integer_turns"
+    ]
+    assert toroid_substitutions
+
+    text = "\n".join(format_build_analysis_block(analysis))
+    payloads = {
+        item["logical_name"]: item
+        for item in build_analysis_fields(result, analysis)["nominal_build"]["substitutions"]
+    }
+    for substitution in toroid_substitutions:
+        best = recommend_cores(substitution.calculated_value, result["freq_hz"], top_n=1)[0]
+        assert substitution.wire_awg == best.mechanical.awg
+        assert substitution.wire_length_mm == best.mechanical.wire_length_mm
+        assert (
+            f"on {substitution.core_name}, {substitution.turns} turns of "
+            f"AWG {substitution.wire_awg} ({substitution.wire_length_mm:.0f} mm)"
+        ) in text
+        payload = payloads[substitution.logical_name]
+        assert payload["wire_awg"] == substitution.wire_awg
+        assert payload["wire_length_mm"] == substitution.wire_length_mm
+
+
+def test_exact_fallback_inductors_carry_no_winding_wire():
+    result = _lowpass_result()
+    analysis = analyze_build(
+        result, "lowpass", BuildConfig(grid_points=101, use_toroid_candidates=False)
+    )
+
+    inductors = [item for item in analysis.nominal_realization.substitutions if item.kind == "L"]
+    assert inductors
+    assert all(item.wire_awg is None and item.wire_length_mm is None for item in inductors)
+    payloads = build_analysis_fields(result, analysis)["nominal_build"]["substitutions"]
+    for payload in (item for item in payloads if item["kind"] == "L"):
+        assert payload["wire_awg"] is None
+        assert payload["wire_length_mm"] is None
+    assert "AWG" not in "\n".join(format_build_analysis_block(analysis))
 
 
 def test_text_block_states_metric_and_model_limits_without_measurement_claim():

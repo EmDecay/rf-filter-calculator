@@ -73,6 +73,8 @@ def _make_output_options_screen_with_selections(
             return _selection_list(options_selected)
         if selector == "#export":
             return _radio_set(export_id)
+        if selector == "#toroid-detail":
+            return _radio_set("toroid-full")
         if selector in {"#build-analysis-enabled", "#build-use-toroids"}:
             checkbox = Mock(spec=Checkbox)
             checkbox.value = selector == "#build-use-toroids"
