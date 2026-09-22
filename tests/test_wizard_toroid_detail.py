@@ -25,7 +25,6 @@ from filter_lib.wizard.filter_type_calculators import (
 )
 from filter_lib.wizard.screens.output_options import OutputOptionsScreen
 from filter_lib.wizard.state import FilterState, ToroidDetail
-from tests.test_wizard_build_analysis_pilot import _restore_screen_app_descriptors
 
 TOROID_HEADER = "Screened Toroid Winding Candidates (Iron-Powder T-Series)"
 ACCURACY_NOTE = "(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)"
@@ -70,10 +69,6 @@ def _bp_state(toroid_detail: ToroidDetail = "full", **overrides) -> FilterState:
 
 def _candidate_rows(lines: list[str]) -> list[str]:
     return [line for line in "\n".join(lines).splitlines() if CANDIDATE_ROW.match(line)]
-
-
-def test_full_detail_is_the_wizard_default():
-    assert FilterState().toroid_detail == "full"
 
 
 @pytest.mark.parametrize("category", ["lowpass", "highpass"])
@@ -150,7 +145,6 @@ def test_bandpass_json_keeps_up_to_three_candidates_regardless_of_table_detail()
 
 def test_toroid_detail_choice_flows_from_output_options_to_results():
     async def exercise() -> None:
-        _restore_screen_app_descriptors()
         app = FilterWizardApp()
         app.filter_state = _lp_hp_state("lowpass")
         async with app.run_test(size=(120, 80)) as pilot:

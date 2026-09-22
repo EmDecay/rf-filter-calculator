@@ -26,6 +26,7 @@ class TestFilterState:
         assert state.export_format is None
         assert state.raw_units is False
         assert state.quiet is False
+        assert state.toroid_detail == "full"
         assert state.build_analysis_enabled is False
         assert state.build_capacitor_tolerance_pct == 5.0
         assert state.build_inductor_tolerance_pct == 10.0
@@ -46,23 +47,6 @@ class TestFilterState:
         assert state.calculation_revision == 0
         assert state.result == {}
         assert state.output_text == ""
-
-    def test_state_mutation(self):
-        """Test FilterState can be mutated."""
-        state = FilterState()
-        state.category = "lowpass"
-        state.filter_type = "chebyshev"
-        state.frequency_hz = 10e6
-        state.impedance = 75.0
-        state.order = 5
-        state.ripple_db = 1.0
-
-        assert state.category == "lowpass"
-        assert state.filter_type == "chebyshev"
-        assert state.frequency_hz == 10e6
-        assert state.impedance == 75.0
-        assert state.order == 5
-        assert state.ripple_db == 1.0
 
     def test_begin_calculation_clears_stale_result_synchronously(self):
         state = FilterState(
@@ -115,11 +99,23 @@ class TestFilterState:
         current_revision = state.begin_calculation()
 
         assert not state.publish_success(old_revision, "old", {"old": True})
+        assert not state.publish_error(old_revision, "late failure")
+        assert state.calculation_status == "pending"
         assert state.publish_success(current_revision, "current", {"current": True})
         assert state.calculation_status == "success"
         assert state.output_text == "current"
         assert state.result == {"current": True}
         assert state.is_exportable
+
+    def test_a_published_revision_cannot_be_published_again(self):
+        state = FilterState()
+        revision = state.begin_calculation()
+        assert state.publish_success(revision, "current", {"current": True})
+
+        assert not state.publish_error(revision, "duplicate event")
+        assert not state.publish_success(revision, "duplicate", {"duplicate": True})
+        assert not state.cancel_calculation(revision)
+        assert (state.calculation_status, state.output_text) == ("success", "current")
 
     def test_publish_failure_clears_previous_success(self):
         state = FilterState(
