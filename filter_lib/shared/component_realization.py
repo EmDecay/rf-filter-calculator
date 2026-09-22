@@ -108,6 +108,8 @@ def _realize_inductor(
             warnings=candidate.warnings,
             core_name=candidate.core.name,
             turns=candidate.winding.n_turns,
+            wire_awg=candidate.mechanical.awg,
+            wire_length_mm=candidate.mechanical.wire_length_mm,
         )
         warnings = [f"{element.name}: {warning}" for warning in candidate.warnings]
         return realized, substitution, warnings

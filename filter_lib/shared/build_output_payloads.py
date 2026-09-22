@@ -60,6 +60,8 @@ def _substitution_payload(substitution: ComponentSubstitution) -> dict[str, Any]
         "status": substitution.status,
         "core_name": substitution.core_name,
         "turns": substitution.turns,
+        "wire_awg": substitution.wire_awg,
+        "wire_length_mm": substitution.wire_length_mm,
         "warnings": list(substitution.warnings),
     }
 
