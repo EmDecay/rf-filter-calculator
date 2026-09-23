@@ -44,7 +44,11 @@ def build_frequency_grid(result: dict, category: str, points: int) -> list[float
     if not all(math.isfinite(value) and value > 0 for value in (start, stop)):
         raise ValueError("frequency span must be positive and finite")
     step = (math.log10(stop) - math.log10(start)) / (points - 1)
-    return [10 ** (math.log10(start) + index * step) for index in range(points)]
+    try:
+        # The last grid point can round past the float maximum even when ``stop`` is finite.
+        return [10 ** (math.log10(start) + index * step) for index in range(points)]
+    except OverflowError as error:
+        raise ValueError("frequency span must be positive and finite") from error
 
 
 def evaluation_ports(result: dict, category: str, config: BuildConfig) -> tuple[float, float]:

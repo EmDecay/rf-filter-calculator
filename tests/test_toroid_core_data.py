@@ -1,9 +1,11 @@
 """Packaged iron-powder toroid catalog: provenance, eligibility, and lookups."""
 
-from dataclasses import FrozenInstanceError
+import math
+from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
+from filter_lib.shared import toroid_core_data
 from filter_lib.shared.toroid_core_data import (
     get_core,
     get_source,
@@ -194,3 +196,90 @@ def test_catalog_records_are_immutable():
 def test_public_lookups_reject_invalid_input_with_value_error(function, args, message):
     with pytest.raises(ValueError, match=message):
         function(*args)
+
+
+_T68_2 = get_core("T68-2")
+_WINDING_COLUMNS = (
+    "awg",
+    "wire_diameter_mm",
+    "single_layer_turns",
+    "single_layer_dcr_ohm",
+    "full_winding_turns",
+    "full_winding_dcr_ohm",
+)
+
+
+def _validate_changed_core(changes: dict) -> None:
+    core = replace(_T68_2, **changes)
+    toroid_core_data._validate_core(core, toroid_core_data._SOURCES)
+
+
+@pytest.mark.parametrize(
+    ("function", "args", "message"),
+    [
+        (_validate_changed_core, ({"od_mm": math.inf},), "Non-finite numeric data for .*T68-2"),
+        (_validate_changed_core, ({"al_nh_per_turn2": math.inf},), "Non-finite numeric data"),
+        (_validate_changed_core, ({"freq_max_hz": math.inf},), "Non-finite numeric data"),
+        (_validate_changed_core, ({"al_tolerance_pct": -1.0},), "Invalid A_L tolerance"),
+        (_validate_changed_core, ({"al_tolerance_pct": math.nan},), "Non-finite numeric data"),
+        (_validate_changed_core, ({"id_mm": _T68_2.od_mm},), "Invalid dimensions"),
+        (_validate_changed_core, ({"al_nh_per_turn2": 0.0},), "Invalid magnetic data"),
+        (
+            _validate_changed_core,
+            ({"freq_min_hz": _T68_2.freq_max_hz * 2},),
+            "Invalid frequency range",
+        ),
+        (_validate_changed_core, ({"core_source_id": "missing-source"},), "Unknown source IDs"),
+        (_validate_changed_core, ({"manufacturer": None},), "lacks exact-part provenance"),
+        (toroid_core_data._load_winding_table, ({"awg": [26]},), "missing columns"),
+        (
+            toroid_core_data._load_winding_table,
+            ({**{column: [1] for column in _WINDING_COLUMNS}, "full_winding_dcr_ohm": [1, 2]},),
+            "equal lengths",
+        ),
+        (
+            toroid_core_data._load_sources,
+            (
+                {
+                    "x": {
+                        "publisher": "p",
+                        "source_type": "datasheet",
+                        "title": "t",
+                        "url": "http://example.com",
+                        "accessed_on": "2026-01-01",
+                    }
+                },
+            ),
+            "HTTPS",
+        ),
+    ],
+    ids=[
+        "infinite-outer-diameter",
+        "infinite-al",
+        "infinite-max-frequency",
+        "negative-al-tolerance",
+        "nan-al-tolerance",
+        "inner-diameter-not-below-outer",
+        "zero-al",
+        "inverted-frequency-range",
+        "unknown-source-id",
+        "verified-core-without-manufacturer",
+        "winding-table-missing-columns",
+        "winding-table-unequal-columns",
+        "non-https-source",
+    ],
+)
+def test_packaged_data_guards_reject_malformed_entries(function, args, message):
+    with pytest.raises(RuntimeError, match=message):
+        function(*args)
+
+
+@pytest.mark.parametrize("literal", ["1e999", "NaN"])
+def test_packaged_data_loader_rejects_non_finite_number_literals(monkeypatch, tmp_path, literal):
+    (tmp_path / "toroid_core_data.json").write_text(
+        f'{{"schema_version": 2, "value": {literal}}}', encoding="utf-8"
+    )
+    monkeypatch.setattr(toroid_core_data, "files", lambda _package: tmp_path)
+
+    with pytest.raises(ValueError, match="Non-finite JSON"):
+        toroid_core_data._load_raw_data()

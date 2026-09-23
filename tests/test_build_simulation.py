@@ -141,6 +141,13 @@ class TestDesignResultValidation:
         ):
             realize_nominal_build(result, "bandpass", BuildConfig(use_toroid_candidates=False))
 
+    def test_frequency_grid_rejects_a_span_that_overflows_near_the_float_maximum(self):
+        # The span's stop is finite here, but its last log-spaced point rounds past it.
+        with pytest.raises(ValueError, match="^frequency span must be positive and finite$"):
+            build_frequency_grid(
+                {"freq_hz": 1.7976931348623157e307}, "lowpass", BuildConfig().grid_points
+            )
+
 
 class TestNominalRealization:
     def test_loss_reference_requires_an_effective_q_model(self):

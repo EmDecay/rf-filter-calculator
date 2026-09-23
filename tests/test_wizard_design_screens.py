@@ -647,3 +647,23 @@ class TestBandpassScreen:
 
         assert form.w["#ripple-section"].display is ripple_visible
         form.w["#resonators-label"].update.assert_called_once_with(label)
+
+
+# ---------------------------------------------------------------------------
+# Stale-result invalidation (shared by the three design screens)
+# ---------------------------------------------------------------------------
+
+DESIGN_SCREENS = [LowpassScreen, HighpassScreen, BandpassScreen]
+
+
+class TestPreviousResultInvalidation:
+    @pytest.mark.parametrize("screen_cls", DESIGN_SCREENS)
+    def test_invalidating_before_mount_is_a_no_op(self, screen_cls):
+        assert screen_cls()._invalidate_previous_result() is None
+
+    @pytest.mark.parametrize("screen_cls", DESIGN_SCREENS)
+    def test_invalidating_with_an_app_missing_filter_state_raises(self, monkeypatch, screen_cls):
+        monkeypatch.setattr(screen_cls, "app", property(lambda _self: SimpleNamespace()))
+
+        with pytest.raises(AttributeError):
+            screen_cls()._invalidate_previous_result()

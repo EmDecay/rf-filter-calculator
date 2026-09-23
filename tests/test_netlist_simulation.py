@@ -435,6 +435,16 @@ class TestSolverInputValidation:
         with pytest.raises(ValueError, match="points must be >= 2"):
             logspace(0, 1, 1)
 
+    def test_output_voltage_beyond_the_float_range_is_a_clear_value_error(self):
+        branches = [
+            (1, 2, "C", 1.9151111077974432),
+            (2, 0, "L", 0.522162915732912),
+            (2, 3, "L", 1.342559409883648e308),
+        ]
+
+        with pytest.raises(ValueError, match="output voltage magnitude must be finite"):
+            solve_transducer_power_gain(3, branches, 1e-309, 1.6e308, 1, 3, [1 / (2 * math.pi)])
+
 
 class TestEdgeFinding:
     def test_find_3db_edges_interpolates(self):

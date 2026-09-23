@@ -12,12 +12,13 @@ Unit conventions:
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from importlib.resources import files
 from typing import Any
 
-from .numeric import require_positive_finite
+from .numeric import is_finite_real, require_positive_finite
 
 
 @dataclass(frozen=True)
@@ -113,10 +114,22 @@ def _reject_json_constant(value: str) -> None:
     raise ValueError(f"Non-finite JSON constant {value!r} in toroid core data")
 
 
+def _reject_non_finite_json_float(text: str) -> float:
+    """Reject number literals, such as ``1e999``, that overflow while loading the JSON."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"Non-finite JSON number {text!r} in toroid core data")
+    return value
+
+
 def _load_raw_data() -> dict[str, Any]:
     data_path = files(__package__).joinpath("toroid_core_data.json")
     with data_path.open("r", encoding="utf-8") as data_file:
-        raw = json.load(data_file, parse_constant=_reject_json_constant)
+        raw = json.load(
+            data_file,
+            parse_constant=_reject_json_constant,
+            parse_float=_reject_non_finite_json_float,
+        )
     if not isinstance(raw, dict) or raw.get("schema_version") != 2:
         raise RuntimeError("Unsupported toroid core data schema; expected version 2")
     return raw
@@ -175,6 +188,20 @@ def _core_from_entry(raw_entry: dict[str, Any], materials: dict[str, dict[str, A
 
 
 def _validate_core(core: ToroidCore, sources: dict[str, SourceReference]) -> None:
+    numeric_fields = (
+        core.od_mm,
+        core.id_mm,
+        core.height_mm,
+        core.al_nh_per_turn2,
+        core.al_tolerance_pct,
+        core.temp_coeff_ppm_per_c,
+        core.freq_min_hz,
+        core.freq_max_hz,
+    )
+    if not all(is_finite_real(value) for value in numeric_fields):
+        raise RuntimeError(f"Non-finite numeric data for toroid core {core.name}")
+    if core.al_tolerance_pct < 0:
+        raise RuntimeError(f"Invalid A_L tolerance for toroid core {core.name}")
     if not (0 < core.id_mm < core.od_mm and core.height_mm > 0):
         raise RuntimeError(f"Invalid dimensions for toroid core {core.name}")
     if core.al_nh_per_turn2 <= 0 or core.freq_min_hz <= 0:

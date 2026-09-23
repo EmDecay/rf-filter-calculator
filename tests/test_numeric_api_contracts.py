@@ -484,6 +484,18 @@ def test_ladder_scaling_avoids_overflowing_intermediate_angular_frequency(calcul
             "json",
             "--no-toroids",
         ],
+        ["lp", "bw", "pi", "1.7976931348623157e307", "--format", "spice"],
+        [
+            "lp",
+            "bw",
+            "pi",
+            "1.7976931348623157e307",
+            "--sim-build",
+            "--no-toroids",
+            "--analysis-points",
+            "51",
+        ],
+        ["hp", "bw", "t", "1.7976931348623157e307", "--format", "spice"],
     ],
 )
 def test_unrepresentable_cli_values_fail_cleanly(monkeypatch, capsys, arguments):
