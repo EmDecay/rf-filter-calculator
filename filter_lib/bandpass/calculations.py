@@ -29,10 +29,6 @@ from .design_constants import (
 from .design_constants import (
     BANDPASS_LUMPED_MODEL_CAUTION_FBW as BANDPASS_LUMPED_MODEL_CAUTION_FBW,
 )
-from .design_constants import CALIBRATION_MAX_ITERATIONS as _DESIGN_CALIBRATION_MAX_ITERATIONS
-from .design_constants import CALIBRATION_POINTS as _DESIGN_CALIBRATION_POINTS
-from .design_constants import CALIBRATION_TOLERANCE as _DESIGN_CALIBRATION_TOLERANCE
-from .design_constants import VALIDATION_POINTS as _DESIGN_VALIDATION_POINTS
 from .g_values import get_g_values as get_g_values
 from .input_validation import _get_fbw_warnings as _get_fbw_warnings
 from .input_validation import _validate_inputs as _validate_inputs
@@ -46,8 +42,3 @@ from .resonator_math import estimate_insertion_loss as estimate_insertion_loss
 from .top_c_calibration import _calibrate_top_c as _calibrate_top_c
 from .top_c_synthesis import BandpassResult as BandpassResult
 from .top_c_synthesis import _synthesize_top_c_raw as _synthesize_top_c_raw
-
-_CALIBRATION_POINTS = _DESIGN_CALIBRATION_POINTS
-_VALIDATION_POINTS = _DESIGN_VALIDATION_POINTS
-_CALIBRATION_TOLERANCE = _DESIGN_CALIBRATION_TOLERANCE
-_CALIBRATION_MAX_ITERATIONS = _DESIGN_CALIBRATION_MAX_ITERATIONS

@@ -53,13 +53,3 @@ class FilterWizardApp(App):
     def action_quit(self) -> None:
         """Exit the application."""
         self.exit()
-
-
-def run_app() -> None:
-    """Run the filter wizard TUI application."""
-    app = FilterWizardApp()
-    app.run()
-
-
-if __name__ == "__main__":
-    run_app()

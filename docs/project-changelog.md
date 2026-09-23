@@ -27,6 +27,10 @@
     with a canonical filter-type name; it does not accept aliases such as `bw` or `ch`.
     `make_bp_netlist_response_db(result)` is a different model: it returns the simulated
     response of the synthesized circuit.
+- `python -m filter_lib.wizard.app` is removed; run `filter-calc` or `filter-calc wizard`.
+- Unused private aliases in the `bandpass.calculations`, `build_simulation`, and
+  `netlist_simulation` compatibility facades are removed; import the implementation modules
+  directly.
 
 ## Unreleased — 2026-09-22 — Source Bug Remediation
 
