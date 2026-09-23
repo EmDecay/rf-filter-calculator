@@ -9,12 +9,7 @@ from textual.widgets import Button, Footer, RadioButton, RadioSet, Static
 from textual.worker import Worker
 
 from ..calculation_handler import calculate_and_format
-from ..export_formatting import (
-    format_component_csv,
-    format_component_json,
-    format_response_export,
-    prepare_export_payloads,
-)
+from ..export_formatting import prepare_export_payloads
 from ..state import CalculationOutcome, FilterState
 
 
@@ -260,26 +255,6 @@ class ResultsScreen(Screen):
             return True
         self.notify("No current successful calculation is available to export", severity="warning")
         return False
-
-    def _require_current_result(self, state: FilterState) -> None:
-        """Raise when a formatter is called without the current success."""
-        if not self._has_current_result(state):
-            raise ValueError("no current successful calculation")
-
-    def _get_response_export(self, state: FilterState, fmt: str) -> str:
-        """Generate frequency-response data in the unified export schema."""
-        self._require_current_result(state)
-        return format_response_export(state, fmt)
-
-    def _get_json_export(self, state: FilterState) -> str:
-        """Get JSON export using existing formatters."""
-        self._require_current_result(state)
-        return format_component_json(state)
-
-    def _get_csv_export(self, state: FilterState) -> str:
-        """Get CSV export using existing formatters."""
-        self._require_current_result(state)
-        return format_component_csv(state)
 
     def _design_another(self) -> None:
         """Start a new design."""

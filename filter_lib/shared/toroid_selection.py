@@ -40,11 +40,6 @@ class ToroidRecommendation:
         """Legacy API alias; this ratio is not a measured or predicted RF Q."""
         return self.wire_dcr_reactance_ratio_ceiling
 
-    @property
-    def ranking_key(self) -> tuple[int, int, int, float, float, str]:
-        """Public deterministic key used to explain ordering in tests/exports."""
-        return _sort_key(self)
-
 
 def _wire_dcr_reactance_ratio_ceiling(l_actual_h: float, freq_hz: float, r_dc_ohm: float) -> float:
     """Compute ωL/Rdc as a wire-only diagnostic ceiling, not RF Q."""

@@ -161,7 +161,11 @@ def _solve_output_voltages(
 
 
 def _transducer_gain_from_voltage(voltage: complex, rs: float, rl: float) -> float:
-    magnitude = abs(voltage)
+    try:
+        # abs() raises once the magnitude exceeds the float range.
+        magnitude = abs(voltage)
+    except OverflowError as error:
+        raise ValueError("output voltage magnitude must be finite") from error
     if not math.isfinite(magnitude):
         raise ValueError("output voltage magnitude must be finite")
     if magnitude == 0:

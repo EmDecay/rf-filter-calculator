@@ -1,5 +1,56 @@
 # Project Changelog
 
+## Unreleased — 2026-09-22 — Dead Code Cleanup
+
+### Removed
+
+- Library API: unused helpers are removed from `filter_lib.shared` submodules. Some have an
+  exact equivalent, some only an alternative, and some no replacement:
+  - `toroid_core_data.list_sources`: no replacement. Look up individual source IDs with
+    `get_source`.
+  - `ToroidCore.source_for(group)`: pass `dict(core.field_sources).get(group)` to
+    `get_source` when it is not `None`. `field_sources` holds `(field_group, source_id)`
+    pairs, not source records, and an unrecorded group has no entry, where the old method
+    returned `None`.
+  - `ToroidRecommendation.ranking_key`: no replacement. `recommend_cores` already returns
+    candidates in ranked order.
+  - `MechanicalFit.wire_length_m`: use `wire_length_mm * 1e-3`, which is exactly how the
+    field was computed.
+  - `numeric.require_integer`: no replacement.
+  - `MatchedSimSummary.deprecated`: no replacement needed. The `--sim-matched` JSON still
+    reports `"deprecated": true`.
+  - Removing the `wire_length_m` and `deprecated` fields shifts the positional order of the
+    later `MechanicalFit` and `MatchedSimSummary` fields. Callers that construct either
+    dataclass should pass those fields by keyword.
+  - `strict_json.strict_json_dumps`: use `dumps_strict`, the function it aliased.
+  - `branch_admittance.branch_admittance`: no replacement. `solve_s21` and
+    `solve_transducer_power_gain` compute branch admittances internally.
+  - `matched_simulation.simulate_pair`: no exact replacement. `run_matched_simulation`
+    measures the calculated and nominal builds through build-realization analysis.
+  - `topology_diagrams.print_pi_topology_diagram` and `print_t_topology_diagram`: `print()`
+    the result of the matching `format_*_topology_diagram` function, which gives identical
+    output.
+  - `transfer_response_dispatch.make_bp_response_db`: for the same ideal-prototype response,
+    call `bandpass.ideal_response.magnitude_db(f, f0, bw, order, filter_type, ripple_db)`
+    with a canonical filter-type name; it does not accept aliases such as `bw` or `ch`.
+    `make_bp_netlist_response_db(result)` is a different model: it returns the simulated
+    response of the synthesized circuit.
+- `python -m filter_lib.wizard.app` is removed; run `filter-calc` or `filter-calc wizard`.
+- Unused private aliases in the `bandpass.calculations`, `build_simulation`, and
+  `netlist_simulation` compatibility facades are removed; import the implementation modules
+  directly.
+
+### Input and API contracts
+
+- `--format spice` and `--sim-build` with a cutoff near the float maximum (for example
+  `1.7976931348623157e307`) now exit with `Error: frequency span must be positive and finite`
+  instead of an `OverflowError` traceback.
+- `solve_transducer_power_gain`, `solve_s21`, and the transducer-gain evaluator raise
+  `ValueError: output voltage magnitude must be finite` instead of `OverflowError` when the
+  output voltage magnitude exceeds the float range.
+- Loading the packaged toroid data rejects overflowing number literals such as `1e999`,
+  non-finite core fields, and a negative A_L tolerance.
+
 ## Unreleased — 2026-09-22 — Source Bug Remediation
 
 ### Input and API contracts

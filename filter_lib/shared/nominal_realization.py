@@ -44,16 +44,7 @@ def _realize_element(
             loss_reference_frequency,
         )
         return [part], substitution, warnings
-    substitution = ComponentSubstitution(
-        logical_name=element.name,
-        kind=element.kind,
-        calculated_value=element.value,
-        nominal_value=element.value,
-        physical_parts=(element.value,),
-        method="exact",
-        status="not_substituted",
-    )
-    return [element], substitution, []
+    raise ValueError(f"nominal realization supports only C and L elements, got {element.kind!r}")
 
 
 def realize_nominal_build(

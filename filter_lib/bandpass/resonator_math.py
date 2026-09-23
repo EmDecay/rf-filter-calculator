@@ -45,8 +45,6 @@ def _resolve_resonator_components(
             -log_omega0 - math.log(resonator_z), "resonator capacitance"
         )
         mode = "fixed_impedance" if resonator_impedance is not None else "system_impedance"
-    if not all(_is_positive_finite(value) for value in (inductance, capacitance, resonator_z)):
-        raise ValueError("Resonator choice does not produce finite positive component values")
     return inductance, capacitance, resonator_z, mode
 
 

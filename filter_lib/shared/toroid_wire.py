@@ -117,7 +117,6 @@ class MechanicalFit:
     n_max: int
     fits: bool
     wire_length_mm: float
-    wire_length_m: float
     dc_resistance_ohm: float
     capacity_status: str = "estimated"
     capacity_source_id: str | None = None
@@ -212,7 +211,6 @@ def fit_wire(core: ToroidCore, n_turns: int, awg: int | None = None) -> Mechanic
         n_max=n_cap,
         fits=fits,
         wire_length_mm=length_mm,
-        wire_length_m=length_mm * 1e-3,
         dc_resistance_ohm=dcr,
         capacity_status=capacity_status,
         capacity_source_id=capacity_source_id,

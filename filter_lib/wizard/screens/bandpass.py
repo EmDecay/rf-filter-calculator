@@ -4,6 +4,7 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
+from textual.types import NoActiveAppError
 from textual.validation import Integer
 from textual.widgets import Button, Footer, Input, RadioButton, RadioSet, Static
 
@@ -213,10 +214,10 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         self._invalidate_previous_result()
 
     def _invalidate_previous_result(self) -> None:
-        """Clear stale output when mounted; tolerate direct handler tests."""
+        """Clear stale output when mounted; tolerate calls on an unmounted screen."""
         try:
             state = self.app.filter_state
-        except (AttributeError, RuntimeError):
+        except NoActiveAppError:
             return
         if isinstance(state, FilterState):
             state.invalidate_calculation()

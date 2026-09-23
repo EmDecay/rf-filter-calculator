@@ -3,7 +3,7 @@
 import math
 
 from .circuit_model import Branch
-from .numeric import is_finite_real, positive_float_from_log
+from .numeric import is_finite_real
 
 _LOG_TWO_PI = math.log(2 * math.pi)
 
@@ -33,19 +33,6 @@ def normalise_branch(branch: Branch) -> tuple[int, int, str, float, float]:
     if kind == "R" and series_resistance:
         raise ValueError("resistor branches cannot specify a series resistance")
     return n1, n2, kind, value, series_resistance
-
-
-def branch_admittance(
-    kind: str, value: float, omega: float, series_resistance: float = 0.0
-) -> complex:
-    """Return the finite complex admittance of one passive branch."""
-    if not is_finite_number(omega) or omega <= 0:
-        raise ValueError("omega must be positive and finite")
-    log_magnitude, unit = _branch_admittance_from_log_omega(
-        kind, value, math.log(omega), series_resistance
-    )
-    magnitude = positive_float_from_log(log_magnitude, "branch admittance")
-    return unit * magnitude
 
 
 def _branch_admittance_at_frequency(
