@@ -19,6 +19,14 @@
   - `numeric.require_integer`: no replacement.
   - `MatchedSimSummary.deprecated`: no replacement needed. The `--sim-matched` JSON still
     reports `"deprecated": true`.
+  - Removing the `wire_length_m` and `deprecated` fields shifts the positional order of the
+    later `MechanicalFit` and `MatchedSimSummary` fields. Callers that construct either
+    dataclass should pass those fields by keyword.
+  - `strict_json.strict_json_dumps`: use `dumps_strict`, the function it aliased.
+  - `branch_admittance.branch_admittance`: no replacement. `solve_s21` and
+    `solve_transducer_power_gain` compute branch admittances internally.
+  - `matched_simulation.simulate_pair`: no exact replacement. `run_matched_simulation`
+    measures the calculated and nominal builds through build-realization analysis.
   - `topology_diagrams.print_pi_topology_diagram` and `print_t_topology_diagram`: `print()`
     the result of the matching `format_*_topology_diagram` function, which gives identical
     output.
@@ -31,6 +39,17 @@
 - Unused private aliases in the `bandpass.calculations`, `build_simulation`, and
   `netlist_simulation` compatibility facades are removed; import the implementation modules
   directly.
+
+### Input and API contracts
+
+- `--format spice` and `--sim-build` with a cutoff near the float maximum (for example
+  `1.7976931348623157e307`) now exit with `Error: frequency span must be positive and finite`
+  instead of an `OverflowError` traceback.
+- `solve_transducer_power_gain`, `solve_s21`, and the transducer-gain evaluator raise
+  `ValueError: output voltage magnitude must be finite` instead of `OverflowError` when the
+  output voltage magnitude exceeds the float range.
+- Loading the packaged toroid data rejects overflowing number literals such as `1e999`,
+  non-finite core fields, and a negative A_L tolerance.
 
 ## Unreleased — 2026-09-22 — Source Bug Remediation
 

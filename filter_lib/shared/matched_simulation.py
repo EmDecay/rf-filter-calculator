@@ -16,7 +16,7 @@ from .eseries import match_component
 from .formatting import format_fixed
 
 # Dense grid so interpolated -3 dB edge shifts resolve well below the
-# E-series rounding error being measured (~0.04% spacing near f0).
+# E-series rounding error being measured.
 GRID_POINTS = 1201
 
 
