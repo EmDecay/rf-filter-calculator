@@ -1,5 +1,6 @@
 """Tests for input parsing and validation functions."""
 
+import re
 import sys
 
 import pytest
@@ -256,6 +257,29 @@ def test_decimal_context_overflow_is_a_clear_value_error(parser, text, label):
     """Exponents beyond the decimal context overflow before binary64 conversion."""
     with pytest.raises(ValueError, match=f"^{label} must be positive and finite: {text}$"):
         parser(text)
+
+
+@pytest.mark.parametrize(
+    ("parser", "label", "text", "message"),
+    [
+        (parse_frequency, "Bandwidth", "0", "Bandwidth must be positive: 0"),
+        (parse_frequency, "Bandwidth", "-1MHz", "Bandwidth must be positive: -1MHz"),
+        (parse_frequency, "Bandwidth", "10XHz", "Invalid bandwidth: 10XHz"),
+        (parse_frequency, "Bandwidth", "1e400", "Bandwidth must be positive and finite: 1e400"),
+        (parse_frequency, "Bandwidth", None, "Bandwidth must be supplied as text"),
+        (parse_impedance, "Load resistance", "0", "Load resistance must be positive: 0"),
+        (parse_impedance, "Load resistance", "abc", "Invalid load resistance: abc"),
+        (
+            parse_inductance,
+            "Resonator inductance",
+            "0uH",
+            "Resonator inductance must be positive: 0uH",
+        ),
+    ],
+)
+def test_parsers_name_the_quantity_they_parse(parser, label, text, message):
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        parser(text, label=label)
 
 
 def test_cli_reports_decimal_overflow_as_one_line_usage_error(monkeypatch, capsys):

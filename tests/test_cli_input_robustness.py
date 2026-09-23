@@ -258,12 +258,12 @@ _INVALID = [
     (
         "lp bw pi 10MHz --sim-build --inductor-q 0",
         1,
-        "Error: inductor_q must be positive and finite",
+        "Error: inductor_q must be finite and in [0.01, 1e+09]",
     ),
     (
         "lp bw pi 10MHz --format spice --capacitor-q nan",
         1,
-        "Error: capacitor_q must be positive and finite",
+        "Error: capacitor_q must be finite and in [0.01, 1e+09]",
     ),
     (
         "hp bw t 10MHz --sim-build --sample-count 10001",
@@ -280,11 +280,20 @@ _INVALID = [
         1,
         "Error: grid_points must be an integer in [51, 5001]",
     ),
-    ("lp bw pi 10MHz --sim-build --source-resistance 0", 1, "Error: Impedance must be positive: 0"),
+    (
+        "lp bw pi 10MHz --sim-build --source-resistance 0",
+        1,
+        "Error: Source resistance must be positive: 0",
+    ),
+    (
+        "hp bw t 10MHz --sim-build --load-resistance=-50",
+        1,
+        "Error: Load resistance must be positive: -50",
+    ),
     (
         "hp bw t 10MHz --format spice --inductor-q 10 --loss-reference-frequency nan",
         1,
-        "Error: Frequency must be positive: nan",
+        "Error: Loss reference frequency must be positive: nan",
     ),
     (
         "lp bw pi 10MHz --toroid-compact --toroid-full",
@@ -315,11 +324,14 @@ _INVALID = [
         "Error: Bandwidth too wide to realize: derived tank capacitances must be positive and "
         "finite",
     ),
-    ("bp bw top -f 10MHz -b 0", 1, "Error: Frequency must be positive: 0"),
-    ("bp bw top -f 10MHz --bandwidth=-1MHz", 1, "Error: Frequency must be positive: -1MHz"),
+    ("bp bw top -f 10MHz -b 0", 1, "Error: Bandwidth must be positive: 0"),
+    ("bp bw top -f 10MHz --bandwidth=-1MHz", 1, "Error: Bandwidth must be positive: -1MHz"),
+    ("bp bw top -f 10MHz -b 5XHz", 1, "Error: Invalid bandwidth: 5XHz"),
+    ("bp bw top -f 0 -b 1MHz", 1, "Error: Center frequency must be positive: 0"),
+    ("bp bw top --fl 0 --fh 14MHz", 1, "Error: Lower cutoff frequency must be positive: 0"),
     ("bp bw top --fl 14MHz --fh 14MHz", 1, "Error: Lower frequency must be less than upper"),
     ("bp bw top --fl 15MHz --fh 14MHz", 1, "Error: Lower frequency must be less than upper"),
-    ("bp bw top --fl 14MHz --fh nan", 1, "Error: Frequency must be positive: nan"),
+    ("bp bw top --fl 14MHz --fh nan", 1, "Error: Upper cutoff frequency must be positive: nan"),
     (
         "bp bw top -f 14MHz -b 1MHz --fl 13MHz --fh 15MHz",
         2,
@@ -335,11 +347,16 @@ _INVALID = [
     ("bp ch top -f 14MHz -b 1MHz -r nan", 1, "Error: Ripple must be positive and finite"),
     ("bp ch top -f 14MHz -b 1MHz -r 0", 1, "Error: Ripple must be positive and finite"),
     ("bp ch top -f 14MHz -b 1MHz -r 3.0001", 1, "Error: Ripple must be at most 3.0 dB"),
-    ("bp bw top -f 14MHz -b 1MHz --qu nan", 1, "Error: Qu must be positive and finite"),
-    ("bp bw top -f 14MHz -b 1MHz --qu inf", 1, "Error: Qu must be positive and finite"),
-    ("bp bw top -f 14MHz -b 1MHz --qu 0", 1, "Error: Qu must be positive and finite"),
-    ("bp bw top -f 14MHz -b 1MHz --ql nan", 1, "Error: QL must be positive and finite"),
-    ("bp bw top -f 14MHz -b 1MHz --ql 100 --qc 0", 1, "Error: QC must be positive and finite"),
+    ("bp bw top -f 14MHz -b 1MHz --qu nan", 1, "Error: Qu must be finite and in [0.01, 1e+09]"),
+    ("bp bw top -f 14MHz -b 1MHz --qu inf", 1, "Error: Qu must be finite and in [0.01, 1e+09]"),
+    ("bp bw top -f 14MHz -b 1MHz --qu 0", 1, "Error: Qu must be finite and in [0.01, 1e+09]"),
+    ("bp bw top -f 14MHz -b 1MHz --qu 2e9", 1, "Error: Qu must be finite and in [0.01, 1e+09]"),
+    ("bp bw top -f 14MHz -b 1MHz --ql nan", 1, "Error: QL must be finite and in [0.01, 1e+09]"),
+    (
+        "bp bw top -f 14MHz -b 1MHz --ql 100 --qc 0",
+        1,
+        "Error: QC must be finite and in [0.01, 1e+09]",
+    ),
     (
         "bp bw top -f 14MHz -b 1MHz --q-safety nan --format json",
         1,
@@ -353,23 +370,62 @@ _INVALID = [
     (
         "bp bw top -f 14MHz -b 1MHz --resonator-impedance 0",
         1,
-        "Error: Impedance must be positive: 0",
+        "Error: Resonator impedance must be positive: 0",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --resonator-inductance 0",
         1,
-        "Error: Inductance must be positive: 0",
+        "Error: Resonator inductance must be positive: 0",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --resonator-inductance xyz",
         1,
-        "Error: Invalid inductance: xyz",
+        "Error: Invalid resonator inductance: xyz",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --resonator-impedance 1e300",
         1,
         "Error: Bandwidth too wide: tank capacitors Cp1, Cp3 would be negative. Reduce "
         "bandwidth, tank impedance, or resonator count.",
+    ),
+    (
+        "bp bw top -f 10MHz -b 500kHz --resonator-impedance 1e-300",
+        1,
+        "Error: Resonator impedance 1e-300 ohm is too low to realize the input/output "
+        "coupling to the 50 ohm terminations at this bandwidth and order; it must exceed "
+        "about 2.5 ohm (necessary, not sufficient: a wide enough bandwidth fails at any tank "
+        "value)",
+    ),
+    (
+        "bp bw top -f 10MHz -b 1e-9",
+        1,
+        "Error: Bandwidth 1e-09 Hz is too narrow relative to the 1e+07 Hz center frequency "
+        "to synthesize at double precision; use a fractional bandwidth of at least "
+        "3.6e-12 (a bandwidth of at least 3.6e-05 Hz)",
+    ),
+    # Q values no lumped part has are rejected up front; 1e-300 once took 30 s to underflow.
+    (
+        "lp bw pi 10MHz --sim-build --inductor-q 1e-300",
+        1,
+        "Error: inductor_q must be finite and in [0.01, 1e+09]",
+    ),
+    (
+        "hp bw t 10MHz --sim-build --capacitor-q 2e9",
+        1,
+        "Error: capacitor_q must be finite and in [0.01, 1e+09]",
+    ),
+    # Port resistances are limited to 1e-6..1e6 times the design impedance.
+    (
+        "lp bw pi 10MHz --sim-build --load-resistance 1e9",
+        1,
+        "Error: Load resistance 1e+09 ohm is outside the supported range 5e-05 to 5e+07 ohm "
+        "(1e-06 to 1e+06 times the 50 ohm design impedance)",
+    ),
+    (
+        "bp bw top -f 10MHz -b 500kHz -z 75 --format spice --source-resistance 1e-5",
+        1,
+        "Error: Source resistance 1e-05 ohm is outside the supported range 7.5e-05 to "
+        "7.5e+07 ohm (1e-06 to 1e+06 times the 75 ohm design impedance)",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --qu 100 --format csv",

@@ -1,15 +1,19 @@
 """Main display function for bandpass filter results.
 
 Orchestrates output formatting, topology diagrams, and E-series matching.
+``format_table_lines`` is the single bandpass table renderer; the CLI prints
+it and the wizard shows it, so the two cannot drift apart.
 """
 
 from typing import Any
 
 from ..shared.formatting import (
+    band_edge_digits,
     format_capacitance,
     format_fixed,
-    format_frequency,
     format_inductance,
+    format_restated_frequency,
+    format_restated_value,
 )
 from ..shared.plotting import (
     find_db_thresholds,
@@ -18,7 +22,7 @@ from ..shared.plotting import (
 )
 from ..shared.response_export import export_response_csv, export_response_json, response_meta
 from ..shared.toroid_display import format_winding_candidate_section
-from .diagrams import print_top_c_diagram
+from .diagrams import format_top_c_diagram
 from .formatters import format_csv, format_eseries_match, format_json, format_quiet
 from .transfer import netlist_frequency_sweep
 
@@ -29,6 +33,11 @@ BandpassResult = dict[str, Any]
 # window. 601 points keeps both skirts represented while the renderer still
 # compresses the samples to terminal width.
 PLOT_POINTS = 601
+
+_VALIDATION_STATUS_TEXT = {
+    "validated": "Passed synthesized-response checks",
+    "outside_validated_envelope": "Outside validated envelope; see warnings",
+}
 
 
 def display_results(
@@ -87,7 +96,7 @@ def display_results(
         )
         return
     if output_format == "csv":
-        print(format_csv(result, eseries=eseries, include_toroids=include_toroids), end="")
+        print(format_csv(result, eseries=eseries, include_toroids=include_toroids))
         return
     if quiet:
         print(format_quiet(result, raw))
@@ -108,50 +117,95 @@ def _print_table_output(
     toroid_full: bool = False,
 ) -> None:
     """Print full table output with diagram and component values."""
-    coupling_name = "Top-C (Series)"
-    title = f"{result['filter_type'].title()} Coupled Resonator Bandpass Filter"
+    lines = format_table_lines(
+        result,
+        raw=raw,
+        eseries=eseries,
+        show_plot=show_plot,
+        include_toroids=include_toroids,
+        toroid_compact=toroid_compact,
+        toroid_full=toroid_full,
+    )
+    print("\n".join(lines))
+    print()
 
-    print(f"\n{title}")
-    print("=" * 50)
-    print(f"Center Frequency f₀: {format_frequency(result['f0'])}")
-    print(f"Lower Cutoff fₗ:     {format_frequency(result['f_low'])}")
-    print(f"Upper Cutoff fₕ:     {format_frequency(result['f_high'])}")
-    print(f"Bandwidth BW:        {format_frequency(result['bw'])}")
-    print(f"Fractional BW:       {result['fbw'] * 100:.2f}%")
-    print(f"Impedance Z₀:        {result['z0']:.4g} Ω")
-    if result["ripple_db"] is not None:
-        print(f"Ripple:              {result['ripple_db']} dB")
-    print(f"Resonators:          {result['n_resonators']}")
-    print(f"Coupling:            {coupling_name}")
-    print("=" * 50)
+
+def format_table_lines(
+    result: BandpassResult,
+    *,
+    raw: bool = False,
+    eseries: str | None = "E24",
+    show_plot: bool = False,
+    include_toroids: bool = True,
+    toroid_compact: bool = False,
+    toroid_full: bool = False,
+) -> list[str]:
+    """Render the bandpass table output as lines, for the CLI and the wizard.
+
+    Args:
+        result: Dict from calculate_bandpass_filter()
+        raw: Print SI values in scientific notation and skip preferred values
+        eseries: E-series for the preferred-value section (None to omit it)
+        show_plot: Append the simulated response plot and threshold table
+        include_toroids: Append the shared-inductance winding candidates
+        toroid_compact: One line per winding candidate
+        toroid_full: Up to three candidates instead of the best one
+    """
+    lines = format_header_lines(result)
 
     if result["warnings"]:
-        print("\nWarnings:")
-        for w in result["warnings"]:
-            print(f"  ⚠ {w}")
+        lines.append("\nWarnings:")
+        lines.extend(f"  ⚠ {w}" for w in result["warnings"])
 
-    for line in format_q_model_lines(result):
-        print(line)
+    lines.extend(format_q_model_lines(result))
     il_line = format_insertion_loss_line(result)
     if il_line:
-        print(il_line)
-    for line in format_validation_scope_lines(result):
-        print(line)
+        lines.append(il_line)
+    lines.extend(format_validation_scope_lines(result))
 
-    _print_topology(result)
-    _print_component_tables(result, raw, mention_toroids=include_toroids)
-    _print_external_q(result)
+    lines.extend(["\nTopology:", format_top_c_diagram(result["n_resonators"])])
+    lines.extend(_component_table_lines(result, raw, mention_toroids=include_toroids))
+    lines.extend(_external_q_lines(result))
 
     if eseries and not raw:
-        _print_eseries_matching(result, eseries)
+        lines.extend(format_eseries_lines(result, eseries))
 
     if include_toroids:
-        _print_toroid_block(result, compact=toroid_compact, top_n=3 if toroid_full else 1)
+        lines.extend(format_toroid_block_lines(result, toroid_compact, 3 if toroid_full else 1))
 
     if show_plot:
-        _print_frequency_response(result)
+        lines.extend(_frequency_response_lines(result))
+    return lines
 
-    print()
+
+def format_header_lines(result: BandpassResult) -> list[str]:
+    """Design header restating the request; band edges resolve the printed bandwidth.
+
+    Center, bandwidth, and impedance repeat the typed values exactly. The edges are
+    computed, so they carry enough significant digits that their difference restates
+    the bandwidth to four figures even for a 0.1% band (not 99.95 / 100.1 MHz beside
+    100 kHz).
+    """
+    edge_digits = band_edge_digits(result["f_high"], result["bw"])
+    lines = [
+        f"\n{result['filter_type'].title()} Coupled Resonator Bandpass Filter",
+        "=" * 50,
+        f"Center Frequency f₀: {format_restated_frequency(result['f0'])}",
+        f"Lower Cutoff fₗ:     {format_restated_frequency(result['f_low'], edge_digits)}",
+        f"Upper Cutoff fₕ:     {format_restated_frequency(result['f_high'], edge_digits)}",
+        f"Bandwidth BW:        {format_restated_frequency(result['bw'])}",
+        f"Fractional BW:       {result['fbw'] * 100:.2f}%",
+        f"Impedance Z₀:        {format_restated_value(result['z0'])} Ω",
+    ]
+    if result["ripple_db"] is not None:
+        lines.append(f"Ripple:              {result['ripple_db']} dB")
+    lines.append(f"Resonators:          {result['n_resonators']}")
+    lines.append("Coupling:            Top-C (Series)")
+    status_text = _VALIDATION_STATUS_TEXT.get(result.get("response_validation_status"))
+    if status_text:
+        lines.append(f"Response validation: {status_text}")
+    lines.append("=" * 50)
+    return lines
 
 
 def format_insertion_loss_line(result: BandpassResult) -> str:
@@ -261,52 +315,37 @@ def format_toroid_block_lines(
     )
 
 
-def _print_toroid_block(result: BandpassResult, compact: bool, top_n: int = 1) -> None:
-    """Render shared-L_resonant toroid recommendations (full or compact)."""
-    for line in format_toroid_block_lines(result, compact, top_n):
-        print(line)
+def _component_table_lines(result: BandpassResult, raw: bool, mention_toroids: bool) -> list[str]:
+    """Tank capacitor / inductor table followed by the coupling capacitor table.
 
-
-def _print_topology(result: BandpassResult) -> None:
-    """Print topology diagram."""
-    print("\nTopology:")
-    print_top_c_diagram(result["n_resonators"])
-
-
-def _print_component_tables(result: BandpassResult, raw: bool, mention_toroids: bool) -> None:
-    """Print component value tables."""
-    n = result["n_resonators"]
-
-    print(f"\n{'Component Values':^50}")
-    print(f"┌{'─' * 24}┬{'─' * 24}┐")
-    print(f"│{'Tank Capacitors':^24}│{'Inductors':^24}│")
-    print(f"├{'─' * 24}┼{'─' * 24}┤")
-
-    for i in range(n):
+    Rules are 24 box-drawing characters; each cell is padded to 22 characters plus
+    one space on each side, so changing one width without the other breaks borders.
+    """
+    rule = "─" * 24
+    lines = [
+        f"\n{'Component Values':^50}",
+        f"┌{rule}┬{rule}┐",
+        f"│{'Tank Capacitors':^24}│{'Inductors':^24}│",
+        f"├{rule}┼{rule}┤",
+    ]
+    for i, c_tank in enumerate(result["c_tank"]):
         if raw:
-            cap_str = f"Cp{i + 1}: {result['c_tank'][i]:.6e} F"
+            cap_str = f"Cp{i + 1}: {c_tank:.6e} F"
             ind_str = f"L{i + 1}: {result['L_resonant']:.6e} H"
         else:
-            cap_str = f"Cp{i + 1}: {format_capacitance(result['c_tank'][i])}"
+            cap_str = f"Cp{i + 1}: {format_capacitance(c_tank)}"
             ind_str = f"L{i + 1}: {format_inductance(result['L_resonant'])}"
-        print(f"│ {cap_str:<22} │ {ind_str:<22} │")
-
-    print(f"└{'─' * 24}┴{'─' * 24}┘")
+        lines.append(f"│ {cap_str:<22} │ {ind_str:<22} │")
+    lines.append(f"└{rule}┴{rule}┘")
     note = " (see toroid recommendations)" if mention_toroids else ""
-    print(f"Inductors: wind to value{note}")
+    lines.append(f"Inductors: wind to value{note}")
 
-    print(f"\n┌{'─' * 24}┐")
-    print(f"│{'Coupling Capacitors':^24}│")
-    print(f"├{'─' * 24}┤")
-
+    lines += [f"\n┌{rule}┐", f"│{'Coupling Capacitors':^24}│", f"├{rule}┤"]
     for label, value in _coupling_cap_rows(result):
-        if raw:
-            cs_str = f"{label}: {value:.6e} F"
-        else:
-            cs_str = f"{label}: {format_capacitance(value)}"
-        print(f"│ {cs_str:<22} │")
-
-    print(f"└{'─' * 24}┘")
+        cs_str = f"{label}: {value:.6e} F" if raw else f"{label}: {format_capacitance(value)}"
+        lines.append(f"│ {cs_str:<22} │")
+    lines.append(f"└{rule}┘")
+    return lines
 
 
 def _coupling_cap_rows(result: BandpassResult) -> list[tuple[str, float]]:
@@ -320,35 +359,37 @@ def _coupling_cap_rows(result: BandpassResult) -> list[tuple[str, float]]:
     return rows
 
 
-def _print_external_q(result: BandpassResult) -> None:
-    """Print external Q values."""
-    realized = " (realized by Ce_in)" if result.get("c_end_in") is not None else ""
-    print(f"\nExternal Q (input):  {result['qe_in']:.2f}{realized}")
-    realized = " (realized by Ce_out)" if result.get("c_end_out") is not None else ""
-    print(f"External Q (output): {result['qe_out']:.2f}{realized}")
+def _external_q_lines(result: BandpassResult) -> list[str]:
+    """External Q at each port, naming the end capacitor that realizes it."""
+    realized_in = " (realized by Ce_in)" if result.get("c_end_in") is not None else ""
+    realized_out = " (realized by Ce_out)" if result.get("c_end_out") is not None else ""
+    return [
+        f"\nExternal Q (input):  {result['qe_in']:.2f}{realized_in}",
+        f"External Q (output): {result['qe_out']:.2f}{realized_out}",
+    ]
 
 
-def _print_eseries_matching(result: BandpassResult, eseries: str) -> None:
-    """Print E-series matching recommendations."""
-    print(f"\n{eseries} Preferred-Value Capacitor Selection")
-    print("─" * 45)
-    print(
+def format_eseries_lines(result: BandpassResult, eseries: str) -> list[str]:
+    """Preferred-value selection for every tank and coupling capacitor.
+
+    Inductors are wound to value, so they get no standard-value matching.
+    """
+    lines = [
+        f"\n{eseries} Preferred-Value Capacitor Selection",
+        "─" * 45,
         "(Series density is not part tolerance; policy selects at most one realization; "
-        "expert action may be required)"
-    )
-    print()
-    for i, ct in enumerate(result["c_tank"]):
-        print(f"Cp{i + 1} Calculated: {format_capacitance(ct)}")
-        for line in format_eseries_match(ct, eseries, format_capacitance):
-            print(line)
-    for label, value in _coupling_cap_rows(result):
-        print(f"{label} Calculated: {format_capacitance(value)}")
-        for line in format_eseries_match(value, eseries, format_capacitance):
-            print(line)
+        "expert action may be required)",
+        "",
+    ]
+    rows = [(f"Cp{i + 1}", c_tank) for i, c_tank in enumerate(result["c_tank"])]
+    for label, value in rows + _coupling_cap_rows(result):
+        lines.append(f"{label} Calculated: {format_capacitance(value)}")
+        lines.extend(format_eseries_match(value, eseries, format_capacitance))
+    return lines
 
 
-def _print_frequency_response(result: BandpassResult) -> None:
-    """Print frequency response plot with zoomed passband and threshold table.
+def _frequency_response_lines(result: BandpassResult) -> list[str]:
+    """Frequency response plot with zoomed passband and threshold table.
 
     The response is an ideal-component circuit simulation of the synthesized
     values; it does not predict layout, package, parasitic, or power effects.
@@ -361,10 +402,17 @@ def _print_frequency_response(result: BandpassResult) -> None:
     sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
     title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"
     response_fn = make_bp_netlist_response_db(result)
-    print(
-        f"\n{render_bandpass_plot_pair(sweep, result['f0'], result['bw'], f_low_hz=result['f_low'], f_high_hz=result['f_high'], title=title, ripple_db=ripple, response_fn=response_fn)}"
+    plot = render_bandpass_plot_pair(
+        sweep,
+        result["f0"],
+        result["bw"],
+        f_low_hz=result["f_low"],
+        f_high_hz=result["f_high"],
+        title=title,
+        ripple_db=ripple,
+        response_fn=response_fn,
     )
-    print(format_bandpass_thresholds(result, sweep, response_fn))
+    return [f"\n{plot}", format_bandpass_thresholds(result, sweep, response_fn)]
 
 
 def format_bandpass_thresholds(result: BandpassResult, sweep, response_fn) -> str:

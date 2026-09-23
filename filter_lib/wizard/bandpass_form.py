@@ -10,7 +10,9 @@ from filter_lib.bandpass.calculations import (
 )
 from filter_lib.shared.parsing import parse_frequency, parse_impedance, parse_inductance
 
-from .design_field_validation import parse_ripple_db
+from .design_field_validation import parse_ripple_db, parser_error_detail
+
+BANDWIDTH_NOT_BELOW_CENTER = "Bandwidth must be less than center frequency"
 
 
 class BandpassFormError(ValueError):
@@ -57,19 +59,25 @@ def parse_bandpass_form(values: BandpassFormValues) -> ParsedBandpassDesign:
     try:
         frequency_hz = parse_frequency(values.frequency)
     except ValueError as error:
-        raise BandpassFormError(f"Invalid center frequency: {error}", "frequency") from error
+        raise BandpassFormError(
+            f"Invalid center frequency: {parser_error_detail(error, 'frequency')}", "frequency"
+        ) from error
 
     try:
         bandwidth_hz = parse_frequency(values.bandwidth)
     except ValueError as error:
-        raise BandpassFormError(f"Invalid bandwidth: {error}", "bandwidth") from error
+        raise BandpassFormError(
+            f"Invalid bandwidth: {parser_error_detail(error, 'frequency')}", "bandwidth"
+        ) from error
     if bandwidth_hz >= frequency_hz:
-        raise BandpassFormError("Bandwidth must be less than center frequency", "bandwidth")
+        raise BandpassFormError(BANDWIDTH_NOT_BELOW_CENTER, "bandwidth")
 
     try:
         impedance = parse_impedance(values.impedance)
     except ValueError as error:
-        raise BandpassFormError(f"Invalid impedance: {error}", "impedance") from error
+        raise BandpassFormError(
+            f"Invalid impedance: {parser_error_detail(error, 'impedance')}", "impedance"
+        ) from error
 
     if values.resonator_impedance and values.resonator_inductance:
         raise BandpassFormError(
@@ -83,7 +91,8 @@ def parse_bandpass_form(values: BandpassFormValues) -> ParsedBandpassDesign:
             resonator_impedance = parse_impedance(values.resonator_impedance)
         except ValueError as error:
             raise BandpassFormError(
-                f"Invalid tank impedance: {error}", "resonator-impedance"
+                f"Invalid tank impedance: {parser_error_detail(error, 'impedance')}",
+                "resonator-impedance",
             ) from error
 
     resonator_inductance = None
@@ -92,7 +101,8 @@ def parse_bandpass_form(values: BandpassFormValues) -> ParsedBandpassDesign:
             resonator_inductance = parse_inductance(values.resonator_inductance)
         except ValueError as error:
             raise BandpassFormError(
-                f"Invalid tank inductance: {error}", "resonator-inductance"
+                f"Invalid tank inductance: {parser_error_detail(error, 'inductance')}",
+                "resonator-inductance",
             ) from error
 
     try:
@@ -133,12 +143,23 @@ def parse_bandpass_form(values: BandpassFormValues) -> ParsedBandpassDesign:
 def fractional_bandwidth_feedback(
     frequency_text: str, bandwidth_text: str
 ) -> tuple[str, str] | None:
-    """Return live feedback text and style, or ``None`` for partial input."""
-    try:
-        fractional_bw = parse_frequency(bandwidth_text) / parse_frequency(frequency_text)
-    except (ValueError, ZeroDivisionError):
-        return None
+    """Return live feedback text and style, or ``None`` for partial input.
 
+    A bandwidth at or above the center frequency is reported as the rejection Next
+    will give, not as a percentage: with a subnormal center frequency the ratio can
+    overflow to infinity, and no such design is accepted anyway.
+    """
+    try:
+        frequency_hz = parse_frequency(frequency_text)
+        bandwidth_hz = parse_frequency(bandwidth_text)
+    except ValueError:
+        return None
+    if bandwidth_hz >= frequency_hz:
+        return (BANDWIDTH_NOT_BELOW_CENTER, "fbw-danger")
+
+    # Both values are positive and finite and bandwidth < center, so the ratio is
+    # finite and at most 1; at extreme scales it can only underflow toward zero.
+    fractional_bw = bandwidth_hz / frequency_hz
     percent = fractional_bw * 100
     if fractional_bw > BANDPASS_LUMPED_MODEL_CAUTION_FBW:
         return (

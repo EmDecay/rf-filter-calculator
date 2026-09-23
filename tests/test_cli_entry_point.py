@@ -1,5 +1,9 @@
 """Top-level ``filter-calc`` entry point: dispatch, version reporting, and error translation."""
 
+import io
+import os
+import subprocess
+import sys
 from importlib.metadata import PackageNotFoundError, version
 from unittest.mock import patch
 
@@ -112,6 +116,54 @@ def test_invalid_design_value_exits_1_with_clean_error(monkeypatch, capsys):
     assert exc_info.value.code == 1
     assert captured.out == ""
     assert captured.err == "Error: Components must be 2-9\n"
+
+
+def test_closed_stdout_pipe_exits_1_without_traceback(monkeypatch, capsys):
+    class ClosedPipe(io.StringIO):
+        def write(self, text):
+            raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr("sys.argv", ["filter-calc", "lp", "bw", "pi", "10MHz", "--format", "json"])
+    monkeypatch.setattr("sys.stdout", ClosedPipe())
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 1
+    assert capsys.readouterr().err == ""
+
+
+def test_closed_pipe_descriptor_is_redirected_so_the_exit_flush_cannot_fail(monkeypatch, capsys):
+    read_end, write_end = os.pipe()
+    os.close(read_end)
+    stdout = open(write_end, "w", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["filter-calc", "lp", "bw", "pi", "10MHz", "--format", "json"])
+    monkeypatch.setattr("sys.stdout", stdout)
+    try:
+        with pytest.raises(SystemExit) as exc_info:
+            cli.main()
+        # The descriptor now points at devnull, so output still buffered for the closed
+        # pipe (what Python flushes at exit) is discarded instead of raising again.
+        stdout.write("discarded")
+        stdout.flush()
+    finally:
+        stdout.close()
+
+    assert exc_info.value.code == 1
+    assert capsys.readouterr().err == ""
+
+
+def test_reader_closing_a_real_pipe_early_leaves_no_traceback():
+    """``filter-calc ... | head`` must not print a BrokenPipeError traceback."""
+    # Closing the read end before the child writes makes the broken pipe deterministic. Without
+    # handling it, Python reports it while flushing stdout at exit and exits 120.
+    command = [sys.executable, "-c", "from filter_lib.cli import main; main()"]
+    command += ["bp", "bw", "top", "-f", "14.175MHz", "-b", "350kHz", "--plot-data", "csv"]
+    child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    child.stdout.close()
+    _, stderr = child.communicate(timeout=60)
+
+    assert child.returncode == 1
+    assert stderr == b""
 
 
 def test_keyboard_interrupt_exits_1_with_cancel_message(monkeypatch, capsys):

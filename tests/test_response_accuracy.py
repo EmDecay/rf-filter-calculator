@@ -378,6 +378,42 @@ def test_refinement_rejects_invalid_frequency_domains(grid, band):
         refine_response(lambda f: -f, grid, band, frequency_scale=1)
 
 
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"freqs": [1.0, "2", 3.0]}, "frequencies must be"),
+        ({"freqs": [1.0, 10**400]}, "frequencies must be"),
+        ({"freqs": [1.0, True, 3.0]}, "frequencies must be"),
+        ({"freqs": None}, "frequencies must be"),
+        ({"passband": (1.0, None)}, "passband must"),
+        ({"passband": (1.0, 2.0, 3.0)}, "passband must"),
+        ({"passband": 2.0}, "passband must"),
+        ({"reference_frequency": True}, "reference_frequency must"),
+        ({"reference_frequency": "2"}, "reference_frequency must"),
+        ({"reference_frequency": 10**400}, "reference_frequency must"),
+    ],
+)
+def test_refinement_rejects_non_real_domains_with_value_error(options, message):
+    """Text, None, bool, and integers beyond binary64 once leaked TypeError/OverflowError."""
+    arguments = {"freqs": [1.0, 2.0, 3.0], "passband": (1.0, 3.0), "reference_frequency": None}
+    arguments |= options
+
+    with pytest.raises(ValueError, match=message):
+        refine_response(lambda f: -f, frequency_scale=1.0, **arguments)
+
+
+def test_refinement_rejects_a_non_real_response_value():
+    with pytest.raises(ValueError, match="finite dB values"):
+        refine_response(lambda f: "-3", [1.0, 2.0], (1.0, 2.0), frequency_scale=1.0)
+
+
+def test_refinement_accepts_a_tuple_frequency_grid():
+    as_tuple = refine_response(lambda f: -f, (1.0, 2.0, 3.0), (1.0, 3.0), frequency_scale=1.0)
+    as_list = refine_response(lambda f: -f, [1.0, 2.0, 3.0], (1.0, 3.0), frequency_scale=1.0)
+
+    assert as_tuple == as_list
+
+
 def test_crossing_equality_invalid_brackets_and_nonfinite_responses():
     assert refine_crossing(lambda f: -f, 1, 2, -1, 1e-6) == 1
     assert refine_crossing(lambda f: -f, 1, 2, -2, 1e-6) == 2

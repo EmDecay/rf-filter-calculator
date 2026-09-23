@@ -7,7 +7,14 @@ from dataclasses import replace
 
 from .build_loss_models import derive_series_resistance
 from .build_response import measure_circuit
-from .build_types import BuildConfig, CircuitMeasurement, MetricSummary, ScreeningCase
+from .build_types import (
+    BuildConfig,
+    CancellationCheck,
+    CircuitMeasurement,
+    MetricSummary,
+    ScreeningCase,
+    raise_if_cancelled,
+)
 from .circuit_model import CircuitElement, NamedCircuit
 
 MetricExtractor = Callable[[CircuitMeasurement], float | None]
@@ -162,20 +169,24 @@ def run_screening_cases(
     source: float,
     load: float,
     config: BuildConfig,
+    should_cancel: CancellationCheck | None = None,
 ) -> tuple[ScreeningCase, ...]:
-    """Perturb and measure every configured case in deterministic order."""
-    return tuple(
-        ScreeningCase(
-            case_id,
-            factors,
-            measure_circuit(
-                perturb_circuit(circuit, factors),
-                result,
-                category,
-                freqs,
-                source,
-                load,
-            ),
+    """Perturb and measure every configured case in deterministic order.
+
+    ``should_cancel`` is polled before each case, so a cancelled caller waits for at
+    most one circuit measurement; ``BuildAnalysisCancelled`` is raised when it
+    reports true.
+    """
+    cases: list[ScreeningCase] = []
+    for case_id, factors in case_factors(screened_elements(circuit), config):
+        raise_if_cancelled(should_cancel)
+        measurement = measure_circuit(
+            perturb_circuit(circuit, factors),
+            result,
+            category,
+            freqs,
+            source,
+            load,
         )
-        for case_id, factors in case_factors(screened_elements(circuit), config)
-    )
+        cases.append(ScreeningCase(case_id, factors, measurement))
+    return tuple(cases)

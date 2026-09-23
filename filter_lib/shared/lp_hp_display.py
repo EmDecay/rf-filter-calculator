@@ -219,8 +219,7 @@ def display_results_for_config(
                 config,
                 eseries=eseries if show_match else None,
                 include_toroids=include_toroids,
-            ),
-            end="",
+            )
         )
         return
     if quiet:
@@ -281,7 +280,11 @@ def _plot_lines(result: dict, config: LpHpDisplayConfig) -> list[str]:
     response_fn = config.response_db_factory(
         result["filter_type"], result["freq_hz"], result["order"], ripple
     )
-    thresholds = find_db_thresholds(freqs, response, filter_type=config.plot_filter_type)
+    # The grid only brackets each crossing; bisecting the analytic response keeps the
+    # printed labels exact where log interpolation across a steep skirt is not.
+    thresholds = find_db_thresholds(
+        freqs, response, filter_type=config.plot_filter_type, response_fn=response_fn
+    )
     return [
         "",
         render_plot_pair(

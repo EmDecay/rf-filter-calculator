@@ -1,12 +1,68 @@
 """Adaptive high-precision fallback for ill-conditioned nodal matrices."""
 
 import math
-from decimal import Decimal, localcontext
+from decimal import Context, Decimal, localcontext
 
 PolarStamp = tuple[int, int, float, complex]
 DecimalComplex = tuple[Decimal, Decimal]
 
 _ZERO: DecimalComplex = (Decimal(0), Decimal(0))
+
+# Stamp magnitudes and unit phases derive from binary64 values, which carry at most
+# 17 significant digits, so 20 digits hold them exactly enough. Only the elimination
+# needs more digits: enough to keep the smallest conductance beside the largest.
+_STAMP_CONTEXT = Context(prec=20)
+# Working digits for splitting an exponent into decades; ln(10) carries 50 digits.
+_SPLIT_CONTEXT = Context(prec=40)
+_DECIMAL_LN10 = Context(prec=50).ln(Decimal(10))
+_LOG_TEN = math.log(10.0)
+# Above this exponent math.exp is a normal float whose exact decimal expansion is short
+# enough to convert directly; below it, splitting off the power of ten is cheaper.
+_DIRECT_EXPONENT_MIN = -100.0
+
+
+def _scaled_magnitude(log_magnitude: float, log_scale: float) -> Decimal:
+    """Return ``exp(log_magnitude - log_scale)`` to binary64 relative accuracy.
+
+    Splitting the exponent into ``decades * ln(10) + remainder`` keeps ``math.exp`` in
+    its normal range and applies the power of ten exactly, however small the magnitude.
+    Evaluating ``Decimal.exp`` at elimination precision instead cost tens of seconds
+    per sweep for extreme but valid port resistances or Q, without adding information.
+    """
+    exponent = log_magnitude - log_scale
+    if exponent >= _DIRECT_EXPONENT_MIN and _difference_is_exact(
+        log_magnitude, log_scale, exponent
+    ):
+        return _STAMP_CONTEXT.create_decimal_from_float(math.exp(exponent))
+    # An extreme port can set a scale near 690, where binary64 spaces values 1e-13 apart;
+    # a rounded difference would give every branch magnitude that relative error, enough
+    # to erase a near-resonant cancellation. The Decimal difference of the two logs is exact.
+    exact_exponent = _SPLIT_CONTEXT.subtract(
+        Decimal.from_float(log_magnitude), Decimal.from_float(log_scale)
+    )
+    decades = math.floor(exponent / _LOG_TEN)
+    remainder = float(
+        _SPLIT_CONTEXT.subtract(exact_exponent, _SPLIT_CONTEXT.multiply(decades, _DECIMAL_LN10))
+    )
+    return _STAMP_CONTEXT.create_decimal_from_float(math.exp(remainder)).scaleb(decades)
+
+
+def _difference_is_exact(minuend: float, subtrahend: float, difference: float) -> bool:
+    """Whether the binary64 ``difference = minuend - subtrahend`` lost nothing to rounding.
+
+    This is Knuth's TwoSum error term for ``minuend + (-subtrahend)``, which recovers the
+    exact rounding error of one addition.
+    """
+    negated = -subtrahend
+    recovered_negated = difference - minuend
+    recovered_minuend = difference - recovered_negated
+    error = (minuend - recovered_minuend) + (negated - recovered_negated)
+    return error == 0.0
+
+
+def _stamp_part(value: float) -> Decimal:
+    """Convert one unit-phase component; exact zeros stay zero."""
+    return _STAMP_CONTEXT.create_decimal_from_float(value) if value else _ZERO[0]
 
 
 def _add(first: DecimalComplex, second: DecimalComplex) -> DecimalComplex:
@@ -53,29 +109,51 @@ def _stamp(
 def _solve(matrix: list[list[DecimalComplex]], rhs: list[DecimalComplex]) -> list[DecimalComplex]:
     size = len(matrix)
     for column in range(size):
-        pivot_row = max(range(column, size), key=lambda row: _norm_squared(matrix[row][column]))
-        if _norm_squared(matrix[pivot_row][column]) == 0:
+        candidates = [
+            (_norm_squared(matrix[row][column]), row)
+            for row in range(column, size)
+            if matrix[row][column] != _ZERO
+        ]
+        if not candidates:
             raise ValueError("Singular nodal matrix: circuit has a floating or shorted node")
+        # The first row with the largest magnitude, as ``max`` over all rows would pick.
+        pivot_row = max(candidates, key=lambda candidate: candidate[0])[1]
         if pivot_row != column:
             matrix[column], matrix[pivot_row] = matrix[pivot_row], matrix[column]
             rhs[column], rhs[pivot_row] = rhs[pivot_row], rhs[column]
         pivot = matrix[column][column]
+        # Ladder matrices are banded. Subtracting an exact zero product leaves a Decimal
+        # unchanged, so only nonzero entries of the pivot row take part. The update is
+        # ``_subtract(entry, _multiply(factor, value))`` written out, with the same
+        # operations in the same order, because it is the innermost loop of every sweep.
+        pivot_entries = [
+            (index, matrix[column][index])
+            for index in range(column, size)
+            if matrix[column][index] != _ZERO
+        ]
         for row in range(column + 1, size):
-            factor = _divide(matrix[row][column], pivot)
-            if factor == _ZERO:
+            if matrix[row][column] == _ZERO:
                 continue
-            for index in range(column, size):
-                matrix[row][index] = _subtract(
-                    matrix[row][index], _multiply(factor, matrix[column][index])
+            factor_real, factor_imag = _divide(matrix[row][column], pivot)
+            if factor_real == 0 and factor_imag == 0:
+                continue
+            row_values = matrix[row]
+            for index, (value_real, value_imag) in pivot_entries:
+                entry_real, entry_imag = row_values[index]
+                row_values[index] = (
+                    entry_real - (factor_real * value_real - factor_imag * value_imag),
+                    entry_imag - (factor_real * value_imag + factor_imag * value_real),
                 )
-            rhs[row] = _subtract(rhs[row], _multiply(factor, rhs[column]))
+            rhs[row] = _subtract(rhs[row], _multiply((factor_real, factor_imag), rhs[column]))
 
     solution = [_ZERO] * size
     for row in range(size - 1, -1, -1):
         accumulator = rhs[row]
+        row_values = matrix[row]
         for index in range(row + 1, size):
-            accumulator = _subtract(accumulator, _multiply(matrix[row][index], solution[index]))
-        solution[row] = _divide(accumulator, matrix[row][row])
+            if row_values[index] != _ZERO:
+                accumulator = _subtract(accumulator, _multiply(row_values[index], solution[index]))
+        solution[row] = _divide(accumulator, row_values[row])
     return solution
 
 
@@ -90,18 +168,20 @@ def solve_decimal_nodal(
     log_values = [log_magnitude for _n1, _n2, log_magnitude, _unit in stamps]
     log_scale = max(log_values)
     dynamic_decades = math.ceil((log_scale - min(log_values)) / math.log(10.0))
+    # Accumulation must hold the smallest conductance beside the largest, so elimination
+    # runs with ``dynamic_decades`` extra digits; the magnitudes themselves do not.
+    magnitudes = [_scaled_magnitude(log_magnitude, log_scale) for log_magnitude in log_values]
+    source_magnitude = _scaled_magnitude(source_log_admittance, log_scale)
     with localcontext() as context:
         context.prec = max(50, dynamic_decades + 34)
         matrix = [[_ZERO for _column in range(n_nodes)] for _row in range(n_nodes)]
-        for n1, n2, log_magnitude, unit in stamps:
-            magnitude = Decimal.from_float(log_magnitude - log_scale).exp()
+        for (n1, n2, _log_magnitude, unit), magnitude in zip(stamps, magnitudes):
             admittance = (
-                magnitude * Decimal.from_float(unit.real),
-                magnitude * Decimal.from_float(unit.imag),
+                magnitude * _stamp_part(unit.real),
+                magnitude * _stamp_part(unit.imag),
             )
             _stamp(matrix, n1, n2, admittance)
         rhs = [_ZERO for _node in range(n_nodes)]
-        source_magnitude = Decimal.from_float(source_log_admittance - log_scale).exp()
         rhs[in_node - 1] = (source_magnitude, Decimal(0))
         value = _solve(matrix, rhs)[out_node - 1]
 

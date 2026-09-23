@@ -3,6 +3,7 @@
 import math
 
 from ..shared.numeric import positive_float_from_log
+from ..shared.physical_input_limits import require_component_q
 from .numeric_validation import _is_positive_finite
 
 STANDARD_QU_VALUES: tuple[float, ...] = (100.0, 250.0)
@@ -71,19 +72,17 @@ def combine_resonator_q(
     if qu is not None and (ql is not None or qc is not None):
         raise ValueError("qu and separate ql/qc values are mutually exclusive")
     for name, value in (("Qu", qu), ("QL", ql), ("QC", qc)):
-        if value is not None and not _is_positive_finite(value):
-            raise ValueError(f"{name} must be positive and finite")
+        if value is not None:
+            require_component_q(value, name)
     if qu is not None:
         return qu
     if ql is None:
         return qc
     if qc is None:
         return ql
+    # Both inputs lie in the accepted Q range, so the reciprocal sum is finite and positive.
     smaller, larger = sorted((ql, qc))
-    combined = smaller / (1.0 + smaller / larger)
-    if combined <= 0:
-        raise ValueError("Combined resonator Q is too small to represent")
-    return combined
+    return smaller / (1.0 + smaller / larger)
 
 
 def estimate_insertion_loss(g_values: list[float], fbw_synth: float, qu: float) -> float:

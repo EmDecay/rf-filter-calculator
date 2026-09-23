@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from filter_lib.shared.build_simulation import BuildConfig
 from filter_lib.shared.parsing import parse_impedance
+from filter_lib.shared.physical_input_limits import require_port_resistance
 
+from .design_field_validation import parser_error_detail
 from .state import FilterState
 
 BUILD_INPUT_FLOW = (
@@ -22,18 +24,21 @@ BUILD_INPUT_FLOW = (
     "build-grid-points",
 )
 
-BUILD_ERROR_INPUTS = (
-    (("source",), "build-source-resistance"),
-    (("load",), "build-load-resistance"),
-    (("capacitor_tolerance", "capacitor tolerance"), "build-capacitor-tolerance"),
-    (("inductor_tolerance", "inductor tolerance"), "build-inductor-tolerance"),
-    (("inductor_q", "inductor Q"), "build-inductor-q"),
-    (("capacitor_q", "capacitor Q"), "build-capacitor-q"),
-    (("resonator_q", "resonator Q", "mutually exclusive"), "build-resonator-q"),
-    (("sample_count", "sample count"), "build-sample-count"),
-    (("seed",), "build-seed"),
-    (("grid_points", "analysis points"), "build-grid-points"),
-)
+
+_PORT_FIELDS = ("source_resistance_ohm", "load_resistance_ohm")
+
+
+class BuildOptionError(ValueError):
+    """A rejected realized-build setting and the input that produced it.
+
+    ``field_id`` is the Input id to focus, or ``None`` when no single input is at
+    fault. It is recorded while each field is parsed; message text is never searched,
+    because parser messages echo whatever the user typed.
+    """
+
+    def __init__(self, message: str, field_id: str | None) -> None:
+        super().__init__(message)
+        self.field_id = field_id
 
 
 @dataclass(frozen=True)
@@ -136,16 +141,17 @@ def build_option_issue(
     return None
 
 
-def build_error_input_id(error: str) -> str | None:
-    """Map a shared validation error to the most relevant build input."""
-    for tokens, input_id in BUILD_ERROR_INPUTS:
-        if any(token in error for token in tokens):
-            return input_id
-    return None
+def parse_build_config(
+    eseries: str, values: BuildOptionValues, *, design_impedance: float | None = None
+) -> BuildConfig:
+    """Parse raw form values and validate them through ``BuildConfig``.
 
-
-def parse_build_config(eseries: str, values: BuildOptionValues) -> BuildConfig:
-    """Parse raw form values and validate them through ``BuildConfig``."""
+    Fields are handled in form order. Each one is parsed and then validated by
+    ``BuildConfig`` on its own, so any rejection is raised as a ``BuildOptionError``
+    naming the input that caused it. With ``design_impedance``, an explicit source or
+    load resistance is also checked against the ratio that analysis would enforce, so
+    the form can focus that input instead of failing later on Results.
+    """
 
     def optional_float(value: str, label: str) -> float | None:
         if not value:
@@ -173,22 +179,80 @@ def parse_build_config(eseries: str, values: BuildOptionValues) -> BuildConfig:
         try:
             return parse_impedance(value)
         except ValueError as error:
-            raise ValueError(f"{label}: {error}") from error
+            raise ValueError(f"{label}: {parser_error_detail(error, 'impedance')}") from error
 
-    return BuildConfig(
-        eseries=eseries,
-        capacitor_tolerance_pct=required_float(values.capacitor_tolerance, "capacitor tolerance"),
-        inductor_tolerance_pct=required_float(values.inductor_tolerance, "inductor tolerance"),
-        inductor_q=optional_float(values.inductor_q, "inductor Q"),
-        capacitor_q=optional_float(values.capacitor_q, "capacitor Q"),
-        resonator_q=optional_float(values.resonator_q, "resonator Q"),
-        source_resistance_ohm=optional_impedance(values.source_resistance, "source resistance"),
-        load_resistance_ohm=optional_impedance(values.load_resistance, "load resistance"),
-        sample_count=required_int(values.sample_count, "sample count"),
-        seed=required_int(values.seed, "seed"),
-        grid_points=required_int(values.grid_points, "analysis points"),
-        use_toroid_candidates=values.use_toroid_candidates,
+    try:
+        defaults = BuildConfig(eseries=eseries, use_toroid_candidates=values.use_toroid_candidates)
+    except ValueError as error:
+        raise BuildOptionError(str(error), None) from error
+
+    # (BuildConfig field, Input id, parser, raw text, label used in messages), in form order.
+    fields = (
+        (
+            "source_resistance_ohm",
+            "build-source-resistance",
+            optional_impedance,
+            values.source_resistance,
+            "source resistance",
+        ),
+        (
+            "load_resistance_ohm",
+            "build-load-resistance",
+            optional_impedance,
+            values.load_resistance,
+            "load resistance",
+        ),
+        (
+            "capacitor_tolerance_pct",
+            "build-capacitor-tolerance",
+            required_float,
+            values.capacitor_tolerance,
+            "capacitor tolerance",
+        ),
+        (
+            "inductor_tolerance_pct",
+            "build-inductor-tolerance",
+            required_float,
+            values.inductor_tolerance,
+            "inductor tolerance",
+        ),
+        ("inductor_q", "build-inductor-q", optional_float, values.inductor_q, "inductor Q"),
+        ("capacitor_q", "build-capacitor-q", optional_float, values.capacitor_q, "capacitor Q"),
+        ("resonator_q", "build-resonator-q", optional_float, values.resonator_q, "resonator Q"),
+        (
+            "sample_count",
+            "build-sample-count",
+            required_int,
+            values.sample_count,
+            "sample count",
+        ),
+        ("seed", "build-seed", required_int, values.seed, "seed"),
+        (
+            "grid_points",
+            "build-grid-points",
+            required_int,
+            values.grid_points,
+            "analysis points",
+        ),
     )
+    parsed: dict[str, object] = {}
+    for config_name, field_id, parse, text, label in fields:
+        try:
+            value = parse(text, label)
+            # Validate this field alone against the shared contract.
+            replace(defaults, **{config_name: value})
+            if config_name in _PORT_FIELDS and value is not None and design_impedance:
+                require_port_resistance(value, design_impedance, label.capitalize())
+        except ValueError as error:
+            raise BuildOptionError(str(error), field_id) from error
+        parsed[config_name] = value
+
+    try:
+        return replace(defaults, **parsed)
+    except ValueError as error:
+        # Every field passed on its own, so only a cross-field rule can fail here;
+        # the one such rule rejects a complete resonator Q combined with L/C Q.
+        raise BuildOptionError(str(error), "build-resonator-q") from error
 
 
 def has_custom_build_controls(config: BuildConfig) -> bool:

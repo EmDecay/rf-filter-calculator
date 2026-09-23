@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from .circuit_model import NamedCircuit
 from .eseries import DEFAULT_MATCH_POLICY, E_SERIES, MatchPolicy
 from .numeric import is_finite_real, positive_geometric_mean
+from .physical_input_limits import require_component_q
 
 
 def _is_finite_number(value: object) -> bool:
@@ -42,8 +44,8 @@ class BuildConfig:
                 raise ValueError(f"{name} must be finite and in [0, 100)")
         for name in ("inductor_q", "capacitor_q", "resonator_q"):
             value = getattr(self, name)
-            if value is not None and (not _is_finite_number(value) or value <= 0):
-                raise ValueError(f"{name} must be positive and finite")
+            if value is not None:
+                require_component_q(value, name)
         if self.resonator_q is not None and (
             self.inductor_q is not None or self.capacitor_q is not None
         ):
@@ -83,6 +85,27 @@ def resolve_build_config(config: object) -> BuildConfig:
     if not isinstance(config, BuildConfig):
         raise ValueError("config must be a BuildConfig or None")
     return config
+
+
+class BuildAnalysisCancelled(Exception):
+    """Raised when the caller's cancellation check stops a realized-build analysis.
+
+    Deliberately not a ``ValueError``: cancellation is not an input error, so a
+    caller that reports rejected input never presents it as one.
+    """
+
+
+CancellationCheck = Callable[[], bool]
+
+
+def raise_if_cancelled(should_cancel: CancellationCheck | None) -> None:
+    """Raise ``BuildAnalysisCancelled`` when the optional check reports cancellation.
+
+    Thread workers cannot be interrupted from outside, so long analyses poll this
+    between bounded units of work. ``None`` means the caller never cancels.
+    """
+    if should_cancel is not None and should_cancel():
+        raise BuildAnalysisCancelled("Realized-build analysis was cancelled")
 
 
 @dataclass(frozen=True)

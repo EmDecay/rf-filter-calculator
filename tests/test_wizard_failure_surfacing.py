@@ -1,9 +1,9 @@
 """Designs the forms accept but the math cannot realize fail visibly, never by crashing.
 
 The forms accept any positive finite value, so the calculation path must turn numerically
-extreme designs and unexpected exceptions into an error outcome. That guard is the only
-one: the Results worker runs with Textual's default ``exit_on_error=True``, so an exception
-that escaped ``calculate_and_format`` would exit the app instead of reaching the screen.
+extreme designs and unexpected exceptions into an error outcome. The Results worker also
+runs with ``exit_on_error=False``, so an exception that still escaped ``calculate_and_format``
+is rendered on the screen instead of exiting the app.
 """
 
 from __future__ import annotations
@@ -75,8 +75,8 @@ def _state(category: str, **overrides) -> FilterState:
             {"bandwidth_hz": 9.99e6, "order": 9},
             "Bandwidth too wide to realize: derived tank capacitances must be positive and finite",
         ),
-        # A subnormal bandwidth fails inside synthesis with a terse library message (not
-        # pinned here); with build analysis enabled the failure must still be an outcome.
+        # A subnormal bandwidth is rejected before synthesis with a message naming the
+        # bandwidth and its limit; with build analysis enabled it is still an outcome.
         (
             "bandpass",
             {
@@ -85,7 +85,9 @@ def _state(category: str, **overrides) -> FilterState:
                 "build_analysis_enabled": True,
                 "build_grid_points": 51,
             },
-            None,
+            "Bandwidth 4.94e-324 Hz is too narrow relative to the 1e+07 Hz center frequency "
+            "to synthesize at double precision; use a fractional bandwidth of at least "
+            "3.6e-12 (a bandwidth of at least 3.6e-05 Hz)",
         ),
     ],
 )
@@ -228,5 +230,31 @@ def test_unrealizable_design_shows_its_error_in_the_running_app() -> None:
             await pilot.pause()
             assert isinstance(app.screen, OutputOptionsScreen)
             assert state.calculation_status == "error"
+
+    asyncio.run(exercise())
+
+
+def test_worker_exception_is_rendered_without_exiting_the_app(monkeypatch) -> None:
+    def fail(_snapshot, *_args, **_kwargs):
+        raise RuntimeError("solver exploded")
+
+    monkeypatch.setattr("filter_lib.wizard.screens.results.calculate_and_format", fail)
+
+    async def exercise() -> None:
+        app = FilterWizardApp()
+        app.filter_state = _state("lowpass")
+        async with app.run_test(size=(120, 45)) as pilot:
+            await pilot.pause()
+            app.push_screen(ResultsScreen())
+            await pilot.pause()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+            assert app.return_code is None
+            assert str(app.screen.query_one("#results-text", Static).render()) == (
+                "Calculation failed: solver exploded\n\nPress Esc to go back."
+            )
+            assert app.filter_state.calculation_status == "error"
+            assert app.screen.query_one("#export-btn", Button).disabled is True
 
     asyncio.run(exercise())

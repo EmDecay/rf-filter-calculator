@@ -168,7 +168,8 @@ def format_csv(
         include_toroids: Append toroid best-match columns and populate inductor rows
 
     Returns:
-        CSV formatted string
+        CSV rows separated by LF, without a final line terminator (the caller
+        ends the document, as for LP/HP CSV).
     """
     validate_finite_tree(
         {
@@ -180,8 +181,8 @@ def format_csv(
             "end_capacitor_output": result.get("c_end_out"),
         }
     )
-    output = io.StringIO()
-    writer = csv.writer(output)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
     header = ["Component", "Value", "Unit"]
     if eseries:
         header.extend(ESERIES_CSV_HEADER)
@@ -232,7 +233,7 @@ def format_csv(
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
-    return output.getvalue()
+    return output.getvalue().removesuffix("\n")
 
 
 def _end_cap_items(result: BandpassResult) -> list[tuple[str, float]]:

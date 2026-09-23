@@ -155,25 +155,6 @@ def test_ladder_table_is_the_cli_table(monkeypatch, capsys, state, flags):
     assert _document(_wizard_output(state)) == _document(expected)
 
 
-def _header_values(text: str) -> dict[str, str]:
-    """Displayed value for each design quantity both band-pass headers state."""
-    labels = ("Center Frequency", "Bandwidth", "Fractional BW", "Ripple", "Resonators")
-    values: dict[str, str] = {}
-    for line in text.splitlines():
-        name, separator, value = line.partition(":")
-        label = next((label for label in labels if name.startswith(label)), None)
-        if separator and label and label not in values:
-            values[label] = value.strip()
-    return values
-
-
-def _body(text: str) -> list[str]:
-    """Lines after the design header, ignoring blank and rule-only separator lines."""
-    lines = text.splitlines()
-    header_rules = [index for index, line in enumerate(lines) if line and set(line) == {"="}]
-    return [line for line in lines[header_rules[1] + 1 :] if line.strip(" ─-")]
-
-
 @pytest.mark.parametrize(
     "state, flags",
     [
@@ -193,10 +174,19 @@ def _body(text: str) -> list[str]:
             _bandpass("bessel", 3, eseries="E96", resonator_inductance=1.5e-6, show_plot=True),
             ("--plot",),
         ),
+        (
+            _bandpass("chebyshev", 5, eseries="E12", toroid_detail="compact", show_plot=True),
+            ("--plot",),
+        ),
     ],
-    ids=["chebyshev-e24", "butterworth-raw-tank-impedance", "bessel-plot-tank-inductance"],
+    ids=[
+        "chebyshev-e24",
+        "butterworth-raw-tank-impedance",
+        "bessel-plot-tank-inductance",
+        "chebyshev-plot-compact-toroids",
+    ],
 )
-def test_bandpass_table_values_are_the_cli_values(monkeypatch, capsys, state, flags):
+def test_bandpass_table_is_the_cli_table(monkeypatch, capsys, state, flags):
     expected = _cli_stdout(
         monkeypatch,
         capsys,
@@ -206,13 +196,9 @@ def test_bandpass_table_values_are_the_cli_values(monkeypatch, capsys, state, fl
         *flags,
     )
 
-    output = _wizard_output(state)
-
-    # The wizard words its design header differently; the quantities must agree.
-    assert _header_values(output) == _header_values(expected)
-    assert len(_header_values(output)) == (5 if state.filter_type == "chebyshev" else 4)
-    # Component tables, preferred values, toroid windings, Q/loss notes, and plot.
-    assert _body(output) == _body(expected)
+    # Header with both band edges, component tables, preferred values, toroid windings,
+    # Q/loss notes, plot, and threshold table: one renderer, so the text is identical.
+    assert _document(_wizard_output(state)) == _document(expected)
 
 
 @pytest.mark.parametrize(

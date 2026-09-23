@@ -10,7 +10,7 @@ import re
 
 import pytest
 
-from filter_lib.bandpass.diagrams import format_top_c_diagram, print_top_c_diagram
+from filter_lib.bandpass.diagrams import format_top_c_diagram
 from filter_lib.highpass import display as hp_display
 from filter_lib.lowpass import display as lp_display
 from filter_lib.shared.display_common import (
@@ -119,17 +119,6 @@ class TestTopCDiagram:
         assert len({len(line) for line in lines}) == 1
 
 
-@pytest.mark.parametrize(
-    ("printer", "formatter", "arguments"),
-    [
-        (print_top_c_diagram, format_top_c_diagram, (4,)),
-    ],
-)
-def test_diagram_printers_emit_the_formatted_diagram(printer, formatter, arguments, capsys):
-    printer(*arguments)
-    assert capsys.readouterr().out == formatter(*arguments) + "\n"
-
-
 def test_header_and_component_table_printers_emit_formatted_text(highpass_result, capsys):
     print_header(highpass_result, topology="T", filter_category="High Pass")
     print_component_table(highpass_result, raw=True, primary_component="capacitors")
@@ -141,6 +130,26 @@ def test_header_and_component_table_printers_emit_formatted_text(highpass_result
         + "\n"
     )
     assert capsys.readouterr().out == expected
+
+
+@pytest.mark.parametrize(
+    ("freq_hz", "impedance", "frequency_text", "impedance_text"),
+    [
+        (7.0735e6, 12345.0, "7.0735 MHz", "12345"),
+        (14.175e6, 50.0, "14.175 MHz", "50"),
+        (455e3, 12.5, "455 kHz", "12.5"),
+        (1e-300, 1e300, "1e-300 Hz", "1e+300"),
+    ],
+)
+def test_header_restates_the_typed_cutoff_and_impedance(
+    lowpass_result, freq_hz, impedance, frequency_text, impedance_text
+):
+    result = {**lowpass_result, "freq_hz": freq_hz, "impedance": impedance}
+
+    lines = format_header(result, "PI", "Low Pass").splitlines()
+
+    assert f"Cutoff Frequency:    {frequency_text}" in lines
+    assert f"Impedance Z0:        {impedance_text} Ohm" in lines
 
 
 class TestQuietOutput:
@@ -249,7 +258,7 @@ class TestNegativeZeroErrorText:
         assert fields[6:9] == ["single", "35.70 pF", "0.0"]
 
     def test_csv_parallel_error_cells_are_unsigned_zero(self):
-        # 184.91 pF -> E96 30.9 pF || 154 pF is -0.005 %.
+        # 184.91 pF -> 184.9 pF (E96 54.9 pF || 130 pF, tied with 30.9 || 154) is -0.005 %.
         fields = csv_match_fields(184.91e-12, format_capacitance, "E96", "additive")
 
         assert fields[4] == "0.0"
@@ -261,7 +270,9 @@ class TestNegativeZeroErrorText:
         parallel = format_eseries_match(184.91e-12, "E96", format_capacitance, "additive")
 
         assert single == ["  Nearest Std:  35.70 pF (0.0%)"]
-        assert parallel[1] == "  Parallel Std: 30.90 pF || 154.00 pF (0.0%)"
+        # 54.9 + 130 and 30.9 + 154 are both exactly 184.9 pF; the tie goes to the more
+        # balanced pair.
+        assert parallel[1] == "  Parallel Std: 54.90 pF || 130.00 pF (0.0%)"
 
     def test_table_positive_error_that_rounds_to_zero_is_also_unsigned(self):
         # 35.69 pF -> E96 35.7 pF is +0.028 %; a sign is shown only on a nonzero rendering.
@@ -286,7 +297,7 @@ class TestDisplayResultsRouting:
         eseries = "E24" if show_match else None
         expected = {
             "json": module.format_json(result, eseries=eseries, include_toroids=False) + "\n",
-            "csv": module.format_csv(result, eseries=eseries, include_toroids=False),
+            "csv": module.format_csv(result, eseries=eseries, include_toroids=False) + "\n",
         }
 
         for output_format, text in expected.items():
@@ -354,12 +365,14 @@ class TestCsvResultRows:
             "C2,1.00,mF",
         ]
 
-    def test_sub_nanohenry_inductance_keeps_plain_henry_unit_column(self):
-        output = format_csv_result({"capacitors": [], "inductors": [1e-12, 1.0]})
+    def test_sub_nanohenry_inductance_uses_the_picohenry_unit_column(self):
+        output = format_csv_result({"capacitors": [], "inductors": [1e-12, 1.5915e-11, 1e-13, 1.0]})
         assert output.strip().split("\n") == [
             "Component,Value,Unit",
-            "L1,1.000000e-12,H",
-            "L2,1.00,H",
+            "L1,1.00,pH",
+            "L2,15.92,pH",
+            "L3,1.00e-13,H",
+            "L4,1.00,H",
         ]
 
 

@@ -12,6 +12,8 @@ from unittest.mock import Mock
 import pytest
 from textual.widgets import Button, Checkbox, Input, RadioSet, SelectionList
 
+from filter_lib.shared.build_types import BuildConfig
+from filter_lib.wizard.build_options import BuildOptionError, BuildOptionValues, parse_build_config
 from filter_lib.wizard.screens.output_options import OutputOptionsScreen
 from filter_lib.wizard.screens.results import ResultsScreen
 from filter_lib.wizard.state import FilterState
@@ -455,3 +457,160 @@ class TestShowResultsRejections:
 
         _rejected_with(form, "Invalid realized-build setting: ", focus)
         assert message in form.screen.notify.call_args.args[0]
+
+    @pytest.mark.parametrize(
+        "build_inputs, detail, focus",
+        [
+            # The impedance parser echoes the entry, so an entry naming another field
+            # must not steer focus there.
+            (
+                {"#build-load-resistance": "sourcex"},
+                "load resistance: sourcex",
+                "#build-load-resistance",
+            ),
+            (
+                {"#build-source-resistance": "loadx"},
+                "source resistance: loadx",
+                "#build-source-resistance",
+            ),
+            (
+                {"#build-load-resistance": "seed"},
+                "load resistance: seed",
+                "#build-load-resistance",
+            ),
+        ],
+    )
+    def test_echoed_entry_text_cannot_redirect_focus(
+        self, monkeypatch, build_inputs, detail, focus
+    ):
+        form = _screen(monkeypatch, build_enabled=True, build_inputs=build_inputs)
+
+        form.screen._show_results()
+
+        _rejected_with(form, "Invalid realized-build setting: ", focus)
+        assert form.screen.notify.call_args.args[0] == f"Invalid realized-build setting: {detail}"
+        for selector, widget in form.w.items():
+            if selector != focus:
+                widget.focus.assert_not_called()
+
+    def test_first_invalid_field_in_form_order_is_reported(self, monkeypatch):
+        form = _screen(
+            monkeypatch,
+            build_enabled=True,
+            build_inputs={"#build-grid-points": "50", "#build-inductor-q": "abc"},
+        )
+
+        form.screen._show_results()
+
+        _rejected_with(form, "inductor Q must be a number", "#build-inductor-q")
+
+    def test_a_port_outside_the_design_impedance_range_focuses_that_port(self, monkeypatch):
+        """The form checks ports against the design's 50 ohm, not later on Results."""
+        form = _screen(
+            monkeypatch, build_enabled=True, build_inputs={"#build-load-resistance": "1e9"}
+        )
+
+        form.screen._show_results()
+
+        _rejected_with(
+            form,
+            "Load resistance 1e+09 ohm is outside the supported range 5e-05 to 5e+07 ohm",
+            "#build-load-resistance",
+        )
+
+    def test_a_rejection_tied_to_no_field_is_reported_without_moving_focus(self, monkeypatch):
+        def reject(*_args, **_kwargs):
+            raise BuildOptionError("eseries must be E12, E24, or E96", None)
+
+        monkeypatch.setattr("filter_lib.wizard.screens.output_options.parse_build_config", reject)
+        form = _screen(monkeypatch, build_enabled=True)
+
+        form.screen._show_results()
+
+        assert form.pushed == []
+        form.screen.notify.assert_called_once_with(
+            "Invalid realized-build setting: eseries must be E12, E24, or E96", severity="error"
+        )
+        for widget in form.w.values():
+            widget.focus.assert_not_called()
+
+
+class TestParseBuildConfig:
+    @pytest.mark.parametrize(
+        "overrides, field_id",
+        [
+            ({"source_resistance": "sourcex"}, "build-source-resistance"),
+            ({"load_resistance": "sourcex"}, "build-load-resistance"),
+            ({"capacitor_tolerance": "100"}, "build-capacitor-tolerance"),
+            ({"inductor_tolerance": "x"}, "build-inductor-tolerance"),
+            ({"inductor_q": "0"}, "build-inductor-q"),
+            ({"capacitor_q": "q"}, "build-capacitor-q"),
+            ({"resonator_q": "-1"}, "build-resonator-q"),
+            ({"sample_count": "10001"}, "build-sample-count"),
+            ({"seed": "s"}, "build-seed"),
+            ({"grid_points": "5002"}, "build-grid-points"),
+            # The only cross-field rule belongs to the complete resonator Q.
+            ({"capacitor_q": "80", "resonator_q": "200"}, "build-resonator-q"),
+        ],
+    )
+    def test_each_rejection_names_the_input_that_caused_it(self, overrides, field_id):
+        with pytest.raises(BuildOptionError) as caught:
+            parse_build_config("E24", BuildOptionValues(**overrides))
+
+        assert caught.value.field_id == field_id
+
+    @pytest.mark.parametrize(
+        "overrides, field_id",
+        [
+            ({"source_resistance": "1e-5"}, "build-source-resistance"),
+            ({"load_resistance": "100M"}, "build-load-resistance"),
+            ({"inductor_q": "0.001"}, "build-inductor-q"),
+            ({"resonator_q": "2e9"}, "build-resonator-q"),
+        ],
+    )
+    def test_values_outside_the_physical_limits_name_their_input(self, overrides, field_id):
+        with pytest.raises(BuildOptionError) as caught:
+            parse_build_config("E24", BuildOptionValues(**overrides), design_impedance=50.0)
+
+        assert caught.value.field_id == field_id
+
+    def test_port_range_follows_the_design_impedance(self):
+        """100 Mohm is 2e6 times a 50 ohm design but only 1e3 times a 100 kohm one."""
+        values = BuildOptionValues(load_resistance="100M")
+
+        config = parse_build_config("E24", values, design_impedance=100e3)
+
+        assert config.load_resistance_ohm == 100e6
+        with pytest.raises(BuildOptionError, match="outside the supported range"):
+            parse_build_config("E24", values, design_impedance=50.0)
+
+    def test_a_config_level_failure_names_no_input(self):
+        with pytest.raises(BuildOptionError, match="eseries") as caught:
+            parse_build_config("E6", BuildOptionValues())
+
+        assert caught.value.field_id is None
+
+    def test_valid_values_build_the_shared_config(self):
+        config = parse_build_config(
+            "E96",
+            BuildOptionValues(
+                source_resistance="25",
+                load_resistance="1k",
+                resonator_q="150",
+                sample_count="8",
+                seed="3",
+                grid_points="201",
+                use_toroid_candidates=False,
+            ),
+        )
+
+        assert config == BuildConfig(
+            eseries="E96",
+            source_resistance_ohm=25.0,
+            load_resistance_ohm=1000.0,
+            resonator_q=150.0,
+            sample_count=8,
+            seed=3,
+            grid_points=201,
+            use_toroid_candidates=False,
+        )

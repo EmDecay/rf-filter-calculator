@@ -277,6 +277,80 @@ class TestSynthesisRealizabilityLimits:
         assert abs(validation["upper_edge_error_rel"]) <= 1e-3
         assert result["response_validation_status"] == "validated"
 
+    # At 10 MHz, ln(f0) = 16.1 has a binary64 spacing of 2**-48 = 3.55e-15. The 2001-point
+    # verification grid steps 4 * FBW / 2000 in ln(f), so twice that spacing needs
+    # FBW >= 3.55e-12, stated rounded up as 3.6e-12 (3.6e-05 Hz).
+    NARROW_BANDWIDTH_LIMIT = (
+        "is too narrow relative to the 1e+07 Hz center frequency to synthesize at double "
+        "precision; use a fractional bandwidth of at least 3.6e-12 (a bandwidth of at "
+        "least 3.6e-05 Hz)"
+    )
+
+    @pytest.mark.parametrize(
+        "bw",
+        [5e-324, 1e-300, 1e-9, 1e-6],
+        ids=["subnormal", "1e-300", "fbw-1e-16", "fbw-1e-13"],
+    )
+    def test_bandwidth_below_binary64_resolution_names_the_bandwidth_and_limit(self, bw):
+        """These failed as "math domain error", "Synthesized circuit has no finite passband
+        peak", or "frequencies must be strictly increasing" from internal sweeps."""
+        with pytest.raises(ValueError) as raised:
+            calculate_bandpass_filter(10e6, bw, 50, 3, "butterworth", "top")
+
+        assert str(raised.value) == f"Bandwidth {bw:.3g} Hz {self.NARROW_BANDWIDTH_LIMIT}"
+
+    @pytest.mark.parametrize(("kind", "order"), [("butterworth", 3), ("chebyshev", 9)])
+    def test_stated_minimum_bandwidth_synthesizes(self, kind, order):
+        result = calculate_bandpass_filter(10e6, 3.6e-5, 50, order, kind, "top")
+
+        assert result["synthesis_validation"]["connected_region_count"] >= 1
+        assert result["bw"] == 3.6e-5
+
+    @pytest.mark.parametrize(
+        ("choice", "message"),
+        [
+            (
+                {"resonator_impedance": 1e-300},
+                "Resonator impedance 1e-300 ohm is too low to realize the input/output "
+                "coupling to the 50 ohm terminations at this bandwidth and order; it must "
+                "exceed about 2.5 ohm "
+                "(necessary, not sufficient: a wide enough bandwidth fails at any tank value)",
+            ),
+            (
+                {"resonator_impedance": 2.4},
+                "Resonator impedance 2.4 ohm is too low to realize the input/output "
+                "coupling to the 50 ohm terminations at this bandwidth and order; it must "
+                "exceed about 2.5 ohm "
+                "(necessary, not sufficient: a wide enough bandwidth fails at any tank value)",
+            ),
+            (
+                {"resonator_inductance": 1e-300},
+                "Resonator inductance 1e-300 H is too low to realize the input/output "
+                "coupling to the 50 ohm terminations at this bandwidth and order; it must "
+                "exceed about 3.98e-08 H "
+                "(necessary, not sufficient: a wide enough bandwidth fails at any tank value)",
+            ),
+        ],
+        ids=["tiny-impedance", "impedance-below-limit", "tiny-inductance"],
+    )
+    def test_low_tank_reactance_names_the_tank_input_and_its_limit(self, choice, message):
+        """End coupling needs Qe * X > Z0: X > 50 * 0.05 / g1 = 2.5 ohm for Butterworth
+        n=3 (g1 = 1), i.e. L > 2.5 / (2 * pi * 10 MHz) = 39.8 nH. The message used to
+        blame the bandwidth or order."""
+        with pytest.raises(ValueError) as raised:
+            calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", **choice)
+
+        assert str(raised.value) == message
+
+    def test_tank_reactance_just_above_the_stated_limit_synthesizes(self):
+        """2.51 ohm clears Qe * X > Z0 by 0.4 %, so the stated 2.5 ohm limit is tight."""
+        result = calculate_bandpass_filter(
+            10e6, 0.5e6, 50, 3, "butterworth", "top", resonator_impedance=2.51
+        )
+
+        assert result["resonator_impedance"] == 2.51
+        assert result["response_validation_status"] == "validated"
+
 
 class TestInsertionLossAndQModel:
     """Cohn dissipation-loss estimate IL ≈ 4.343·Σg/(FBW_synth·Qu) dB and Q metadata."""
@@ -333,9 +407,10 @@ class TestInsertionLossAndQModel:
         expected_user = 4.343 * sum(result["g_values"]) / (result["fbw_synth"] * 249.9999999999)
         assert result["il_estimates"]["249.9999999999"] == pytest.approx(expected_user, rel=1e-14)
 
-    def test_invalid_qu_in_calculate_rejected(self):
-        with pytest.raises(ValueError, match="must be positive and finite"):
-            calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=0.0)
+    @pytest.mark.parametrize("qu", [0.0, 0.00999, 1.01e9])
+    def test_invalid_qu_in_calculate_rejected(self, qu):
+        with pytest.raises(ValueError, match=r"^Qu must be finite and in \[0.01, 1e\+09\]$"):
+            calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=qu)
 
     @pytest.mark.parametrize(
         "filter_type, ripple_db, ripple_to_3db_ratio",
@@ -368,14 +443,17 @@ class TestInsertionLossAndQModel:
         assert combine_resonator_q(ql=200) == 200
         assert combine_resonator_q(qc=400) == 400
 
-    def test_component_q_combination_avoids_reciprocal_overflow(self):
-        combined = combine_resonator_q(ql=1e-309, qc=1e-309)
-        assert combined is not None and combined > 0
-        assert combined == pytest.approx(5e-310, rel=1e-12, abs=0)
+    @pytest.mark.parametrize(("q", "combined"), [(0.01, 0.005), (1e9, 5e8)])
+    def test_component_q_combination_at_the_accepted_limits(self, q, combined):
+        assert combine_resonator_q(ql=q, qc=q) == pytest.approx(combined, rel=1e-12, abs=0)
 
-    def test_component_q_combination_rejects_unrepresentable_result(self):
-        with pytest.raises(ValueError, match="too small to represent"):
-            combine_resonator_q(ql=5e-324, qc=5e-324)
+    @pytest.mark.parametrize(
+        ("changes", "name"),
+        [({"ql": 5e-324}, "QL"), ({"qc": 1e300}, "QC"), ({"ql": 100, "qc": True}, "QC")],
+    )
+    def test_component_q_outside_the_accepted_range_is_rejected_by_name(self, changes, name):
+        with pytest.raises(ValueError, match=rf"^{name} must be finite and in \[0.01, 1e\+09\]$"):
+            combine_resonator_q(**changes)
 
     def test_direct_qu_is_mutually_exclusive_with_component_q(self):
         with pytest.raises(ValueError, match="mutually exclusive"):
@@ -822,12 +900,11 @@ class TestBandpassPublicInputValidation:
             ({"z0": 10**400}, "Impedance"),
             ({"bw": 10.000001e6}, "less than center frequency"),
             ({"bw": math.nextafter(10e6, 0.0)}, "too wide to realize"),
-            # Far below the float resolution of the band edges: any ValueError, not a crash.
-            # (The current message names the internal grid rather than the bandwidth.)
-            ({"bw": 1e-6}, "."),
+            # Far below the float resolution of the band edges: the message names the input.
+            ({"bw": 1e-6}, "^Bandwidth 1e-06 Hz is too narrow relative to the 1e\\+07 Hz"),
             ({"f0": 1.7e308, "bw": 1.7e308 * 0.05}, "positive finite frequency"),
             ({"z0": 5e-324}, "numeric range"),
-            ({"qu": 5e-324}, "numeric range"),
+            ({"qu": 5e-324}, "Qu must be finite and in"),
             ({"q_safety": 1e308}, "numeric range"),
             ({"resonator_impedance": 0.1}, "input/output coupling"),
             ({"resonator_inductance": 1e-3}, "would be negative"),
@@ -864,8 +941,8 @@ class TestBandpassPublicInputValidation:
             {"z0": 1.7e308},
             {"bw": 1e-3},
             {"filter_type": "chebyshev", "n_resonators": 9, "ripple_db": 5e-324},
-            {"qu": 1e-300},
-            {"ql": 1e300, "qc": 1e300},
+            {"qu": 0.01},
+            {"ql": 1e9, "qc": 1e9},
         ],
         ids=[
             "tiny-frequency",
@@ -874,8 +951,8 @@ class TestBandpassPublicInputValidation:
             "huge-impedance",
             "fbw-1e-10",
             "subnormal-ripple",
-            "tiny-q",
-            "huge-component-q",
+            "lowest-accepted-q",
+            "highest-accepted-component-q",
         ],
     )
     def test_extreme_valid_inputs_give_finite_calibrated_results(self, changes):

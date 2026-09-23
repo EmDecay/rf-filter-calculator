@@ -21,7 +21,11 @@ from filter_lib import cli
 from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.highpass import calculations as highpass
 from filter_lib.lowpass import calculations as lowpass
-from filter_lib.shared.formatting import format_fixed, format_frequency
+from filter_lib.shared.formatting import (
+    format_fixed,
+    format_restated_frequency,
+    format_restated_value,
+)
 
 _SCALE = {
     "fF": 1e-15,
@@ -30,6 +34,7 @@ _SCALE = {
     "µF": 1e-6,
     "mF": 1e-3,
     "F": 1.0,
+    "pH": 1e-12,
     "nH": 1e-9,
     "µH": 1e-6,
     "mH": 1e-3,
@@ -66,13 +71,13 @@ def _assert_engineering_text_matches(number: str, unit: str, value: float) -> No
     scale = _SCALE[unit]
     assert "e" not in number, f"{value!r} fell back to scientific notation"
     assert abs(float(number) * scale - value) <= 0.005 * scale * (1 + 1e-12)
-    if unit not in {"fF", "mF", "H", "nH"}:
+    if unit not in {"fF", "mF", "H", "pH"}:
         # Between the smallest and largest prefixes the mantissa stays in [1, 1000).
         assert 1 <= float(number) < 1000, (number, unit)
 
 
 # (command, ladder parameters used for the API call). The designs span every prefix from
-# nH to mH and from pF to µF, both topologies, and all three response types.
+# pH to mH and from pF to µF, both topologies, and all three response types.
 _LADDER_DESIGNS = [
     (("lp", "bw", "pi", "7.1MHz", "-n", "5"), ("lowpass", "butterworth", 7.1e6, 50.0, 5, None)),
     (
@@ -96,6 +101,11 @@ _LADDER_DESIGNS = [
         ("highpass", "bessel", 455e3, 600.0, 4, None),
     ),
     (("hp", "bw", "t", "100Hz", "-n", "6"), ("highpass", "butterworth", 100.0, 50.0, 6, None)),
+    # Sub-nanohenry inductors (15.9 pH) print in picohenries, not as "0.02 nH".
+    (
+        ("lp", "bw", "t", "10GHz", "-n", "3", "-z", "1"),
+        ("lowpass", "butterworth", 10e9, 1.0, 3, None),
+    ),
 ]
 
 
@@ -179,8 +189,8 @@ class TestLadderOutputsCarryTheCalculatedValues:
     def test_table_header_restates_the_requested_design(self, ladder):
         lines = _cli(*ladder["command"], "--no-match", "--no-toroids").splitlines()
 
-        assert f"Cutoff Frequency:    {format_frequency(ladder['frequency'])}" in lines
-        assert f"Impedance Z0:        {ladder['impedance']:.4g} Ohm" in lines
+        assert f"Cutoff Frequency:    {format_restated_frequency(ladder['frequency'])}" in lines
+        assert f"Impedance Z0:        {format_restated_value(ladder['impedance'])} Ohm" in lines
         assert f"Order:               {ladder['order']}" in lines
         ripple_lines = [line for line in lines if line.startswith("Ripple:")]
         expected_ripple = (
@@ -307,11 +317,18 @@ class TestBandpassOutputsCarryTheCalculatedValues:
 
         for label, key in (
             ("Center Frequency f₀: ", "center_frequency_hz"),
-            ("Lower Cutoff fₗ:     ", "f_low_hz"),
-            ("Upper Cutoff fₕ:     ", "f_high_hz"),
             ("Bandwidth BW:        ", "bandwidth_hz"),
         ):
-            assert f"{label}{format_frequency(payload[key])}" in lines
+            assert f"{label}{format_restated_frequency(payload[key])}" in lines
+        # Edges carry enough digits for their difference to restate the bandwidth.
+        edge = {
+            label: next(line for line in lines if line.startswith(label))
+            for label in ("Lower Cutoff fₗ:", "Upper Cutoff fₕ:")
+        }
+        for label, key in (("Lower Cutoff fₗ:", "f_low_hz"), ("Upper Cutoff fₕ:", "f_high_hz")):
+            number, unit = edge[label].removeprefix(label).split()
+            printed = float(number) * {"kHz": 1e3, "MHz": 1e6}[unit]
+            assert abs(printed - payload[key]) <= 1e-4 * payload["bandwidth_hz"]
         assert f"Fractional BW:       {payload['fractional_bw'] * 100:.2f}%" in lines
         assert f"Resonators:          {payload['n_resonators']}" in lines
         # Top-C end capacitors realize the printed external Q.

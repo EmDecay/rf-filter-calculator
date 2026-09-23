@@ -426,7 +426,7 @@ class TestLossModelIsMetadataAndMatchesCircuit:
 
     def test_q_inputs_do_not_change_synthesized_components(self):
         lossless = _design(10e6, 0.5e6, 3, "butterworth")
-        for choice in ({"qu": 50.0}, {"ql": 200.0, "qc": 400.0}, {"ql": 80.0}, {"qc": 1e-3}):
+        for choice in ({"qu": 50.0}, {"ql": 200.0, "qc": 400.0}, {"ql": 80.0}, {"qc": 0.01}):
             lossy = _design(10e6, 0.5e6, 3, "butterworth", **choice)
             assert _component_values(lossy) == _component_values(lossless)
             assert lossy["L_resonant"] == lossless["L_resonant"]

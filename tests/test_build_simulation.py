@@ -3,13 +3,19 @@
 import math
 import statistics
 import time
+from dataclasses import replace
 
 import pytest
 
 from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.lowpass.calculations import calculate_butterworth as lp_butterworth
+from filter_lib.shared import build_analysis, tolerance_screening
 from filter_lib.shared.build_analysis import _analysis_limitations, measure_calculated_and_nominal
-from filter_lib.shared.build_response import build_frequency_grid, measure_circuit
+from filter_lib.shared.build_response import (
+    build_frequency_grid,
+    evaluation_ports,
+    measure_circuit,
+)
 from filter_lib.shared.build_simulation import (
     BuildConfig,
     CircuitMeasurement,
@@ -19,6 +25,8 @@ from filter_lib.shared.build_simulation import (
     derive_series_resistance,
     realize_nominal_build,
 )
+from filter_lib.shared.build_types import BuildAnalysisCancelled
+from filter_lib.shared.parsing import parse_impedance
 from filter_lib.shared.tolerance_screening import summarize_cases
 
 
@@ -104,6 +112,26 @@ class TestBuildConfig:
         with pytest.raises(ValueError, match=message):
             BuildConfig(**kwargs)
 
+    @pytest.mark.parametrize(
+        "settings",
+        [
+            {"inductor_q": 0.01},
+            {"inductor_q": 1e9},
+            {"capacitor_q": 0.01},
+            {"capacitor_q": 1e9},
+            {"resonator_q": 0.01},
+            {"resonator_q": 1e9},
+            {"sample_count": 10_000},
+            {"grid_points": 51},
+            {"grid_points": 5001},
+        ],
+        ids=lambda settings: "-".join(f"{key}={value:g}" for key, value in settings.items()),
+    )
+    def test_every_documented_bound_is_inclusive(self, settings):
+        config = BuildConfig(**settings)
+
+        assert {key: getattr(config, key) for key in settings} == settings
+
     @pytest.mark.parametrize("config", [False, 0, {}, [], "config", object()])
     @pytest.mark.parametrize("operation", [realize_nominal_build, analyze_build])
     def test_public_build_operations_reject_wrong_config_type(self, operation, config):
@@ -164,6 +192,28 @@ class TestDesignResultValidation:
             build_frequency_grid(
                 {"freq_hz": 1.7976931348623157e307}, "lowpass", BuildConfig().grid_points
             )
+
+    @pytest.mark.parametrize("points", [0, 1, True, 2.5, "601", None, 10**300])
+    def test_frequency_grid_requires_an_integer_point_count(self, points):
+        """1 and True divided by zero, 0 returned [], a float leaked TypeError, and
+        10**300 attempted an unbounded allocation."""
+        with pytest.raises(ValueError, match="^points must be an integer between 2 and "):
+            build_frequency_grid({"freq_hz": 10e6}, "lowpass", points)
+
+    @pytest.mark.parametrize("category", ["bandstop", "Lowpass", None, 1])
+    def test_frequency_grid_rejects_an_unknown_category(self, category):
+        """An unknown category was silently swept as a ladder around freq_hz."""
+        with pytest.raises(ValueError, match="^category must be "):
+            build_frequency_grid({"freq_hz": 10e6}, category, 51)
+
+    def test_frequency_grid_requires_a_result_mapping(self):
+        with pytest.raises(ValueError, match="^result must be a mapping$"):
+            build_frequency_grid(None, "lowpass", 51)
+
+    def test_two_point_grid_spans_one_decade_each_side(self):
+        assert build_frequency_grid({"freq_hz": 10e6}, "highpass", 2) == pytest.approx(
+            [1e6, 100e6], rel=1e-12, abs=0
+        )
 
 
 class TestNominalRealization:
@@ -738,6 +788,208 @@ class TestBuildAnalysis:
         elapsed = time.perf_counter() - started
         assert analysis.cases
         assert elapsed < 2.0
+
+
+class TestBuildAnalysisCancellation:
+    """``should_cancel`` lets an interactive caller stop a long analysis between cases."""
+
+    CONFIG = BuildConfig(sample_count=20, grid_points=51, use_toroid_candidates=False)
+
+    def test_analysis_stops_before_the_next_case_once_the_check_flips(self, monkeypatch):
+        measured_cases: list[object] = []
+        real_measure = tolerance_screening.measure_circuit
+
+        def counting_measure(*args, **kwargs):
+            measured_cases.append(args[0])
+            return real_measure(*args, **kwargs)
+
+        monkeypatch.setattr(tolerance_screening, "measure_circuit", counting_measure)
+        checks = 0
+
+        def cancel_on_fourth_check() -> bool:
+            nonlocal checks
+            checks += 1
+            return checks >= 4
+
+        with pytest.raises(BuildAnalysisCancelled, match="cancelled"):
+            analyze_build(
+                _lp_result(), "lowpass", self.CONFIG, should_cancel=cancel_on_fourth_check
+            )
+
+        # Check 1 precedes the calculated measurement and checks 2-3 precede the nominal
+        # case and the first corner; the fourth check fires before any further case.
+        assert checks == 4
+        assert len(measured_cases) == 2
+
+    def test_an_already_cancelled_check_measures_nothing(self, monkeypatch):
+        measured: list[object] = []
+
+        def record(*args, **_kwargs):
+            measured.append(args[0])
+
+        monkeypatch.setattr(build_analysis, "measure_circuit", record)
+        monkeypatch.setattr(tolerance_screening, "measure_circuit", record)
+
+        with pytest.raises(BuildAnalysisCancelled):
+            analyze_build(_lp_result(), "lowpass", self.CONFIG, should_cancel=lambda: True)
+
+        assert measured == []
+
+    def test_a_check_that_never_fires_changes_nothing(self):
+        checks: list[int] = []
+
+        def never_cancel() -> bool:
+            checks.append(1)
+            return False
+
+        expected = analyze_build(_lp_result(), "lowpass", self.CONFIG)
+        actual = analyze_build(_lp_result(), "lowpass", self.CONFIG, should_cancel=never_cancel)
+
+        assert actual == expected
+        # One check before the calculated measurement and one before every case.
+        assert len(checks) == 1 + len(expected.cases)
+
+    def test_cancellation_is_not_reported_as_an_input_error(self):
+        assert not issubclass(BuildAnalysisCancelled, ValueError)
+
+    @pytest.mark.parametrize("should_cancel", [True, "stop", 0])
+    def test_a_non_callable_check_is_rejected(self, should_cancel):
+        with pytest.raises(ValueError, match="should_cancel must be a zero-argument callable"):
+            analyze_build(_lp_result(), "lowpass", self.CONFIG, should_cancel=should_cancel)
+
+
+class TestPhysicalInputLimits:
+    """Accepted Q and port values keep analysis fast; anything beyond is rejected up front.
+
+    Before the limits, a 1e-300 source or Q took 12-35 s and a 9-resonator bandpass with a
+    1e12 ohm load over a minute, although no lumped filter has such values.
+    """
+
+    @pytest.mark.runtime_budget
+    @pytest.mark.parametrize(
+        "settings",
+        [
+            {"source_resistance_ohm": 50e-6},
+            {"source_resistance_ohm": 50e6},
+            {"load_resistance_ohm": 50e-6},
+            {"load_resistance_ohm": 50e6},
+            {"inductor_q": 0.01},
+            {"capacitor_q": 0.01},
+            {"inductor_q": 1e9},
+            {"capacitor_q": 1e9},
+        ],
+        ids=lambda settings: "-".join(f"{key}={value:g}" for key, value in settings.items()),
+    )
+    def test_lowpass_analysis_at_each_accepted_limit_is_bounded(self, settings):
+        started = time.perf_counter()
+        analysis = analyze_build(_lp_result(), "lowpass", BuildConfig(**settings))
+        elapsed = time.perf_counter() - started
+
+        assert analysis.cases
+        assert elapsed < 5.0
+
+    @pytest.mark.runtime_budget
+    @pytest.mark.parametrize("port", ["source_resistance_ohm", "load_resistance_ohm"])
+    def test_bandpass_measurement_at_the_high_impedance_limit_is_bounded(self, port):
+        """1e6 times the design impedance is the last decade that avoids the slow exact path."""
+        result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top")
+        config = BuildConfig(**{port: 50e6}, use_toroid_candidates=False)
+
+        started = time.perf_counter()
+        measured = measure_calculated_and_nominal(result, "bandpass", config)
+        elapsed = time.perf_counter() - started
+
+        assert math.isfinite(measured.calculated.peak_transducer_gain_db)
+        assert elapsed < 5.0
+
+    @pytest.mark.parametrize(
+        ("category", "port", "value", "message"),
+        [
+            (
+                "lowpass",
+                "load_resistance_ohm",
+                50e6 * (1 + 1e-9),
+                "^Load resistance 5e\\+07 ohm is outside the supported range 5e-05 to 5e\\+07 ohm "
+                "\\(1e-06 to 1e\\+06 times the 50 ohm design impedance\\)$",
+            ),
+            (
+                "lowpass",
+                "source_resistance_ohm",
+                50e-6 * (1 - 1e-9),
+                "^Source resistance 5e-05 ohm is outside the supported range",
+            ),
+            ("lowpass", "load_resistance_ohm", 1e300, "^Load resistance 1e\\+300 ohm is outside"),
+            # The range follows the design impedance: 1 ohm is inside for 50 ohm, not for 1 Mohm.
+            (
+                "bandpass",
+                "source_resistance_ohm",
+                0.5,
+                "^Source resistance 0.5 ohm is outside the supported range 1 to 1e\\+12 ohm "
+                "\\(1e-06 to 1e\\+06 times the 1e\\+06 ohm design impedance\\)$",
+            ),
+        ],
+        ids=["load-above", "source-below", "load-1e300", "relative-to-bandpass-z0"],
+    )
+    def test_ports_beyond_the_ratio_limit_are_rejected(self, category, port, value, message):
+        result = (
+            _lp_result()
+            if category == "lowpass"
+            else calculate_bandpass_filter(10e6, 0.5e6, 1e6, 3, "butterworth", "top")
+        )
+
+        with pytest.raises(ValueError, match=message):
+            evaluation_ports(result, category, BuildConfig(**{port: value}))
+
+    @pytest.mark.parametrize(
+        ("design", "typed"),
+        [(50.0, "50M"), (3.3, "3.3M"), (75.0, "0.000075"), (0.1, "100k")],
+    )
+    def test_ratio_limit_is_inclusive_for_typed_boundary_values(self, design, typed):
+        """A limit value typed as a decimal passes although binary64 rounds the ratio."""
+        port = parse_impedance(typed)
+        result = {**_lp_result(), "impedance": design}
+
+        assert evaluation_ports(result, "lowpass", BuildConfig(load_resistance_ohm=port)) == (
+            design,
+            port,
+        )
+
+    @pytest.mark.parametrize("name", ["inductor_q", "capacitor_q", "resonator_q"])
+    @pytest.mark.parametrize(
+        "value", [math.nextafter(0.01, 0.0), math.nextafter(1e9, math.inf), 1e-300, True]
+    )
+    def test_quality_factors_outside_the_range_are_rejected(self, name, value):
+        with pytest.raises(ValueError, match=f"^{name} must be finite and in \\[0.01, 1e\\+09\\]$"):
+            BuildConfig(**{name: value})
+
+    def test_gain_below_binary64_range_names_the_evaluation_inputs(self):
+        """The Q range keeps BuildConfig away from underflow; a circuit built directly can
+        still reach it, and the message names the inputs instead of the old
+        "response refinement requires finite dB values"."""
+        result = _lp_result()
+        circuit = build_named_circuit(result, "lowpass")
+        lossy = replace(
+            circuit,
+            elements=tuple(
+                replace(element, series_resistance_ohm=1e301, quality_factor=1e-300)
+                if element.kind == "L"
+                else element
+                for element in circuit.elements
+            ),
+        )
+
+        with pytest.raises(ValueError) as raised:
+            measure_circuit(
+                lossy, result, "lowpass", build_frequency_grid(result, "lowpass", 51), 50.0, 50.0
+            )
+
+        message = str(raised.value)
+        assert message.startswith("The simulated transducer gain at ")
+        assert "underflows binary64 (below about 4.9e-324, or -3233 dB)" in message
+        assert message.endswith(
+            "Evaluation inputs: source resistance 50 ohm, load resistance 50 ohm, lowest "
+            "inductor Q 1e-300; use less extreme component Q or port resistances"
+        )
 
 
 class TestBandpassMeasurement:

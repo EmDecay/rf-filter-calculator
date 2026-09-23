@@ -10,7 +10,13 @@ from typing import Any
 
 from .display_helpers import format_component_value, split_value_unit
 from .eseries import match_component
-from .formatting import format_capacitance, format_fixed, format_inductance
+from .formatting import (
+    format_capacitance,
+    format_fixed,
+    format_inductance,
+    format_restated_frequency,
+    format_restated_value,
+)
 from .strict_json import dumps_strict, validate_finite_tree
 from .toroid_display import CSV_TOROID_HEADER, build_json_recommendations, csv_columns_for_best
 from .toroid_selection import recommend_cores
@@ -236,7 +242,8 @@ def format_csv_result(
         include_toroids: If False, skip toroid columns entirely (backward-compat CSV)
 
     Returns:
-        CSV string with component data.
+        CSV rows separated by LF, without a final line terminator; the CLI's
+        print and the wizard's saved file each end the document with one.
     """
     validate_finite_tree(
         {
@@ -325,16 +332,15 @@ def format_header(result: dict, topology: str, filter_category: str) -> str:
         filter_category: Filter category (e.g., 'Low Pass', 'High Pass')
 
     Returns:
-        Multi-line header string (title, cutoff, impedance, order).
+        Multi-line header string (title, cutoff, impedance, order). The cutoff and
+        impedance restate the typed design values exactly.
     """
-    from .formatting import format_frequency
-
     lines = []
     title = f"{result['filter_type'].title()} {topology} {filter_category} Filter"
     lines.append(f"\n{title}")
     lines.append("=" * 50)
-    lines.append(f"Cutoff Frequency:    {format_frequency(result['freq_hz'])}")
-    lines.append(f"Impedance Z0:        {result['impedance']:.4g} Ohm")
+    lines.append(f"Cutoff Frequency:    {format_restated_frequency(result['freq_hz'])}")
+    lines.append(f"Impedance Z0:        {format_restated_value(result['impedance'])} Ohm")
     if result.get("ripple") is not None:
         lines.append(f"Ripple:              {result['ripple']} dB")
     lines.append(f"Order:               {result['order']}")
@@ -365,8 +371,6 @@ def format_component_table(
     Returns:
         Multi-line table string.
     """
-    from .formatting import format_capacitance, format_inductance
-
     col_width = 24
 
     if primary_component == "capacitors":

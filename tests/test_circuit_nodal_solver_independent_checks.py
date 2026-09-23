@@ -1,15 +1,19 @@
 """Nodal-solver results checked against arithmetic that shares no code with the solver.
 
 References are a cascaded ABCD two-port, Cramer's rule on the textbook nodal matrix,
-reciprocity, and closed-form dividers. Port resistances far from the branch
-admittances push the same circuits through the high-precision fallback, so both
-solver paths are held to the same independent answer.
+reciprocity, and closed-form dividers. Port resistances far from the branch admittances
+push the same circuits through the other solver paths: a port conductance above every
+branch pins its node and stays in float, while one far below the branches needs the
+high-precision fallback. All paths are held to the same independent answer.
 """
 
 import math
 
 import pytest
 
+from filter_lib.shared import nodal_solver
+from filter_lib.shared.branch_admittance import branch_admittance_from_logs, log_angular_frequency
+from filter_lib.shared.decimal_nodal_solver import solve_decimal_nodal
 from filter_lib.shared.nodal_solver import solve_transducer_power_gain
 
 FREQ = 10e6
@@ -32,11 +36,31 @@ def _abcd_pi_gain(c1, inductance, c2, rs, rl):
     return 4 * rs * rl / abs(a * rl + b + c * rs * rl + d * rs) ** 2
 
 
-# Scaled 10 MHz Butterworth-like pi section. The 1 uOhm source makes the port
-# conductance 1e6 S against ~0.02 S branches, beyond the float solver's 1e7 range.
+# Scaled 10 MHz Butterworth-like pi section with ~0.02 S branches. The 1 uOhm source
+# conductance (1e6 S) pins the input node; the 1 TOhm load (1e-12 S) is 2e10 below the
+# branches, beyond the float solver's 1e7 range, and forces the high-precision path.
 PI = (318.3e-12, 1.5915e-6, 318.3e-12)
-PORTS = [(50.0, 50.0), (1e-6, 50.0)]
-PORT_IDS = ["float-path", "decimal-path"]
+PORTS = [(50.0, 50.0), (1e-6, 50.0), (50.0, 1e12)]
+PORT_IDS = ["float-path", "pinned-port-path", "decimal-path"]
+
+
+@pytest.mark.parametrize(("rs", "rl"), PORTS, ids=PORT_IDS)
+def test_port_cases_take_the_named_solver_path(monkeypatch, rs, rl):
+    """Keeps the ids honest: only a port far below the branches reaches the fallback."""
+    calls = []
+    real_solver = nodal_solver.solve_decimal_nodal
+
+    def counting_solver(*args):
+        calls.append(args)
+        return real_solver(*args)
+
+    monkeypatch.setattr(nodal_solver, "solve_decimal_nodal", counting_solver)
+    c1, inductance, c2 = PI
+    branches = [(1, 0, "C", c1), (1, 2, "L", inductance), (2, 0, "C", c2)]
+
+    solve_transducer_power_gain(2, branches, rs, rl, 1, 2, [FREQ])
+
+    assert len(calls) == (1 if rl == 1e12 else 0)
 
 
 @pytest.mark.parametrize(("rs", "rl"), PORTS, ids=PORT_IDS)
@@ -52,7 +76,41 @@ def test_ground_first_branches_match_node_first_branches_and_abcd(rs, rl):
         assert gain == pytest.approx(expected, rel=1e-9, abs=0)
 
 
-@pytest.mark.parametrize(("rs", "rl"), [(25.0, 100.0), (1e-6, 1e6)], ids=PORT_IDS)
+@pytest.mark.parametrize(
+    ("rs", "rl"),
+    [(1e-300, 50.0), (50.0, 1e-6), (50.0, 1e-100), (1e-100, 1e-6), (50.0, 1e-270)],
+    ids=[
+        "source-pinned-1e300-above",
+        "load-pinned",
+        "load-pinned-1e100",
+        "both-pinned",
+        "load-beyond-pinned-limit",
+    ],
+)
+def test_ports_far_above_the_branches_match_the_abcd_cascade(rs, rl):
+    """Huge port conductances pin their node in float; above 1e250 times the largest
+    branch, a pinned load (whose voltage is the small branch terms) uses the fallback."""
+    c1, inductance, c2 = PI
+    branches = [(1, 0, "C", c1), (1, 2, "L", inductance), (2, 0, "C", c2)]
+
+    (gain,) = solve_transducer_power_gain(2, branches, rs, rl, 1, 2, [FREQ])
+
+    assert gain == pytest.approx(_abcd_pi_gain(c1, inductance, c2, rs, rl), rel=1e-9, abs=0)
+
+
+def test_port_beside_a_pinned_port_on_the_same_node_is_kept():
+    """Both ports on one node with a 1 kOhm shunt: the 10 uOhm source pins the node, and the
+    1 kOhm load, equal to the largest branch, must still load it:
+    V = Gs / (Gs + Gl + Gb) = 1e5 / (1e5 + 2e-3), so Gt = 4 * Rs / Rl * V**2."""
+    rs, rl, shunt = 1e-5, 1e3, 1e3
+    voltage = (1 / rs) / (1 / rs + 1 / rl + 1 / shunt)
+
+    (gain,) = solve_transducer_power_gain(1, [(1, 0, "R", shunt)], rs, rl, 1, 1, [FREQ])
+
+    assert gain == pytest.approx(4 * rs / rl * voltage**2, rel=1e-13, abs=0)
+
+
+@pytest.mark.parametrize(("rs", "rl"), [(25.0, 100.0), (1e-6, 1e6), (1e12, 1e-12)], ids=PORT_IDS)
 def test_passive_network_is_reciprocal_when_ports_are_swapped(rs, rl):
     """Gt(1 -> 2 with Rs, Rl) equals Gt(2 -> 1 with Rl, Rs) for any passive RLC network."""
     branches = [
@@ -83,7 +141,7 @@ def _det3(m):
     )
 
 
-@pytest.mark.parametrize(("rs", "rl"), [(50.0, 75.0), (1e12, 1e12)], ids=PORT_IDS)
+@pytest.mark.parametrize(("rs", "rl"), [(50.0, 75.0), (1e-6, 1e-6), (1e12, 1e12)], ids=PORT_IDS)
 def test_bridged_network_matches_cramers_rule(rs, rl):
     """A branch from node 1 straight to node 3 closes a loop, so no ladder shortcut applies."""
     y12 = 1 / 100.0
@@ -106,7 +164,7 @@ def test_bridged_network_matches_cramers_rule(rs, rl):
     assert gain == pytest.approx(expected, rel=1e-9, abs=0)
 
 
-@pytest.mark.parametrize(("rs", "rl"), [(1.0, 4.0), (1e-8, 4e-8)], ids=PORT_IDS)
+@pytest.mark.parametrize(("rs", "rl"), [(1.0, 4.0), (1e-8, 4e-8), (1e8, 4e8)], ids=PORT_IDS)
 def test_series_resonant_internal_node_needs_row_pivoting(rs, rl):
     """1 H and 1 F in series through internal node 1 resonate at omega = 1 rad/s.
 
@@ -176,3 +234,50 @@ def test_non_real_branch_fields_are_value_errors(branch, message):
 def test_zero_port_resistance_is_rejected_by_name(rs, rl, name):
     with pytest.raises(ValueError, match=f"^{name} must be positive and finite$"):
         solve_transducer_power_gain(1, [(1, 0, "C", 1e-9)], rs, rl, 1, 1, [FREQ])
+
+
+@pytest.mark.parametrize("parallel_kind", ["R", "C"])
+def test_pinned_load_on_a_low_numbered_node_matches_the_voltage_divider(parallel_kind):
+    """A 1e-100 ohm load pins node 1 while a parallel pair feeds it from node 2.
+
+    With the pinned node eliminated first, pivoting used its divided row for the other
+    column and the gain came out at +678 dB, which no passive network can reach.
+    """
+    frequency = math.exp(-math.log(2 * math.pi))  # log(omega) is exactly zero
+    rs, rl = 1.0, 1e-100
+    branches = [(2, 1, "C", 1.0), (2, 1, parallel_kind, 1.0), (1, 0, "L", 1.0)]
+    # At omega = 1: series C || (R or C) from the source node, shunt L || load at node 1.
+    series_impedance = 1 / (1j + (1.0 if parallel_kind == "R" else 1j))
+    shunt_impedance = 1 / (1 / 1j + 1 / rl)
+    v_out = shunt_impedance / (rs + series_impedance + shunt_impedance)
+    expected = 4 * rs / rl * abs(v_out) ** 2
+
+    (gain,) = solve_transducer_power_gain(2, branches, rs, rl, 2, 1, [frequency])
+
+    assert gain == pytest.approx(expected, rel=1e-9, abs=0)
+
+
+def test_decimal_fallback_keeps_branch_precision_beside_an_extreme_port():
+    """A 1e-300 ohm source puts the log scale near 690, where a binary64 difference of two
+    logs is good only to about 1e-13. One part in 1e16 off the input trap's resonance,
+    that error decided node 1 and the fallback returned 0 instead of |V| = 1.
+    """
+    branches = [(1, 3, "L", 1.0), (3, 0, "C", 1.0), (1, 2, "L", 1.0), (2, 0, "C", 1.0)]
+    rs, rl = 1e-300, 1.0
+    frequency = math.exp(-math.log(2 * math.pi)) * (1 - 1e-16)
+    prepared = nodal_solver._validate_and_normalise(3, branches, rs, rl, 1, 2, [frequency])
+    log_omega = log_angular_frequency(frequency)
+    stamps = [
+        (n1, n2, *branch_admittance_from_logs(kind, log_value, log_omega, log_loss))
+        for n1, n2, kind, log_value, log_loss in prepared
+    ]
+    source_log = -math.log(rs)
+    stamps += [(1, 0, source_log, 1 + 0j), (2, 0, -math.log(rl), 1 + 0j)]
+    # The ideal source holds node 1 at 1 V; node 2 is a divider of series L and C || 1 ohm.
+    omega = 2 * math.pi * frequency
+    shunt = 1 / (1j * omega + 1 / rl)
+    expected = abs(shunt / (1j * omega + shunt))
+
+    voltage = solve_decimal_nodal(3, stamps, source_log, 1, 2)
+
+    assert abs(voltage) == pytest.approx(expected, rel=1e-12, abs=0)

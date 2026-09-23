@@ -163,12 +163,11 @@ class TestWorkerPublication:
         [(RuntimeError("solver exploded"), "solver exploded"), (KeyError(), "KeyError")],
     )
     def test_worker_error_event_renders_the_failure(self, monkeypatch, error, message):
-        """The ERROR branch renders a failure if Textual delivers one to the screen.
+        """The ERROR branch renders the failure Textual delivers for an escaped exception.
 
-        In a running app the worker uses Textual's default ``exit_on_error=True``, so an
-        exception escaping the worker exits the app; ``calculate_and_format`` must turn
-        every exception into an error outcome instead
-        (``test_wizard_failure_surfacing.py``).
+        The worker runs with ``exit_on_error=False``, so the app keeps running; the
+        mounted journey is ``test_worker_exception_is_rendered_without_exiting_the_app``
+        in ``test_wizard_failure_surfacing.py``.
         """
         state = FilterState()
         view = _running_calculation(monkeypatch, state)

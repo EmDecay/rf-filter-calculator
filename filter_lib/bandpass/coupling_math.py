@@ -79,6 +79,65 @@ def calculate_tank_capacitors(
     return tank_caps
 
 
+def require_end_coupling_resonator(
+    g_values: list[float],
+    fbw: float,
+    z0: float,
+    f0: float,
+    resonator_impedance: float | None,
+    resonator_inductance: float | None,
+) -> None:
+    """Name a supplied tank impedance or inductance too low for series end coupling.
+
+    A series end capacitor can only step the termination up, so it needs
+    ``Rp = Qe * X > Z0`` with ``Qe = g_end / FBW`` and tank reactance ``X``. With the
+    default tank (``X = Z0``) that is a bandwidth-and-order limit, reported during
+    synthesis; a supplied tank adds the lower bound ``X > Z0 * FBW / g_end`` checked here.
+    ``fbw`` is the initial synthesis bandwidth where calibration starts. A tank below the
+    bound already fails that first synthesis, so this check changes only the message; the
+    calibrated bandwidth moves the exact limit slightly, hence "about".
+    """
+    if resonator_impedance is None and resonator_inductance is None:
+        return
+    g = _positive_values(g_values, "g_values")
+    log_omega0 = math.log(2 * math.pi) + math.log(_positive_finite(f0, "f0"))
+    log_minimum_reactance = (
+        math.log(_positive_finite(z0, "z0"))
+        + math.log(_positive_finite(fbw, "fbw"))
+        - math.log(min(g[0], g[-1]))
+    )
+    if resonator_inductance is not None:
+        log_reactance = log_omega0 + math.log(resonator_inductance)
+        supplied = f"Resonator inductance {resonator_inductance:.3g} H"
+        minimum = f"{_format_from_log(log_minimum_reactance - log_omega0)} H"
+    else:
+        log_reactance = math.log(resonator_impedance)
+        supplied = f"Resonator impedance {resonator_impedance:.3g} ohm"
+        minimum = f"{_format_from_log(log_minimum_reactance)} ohm"
+    if log_reactance > log_minimum_reactance:
+        return
+    raise ValueError(
+        f"{supplied} is too low to realize the input/output coupling to the {z0:.3g} ohm "
+        f"terminations at this bandwidth and order; it must exceed about {minimum} "
+        "(necessary, not sufficient: a wide enough bandwidth fails at any tank value)"
+    )
+
+
+def _format_from_log(log_value: float) -> str:
+    """Format ``exp(log_value)`` to three significant digits, even beyond binary64."""
+    try:
+        value = math.exp(log_value)
+    except OverflowError:
+        value = math.inf
+    if 0 < value < math.inf:
+        return f"{value:.3g}"
+    exponent = math.floor(log_value / math.log(10.0))
+    mantissa = math.exp(log_value - exponent * math.log(10.0))
+    if mantissa >= 9.995:
+        mantissa, exponent = mantissa / 10.0, exponent + 1
+    return f"{mantissa:.3g}e{exponent:+03d}"
+
+
 def calculate_end_coupling(
     qe: float, omega0: float, l_resonant: float, z0: float
 ) -> tuple[float, float]:
@@ -119,7 +178,7 @@ def _calculate_end_coupling_from_log_omega(
     if log_resistance_ratio <= 4 * math.ulp(1.0):
         raise ValueError(
             "Fractional bandwidth too wide to realize input/output coupling at "
-            "this impedance; reduce bandwidth or order"
+            "this impedance; reduce bandwidth or order, or raise the resonator impedance"
         )
     if log_resistance_ratio < math.log(2.0):
         log_q = 0.5 * math.log(math.expm1(log_resistance_ratio))

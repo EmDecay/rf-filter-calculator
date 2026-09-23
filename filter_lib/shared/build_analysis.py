@@ -6,8 +6,10 @@ from .build_response import build_frequency_grid, evaluation_ports, measure_circ
 from .build_types import (
     BuildAnalysisResult,
     BuildConfig,
+    CancellationCheck,
     CircuitMeasurement,
     NominalRealization,
+    raise_if_cancelled,
     resolve_build_config,
 )
 from .circuit_builders import build_named_circuit
@@ -77,13 +79,19 @@ class _PreparedAnalysis:
     calculated: CircuitMeasurement
 
 
-def _prepare_analysis(result: dict, category: str, config: BuildConfig | None) -> _PreparedAnalysis:
+def _prepare_analysis(
+    result: dict,
+    category: str,
+    config: BuildConfig | None,
+    should_cancel: CancellationCheck | None = None,
+) -> _PreparedAnalysis:
     """Resolve the config, realize the nominal build, and measure the calculated circuit."""
     active_config = resolve_build_config(config)
     exact_circuit = build_named_circuit(result, category)
     nominal = realize_nominal_build(result, category, active_config)
     freqs = build_frequency_grid(result, category, active_config.grid_points)
     source, load = evaluation_ports(result, category, active_config)
+    raise_if_cancelled(should_cancel)
     calculated_measurement = measure_circuit(exact_circuit, result, category, freqs, source, load)
     return _PreparedAnalysis(active_config, nominal, freqs, source, load, calculated_measurement)
 
@@ -115,10 +123,23 @@ def measure_calculated_and_nominal(
 
 
 def analyze_build(
-    result: dict, category: str, config: BuildConfig | None = None
+    result: dict,
+    category: str,
+    config: BuildConfig | None = None,
+    *,
+    should_cancel: CancellationCheck | None = None,
 ) -> BuildAnalysisResult:
-    """Analyze calculated, nominal-build, corners, and seeded uniform cases."""
-    prepared = _prepare_analysis(result, category, config)
+    """Analyze calculated, nominal-build, corners, and seeded uniform cases.
+
+    A large sample count times a dense grid can run for minutes. An interactive
+    caller passes ``should_cancel``, a zero-argument callable polled before the
+    calculated measurement and before each screening case (the nominal build is the
+    first case); when it returns true the analysis stops by raising
+    ``BuildAnalysisCancelled``. ``None`` runs to completion.
+    """
+    if should_cancel is not None and not callable(should_cancel):
+        raise ValueError("should_cancel must be a zero-argument callable or None")
+    prepared = _prepare_analysis(result, category, config, should_cancel)
     active_config, nominal = prepared.config, prepared.nominal
     source, load = prepared.source, prepared.load
     cases = run_screening_cases(
@@ -129,6 +150,7 @@ def analyze_build(
         source,
         load,
         active_config,
+        should_cancel,
     )
     censored = sum(case.measurement.at_grid_edge for case in cases)
     return BuildAnalysisResult(

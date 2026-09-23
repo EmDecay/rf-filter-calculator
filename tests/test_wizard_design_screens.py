@@ -239,6 +239,30 @@ class TestLowpassHighpassForm:
         assert form.state.category == ""
         assert form.state.ripple_db == 0.5
 
+    @pytest.mark.parametrize("screen_cls", LP_HP_SCREENS)
+    @pytest.mark.parametrize(
+        "overrides, message, focus",
+        [
+            ({"frequency": "10XHz"}, "Invalid frequency: 10XHz", "#frequency"),
+            (
+                {"frequency": "-5MHz"},
+                "Invalid frequency: Frequency must be positive: -5MHz",
+                "#frequency",
+            ),
+            ({"impedance": "abc"}, "Invalid impedance: abc", "#impedance"),
+            ({"impedance": "0"}, "Invalid impedance: Impedance must be positive: 0", "#impedance"),
+        ],
+    )
+    def test_parser_rejections_name_the_field_once(
+        self, monkeypatch, screen_cls, overrides, message, focus
+    ):
+        form = _lp_hp_form(monkeypatch, screen_cls, **overrides)
+
+        form.screen._validate_and_continue()
+
+        assert form.notes == [("error", message)]
+        form.w[focus].focus.assert_called_once_with()
+
     @pytest.mark.parametrize(
         "screen_cls, category, topology",
         [(LowpassScreen, "lowpass", "t"), (HighpassScreen, "highpass", "pi")],
@@ -522,6 +546,29 @@ class TestParseBandpassForm:
         assert caught.value.field_id == field_id
         assert caught.value.severity == severity
 
+    @pytest.mark.parametrize(
+        "overrides, message",
+        [
+            ({"frequency": "10XHz"}, "Invalid center frequency: 10XHz"),
+            ({"bandwidth": "10XHz"}, "Invalid bandwidth: 10XHz"),
+            ({"impedance": "abc"}, "Invalid impedance: abc"),
+            ({"resonator_impedance": "abc"}, "Invalid tank impedance: abc"),
+            (
+                {"resonator_inductance": "not-an-inductor"},
+                "Invalid tank inductance: not-an-inductor",
+            ),
+            (
+                {"frequency": "-5MHz"},
+                "Invalid center frequency: Frequency must be positive: -5MHz",
+            ),
+        ],
+    )
+    def test_parser_rejections_name_the_field_once(self, overrides, message):
+        with pytest.raises(BandpassFormError) as caught:
+            parse_bandpass_form(_bp_values(**overrides))
+
+        assert str(caught.value) == message
+
 
 class TestFractionalBandwidthFeedback:
     @pytest.mark.parametrize(
@@ -556,6 +603,36 @@ class TestFractionalBandwidthFeedback:
     )
     def test_partial_or_zero_input_gives_no_feedback(self, frequency, bandwidth):
         assert fractional_bandwidth_feedback(frequency, bandwidth) is None
+
+    @pytest.mark.parametrize(
+        "frequency, bandwidth",
+        [
+            # A subnormal center frequency: bandwidth / center overflows to infinity.
+            ("1e-330GHz", "1MHz"),
+            ("1e-330GHz", "1e-330GHz"),
+            ("10MHz", "10MHz"),
+            ("10MHz", "11MHz"),
+        ],
+    )
+    def test_bandwidth_not_below_center_shows_the_rejection_instead_of_a_percentage(
+        self, frequency, bandwidth
+    ):
+        feedback = fractional_bandwidth_feedback(frequency, bandwidth)
+
+        assert feedback == ("Bandwidth must be less than center frequency", "fbw-danger")
+        with pytest.raises(BandpassFormError, match=feedback[0]):
+            parse_bandpass_form(_bp_values(frequency=frequency, bandwidth=bandwidth))
+
+    @pytest.mark.parametrize(
+        "frequency, bandwidth, percent",
+        [("1e-330GHz", "1e-331GHz", "9.90%"), ("1e290GHz", "1e-300Hz", "0.00%")],
+    )
+    def test_extreme_scales_below_center_still_show_a_finite_percentage(
+        self, frequency, bandwidth, percent
+    ):
+        text, _style = fractional_bandwidth_feedback(frequency, bandwidth)
+
+        assert text.startswith(f"Fractional BW: {percent} · ")
 
 
 def _bp_form(monkeypatch, filter_type: str = "butterworth", **inputs: str) -> SimpleNamespace:
@@ -674,6 +751,15 @@ class TestBandpassScreen:
             "fbw-danger",
         ]
         display.add_class.assert_called_once_with(style)
+
+    def test_fbw_display_for_a_subnormal_center_shows_the_rejection(self, monkeypatch):
+        form = _bp_form(monkeypatch, frequency="1e-330GHz", bandwidth="1MHz")
+        display = form.w["#fbw-display"]
+
+        form.screen._update_fbw_display()
+
+        display.update.assert_called_once_with("Bandwidth must be less than center frequency")
+        display.add_class.assert_called_once_with("fbw-danger")
 
     def test_fbw_display_clears_for_unparseable_input(self, monkeypatch):
         form = _bp_form(monkeypatch, frequency="junk")

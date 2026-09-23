@@ -50,12 +50,15 @@ def render_plot_pair(
         filter_type: 'lowpass' or 'highpass'
         ripple_db: Chebyshev ripple in dB (affects zoom range)
         response_fn: Callable (freq_hz) -> magnitude_db for 2x zoom resolution
+            and for the bisected -3 dB marker label on both plots
         **kwargs: Passed to render_ascii_plot (width, height, title)
 
     Returns:
         Combined multi-line string with full plot + zoomed plot
     """
-    full = render_ascii_plot(freqs, response_db, cutoff_hz, filter_type=filter_type, **kwargs)
+    full = render_ascii_plot(
+        freqs, response_db, cutoff_hz, filter_type=filter_type, response_fn=response_fn, **kwargs
+    )
 
     # The zoom view uses the same plottable samples as the full view.
     positive = _plottable_samples(freqs, response_db)
@@ -88,6 +91,7 @@ def render_plot_pair(
         cutoff_hz,
         filter_type=filter_type,
         db_floor=-zoom_db,
+        response_fn=response_fn,
         title=f"Passband Detail (0 to -{zoom_db:.0f} dB)",
         **{k: v for k, v in kwargs.items() if k != "title"},
     )

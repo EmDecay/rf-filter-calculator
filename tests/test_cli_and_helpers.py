@@ -478,9 +478,9 @@ class TestBandpassInputs:
         _run("bandpass", quiet=False, qu=150.0)
         assert "2.8 dB @ Qu=250, 4.7 dB @ Qu=150" in capsys.readouterr().out
 
-    @pytest.mark.parametrize("qu", [0.0, -5.0, float("inf"), float("nan")])
+    @pytest.mark.parametrize("qu", [0.0, -5.0, float("inf"), float("nan"), 0.009, 1.1e9])
     def test_invalid_qu_is_rejected(self, qu):
-        with pytest.raises(ValueError, match="must be positive and finite"):
+        with pytest.raises(ValueError, match=r"^Qu must be finite and in \[0.01, 1e\+09\]$"):
             _run("bandpass", qu=qu)
 
     def test_json_carries_standard_il_estimates(self, capsys):

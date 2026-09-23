@@ -5,8 +5,10 @@ Reference: IEC 60063 (Preferred number series for resistors and capacitors)
 
 import math
 from dataclasses import dataclass
+from decimal import Decimal
+from fractions import Fraction
 
-from .numeric import is_finite_real, positive_float_from_log
+from .numeric import is_finite_real
 
 # E-series normalized values (1.0-10.0 range), geometric progression
 # fmt: off
@@ -54,6 +56,13 @@ E_SERIES: dict[str, list[float]] = {
     ],
 }
 # fmt: on
+
+# Every IEC 60063 E12/E24/E96 value has at most three significant digits, so each
+# preferred value is an exact integer number of hundredths. Nominal part ratios are
+# therefore exact integer ratios, independent of how a decade scales in binary64.
+_SERIES_HUNDREDTHS: dict[str, tuple[int, ...]] = {
+    name: tuple(round(value * 100) for value in values) for name, values in E_SERIES.items()
+}
 
 
 def _finite_real(value: object) -> bool:
@@ -190,16 +199,16 @@ def _normalize(value: float) -> tuple[float, int]:
 
 
 def _denormalize(mantissa: float, decade: int) -> float:
-    """Reconstruct value from mantissa and decade."""
-    try:
-        scale = 10.0**decade
-        value = mantissa * scale
-        if math.isfinite(value) and value > 0:
-            return value
-        log_value = math.log(mantissa) + decade * math.log(10.0)
-    except OverflowError as exc:
-        raise ValueError("E-series candidate is outside the finite numeric range") from exc
-    return positive_float_from_log(log_value, "E-series candidate")
+    """Return the preferred value ``mantissa * 10**decade``, correctly rounded.
+
+    Mantissas are short decimals such as 8.2. Scaling in binary64 rounds twice, which
+    printed 82 pF as ``8.199999999999999e-11``; converting the exact decimal rounds once
+    to the nearest binary64 value, including subnormal results.
+    """
+    value = float(Decimal(repr(mantissa)).scaleb(decade))
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError("E-series candidate is outside the finite numeric range")
+    return value
 
 
 def _finite_candidate(mantissa: float, decade: int) -> float | None:
@@ -230,36 +239,86 @@ def find_closest_single(target: float, series: str = "E24") -> tuple[float, floa
         ValueError: If series is unknown or target is not positive.
     """
     series = _validate_series(series)
+    best_value, _ = _closest_single_part(target, series)
+    return best_value, _error_pct(best_value, target)
 
+
+def _closest_single_part(target: float, series: str) -> tuple[float, tuple[int, int]]:
+    """Return the closest preferred value and its exact ``(hundredths, decade)`` identity."""
     _, decade = _normalize(target)
     series_values = E_SERIES[series]
-    best_value: float | None = None
+    hundredths = _SERIES_HUNDREDTHS[series]
+    # Every value in the target's decade, then the boundary values of adjacent decades.
+    parts = [(value, (count, decade)) for value, count in zip(series_values, hundredths)]
+    parts.append((series_values[0], (hundredths[0], decade + 1)))
+    parts.append((series_values[-1], (hundredths[-1], decade - 1)))
+
+    best: tuple[float, tuple[int, int]] | None = None
     best_error = float("inf")
-
-    # Check all values in current decade
-    for sv in series_values:
-        candidate = _finite_candidate(sv, decade)
+    for value, nominal in parts:
+        candidate = _finite_candidate(value, nominal[1])
         if candidate is None:
             continue
         err = abs(_error_pct(candidate, target))
         if err < best_error:
-            best_error, best_value = err, candidate
+            best_error, best = err, (candidate, nominal)
 
-    # Check boundary values in adjacent decades
-    adjacent = (
-        _finite_candidate(series_values[0], decade + 1),
-        _finite_candidate(series_values[-1], decade - 1),
-    )
-    for candidate in adjacent:
-        if candidate is None:
-            continue
-        err = abs(_error_pct(candidate, target))
-        if err < best_error:
-            best_error, best_value = err, candidate
-
-    if best_value is None:
+    if best is None:
         raise ValueError("Target is outside the finite E-series matching range")
-    return best_value, _error_pct(best_value, target)
+    return best
+
+
+def _nominal_value(nominal: tuple[int, int]) -> Fraction:
+    """Exact nominal value of a ``(hundredths, decade)`` part, up to a common scale."""
+    hundredths, decade = nominal
+    return hundredths * Fraction(10) ** decade
+
+
+class _PairChoice:
+    """Best parallel pair so far, with exact tie-breaking.
+
+    Two pairs with the same exact nominal value have the same true error, although their
+    binary64 errors can differ in the last bit. Such a tie goes to the pair with the
+    smaller part ratio (33 pF + 110 pF over 13 pF + 130 pF), so the choice cannot depend
+    on rounding. Otherwise the smaller computed error wins, and the first pair found is
+    kept on an exact float tie.
+    """
+
+    def __init__(self) -> None:
+        self.error = float("inf")
+        self.value: float | None = None
+        self.combo: tuple[float, float] | None = None
+        self._exact: Fraction | None = None
+        self._ratio: Fraction | None = None
+
+    def offer(
+        self, v1: float, v2: float, value: float, error: float, exact: Fraction, ratio: Fraction
+    ) -> None:
+        if exact == self._exact:
+            better = ratio < self._ratio
+        else:
+            better = error < self.error
+        if better:
+            self.error, self.value = error, value
+            self.combo = (min(v1, v2), max(v1, v2))
+            self._exact, self._ratio = exact, ratio
+
+
+def _nominal_ratio_exceeds(
+    first: tuple[int, int], second: tuple[int, int], ratio_limit: Fraction
+) -> bool:
+    """Whether two preferred parts' nominal value ratio exceeds ``ratio_limit``.
+
+    Parts are ``(hundredths, decade)`` pairs compared as exact integers, so a pair
+    exactly at the limit (10 pF with 100 pF) is decided identically in every decade.
+    Dividing the binary64-scaled values instead can round such a pair above the limit.
+    """
+    (first_hundredths, first_decade), (second_hundredths, second_decade) = first, second
+    shift = first_decade - second_decade
+    first_exact = first_hundredths * 10 ** max(shift, 0)
+    second_exact = second_hundredths * 10 ** max(-shift, 0)
+    high, low = max(first_exact, second_exact), min(first_exact, second_exact)
+    return high * ratio_limit.denominator > ratio_limit.numerator * low
 
 
 def find_parallel_combo(
@@ -303,22 +362,25 @@ def find_parallel_combo(
     if minimum_value is not None and (not _finite_real(minimum_value) or minimum_value <= 0):
         raise ValueError("minimum_value must be positive and finite")
 
+    # Read the limit as the decimal number the caller wrote (10.0 -> 10, 3.3 -> 33/10),
+    # so a nominal part ratio equal to it is always inside the limit.
+    exact_ratio_limit = Fraction(repr(float(ratio_limit)))
     _, decade = _normalize(target)
     # Span one decade below through two above the target: additive halves can
     # sit a decade down, while harmonic companions sit above the target (up
     # to ratio_limit times it), which can reach two decades up.
     candidates = [
-        candidate
+        (candidate, (count, d))
         for d in range(decade - 1, decade + 3)
-        for sv in E_SERIES[series]
+        for sv, count in zip(E_SERIES[series], _SERIES_HUNDREDTHS[series])
         if (candidate := _finite_candidate(sv, d)) is not None
     ]
 
-    best_combo, best_value, best_error = None, None, float("inf")
+    best = _PairChoice()
 
     if mode == "harmonic":
         # Harmonic parallel: R_par = R1*R2/(R1+R2)
-        for v1 in candidates:
+        for v1, nominal_v1 in candidates:
             if minimum_value is not None and v1 < minimum_value:
                 continue
             # R_par < min(R1, R2) always, so every value in a harmonic
@@ -334,44 +396,53 @@ def find_parallel_combo(
             v2_needed = target / denominator
             if not math.isfinite(v2_needed):
                 continue
-            v2, _ = find_closest_single(v2_needed, series)
+            v2, nominal_v2 = _closest_single_part(v2_needed, series)
             if minimum_value is not None and v2 < minimum_value:
                 continue
-            # Check ratio constraint
-            if max(v1, v2) / min(v1, v2) > ratio_limit:
+            if _nominal_ratio_exceeds(nominal_v1, nominal_v2, exact_ratio_limit):
                 continue
-            # 1/v overflows for subnormal parts, so evaluate 1/(1/v1 + 1/v2) on values
-            # scaled by an exact power of two. Scaling commutes with every rounding in
-            # the normal range, so the result is bit-identical to the unscaled formula
-            # wherever that formula stays in range; v2/v1 is bounded by ratio_limit.
-            _, exponent = math.frexp(v1)
-            scaled_v1 = math.ldexp(v1, -exponent)
-            scaled_v2 = math.ldexp(v2, -exponent)
-            parallel_val = math.ldexp(1.0 / (1.0 / scaled_v1 + 1.0 / scaled_v2), exponent)
-            err = abs(_error_pct(parallel_val, target))
-            if err < best_error:
-                best_error = err
-                best_value = parallel_val
-                best_combo = (min(v1, v2), max(v1, v2))
+            # The exact rational value rounds once, so the combination carries no binary64
+            # noise and no reciprocal of a subnormal part can overflow.
+            exact_v1, exact_v2 = _nominal_value(nominal_v1), _nominal_value(nominal_v2)
+            exact_parallel = exact_v1 * exact_v2 / (exact_v1 + exact_v2)
+            parallel_val = float(exact_parallel / 100)
+            best.offer(
+                v1,
+                v2,
+                parallel_val,
+                abs(_error_pct(parallel_val, target)),
+                exact_parallel,
+                max(exact_v1, exact_v2) / min(exact_v1, exact_v2),
+            )
     else:
-        # Additive parallel: C_par = C1 + C2
-        for i, v1 in enumerate(candidates):
+        # Additive parallel: C_par = C1 + C2. Exact nominal values in hundredths of
+        # 10**(decade - 1) strictly ascend with the candidate list, so v2 >= v1 and, once
+        # v2/v1 exceeds the limit, every later v2 exceeds it too.
+        exact_values = [count * 10 ** (d - (decade - 1)) for _, (count, d) in candidates]
+        for i, (v1, _) in enumerate(candidates):
             if minimum_value is not None and v1 < minimum_value:
                 continue
-            for v2 in candidates[i:]:
-                if max(v1, v2) / min(v1, v2) > ratio_limit:
-                    continue
-                combined = v1 + v2
+            exact_v1 = exact_values[i]
+            ceiling = exact_ratio_limit.numerator * exact_v1
+            for (v2, _), exact_v2 in zip(candidates[i:], exact_values[i:]):
+                if exact_v2 * exact_ratio_limit.denominator > ceiling:
+                    break
+                # Exact values are hundredths scaled by 10**(decade - 1), so the sum rounds
+                # once from its exact decimal: 47 pF + 270 pF prints as 3.17e-10.
+                combined = float(Decimal(exact_v1 + exact_v2).scaleb(decade - 3))
                 if not math.isfinite(combined):
                     continue
-                err = abs(_error_pct(combined, target))
-                if err < best_error:
-                    best_error = err
-                    best_value = combined
-                    best_combo = (min(v1, v2), max(v1, v2))
+                best.offer(
+                    v1,
+                    v2,
+                    combined,
+                    abs(_error_pct(combined, target)),
+                    Fraction(exact_v1 + exact_v2),
+                    Fraction(exact_v2, exact_v1),
+                )
 
-    if best_combo:
-        return (best_combo, best_value, _error_pct(best_value, target))
+    if best.combo is not None and best.value is not None:
+        return (best.combo, best.value, _error_pct(best.value, target))
     return None
 
 

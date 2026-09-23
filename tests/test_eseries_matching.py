@@ -10,6 +10,7 @@ IEC 60063 tables.
 
 import math
 import sys
+from fractions import Fraction
 
 import pytest
 
@@ -48,6 +49,21 @@ class TestPreferredValueTables:
 
     def test_e96_is_the_three_digit_geometric_series(self):
         assert E_SERIES["E96"] == [round(10 ** (k / 96), 2) for k in range(96)]
+
+    @pytest.mark.parametrize("series", ["E12", "E24", "E96"])
+    @pytest.mark.parametrize(
+        "decade", [-321, -310, -300, -15, -13, -12, -11, -10, -9, -6, 0, 3, 300, 306]
+    )
+    def test_every_part_is_the_binary64_value_nearest_its_decimal(self, series, decade):
+        """82 pF was 8.199999999999999e-11 after two binary64 roundings; machine output now
+        prints every preferred value exactly as it is written."""
+        for mantissa in E_SERIES[series]:
+            written = float(f"{mantissa!r}e{decade}")
+
+            value, error = find_closest_single(written, series)
+
+            assert value == written
+            assert error == 0.0
 
 
 class TestClosestSingle:
@@ -220,6 +236,130 @@ class TestParallelCombinations:
         assert value == pytest.approx(target, rel=1e-15, abs=0)
         assert error == pytest.approx(0.0, abs=1e-12)
 
+    @pytest.mark.parametrize("mode", ["additive", "harmonic"])
+    @pytest.mark.parametrize("decade", range(-15, 4))
+    def test_exact_ten_to_one_pairs_are_inside_the_limit_in_every_decade(self, decade, mode):
+        """v + 10v and v || 10v are exact for every E12 v; scaled parts once divided to 10 + 1 ulp.
+
+        In binary64, 100 pF / 10 pF is 10.000000000000002 while 1 nF / 100 pF is 10.0, so the
+        decision used to depend on the decade. Each target below has an exact 10:1 pair.
+        """
+        for value in E_SERIES["E12"]:
+            low, high = float(f"{value}e{decade}"), float(f"{value}e{decade + 1}")
+            target = low + high if mode == "additive" else low * high / (low + high)
+
+            pair, _, error = find_parallel_combo(target, "E12", mode=mode)
+
+            assert error == pytest.approx(0.0, abs=1e-9), (value, pair)
+            assert pair[1] / pair[0] < 10 * (1 + 1e-12)
+
+    @pytest.mark.parametrize("series", ["E12", "E24", "E96"])
+    @pytest.mark.parametrize("mode", ["additive", "harmonic"])
+    @pytest.mark.parametrize("target", [5e-324, 1e-323, 2e-323, 1e-321])
+    def test_subnormal_targets_never_combine_a_zero_valued_part(self, target, mode, series):
+        """Candidates a decade below a subnormal target underflow to 0.0; such a "part" would
+        complete an exact additive pair with no capacitor at all."""
+        result = find_parallel_combo(target, series, mode=mode)
+
+        if result is not None:
+            (low, high), value, _ = result
+            assert low > 0 and high > 0 and value > 0
+
+    @pytest.mark.parametrize("decade", [-12, -9, -6, 0])
+    def test_a_fractional_ratio_limit_excludes_wider_additive_pairs(self, decade):
+        """At 4.34 the unrestricted best is 0.47 + 3.9 (8.3:1); a 3.3 limit gives 1.0 + 3.3."""
+        target = float(f"4.34e{decade}")
+
+        wide, _, _ = find_parallel_combo(target, "E12", mode="additive")
+        limited, _, _ = find_parallel_combo(target, "E12", mode="additive", ratio_limit=3.3)
+
+        assert wide == pytest.approx(
+            (float(f"0.47e{decade}"), float(f"3.9e{decade}")), rel=1e-12, abs=0
+        )
+        assert limited == pytest.approx(
+            (float(f"1e{decade}"), float(f"3.3e{decade}")), rel=1e-12, abs=0
+        )
+
+    @pytest.mark.parametrize("decade", [-9, -6, -3])
+    def test_exact_harmonic_ties_go_to_the_most_balanced_pair(self, decade):
+        """0.75 = 1 || 3 = 1.2 || 2 = 1.5 || 1.5 exactly in E24; the equal pair is chosen."""
+        (low, high), value, error = find_parallel_combo(
+            float(f"0.75e{decade}"), "E24", mode="harmonic"
+        )
+
+        assert (low, high) == (float(f"1.5e{decade}"), float(f"1.5e{decade}"))
+        assert value == float(f"0.75e{decade}")
+        assert error == 0.0
+
+    @pytest.mark.parametrize("mode", ["additive", "harmonic"])
+    @pytest.mark.parametrize(
+        "target", [3.183e-10, 1.1e-10, 7.77e-12, 2.9e-9, 4.44e-7, 1.234e-5, 6.1e-15]
+    )
+    def test_pair_value_is_the_correctly_rounded_exact_combination(self, target, mode):
+        """47 pF + 270 pF printed as 3.1700000000000004e-10; the pair value now rounds once
+        from the exact combination of the two written parts."""
+        (low, high), value, _ = find_parallel_combo(target, "E24", mode=mode)
+        low_exact, high_exact = Fraction(repr(low)), Fraction(repr(high))
+        exact = (
+            low_exact + high_exact
+            if mode == "additive"
+            else low_exact * high_exact / (low_exact + high_exact)
+        )
+
+        assert value == float(exact)
+
+    @pytest.mark.parametrize("decade", [-13, -12, -11, -10, -9, -6, 0])
+    def test_exact_ties_go_to_the_most_balanced_pair_in_every_decade(self, decade):
+        """143 = 13 + 130 = 33 + 110 = 43 + 100 = 68 + 75 in E24, all exact.
+
+        With the ratio limit decided exactly, the first pair found (13 + 130, at 10:1)
+        used to win; the balanced 68 + 75 is chosen in every decade.
+        """
+        target = float(f"143e{decade}")
+
+        (low, high), _, error = find_parallel_combo(target, "E24", mode="additive")
+
+        assert (low, high) == pytest.approx(
+            (float(f"68e{decade}"), float(f"75e{decade}")), rel=1e-12, abs=0
+        )
+        assert error == pytest.approx(0.0, abs=1e-9)
+
+    @pytest.mark.parametrize("scale", [1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-6, 1.0, 1e3])
+    def test_recommended_ten_to_one_pair_does_not_depend_on_the_decade(self, scale):
+        """110·s = 10·s + 100·s exactly; E12's nearest singles, 100·s and 120·s, miss by 9.1 %.
+
+        At s = 1 pF the pair was rejected and 27 pF + 82 pF (-0.91 %) recommended instead.
+        """
+        match = match_component(110 * scale, "E12", parallel_mode="additive")
+
+        assert match.recommended_kind == "parallel"
+        assert match.parallel == pytest.approx((10 * scale, 100 * scale), rel=1e-12, abs=0)
+        assert match.parallel_error_pct == pytest.approx(0.0, abs=1e-9)
+
+    def test_recommended_harmonic_ten_to_one_pair_does_not_depend_on_the_decade(self):
+        """1 uH || 10 uH = 0.909 uH exactly; 1.2 uH || 3.9 uH (+0.94 %) was chosen instead."""
+        match = match_component(10 / 11 * 1e-6, "E12", parallel_mode="harmonic")
+
+        assert match.recommended_kind == "parallel"
+        assert match.parallel == pytest.approx((1e-6, 10e-6), rel=1e-12, abs=0)
+        assert match.parallel_error_pct == pytest.approx(0.0, abs=1e-9)
+
+    @pytest.mark.parametrize("decade", [-12, -9, 0, 3])
+    def test_ratio_limit_is_read_as_the_decimal_written(self, decade):
+        """4.3 = 1.0 + 3.3 is E12's only exact pair; a 3.3 limit admits exactly that 3.3:1 spread.
+
+        The binary64 value of 3.3 is slightly below 3.3, so reading it exactly would exclude
+        the pair, and the scaled-float quotient differs by decade.
+        """
+        target = float(f"4.3e{decade}")
+
+        pair, _, error = find_parallel_combo(target, "E12", mode="additive", ratio_limit=3.3)
+
+        assert pair == pytest.approx(
+            (float(f"1e{decade}"), float(f"3.3e{decade}")), rel=1e-12, abs=0
+        )
+        assert error == pytest.approx(0.0, abs=1e-9)
+
     @pytest.mark.parametrize(
         ("target", "mode", "equal_part"),
         [
@@ -340,7 +480,8 @@ class TestRecommendationPolicy:
     @pytest.mark.parametrize(
         ("target_pf", "improvement", "kind", "reason"),
         [
-            # 240 pF is +1.0952 %; 36 pF + 200 pF = 236 pF is -0.5897 %.
+            # 240 pF is +1.0952 %; 236 pF is -0.5897 %. 236 pF is 36 + 200 or 56 + 180
+            # exactly, and the exact tie goes to the more balanced 56 pF + 180 pF.
             (237.40, 0.505476, "parallel", "parallel_materially_improves_error"),
             # 240 pF is +1.0909 %; 236 pF is -0.5939 %.
             (237.41, 0.497030, "single", "parallel_improvement_below_policy_threshold"),
@@ -359,7 +500,7 @@ class TestRecommendationPolicy:
             assert match.parallel_value is None
             assert match.parallel_error_pct is None
         else:
-            assert match.parallel == pytest.approx((36 * PF, 200 * PF), rel=1e-12, abs=0)
+            assert match.parallel == pytest.approx((56 * PF, 180 * PF), rel=1e-12, abs=0)
 
     def test_policy_thresholds_are_inclusive(self):
         """A reported error or improvement exactly at a threshold satisfies it."""
@@ -462,7 +603,9 @@ class TestRecommendationPolicy:
         match = match_component(sys.float_info.max, "E24", parallel_mode="additive")
 
         assert match.recommended_kind == "parallel"
-        assert match.parallel == pytest.approx((1.8e307, 1.6e308), rel=1e-12)
+        # 1.8e307 + 1.6e308 and 6.8e307 + 1.1e308 are both exactly 1.78e308; the tie goes
+        # to the more balanced pair.
+        assert match.parallel == pytest.approx((6.8e307, 1.1e308), rel=1e-12)
         assert math.isfinite(match.parallel_value)
         assert match.parallel_error_pct == pytest.approx(-0.984213, abs=1e-6)
 

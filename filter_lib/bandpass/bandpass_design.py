@@ -1,5 +1,6 @@
 """High-level orchestration for calibrated Top-C bandpass designs."""
 
+from .coupling_math import require_end_coupling_resonator
 from .design_constants import VALIDATION_POINTS
 from .design_result import (
     _finalize_validation,
@@ -12,6 +13,7 @@ from .ideal_response import chebyshev_3db_deviation
 from .input_validation import _validate_inputs
 from .model_diagnostics import model_diagnostics
 from .numeric_validation import _is_positive_finite, _validate_chebyshev_ripple
+from .passband_measurement import require_resolvable_bandwidth
 from .resonator_math import (
     _resolve_resonator_components,
     combine_resonator_q,
@@ -105,10 +107,14 @@ def calculate_bandpass_filter(
 
     fbw = bw / f0
     f_low, f_high = compute_bandpass_3db_edges(f0, bw)
+    require_resolvable_bandwidth(f0, bw)
     g_values = get_g_values(filter_type, n_resonators, ripple_db)
     initial_fbw = fbw
     if filter_type == "chebyshev":
         initial_fbw = fbw / chebyshev_3db_deviation(n_resonators, ripple_db)
+    require_end_coupling_resonator(
+        g_values, initial_fbw, z0, f0, resonator_impedance, resonator_inductance
+    )
 
     result, calibration_iterations = _calibrate_top_c(
         f0,
