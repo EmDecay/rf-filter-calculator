@@ -125,10 +125,12 @@ class TestRenderPlotPair:
 
         pair = render_plot_pair(freqs, response_db, FC, response_fn=response_fn)
 
-        steps = {round(math.log10(b / a), 9) for a, b in zip(sampled, sampled[1:])}
-        assert len(sampled) == 2 * len(freqs)
-        assert sampled[0] == pytest.approx(freqs[0], rel=1e-12)
-        assert sampled[-1] == pytest.approx(freqs[-1], rel=1e-12)
+        # The -3 dB marker also bisects response_fn; the zoom grid is one contiguous run.
+        start = next(i for i, f in enumerate(sampled) if math.isclose(f, freqs[0], rel_tol=1e-12))
+        grid = sampled[start : start + 2 * len(freqs)]
+        steps = {round(math.log10(b / a), 9) for a, b in zip(grid, grid[1:])}
+        assert len(grid) == 2 * len(freqs)
+        assert grid[-1] == pytest.approx(freqs[-1], rel=1e-12)
         assert len(steps) == 1
         assert "Passband Detail (0 to -6 dB)" in pair
 

@@ -137,10 +137,10 @@ GOLDENS = {
         '                "value_farads": 4.7e-11\n'
         "              },\n"
         "              {\n"
-        '                "value_farads": 2.7000000000000005e-10\n'
+        '                "value_farads": 2.7e-10\n'
         "              }\n"
         "            ],\n"
-        '            "value_farads": 3.1700000000000004e-10,\n'
+        '            "value_farads": 3.17e-10,\n'
         '            "error_pct": -0.41151288120353385\n'
         "          }\n"
         "        }\n"
@@ -160,10 +160,10 @@ GOLDENS = {
         '                "value_farads": 4.7e-11\n'
         "              },\n"
         "              {\n"
-        '                "value_farads": 2.7000000000000005e-10\n'
+        '                "value_farads": 2.7e-10\n'
         "              }\n"
         "            ],\n"
-        '            "value_farads": 3.1700000000000004e-10,\n'
+        '            "value_farads": 3.17e-10,\n'
         '            "error_pct": -0.41151288120353385\n'
         "          }\n"
         "        }\n"
@@ -378,6 +378,7 @@ GOLDENS = {
         "C2,508.11,pF,510.00,pF,0.4,120.00 pF || 390.00 pF,0.4,E24\n"
         "L1,872.72,nH,,,,,,",
     },
+    # C1: 110 + 240 pF and 150 + 200 pF are both exactly 350 pF; the balanced pair wins.
     "lowpass_chebyshev_t": {
         "category": "lowpass",
         "filter_type": "chebyshev",
@@ -415,7 +416,7 @@ GOLDENS = {
         "\n"
         "C1 Calculated: 349.09 pF\n"
         "  Nearest Std:  360.00 pF (+3.1%)\n"
-        "  Parallel Std: 110.00 pF || 240.00 pF (+0.3%)\n"
+        "  Parallel Std: 150.00 pF || 200.00 pF (+0.3%)\n"
         "\n",
         "json": "{\n"
         '  "filter_type": "chebyshev",\n'
@@ -446,13 +447,13 @@ GOLDENS = {
         '          "parallel": {\n'
         '            "components": [\n'
         "              {\n"
-        '                "value_farads": 1.1000000000000001e-10\n'
+        '                "value_farads": 1.5e-10\n'
         "              },\n"
         "              {\n"
-        '                "value_farads": 2.4e-10\n'
+        '                "value_farads": 2e-10\n'
         "              }\n"
         "            ],\n"
-        '            "value_farads": 3.5000000000000003e-10,\n'
+        '            "value_farads": 3.5e-10,\n'
         '            "error_pct": 0.2613042632774796\n'
         "          }\n"
         "        }\n"
@@ -465,7 +466,7 @@ GOLDENS = {
         "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
         "L1,1.27,µH,,,,,,\n"
         "L2,1.27,µH,,,,,,\n"
-        "C1,349.09,pF,360.00,pF,3.1,110.00 pF || 240.00 pF,0.3,E24",
+        "C1,349.09,pF,360.00,pF,3.1,150.00 pF || 200.00 pF,0.3,E24",
     },
     "highpass_butterworth_pi": {
         "category": "highpass",
@@ -526,7 +527,7 @@ GOLDENS = {
         '        "standard_match": {\n'
         '          "series": "E24",\n'
         '          "nearest": {\n'
-        '            "value_farads": 1.6000000000000003e-09,\n'
+        '            "value_farads": 1.6e-09,\n'
         '            "error_pct": 0.5309649148733911\n'
         "          },\n"
         '          "parallel": {\n'
@@ -617,7 +618,7 @@ GOLDENS = {
         '                "value_farads": 2.7e-09\n'
         "              }\n"
         "            ],\n"
-        '            "value_farads": 3.1700000000000004e-09,\n'
+        '            "value_farads": 3.17e-09,\n'
         '            "error_pct": -0.4115128812035759\n'
         "          }\n"
         "        }\n"
@@ -640,7 +641,7 @@ GOLDENS = {
         '                "value_farads": 2.7e-09\n'
         "              }\n"
         "            ],\n"
-        '            "value_farads": 3.1700000000000004e-09,\n'
+        '            "value_farads": 3.17e-09,\n'
         '            "error_pct": -0.4115128812035759\n'
         "          }\n"
         "        }\n"
@@ -660,6 +661,7 @@ GOLDENS = {
         "C2,3.18,nF,3.30,nF,3.7,470.00 pF || 2.70 nF,-0.4,E24\n"
         "L1,3.98,µH,,,,,,",
     },
+    # C1: 1.1 + 1.8 nF and 1.3 + 1.6 nF are both exactly 2.9 nF; the balanced pair wins.
     "highpass_chebyshev_pi": {
         "category": "highpass",
         "filter_type": "chebyshev",
@@ -697,7 +699,7 @@ GOLDENS = {
         "\n"
         "C1 Calculated: 2.90 nF\n"
         "  Nearest Std:  3.00 nF (+3.4%)\n"
-        "  Parallel Std: 1.10 nF || 1.80 nF (-0.1%)\n"
+        "  Parallel Std: 1.30 nF || 1.60 nF (-0.1%)\n"
         "\n",
         "json": "{\n"
         '  "filter_type": "chebyshev",\n'
@@ -722,19 +724,19 @@ GOLDENS = {
         '        "standard_match": {\n'
         '          "series": "E24",\n'
         '          "nearest": {\n'
-        '            "value_farads": 3.0000000000000004e-09,\n'
+        '            "value_farads": 3e-09,\n'
         '            "error_pct": 3.3607601386400003\n'
         "          },\n"
         '          "parallel": {\n'
         '            "components": [\n'
         "              {\n"
-        '                "value_farads": 1.1000000000000001e-09\n'
+        '                "value_farads": 1.3e-09\n'
         "              },\n"
         "              {\n"
-        '                "value_farads": 1.8000000000000002e-09\n'
+        '                "value_farads": 1.6e-09\n'
         "              }\n"
         "            ],\n"
-        '            "value_farads": 2.9000000000000003e-09,\n'
+        '            "value_farads": 2.9e-09,\n'
         '            "error_pct": -0.08459853264800143\n'
         "          }\n"
         "        }\n"
@@ -747,7 +749,7 @@ GOLDENS = {
         "csv": "Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries\n"
         "L1,4.99,µH,,,,,,\n"
         "L2,4.99,µH,,,,,,\n"
-        "C1,2.90,nF,3.00,nF,3.4,1.10 nF || 1.80 nF,-0.1,E24",
+        "C1,2.90,nF,3.00,nF,3.4,1.30 nF || 1.60 nF,-0.1,E24",
     },
     "highpass_chebyshev_t": {
         "category": "highpass",
@@ -811,10 +813,10 @@ GOLDENS = {
         '                "value_farads": 3.9e-10\n'
         "              },\n"
         "              {\n"
-        '                "value_farads": 1.6000000000000003e-09\n'
+        '                "value_farads": 1.6e-09\n'
         "              }\n"
         "            ],\n"
-        '            "value_farads": 1.9900000000000004e-09,\n'
+        '            "value_farads": 1.99e-09,\n'
         '            "error_pct": -0.20425174035320065\n'
         "          }\n"
         "        }\n"
@@ -834,10 +836,10 @@ GOLDENS = {
         '                "value_farads": 3.9e-10\n'
         "              },\n"
         "              {\n"
-        '                "value_farads": 1.6000000000000003e-09\n'
+        '                "value_farads": 1.6e-09\n'
         "              }\n"
         "            ],\n"
-        '            "value_farads": 1.9900000000000004e-09,\n'
+        '            "value_farads": 1.99e-09,\n'
         '            "error_pct": -0.20425174035324203\n'
         "          }\n"
         "        }\n"

@@ -9,7 +9,7 @@ import math
 import pytest
 
 from filter_lib.bandpass.calculations import calculate_bandpass_filter
-from filter_lib.bandpass.diagrams import format_top_c_diagram, print_top_c_diagram
+from filter_lib.bandpass.diagrams import format_top_c_diagram
 from filter_lib.bandpass.display import PLOT_POINTS, display_results, format_q_model_lines
 from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
 from filter_lib.bandpass.g_values import (
@@ -18,8 +18,10 @@ from filter_lib.bandpass.g_values import (
     get_chebyshev_g_values,
     get_g_values,
 )
+from filter_lib.shared.chebyshev_g_calculator import MAX_PROTOTYPE_ORDER
 
 _SI_PREFIX = {"f": 1e-15, "p": 1e-12, "n": 1e-9, "µ": 1e-6, "m": 1e-3, "": 1.0}
+_FREQUENCY_UNIT = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6, "GHz": 1e9}
 _COMPONENT_ORDER = ["Cp1", "Cp2", "Cp3", "L1", "L2", "L3", "Cs12", "Cs23", "Ce_in", "Ce_out"]
 
 
@@ -64,16 +66,28 @@ def _si_value(value: str, unit: str) -> float:
 
 class TestPrototypeGValues:
     def test_butterworth_closed_form_reference_values(self):
+        assert calculate_butterworth_g_values(1) == pytest.approx([2.0], rel=1e-12)
         assert calculate_butterworth_g_values(3) == pytest.approx([1.0, 2.0, 1.0], rel=1e-12)
         assert calculate_butterworth_g_values(5) == pytest.approx(
             [0.6180339887, 1.6180339887, 2.0, 1.6180339887, 0.6180339887], rel=1e-9
         )
 
+    def test_butterworth_order_limit_is_inclusive(self):
+        g = calculate_butterworth_g_values(MAX_PROTOTYPE_ORDER)
+        assert len(g) == MAX_PROTOTYPE_ORDER
+        assert g[0] == pytest.approx(math.pi / MAX_PROTOTYPE_ORDER, rel=1e-8)  # 2·sin(π/2n)
+        assert max(g) == pytest.approx(2.0, rel=1e-7)  # 2·cos(π/2n) for even n
+        with pytest.raises(ValueError, match="n must be a positive integer"):
+            calculate_butterworth_g_values(MAX_PROTOTYPE_ORDER + 1)
+
     @pytest.mark.parametrize(
         "n, ripple_db, expected",
         [
             (3, 0.1, [1.0316, 1.1474, 1.0316]),
+            (3, 0.2, [1.2275, 1.1525, 1.2275]),
             (3, 0.5, [1.5963, 1.0967, 1.5963]),
+            # The inclusive 3.0 dB ceiling.
+            (3, 3.0, [3.3487, 0.7117, 3.3487]),
             (5, 0.5, [1.7058, 1.2296, 2.5408, 1.2296, 1.7058]),
         ],
     )
@@ -91,6 +105,7 @@ class TestPrototypeGValues:
         "n, ripple_db, message",
         [
             (3, 3.5, "Ripple .* not supported"),
+            (3, math.nextafter(3.0, 4.0), "Ripple .* not supported"),
             (3, 0.0, "must be positive"),
             (3, float("nan"), "must be positive"),
             (4, 0.5, "odd resonator count"),
@@ -112,6 +127,8 @@ class TestPrototypeGValues:
 
     def test_get_g_values_dispatches_by_family(self):
         assert get_g_values("butterworth", 4) == calculate_butterworth_g_values(4)
+        # Chebyshev ripple defaults to 0.5 dB (Matthaei/Young/Jones row).
+        assert get_g_values("chebyshev", 3) == pytest.approx([1.5963, 1.0967, 1.5963], abs=1e-4)
         assert get_g_values("chebyshev", 5, 1.0) == get_chebyshev_g_values(5, 1.0)
         assert get_g_values("bessel", 3) == get_bessel_g_values(3)
 
@@ -223,7 +240,7 @@ class TestDisplay:
         "options, expected",
         [
             ({"output_format": "json"}, lambda r: format_json(r, eseries="E24") + "\n"),
-            ({"output_format": "csv"}, lambda r: format_csv(r, eseries="E24")),
+            ({"output_format": "csv"}, lambda r: format_csv(r, eseries="E24") + "\n"),
             ({"quiet": True}, lambda r: format_quiet(r) + "\n"),
         ],
     )
@@ -237,11 +254,60 @@ class TestDisplay:
         display_results(result, output_format="table", include_toroids=False)
         out = capsys.readouterr().out
         assert "Butterworth Coupled Resonator Bandpass Filter" in out
-        assert "Center Frequency f₀: 14.18 MHz" in out
+        assert "Center Frequency f₀: 14.175 MHz" in out
         assert "Bandwidth BW:        350 kHz" in out
         assert "Resonators:          3" in out
         assert "Coupling:            Top-C (Series)" in out
         assert "Ripple:" not in out
+
+    @staticmethod
+    def _header_hz(out: str) -> dict[str, float]:
+        """Header frequencies in Hz, keyed by the label before the colon."""
+        values = {}
+        for line in out.splitlines():
+            label, separator, text = line.partition(":")
+            number, _, unit = text.strip().partition(" ")
+            if separator and unit in _FREQUENCY_UNIT:
+                values[label] = float(number) * _FREQUENCY_UNIT[unit]
+        return values
+
+    @pytest.mark.parametrize(
+        ("f0", "bw", "n_resonators", "filter_type"),
+        [
+            # 0.1% FBW: four figures printed 99.95 / 100.1 MHz beside a 100 kHz bandwidth.
+            (100e6, 100e3, 3, "butterworth"),
+            (7.0735e6, 12.345e3, 3, "butterworth"),
+            (14.175e6, 350e3, 3, "butterworth"),
+            (455e3, 10e3, 4, "bessel"),
+            # 50% FBW: 7.808 / 12.81 MHz implied a 5.002 MHz bandwidth.
+            (10e6, 5e6, 3, "butterworth"),
+        ],
+    )
+    def test_header_edges_resolve_the_printed_bandwidth(
+        self, capsys, f0, bw, n_resonators, filter_type
+    ):
+        result = _make_result(f0=f0, bw=bw, n_resonators=n_resonators, filter_type=filter_type)
+
+        display_results(result, eseries=None, include_toroids=False)
+
+        header = self._header_hz(capsys.readouterr().out)
+        lower, upper = header["Lower Cutoff fₗ"], header["Upper Cutoff fₕ"]
+        bandwidth = header["Bandwidth BW"]
+        assert bandwidth == bw
+        # The printed edges subtract to the printed bandwidth at four significant figures.
+        assert float(f"{upper - lower:.4g}") == float(f"{bandwidth:.4g}")
+        assert abs(lower - result["f_low"]) <= 1e-4 * bw
+        assert abs(upper - result["f_high"]) <= 1e-4 * bw
+
+    def test_header_restates_the_typed_design_values(self, capsys):
+        result = _make_result(f0=7.0735e6, bw=12.345e3, z0=12345.0)
+
+        display_results(result, eseries=None, include_toroids=False)
+
+        lines = capsys.readouterr().out.splitlines()
+        assert "Center Frequency f₀: 7.0735 MHz" in lines
+        assert "Bandwidth BW:        12.345 kHz" in lines
+        assert "Impedance Z₀:        12345 Ω" in lines
 
     def test_display_table_shows_ripple_and_warnings(self, capsys):
         result = _make_result(filter_type="chebyshev", ripple_db=0.5)
@@ -358,10 +424,8 @@ class TestDisplay:
 
 class TestDiagrams:
     @pytest.mark.parametrize("n", [2, 5, 9])
-    def test_top_c_diagram_labels_every_tank_and_coupling_capacitor(self, n, capsys):
-        print_top_c_diagram(n)
-        out = capsys.readouterr().out
-        assert out == format_top_c_diagram(n) + "\n"
+    def test_top_c_diagram_labels_every_tank_and_coupling_capacitor(self, n):
+        out = format_top_c_diagram(n)
         assert out.count("GND") == n
         for index in range(1, n + 1):
             assert f"Cp{index}" in out
@@ -411,17 +475,12 @@ class TestEndCapOutputs:
         assert "Ce_in Calculated:" in out
         assert "Ce_out Calculated:" in out
 
-    def test_wizard_table_and_recs_include_end_caps(self, result):
-        from filter_lib.wizard.formatting_helpers import (
-            format_bandpass_eseries_recs,
-            format_bandpass_table,
-        )
+    def test_wizard_table_includes_end_caps_and_their_preferred_values(self, result):
+        from filter_lib.wizard.formatting_helpers import format_bandpass_table
         from filter_lib.wizard.state import FilterState
 
-        state = FilterState()
-        table = "\n".join(format_bandpass_table(result, state))
+        table = "\n".join(format_bandpass_table(result, FilterState(show_plot=False)))
         assert "Ce_in" in table
         assert "(realized by Ce_out)" in table
-        recs = "\n".join(format_bandpass_eseries_recs(result, "E24"))
-        assert "Ce_in Calculated:" in recs
-        assert "Ce_out Calculated:" in recs
+        assert "Ce_in Calculated:" in table
+        assert "Ce_out Calculated:" in table

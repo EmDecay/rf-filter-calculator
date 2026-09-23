@@ -53,15 +53,47 @@ class TestFormatFreqCompact:
             (1e9, "1G"),
             (2.4e9, "2.4G"),
             (10e9, "10G"),
+            (999e9, "999G"),
         ],
     )
     def test_uses_suffix_and_three_significant_figures(self, frequency_hz, label):
+        assert _format_freq_compact(frequency_hz) == label
+
+    @pytest.mark.parametrize(
+        ("frequency_hz", "label"),
+        [
+            (999.6, "1k"),
+            (999.6e3, "1M"),
+            (999.6e6, "1G"),
+            (999_999_999.9999999, "1G"),
+            # No prefix above G: from 1000G the label is scientific notation in Hz.
+            (999.6e9, "1e+12"),
+            (1.5e12, "1.5e+12"),
+        ],
+    )
+    def test_rounding_up_to_a_thousand_uses_the_next_prefix(self, frequency_hz, label):
         assert _format_freq_compact(frequency_hz) == label
 
 
 class TestRenderAsciiPlot:
     def test_empty_input_returns_placeholder(self):
         assert render_ascii_plot([], [], FC) == "No data to plot"
+
+    def test_bandpass_plot_accepts_an_exact_response(self):
+        """Bandpass thresholds come back as (lower, upper) edges; unpacking one crashed."""
+
+        def response(frequency):
+            # Third-order Butterworth bandpass, f0 = 10 MHz, BW = 1 MHz.
+            return -10 * math.log10(1 + ((frequency**2 - FC**2) / (1e6 * frequency)) ** 6)
+
+        freqs = [1e6 * 10 ** (index / 50) for index in range(101)]
+        response_db = [response(frequency) for frequency in freqs]
+
+        refined = render_ascii_plot(
+            freqs, response_db, FC, filter_type="bandpass", response_fn=response
+        )
+
+        assert refined == render_ascii_plot(freqs, response_db, FC, filter_type="bandpass")
 
     def test_rejects_mismatched_lengths(self):
         with pytest.raises(ValueError, match="same length"):

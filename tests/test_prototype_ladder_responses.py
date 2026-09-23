@@ -89,6 +89,33 @@ def test_chebyshev_prototype_is_equiripple_with_ripple_at_band_edge(order, rippl
         assert _power_gain(ladder, omega) == pytest.approx(expected, rel=1e-10), omega
 
 
+@pytest.mark.parametrize("topology", ["pi", "t"])
+@pytest.mark.parametrize("ripple_db", [5e-324, 0.01, 1.5, 3.0])
+@pytest.mark.parametrize("order", [3, 9])
+def test_public_chebyshev_ladder_realizes_requested_ripple(order, ripple_db, topology):
+    """The public calculator honours ripple across the accepted (0, 3] dB range.
+
+    The published-table tests stop at 1 dB, so this pins the calculator itself (not only
+    the g-value helper) at both range endpoints: full transmission at DC and at the first
+    reflection zero, and exactly ripple_db of loss at the band edge w = 1.
+    """
+    capacitors, inductors, _ = lp.calculate_chebyshev(
+        NORMALIZED_CUTOFF_HZ, 1.0, ripple_db, order, topology
+    )
+    ladder = _ladder_order(capacitors, inductors, topology)
+    first_shunt = topology == "pi"
+    band_edge_gain = math.exp(-ripple_db * math.log(10) / 10)
+
+    for omega, expected in [
+        (0.0, 1.0),
+        (math.cos(math.pi / (2 * order)), 1.0),
+        (1.0, band_edge_gain),
+    ]:
+        assert _power_gain(ladder, omega, first_shunt=first_shunt) == pytest.approx(
+            expected, rel=1e-10
+        ), omega
+
+
 def _bessel_polynomial(order: int) -> list[float]:
     """Reverse Bessel polynomial coefficients, lowest power first (delay-normalized)."""
     return [

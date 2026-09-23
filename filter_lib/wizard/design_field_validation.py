@@ -31,6 +31,17 @@ def parse_ripple_db(text: str) -> float:
     return ripple
 
 
+def parser_error_detail(error: ValueError, quantity: str) -> str:
+    """Return a shared-parser rejection without its own ``Invalid <quantity>: `` lead-in.
+
+    ``parse_frequency``, ``parse_impedance``, and ``parse_inductance`` already open
+    unparseable-text errors with that phrase. Wizard messages name the form field
+    themselves, so keeping it would read ``Invalid bandwidth: Invalid frequency: 10XHz``.
+    Other parser messages (``Frequency must be positive: -5MHz``) are returned unchanged.
+    """
+    return str(error).removeprefix(f"Invalid {quantity}: ")
+
+
 class RippleValidator(Validator):
     """Textual validator whose verdict and message come from :func:`parse_ripple_db`."""
 

@@ -96,8 +96,8 @@ These controls are shared by lowpass, highpass, and bandpass commands:
 | `--sim-build` | Compare calculated values, selected nominal branches, and bounded tolerance cases |
 | `--capacitor-tolerance PCT` | Capacitor bound for deterministic corners (default 5%) |
 | `--inductor-tolerance PCT` | Inductor bound for deterministic corners (default 10%) |
-| `--inductor-q Q`, `--capacitor-q Q` | Convert Q to constant series resistance at the reference frequency |
-| `--source-resistance`, `--load-resistance` | Evaluate transducer gain with unequal ports; synthesis remains equal-termination |
+| `--inductor-q Q`, `--capacitor-q Q` | Convert Q (0.01 to 1e9) to constant series resistance at the reference frequency |
+| `--source-resistance`, `--load-resistance` | Evaluate transducer gain with unequal ports (1e-6 to 1e6 times the design impedance); synthesis remains equal-termination |
 | `--loss-reference-frequency` | Frequency at which supplied Q is converted to series resistance |
 | `--sample-count N`, `--seed S` | Add repeatable uniform-bound screening cases; not a yield/probability model |
 | `--analysis-points N` | Initial response grid size, 51–5001 (default 601); measurements refine automatically |
@@ -232,8 +232,8 @@ with the request to floating-point precision.
 | `--no-toroids` | - | Suppress toroid recommendations |
 | `--toroid-compact` | - | Compact 1-line-per-rec toroid output (text only) |
 | `--toroid-full` | - | Show up to three qualified toroid candidates |
-| `--qu` | - | Complete resonator unloaded Q; used for Cohn estimate and nominal-build loss |
-| `--ql`, `--qc` | - | Inductor and tank-capacitor Q; combined as `1/Qu = 1/QL + 1/QC` |
+| `--qu` | - | Complete resonator unloaded Q (0.01 to 1e9); used for Cohn estimate and nominal-build loss |
+| `--ql`, `--qc` | - | Inductor and tank-capacitor Q (each 0.01 to 1e9); combined as `1/Qu = 1/QL + 1/QC` |
 | `--resonator-impedance` | design Z | Select tank reactance `sqrt(L/C)` independently of terminations |
 | `--resonator-inductance` | - | Fix tank inductance; mutually exclusive with tank impedance |
 | `--sim-build` | - | Analyze nominal parts, effective loss, and tolerance cases |
@@ -624,13 +624,18 @@ Two vertically stacked ASCII plots appear automatically:
 ### Threshold Summary Table
 
 Automatically displays frequencies where response crosses key dB levels:
-- **-3 dB** — Approximate -3dB frequency (cutoff point)
+- **-3 dB** — Half-power frequency (the cutoff for Butterworth and Bessel)
 - **-10 dB** — Start of significant attenuation
 - **-20 dB** — Strong attenuation reference
 
 For **Lowpass** and **Highpass**: Single column with direction arrows:
 - **↓** (down arrow) = Lowpass response falling below threshold
 - **↑** (up arrow) = Highpass response rising above threshold
+
+The plot grid only brackets each LP/HP crossing. The printed frequency comes from bisecting the
+analytic response inside that bracket, so it is exact to the digits shown. For example,
+`lp ch pi 10MHz -n 9 -r 0.01 --plot` reports the −3 dB point as 10.9M; the exact value is
+10.87 MHz.
 
 For **Bandpass**: Dual columns (f_low / f_high) showing where response crosses thresholds
 

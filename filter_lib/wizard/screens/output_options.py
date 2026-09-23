@@ -18,9 +18,9 @@ from textual.widgets.selection_list import Selection
 
 from ..build_options import (
     BUILD_INPUT_FLOW,
+    BuildOptionError,
     BuildOptionValues,
     apply_build_config,
-    build_error_input_id,
     build_option_issue,
     has_custom_build_controls,
     output_option_issue,
@@ -326,10 +326,10 @@ class OutputOptionsScreen(Screen):
                     grid_points=text("#build-grid-points"),
                     use_toroid_candidates=self.query_one("#build-use-toroids", Checkbox).value,
                 ),
+                design_impedance=self.app.filter_state.impedance,
             )
-        except ValueError as error:
+        except BuildOptionError as error:
             self.notify(f"Invalid realized-build setting: {error}", severity="error")
-            input_id = build_error_input_id(str(error))
-            if input_id is not None:
-                self.query_one(f"#{input_id}", Input).focus()
+            if error.field_id is not None:
+                self.query_one(f"#{error.field_id}", Input).focus()
             return None

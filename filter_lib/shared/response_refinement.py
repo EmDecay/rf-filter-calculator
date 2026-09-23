@@ -195,15 +195,21 @@ def refine_response(
     if not is_finite_real(drop_db) or drop_db <= 0:
         raise ValueError("drop_db must be positive and finite")
     if (
-        len(freqs) < 2
-        or any(not math.isfinite(f) or f <= 0 for f in freqs)
+        not isinstance(freqs, (list, tuple))
+        or len(freqs) < 2
+        or any(not is_finite_real(f) or f <= 0 for f in freqs)
         or any(b <= a for a, b in zip(freqs, freqs[1:]))
     ):
         raise ValueError("frequencies must be positive, finite and strictly increasing")
-    if not all(math.isfinite(f) and f > 0 for f in passband) or passband[1] <= passband[0]:
+    if (
+        not isinstance(passband, (list, tuple))
+        or len(passband) != 2
+        or not all(is_finite_real(f) and f > 0 for f in passband)
+        or passband[1] <= passband[0]
+    ):
         raise ValueError("passband must have positive finite ordered boundaries")
     if reference_frequency is not None and (
-        not math.isfinite(reference_frequency) or reference_frequency <= 0
+        not is_finite_real(reference_frequency) or reference_frequency <= 0
     ):
         raise ValueError("reference_frequency must be positive and finite")
 
@@ -212,13 +218,13 @@ def refine_response(
     def evaluate(frequency: float) -> float:
         if frequency not in cache:
             value = response_fn(frequency)
-            if not math.isfinite(value):
+            if not is_finite_real(value):
                 raise ValueError("response refinement requires finite dB values")
             cache[frequency] = value
         return cache[frequency]
 
     grid = sorted(
-        set(freqs + list(passband) + ([reference_frequency] if reference_frequency else []))
+        set(list(freqs) + list(passband) + ([reference_frequency] if reference_frequency else []))
     )
     previous = None
     for _ in range(max_passes):

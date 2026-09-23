@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import math
 import re
 import sys
 
@@ -22,6 +23,15 @@ def _run(monkeypatch, *arguments: str) -> None:
 
 def _reject_constant(value: str):
     raise AssertionError(f"non-standard JSON constant: {value}")
+
+
+def _deck_values(deck: str) -> dict[str, float]:
+    """Map each SPICE element name to its value (the last field of its card)."""
+    return {
+        line.split()[0]: float(line.split()[-1])
+        for line in deck.splitlines()
+        if line[:1].isalpha() and line.split()[0] != "VINPUT"
+    }
 
 
 @pytest.fixture(scope="module")
@@ -78,7 +88,18 @@ def test_sim_build_uses_accuracy_safe_default_grid(monkeypatch, capsys):
     )
 
     payload = json.loads(capsys.readouterr().out, parse_constant=_reject_constant)
-    assert payload["tolerance_analysis"]["grid_points"] == 601
+    tolerance = payload["tolerance_analysis"]
+    assert tolerance["grid_points"] == 601
+    # The defaults advertised by --help: 5% capacitors, 10% inductors, no screening samples,
+    # equal 50-ohm evaluation ports, and a lossless build.
+    assert (tolerance["capacitor_tolerance_pct"], tolerance["inductor_tolerance_pct"]) == (5, 10)
+    assert (tolerance["sample_count"], tolerance["seed"]) == (0, 0)
+    assert [case["case_id"] for case in tolerance["cases"]][0] == "nominal"
+    assert not any(case["case_id"].startswith("sample:") for case in tolerance["cases"])
+    evaluation = payload["evaluation"]
+    assert (evaluation["source_resistance_ohm"], evaluation["load_resistance_ohm"]) == (50, 50)
+    assert payload["build_model"]["effective_loss_model"]["is_lossless"] is True
+    assert payload["build_model"]["eseries"] == "E24"
 
 
 def test_bandpass_edge_targets_preserve_exact_requested_values(sim_build_json):
@@ -214,11 +235,18 @@ def test_nominal_spice_uses_physical_parallel_caps_and_q_loss(monkeypatch, capsy
     )
 
     deck = capsys.readouterr().out
-    assert re.search(r"(?m)^C1A\s", deck)
-    assert re.search(r"(?m)^C1B\s", deck)
-    assert re.search(r"(?m)^RLOSSC1A\s", deck)
+    values = _deck_values(deck)
     assert "e_series_parallel" in deck
     assert "exact_fallback" in deck
+    # 318.31 pF is realized as the selected E24 pair 47 pF || 270 pF (see sample output).
+    assert (values["C1A"], values["C1B"]) == (47e-12, 270e-12)
+    assert "calculated=3.18309886184e-10 nominal=3.17e-10" in deck
+    # Capacitor Q becomes series R = 1/(w*C*Q) at the default (design) reference frequency.
+    omega = 2 * math.pi * 10e6
+    for name in ("C1A", "C1B", "C2A", "C2B"):
+        expected = 1 / (omega * values[name] * 200)
+        assert values[f"RLOSS{name}"] == pytest.approx(expected, rel=1e-9, abs=0)
+    assert "RLOSSL1" not in values
 
 
 @pytest.mark.parametrize(
@@ -469,8 +497,13 @@ def test_nominal_bandpass_spice_applies_complete_resonator_q(monkeypatch, capsys
     )
 
     deck = capsys.readouterr().out
-    assert re.search(r"(?m)^RLOSSLT1\s", deck)
+    values = _deck_values(deck)
     assert "complete resonator Q" in deck
+    # One equivalent inductor loss per tank: R = w0*L/Qu at the 10 MHz center.
+    for tank in (1, 2, 3):
+        expected = 2 * math.pi * 10e6 * values[f"LT{tank}"] / 100
+        assert values[f"RLOSSLT{tank}"] == pytest.approx(expected, rel=1e-9, abs=0)
+    assert not any(name.startswith("RLOSSC") for name in values)
 
 
 def test_loss_reference_frequency_is_applied_when_q_is_supplied(monkeypatch, capsys):
@@ -490,5 +523,9 @@ def test_loss_reference_frequency_is_applied_when_q_is_supplied(monkeypatch, cap
     )
 
     deck = capsys.readouterr().out
+    values = _deck_values(deck)
     assert "at 1000000 Hz" in deck
-    assert re.search(r"(?m)^RLOSSL1\s", deck)
+    # R = w_ref*L/Q evaluated at the 1 MHz reference, not the 10 MHz cutoff.
+    expected = 2 * math.pi * 1e6 * values["L1"] / 100
+    assert values["RLOSSL1"] == pytest.approx(expected, rel=1e-9, abs=0)
+    assert values["RLOSSL1"] == pytest.approx(0.1, rel=1e-9, abs=0)

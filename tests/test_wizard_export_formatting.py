@@ -225,6 +225,18 @@ class TestPrepareExportPayloads:
         assert component == state.output_text
         assert response.startswith("frequency_hz,magnitude_db")
 
+    @pytest.mark.parametrize("fmt", ["csv", "json"])
+    @pytest.mark.parametrize("category", ["lowpass", "highpass", "bandpass"])
+    def test_saved_files_use_lf_rows_and_one_final_newline(self, calculated, category, fmt):
+        state = replace(calculated[category], export_format=fmt)
+
+        files = prepare_export_payloads(state, f"export-{fmt}")
+
+        assert [os.path.splitext(path)[1] for path, _ in files] == [f".{fmt}", f".{fmt}"]
+        for _, content in files:
+            assert "\r" not in content
+            assert content.endswith("\n") and not content.endswith("\n\n")
+
     def test_without_sidecar_only_the_component_payload_is_prepared(self, calculated):
         files = prepare_export_payloads(calculated["lowpass"], "export-json")
 

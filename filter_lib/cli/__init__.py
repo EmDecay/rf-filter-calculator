@@ -1,6 +1,7 @@
 """CLI subcommand handlers."""
 
 import argparse
+import os
 import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as metadata_version
@@ -17,6 +18,22 @@ def _package_version() -> str:
         return metadata_version("rf-filter-calculator")
     except PackageNotFoundError:
         return __version__
+
+
+def _discard_further_stdout() -> None:
+    """Point stdout's file descriptor at devnull after its reader went away.
+
+    Python flushes stdout again at exit; without this, output still buffered for the
+    closed pipe raises a second BrokenPipeError there (the Python ``signal`` docs
+    recipe). A stream without a descriptor has nothing left to redirect.
+    """
+    try:
+        descriptor = sys.stdout.fileno()
+    except (AttributeError, OSError, ValueError):
+        return
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, descriptor)
+    os.close(devnull)
 
 
 def main():
@@ -83,6 +100,12 @@ Examples:
             run_wizard()
         else:
             args.func(args)
+        # Flush here so a reader that closed the pipe early (``| head``) is reported
+        # below instead of during interpreter shutdown.
+        sys.stdout.flush()
+    except BrokenPipeError:
+        _discard_further_stdout()
+        sys.exit(1)
     # ValueError is the library-wide contract for invalid user input (bad
     # frequencies, unsupported orders, unrealizable designs): surface the
     # message cleanly on stderr instead of dumping a traceback.

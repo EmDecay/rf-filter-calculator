@@ -10,23 +10,28 @@ Provides adaptive ASCII frequency response plots with:
 
 import bisect
 import math
+from collections.abc import Callable
 
 from .numeric import is_finite_real
-from .plot_threshold_analysis import _find_3db_frequency
+from .plot_threshold_analysis import _find_3db_frequency, find_db_thresholds
+
+_COMPACT_PREFIXES = ((1e9, "G"), (1e6, "M"), (1e3, "k"))
 
 
 def _format_freq_compact(freq_hz: float) -> str:
     """Format a frequency in Hz as a short label like '10M' or '3.5k'.
 
     Suffix only (no 'Hz') to keep axis labels narrow; 3 significant
-    figures is the most that fits under a 60-column plot.
+    figures is the most that fits under a 60-column plot. Rounding happens
+    before the prefix is chosen, so 999.6 MHz reads '1G' rather than
+    '1e+03M'; from 1000G the label is scientific notation in hertz.
     """
-    if freq_hz >= 1e9:
-        return f"{freq_hz / 1e9:.3g}G"
-    elif freq_hz >= 1e6:
-        return f"{freq_hz / 1e6:.3g}M"
-    elif freq_hz >= 1e3:
-        return f"{freq_hz / 1e3:.3g}k"
+    rounded = float(f"{freq_hz:.3g}")
+    if rounded >= 1e12:
+        return f"{freq_hz:.3g}"
+    for scale, suffix in _COMPACT_PREFIXES:
+        if rounded >= scale:
+            return f"{rounded / scale:.3g}{suffix}"
     return f"{freq_hz:.3g}"
 
 
@@ -102,6 +107,7 @@ def render_ascii_plot(
     title: str = "Frequency Response (dB)",
     filter_type: str = "lowpass",
     db_floor: float | None = None,
+    response_fn: Callable[[float], float] | None = None,
 ) -> str:
     """Render adaptive ASCII frequency response plot.
 
@@ -114,6 +120,9 @@ def render_ascii_plot(
         title: Plot title
         filter_type: 'lowpass', 'highpass', or 'bandpass'
         db_floor: Fixed dB minimum for Y-axis. None = auto-range.
+        response_fn: Optional (freq_hz) -> dB of the plotted response. When given,
+            the labelled -3 dB frequency is bisected on it, exactly as the
+            threshold table does, instead of interpolated between samples.
 
     Returns:
         Multi-line string with ASCII plot
@@ -159,9 +168,16 @@ def render_ascii_plot(
     db_3db_row = int((db_max - (-3)) / db_range * (plot_height - 1))
     db_3db_row = max(0, min(plot_height - 1, db_3db_row))
 
-    # Find the actual -3dB crossing (interpolated from samples, not fc)
-    direction = "rising" if filter_type == "highpass" else "falling"
-    f_3db = _find_3db_frequency(freqs, response_db, direction)
+    # Find the actual -3dB crossing (from the response, not fc)
+    if response_fn is not None:
+        # One crossing for LP/HP; bandpass reports (lower, upper), and the marker keeps the
+        # upper, falling edge that the grid search below finds for any non-highpass type.
+        f_3db = find_db_thresholds(
+            freqs, response_db, [-3], filter_type=filter_type, response_fn=response_fn
+        )[-3][-1]
+    else:
+        direction = "rising" if filter_type == "highpass" else "falling"
+        f_3db = _find_3db_frequency(freqs, response_db, direction)
     f_3db_col, show_3db_marker = None, False
     if f_3db and f_3db > 0:
         log_f_3db = math.log10(f_3db)

@@ -11,8 +11,9 @@ return display lines for the requested output format.
 
 from .state import FilterState
 
-# Dense enough to resolve both skirts of narrow wizard band-pass designs.
-# Shared by the on-screen plot/threshold table and response-data export.
+# Dense enough to resolve both skirts of narrow wizard band-pass designs. Used by
+# the response-data export; equals the CLI's bandpass.display.PLOT_POINTS, which the
+# shared table renderer uses for the on-screen plot, so both match the CLI.
 BANDPASS_WIZARD_RESPONSE_POINTS = 601
 
 
@@ -184,14 +185,9 @@ def calculate_bandpass(state: FilterState) -> list[str]:
         Display lines in the format selected by `state.output_format`.
     """
     from filter_lib.bandpass import calculate_bandpass_filter
-    from filter_lib.bandpass.display import format_bandpass_thresholds, format_toroid_block_lines
     from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
-    from filter_lib.bandpass.transfer import netlist_frequency_sweep
-    from filter_lib.shared.plotting import (
-        render_bandpass_plot_pair,
-    )
 
-    from .formatting_helpers import format_bandpass_eseries_recs, format_bandpass_table
+    from .formatting_helpers import format_bandpass_table
 
     result = calculate_bandpass_filter(
         f0=state.frequency_hz,
@@ -217,40 +213,5 @@ def calculate_bandpass(state: FilterState) -> list[str]:
     if state.quiet:
         return [format_quiet(result, state.raw_units)]
 
-    lines = format_bandpass_table(result, state)
-
-    if state.eseries != "none" and not state.raw_units:
-        lines.extend(format_bandpass_eseries_recs(result, state.eseries))
-
-    compact = state.toroid_detail == "compact"
-    # Drop the section's trailing blank: the wizard joins lines itself and the
-    # plot (when shown) supplies its own leading separator.
-    lines.extend(format_toroid_block_lines(result, compact, 1 if compact else 3)[:-1])
-
-    if state.show_plot:
-        from filter_lib.shared.transfer_response_dispatch import make_bp_netlist_response_db
-
-        # Butterworth/Bessel results carry no ripple; the plot renderer still
-        # needs a value for its ripple reference, so fall back to the wizard's
-        # 0.5 dB default. The plot itself is netlist-simulated from the
-        # synthesized circuit, not an idealized prototype curve.
-        ripple_val = result.get("ripple_db") or 0.5
-        sweep = netlist_frequency_sweep(result, points=BANDPASS_WIZARD_RESPONSE_POINTS)
-        title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"
-        response_fn = make_bp_netlist_response_db(result)
-        lines.append("")
-        lines.append(
-            render_bandpass_plot_pair(
-                sweep,
-                result["f0"],
-                result["bw"],
-                f_low_hz=result["f_low"],
-                f_high_hz=result["f_high"],
-                title=title,
-                ripple_db=ripple_val,
-                response_fn=response_fn,
-            )
-        )
-        lines.append(format_bandpass_thresholds(result, sweep, response_fn))
-
-    return lines
+    # The CLI's renderer: header, tables, preferred values, windings, and plot.
+    return format_bandpass_table(result, state)

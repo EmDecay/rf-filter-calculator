@@ -8,7 +8,7 @@ from ..shared.netlist_simulation import find_3db_edges, solve_s21
 from ..shared.numeric import is_finite_real
 from ..shared.plot_threshold_analysis import find_threshold_regions
 from ..shared.transfer_functions import MAX_FREQUENCY_POINTS, magnitude_to_db
-from .design_constants import THREE_DB_DOWN
+from .design_constants import THREE_DB_DOWN, VALIDATION_POINTS
 from .ideal_response import frequency_from_deviation
 
 
@@ -24,6 +24,43 @@ def _deviation_grid(f0: float, bw: float, points: int, span: float = 4.0) -> lis
         raise ValueError("span must be positive and finite")
     step = 2.0 * span / (points - 1)
     return [frequency_from_deviation(-span + index * step, f0, bw) for index in range(points)]
+
+
+def require_resolvable_bandwidth(f0: float, bw: float) -> None:
+    """Reject a bandwidth too narrow for the verification sweep to resolve around ``f0``.
+
+    Synthesis is calibrated and verified on grids uniform in bandpass deviation, the
+    finest with ``VALIDATION_POINTS`` samples. Adjacent samples sit
+    ``span * (bw / f0) / (points - 1)`` apart in ``ln(f)``, and computed frequencies
+    are quantized to the binary64 spacing of ``ln(f0)``, so a sufficiently narrow
+    band collapses the grid onto repeated frequencies.
+    """
+    grid = _deviation_grid(f0, bw, VALIDATION_POINTS)
+    if all(low < high for low, high in zip(grid, grid[1:])):
+        return
+    minimum_fbw = _minimum_resolvable_fbw(f0)
+    raise ValueError(
+        f"Bandwidth {bw:.3g} Hz is too narrow relative to the {f0:.3g} Hz center frequency "
+        f"to synthesize at double precision; use a fractional bandwidth of at least "
+        f"{minimum_fbw:.2g} (a bandwidth of at least {_round_up(minimum_fbw * f0):.2g} Hz)"
+    )
+
+
+def _minimum_resolvable_fbw(f0: float, span: float = 4.0) -> float:
+    """Fractional bandwidth whose grid spacing is twice the binary64 resolution of ``ln(f)``.
+
+    Twice the spacing keeps samples distinct when ``ln(f)`` crosses a power of two, where
+    its spacing doubles, and absorbs the rounding of ``exp``; one spacing, 2**-52, is the
+    floor near 1 Hz where ``ln(f0)`` is small.
+    """
+    resolution = max(math.ulp(abs(math.log(f0))), math.ulp(1.0))
+    return _round_up(2.0 * resolution * (VALIDATION_POINTS - 1) / span)
+
+
+def _round_up(value: float) -> float:
+    """Round up to two significant digits so a stated minimum is never understated."""
+    exponent = math.floor(math.log10(value)) - 1
+    return math.ceil(value / 10.0**exponent) * 10.0**exponent
 
 
 def measure_netlist_passband(

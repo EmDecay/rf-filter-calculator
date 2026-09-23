@@ -1,6 +1,8 @@
 """Toroid wire gauge, winding length, DC resistance, and winding-capacity screening."""
 
 import dataclasses
+import math
+import sys
 
 import pytest
 
@@ -170,6 +172,18 @@ def test_legacy_core_capacity_is_an_estimate_with_the_family_default_gauge():
     assert fit.full_winding_capacity is None
 
 
+@pytest.mark.parametrize(("turns", "fits"), [(41, True), (42, False)])
+def test_estimated_capacity_is_an_inclusive_limit_that_pins_the_enamel_allowance(turns, fits):
+    """T80-2 (ID 12.6 mm), AWG 20 (0.8118 mm): 0.9·π·12.6 / (1.07·0.8118) = 41.01 -> 41.
+
+    The estimate sits just above 41, so a 1 % larger enamel allowance would give 40.
+    """
+    fit = fit_wire(get_core("T80-2"), turns)
+
+    assert (fit.awg, fit.n_max, fit.capacity_status) == (20, 41, "estimated")
+    assert fit.fits is fits
+
+
 def test_every_catalog_core_has_a_default_gauge():
     for core in list_cores():
         assert 14 <= default_awg_for_core(core) <= 26, core.name
@@ -201,10 +215,50 @@ def test_wire_helpers_require_integer_awg_in_range(awg):
 @pytest.mark.parametrize("turns", [0, -1, True, 1.5, "10", None])
 def test_wire_helpers_require_positive_integer_turns(turns):
     core = get_core("T50-2")
-    with pytest.raises(ValueError, match="positive integer"):
+    with pytest.raises(ValueError, match="^n must be a positive integer$"):
         wire_length_mm(core, turns, 20)
-    with pytest.raises(ValueError, match="positive integer"):
+    with pytest.raises(ValueError, match="^n_turns must be a positive integer$"):
         fit_wire(core, turns)
+
+
+@pytest.mark.parametrize(
+    ("turns", "diameter", "message"),
+    [
+        (10**200, None, "^wire length is outside the finite numeric range$"),
+        (10**400, None, "^n is outside the finite numeric range$"),
+        (10, 1e300, "^wire length is outside the finite numeric range$"),
+        (10, sys.float_info.max, "^wire length is outside the finite numeric range$"),
+    ],
+    ids=["1e200-turns", "1e400-turns", "1e300-mm-wire", "max-float-wire"],
+)
+def test_wire_length_outside_binary64_is_a_value_error(turns, diameter, message):
+    """These leaked OverflowError, or returned inf for the largest finite diameter."""
+    with pytest.raises(ValueError, match=message):
+        wire_length_mm(get_core("T50-2"), turns, 22, wire_diameter_mm=diameter)
+
+
+@pytest.mark.parametrize(
+    ("turns", "message"),
+    [
+        (10**200, "^wire length is outside the finite numeric range$"),
+        (10**400, "^n_turns is outside the finite numeric range$"),
+    ],
+    ids=["1e200-turns", "1e400-turns"],
+)
+def test_fit_wire_rejects_turn_counts_outside_binary64(turns, message):
+    """10**400 turns leaked "int too large to convert to float" from the DCR scaling."""
+    with pytest.raises(ValueError, match=message):
+        fit_wire(get_core("T50-2"), turns)
+
+
+def test_largest_finite_winding_length_is_still_returned():
+    """10**150 turns is absurd but representable, so the helper still answers."""
+    core = get_core("T50-2")
+    per_turn = 2.0 * math.pi * 0.3219 + 2.0 * core.height_mm + core.od_mm - core.id_mm
+
+    length = wire_length_mm(core, 10**150, 22, wire_diameter_mm=0.6438)
+
+    assert length == pytest.approx(10**150 * per_turn, rel=1e-12, abs=0)
 
 
 @pytest.mark.parametrize("length", [-1.0, True, "100", None, float("inf"), float("nan")])

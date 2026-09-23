@@ -118,6 +118,9 @@ def test_tolerance_range_accepts_zero_and_rejects_full_or_unrepresentable_ranges
         l_tolerance_range(1e-6, 100.0)
     with pytest.raises(ValueError, match="tolerance range is outside"):
         l_tolerance_range(1.79e308, 5.0)
+    # 0.4 x the smallest subnormal rounds to 0 H, which is not a physical lower bound.
+    with pytest.raises(ValueError, match="tolerance range is outside"):
+        l_tolerance_range(5e-324, 60.0)
 
 
 @pytest.mark.parametrize(

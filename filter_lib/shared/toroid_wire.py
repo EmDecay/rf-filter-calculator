@@ -10,7 +10,7 @@ around the core. Bare copper diameter is used for DC resistance; insulated
 import math
 from dataclasses import dataclass
 
-from .numeric import require_nonnegative_finite, require_positive_finite
+from .numeric import is_finite_real, require_nonnegative_finite, require_positive_finite
 from .toroid_core_data import ToroidCore, _require_toroid_core
 
 # IACS annealed copper at 20 C (1/58 ohm·mm²/m), the basis of standard AWG resistance tables.
@@ -88,15 +88,29 @@ def wire_length_mm(
     AWG formula diameter is used when it is not supplied.
     """
     core = _require_toroid_core(core)
-    if isinstance(n, bool) or not isinstance(n, int) or n <= 0:
-        raise ValueError("n must be a positive integer")
+    _require_turn_count(n, "n")
     formula_diameter_mm = awg_to_diameter_mm(awg)
     if wire_diameter_mm is None:
         wire_diameter_mm = formula_diameter_mm
     r_wire = require_positive_finite(wire_diameter_mm, "wire_diameter_mm") / 2.0
     axial = math.pi * (core.od_mm + core.id_mm) / 2.0
     cross = n * (2.0 * math.pi * r_wire + 2.0 * core.height_mm + core.od_mm - core.id_mm)
-    return math.sqrt(axial**2 + cross**2)
+    try:
+        length = math.sqrt(axial**2 + cross**2)
+    except OverflowError:
+        length = math.inf
+    if not math.isfinite(length):
+        raise ValueError("wire length is outside the finite numeric range")
+    return length
+
+
+def _require_turn_count(turns: object, label: str) -> int:
+    """Require a positive integer turn count that converts to a finite binary64 value."""
+    if isinstance(turns, bool) or not isinstance(turns, int) or turns <= 0:
+        raise ValueError(f"{label} must be a positive integer")
+    if not is_finite_real(turns):
+        raise ValueError(f"{label} is outside the finite numeric range")
+    return turns
 
 
 def dc_resistance_ohms(length_mm: float, awg: int) -> float:
@@ -164,8 +178,7 @@ def fit_wire(core: ToroidCore, n_turns: int, awg: int | None = None) -> Mechanic
     legacy geometric capacity is retained but explicitly labeled estimated.
     """
     core = _require_toroid_core(core)
-    if isinstance(n_turns, bool) or not isinstance(n_turns, int) or n_turns <= 0:
-        raise ValueError("n_turns must be a positive integer")
+    _require_turn_count(n_turns, "n_turns")
     if awg is not None:
         awg_to_diameter_mm(awg)
     published_choice = _published_winding_choice(core, n_turns, awg)

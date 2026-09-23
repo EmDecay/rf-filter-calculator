@@ -133,8 +133,11 @@ detail flags outside table mode.
 - `lp_hp_base_calculations.py` — shared ladder denormalization
 - `chebyshev_g_calculator.py` — formula-based prototypes
 - `numeric.py` — log-domain finite-result helpers
+- `physical_input_limits.py` — accepted component-Q and port-resistance ranges, with the
+  reasons for them
 - `circuit_model.py`, `circuit_builders.py` — named passive networks
-- `branch_admittance.py`, `nodal_solver.py` — stable AC solver
+- `branch_admittance.py`, `nodal_solver.py`, `decimal_nodal_solver.py` — stable AC solver
+  and its high-precision fallback
 - `response_measurement.py` — cutoff/passband measurements
 
 ### Realization and analysis

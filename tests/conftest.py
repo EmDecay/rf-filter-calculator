@@ -79,6 +79,9 @@ def bandpass_result():
         "n_resonators": 3,
         "coupling": "top",
         "fbw": 350e3 / 14.175e6,
+        # -3 dB edges of this band: f_high - f_low = bw and f_low * f_high = f0**2.
+        "f_low": 14001080.205755044,
+        "f_high": 14351080.205755046,
         "L_resonant": 1e-6,
         "c_tank": [100e-12, 100e-12, 100e-12],
         "c_coupling": [10e-12, 10e-12],

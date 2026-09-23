@@ -37,7 +37,7 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=float,
         default=None,
         metavar="Q",
-        help="Inductor Q at the loss-reference frequency",
+        help="Inductor Q at the loss-reference frequency (0.01 to 1e9)",
     )
     parser.add_argument(
         "--capacitor-q",
@@ -45,21 +45,23 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=float,
         default=None,
         metavar="Q",
-        help="Capacitor Q at the loss-reference frequency",
+        help="Capacitor Q at the loss-reference frequency (0.01 to 1e9)",
     )
     parser.add_argument(
         "--source-resistance",
         dest="build_source_resistance",
         default=None,
         metavar="OHMS",
-        help="Evaluation source resistance; does not change equal-termination synthesis",
+        help="Evaluation source resistance, 1e-6 to 1e6 times the design impedance; "
+        "does not change equal-termination synthesis",
     )
     parser.add_argument(
         "--load-resistance",
         dest="build_load_resistance",
         default=None,
         metavar="OHMS",
-        help="Evaluation load resistance; does not change equal-termination synthesis",
+        help="Evaluation load resistance, 1e-6 to 1e6 times the design impedance; "
+        "does not change equal-termination synthesis",
     )
     parser.add_argument(
         "--loss-reference-frequency",
@@ -131,11 +133,19 @@ def make_build_config(args: Namespace):
         inductor_q=getattr(args, "build_inductor_q", None),
         capacitor_q=getattr(args, "build_capacitor_q", None),
         source_resistance_ohm=(
-            parse_impedance(str(source_arg)) if source_arg is not None else None
+            parse_impedance(str(source_arg), label="Source resistance")
+            if source_arg is not None
+            else None
         ),
-        load_resistance_ohm=(parse_impedance(str(load_arg)) if load_arg is not None else None),
+        load_resistance_ohm=(
+            parse_impedance(str(load_arg), label="Load resistance")
+            if load_arg is not None
+            else None
+        ),
         reference_frequency_hz=(
-            parse_frequency(str(reference_arg)) if reference_arg is not None else None
+            parse_frequency(str(reference_arg), label="Loss reference frequency")
+            if reference_arg is not None
+            else None
         ),
         sample_count=(
             getattr(args, "build_sample_count", None)

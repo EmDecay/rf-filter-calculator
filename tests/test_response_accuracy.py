@@ -157,8 +157,50 @@ def test_refinement_keeps_meshing_while_worst_passband_gain_changes():
     assert three_meshes.worst_db == pytest.approx(-1.0, rel=1e-12, abs=0)
 
 
+def test_refinement_locates_off_grid_extrema_by_local_search():
+    """A +1 peak at 3.7 and a -1 dip at 2.3 fall between every dyadic mesh point of 1..5.
+
+    Each Gaussian leaves exp(-(1.4 / 0.3)^2) = 3.5e-10 of itself at the other's center.
+    """
+
+    def response(f):
+        return math.exp(-(((f - 3.7) / 0.3) ** 2)) - math.exp(-(((f - 2.3) / 0.3) ** 2))
+
+    refined = refine_response(response, [1.0, 2.0, 3.0, 4.0, 5.0], (1.0, 5.0), frequency_scale=4)
+
+    extreme = 1 - math.exp(-((1.4 / 0.3) ** 2))
+    assert refined.converged
+    assert refined.peak_db == pytest.approx(extreme, rel=0, abs=1e-12)
+    assert refined.worst_db == pytest.approx(-extreme, rel=0, abs=1e-12)
+    # Local search only adds evaluations inside the requested window.
+    assert (min(refined.frequencies), max(refined.frequencies)) == (1.0, 5.0)
+
+
 @pytest.mark.parametrize(
-    ("edge_shift_fraction", "agrees"), [(0.9e-5, True), (1.1e-5, False)], ids=["inside", "outside"]
+    ("slope", "passband", "peak_frequency"), [(-0.01, (1.0, 2.0), 1.0), (0.01, (2.0, 3.0), 3.0)]
+)
+def test_peak_on_a_window_edge_selects_its_region(slope, passband, peak_frequency):
+    """Monotonic responses peak at the first (lowpass-like) or last (highpass-like) sample."""
+    refined = refine_response(lambda f: slope * f, [1.0, 2.0, 3.0], passband, frequency_scale=1)
+
+    assert refined.regions == ((None, None),)
+    assert refined.selected_region == 0
+    assert refined.reference_frequency == peak_frequency
+    assert refined.peak_db == pytest.approx(slope * peak_frequency, rel=1e-15, abs=0)
+
+
+def test_two_point_grid_is_a_valid_refinement_domain():
+    refined = refine_response(lambda f: -f, [1.0, 2.0], (1.0, 2.0), frequency_scale=1)
+
+    assert refined.converged
+    assert (refined.peak_db, refined.worst_db) == (-1.0, -2.0)
+    assert refined.frequencies == (1.0, 1.5, 2.0)
+
+
+@pytest.mark.parametrize(
+    ("edge_shift_fraction", "agrees"),
+    [(0.995e-5, True), (1.005e-5, False)],
+    ids=["inside", "outside"],
 )
 def test_successive_meshes_agree_only_within_the_band_edge_tolerance(edge_shift_fraction, agrees):
     """Band edges must match to 1e-5 of the frequency scale before refinement stops."""
@@ -170,6 +212,37 @@ def test_successive_meshes_agree_only_within_the_band_edge_tolerance(edge_shift_
     current = replace(previous, regions=((low, high + edge_shift_fraction * scale),))
 
     assert response_refinement._agrees(previous, current, scale) is agrees
+
+
+@pytest.mark.parametrize("field", ["peak_db", "worst_db", "reference_db"])
+@pytest.mark.parametrize(("shift_db", "agrees"), [(0.000995, True), (0.001005, False)])
+def test_successive_meshes_agree_only_within_the_gain_tolerance(field, shift_db, agrees):
+    """Peak, worst requested-passband, and reference gains must each match to 0.001 dB."""
+    previous = refine_response(
+        lambda f: -((f - 3) ** 2), [1, 2, 3, 4, 5], (2, 4), frequency_scale=4.0
+    )
+    current = replace(previous, **{field: getattr(previous, field) + shift_db})
+
+    assert response_refinement._agrees(previous, current, 4.0) is agrees
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"selected_region": 1},
+        {"regions": ((2.0, 4.0), (4.5, 4.9))},
+        {"regions": ((None, 4.0),)},
+    ],
+    ids=["other-selected-region", "extra-region", "edge-lost-to-grid-boundary"],
+)
+def test_successive_meshes_disagree_when_region_structure_changes(changes):
+    previous = replace(
+        refine_response(lambda f: -((f - 3) ** 2), [1, 2, 3, 4, 5], (2, 4), frequency_scale=4.0),
+        regions=((2.0, 4.0),),
+        selected_region=0,
+    )
+
+    assert response_refinement._agrees(previous, replace(previous, **changes), 4.0) is False
 
 
 def test_screening_summaries_omit_unresolved_measurements():
@@ -288,6 +361,7 @@ def test_cohn_estimate_is_compared_with_finite_q_center_loss(bw, loss, status):
         {"drop_db": 0},
         {"drop_db": math.nan},
         {"reference_frequency": -1},
+        {"reference_frequency": 0.0},
     ],
 )
 def test_refinement_rejects_invalid_accuracy_controls(options):
@@ -296,11 +370,48 @@ def test_refinement_rejects_invalid_accuracy_controls(options):
 
 
 @pytest.mark.parametrize(
-    "grid,band", [([1, 1, 2], (1, 2)), ([1], (1, 2)), ([0, 1], (1, 2)), ([1, 2], (2, 1))]
+    "grid,band",
+    [([1, 1, 2], (1, 2)), ([1], (1, 2)), ([0, 1], (1, 2)), ([1, 2], (2, 1)), ([1, 2], (2, 2))],
 )
 def test_refinement_rejects_invalid_frequency_domains(grid, band):
     with pytest.raises(ValueError):
         refine_response(lambda f: -f, grid, band, frequency_scale=1)
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"freqs": [1.0, "2", 3.0]}, "frequencies must be"),
+        ({"freqs": [1.0, 10**400]}, "frequencies must be"),
+        ({"freqs": [1.0, True, 3.0]}, "frequencies must be"),
+        ({"freqs": None}, "frequencies must be"),
+        ({"passband": (1.0, None)}, "passband must"),
+        ({"passband": (1.0, 2.0, 3.0)}, "passband must"),
+        ({"passband": 2.0}, "passband must"),
+        ({"reference_frequency": True}, "reference_frequency must"),
+        ({"reference_frequency": "2"}, "reference_frequency must"),
+        ({"reference_frequency": 10**400}, "reference_frequency must"),
+    ],
+)
+def test_refinement_rejects_non_real_domains_with_value_error(options, message):
+    """Text, None, bool, and integers beyond binary64 once leaked TypeError/OverflowError."""
+    arguments = {"freqs": [1.0, 2.0, 3.0], "passband": (1.0, 3.0), "reference_frequency": None}
+    arguments |= options
+
+    with pytest.raises(ValueError, match=message):
+        refine_response(lambda f: -f, frequency_scale=1.0, **arguments)
+
+
+def test_refinement_rejects_a_non_real_response_value():
+    with pytest.raises(ValueError, match="finite dB values"):
+        refine_response(lambda f: "-3", [1.0, 2.0], (1.0, 2.0), frequency_scale=1.0)
+
+
+def test_refinement_accepts_a_tuple_frequency_grid():
+    as_tuple = refine_response(lambda f: -f, (1.0, 2.0, 3.0), (1.0, 3.0), frequency_scale=1.0)
+    as_list = refine_response(lambda f: -f, [1.0, 2.0, 3.0], (1.0, 3.0), frequency_scale=1.0)
+
+    assert as_tuple == as_list
 
 
 def test_crossing_equality_invalid_brackets_and_nonfinite_responses():
@@ -310,6 +421,8 @@ def test_crossing_equality_invalid_brackets_and_nonfinite_responses():
         refine_crossing(lambda f: -f, 1, 2, -3, 1e-6)
     with pytest.raises(ValueError, match="finite and ordered"):
         refine_crossing(lambda f: -f, 2, 1, -1.5, 1e-6)
+    with pytest.raises(ValueError, match="finite and ordered"):
+        refine_crossing(lambda f: -f, 1, 1, -1.5, 1e-6)
     with pytest.raises(ValueError, match="finite and ordered"):
         refine_crossing(lambda f: -f, 1, 2, -1.5, 0)
     with pytest.raises(ValueError, match="finite"):

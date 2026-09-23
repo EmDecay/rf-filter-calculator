@@ -14,6 +14,7 @@ from unittest.mock import Mock
 import pytest
 from textual.widgets import RadioSet
 
+from filter_lib.bandpass.display import format_eseries_lines
 from filter_lib.wizard.calculation_handler import calculate_and_format
 from filter_lib.wizard.export_formatting import format_component_csv, format_component_json
 from filter_lib.wizard.filter_type_calculators import (
@@ -22,10 +23,7 @@ from filter_lib.wizard.filter_type_calculators import (
     calculate_highpass,
     calculate_lowpass,
 )
-from filter_lib.wizard.formatting_helpers import (
-    format_bandpass_eseries_recs,
-    format_bandpass_table,
-)
+from filter_lib.wizard.formatting_helpers import format_bandpass_table
 from filter_lib.wizard.radio_button_helpers import get_selected_radio
 from filter_lib.wizard.state import FilterState
 
@@ -176,7 +174,8 @@ def test_machine_output_is_the_same_document_the_export_saves(category, output_f
     lines = CALCULATORS[category](state)
 
     export = format_component_json if output_format == "json" else format_component_csv
-    assert lines == [export(state)]
+    # A saved file ends with one LF, as the CLI's printed CSV and JSON do.
+    assert [line + "\n" for line in lines] == [export(state)]
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +194,7 @@ class TestBandpassCalculator:
         )
         assert state.result["n_resonators"] == 3
         lines = output.splitlines()
-        assert "Butterworth Top-C Coupled Band-Pass Filter" in lines
+        assert "Butterworth Coupled Resonator Bandpass Filter" in lines
         assert "Response validation: Passed synthesized-response checks" in lines
         assert "E24 Preferred-Value Capacitor Selection" in lines
         for label in ("Cp1", "Cp3", "Ce_in", "Cs12", "Cs23", "Ce_out"):
@@ -242,7 +241,7 @@ class TestBandpassCalculator:
 def test_bandpass_recommendations_require_expert_action_below_one_picofarad():
     result = {"c_tank": [1e-15], "c_coupling": [], "c_end_in": None, "c_end_out": None}
 
-    output = "\n".join(format_bandpass_eseries_recs(result, "E24"))
+    output = "\n".join(format_eseries_lines(result, "E24"))
 
     assert "policy selects at most one realization; expert action may be required" in output
     assert "Nearest Std (reference only)" in output
@@ -252,12 +251,16 @@ def test_bandpass_recommendations_require_expert_action_below_one_picofarad():
 
 class TestFormatBandpassTable:
     def test_top_c_table_lists_every_section(self, bandpass_result):
-        output = "\n".join(format_bandpass_table(bandpass_result, FilterState(raw_units=False)))
+        state = FilterState(raw_units=False, show_plot=False)
+
+        output = "\n".join(format_bandpass_table(bandpass_result, state))
 
         for text in (
-            "Butterworth Top-C Coupled Band-Pass Filter",
-            "Center Frequency:",
-            "Bandwidth:",
+            "Butterworth Coupled Resonator Bandpass Filter",
+            "Center Frequency f₀: 14.175 MHz",
+            "Lower Cutoff fₗ:     14.00108 MHz",
+            "Upper Cutoff fₕ:     14.35108 MHz",
+            "Bandwidth BW:        350 kHz",
             "Fractional BW:       2.47%",
             "Resonators:          3",
             "Tank Capacitors",
@@ -273,7 +276,9 @@ class TestFormatBandpassTable:
             assert absent not in output
 
     def test_raw_units_print_si_values(self, bandpass_result):
-        output = "\n".join(format_bandpass_table(bandpass_result, FilterState(raw_units=True)))
+        state = FilterState(raw_units=True, show_plot=False)
+
+        output = "\n".join(format_bandpass_table(bandpass_result, state))
 
         assert "│ Cp1: 1.000000e-10 F" in output
         assert "│ L1: 1.000000e-06 H" in output
@@ -287,20 +292,20 @@ class TestFormatBandpassTable:
             "warnings": ["Bandwidth too large", "Q values may be unrealistic"],
         }
 
-        lines = format_bandpass_table(result, FilterState())
+        lines = format_bandpass_table(result, FilterState(show_plot=False))
 
         assert "Response validation: Outside validated envelope; see warnings" in lines
         assert lines[lines.index("\nWarnings:") + 1 :][:2] == [
-            "  ! Bandwidth too large",
-            "  ! Q values may be unrealistic",
+            "  ⚠ Bandwidth too large",
+            "  ⚠ Q values may be unrealistic",
         ]
 
     def test_chebyshev_ripple_row(self, bandpass_result):
         result = {**bandpass_result, "filter_type": "chebyshev", "ripple_db": 0.5}
 
-        output = "\n".join(format_bandpass_table(result, FilterState()))
+        output = "\n".join(format_bandpass_table(result, FilterState(show_plot=False)))
 
-        assert "Chebyshev Top-C Coupled Band-Pass Filter" in output
+        assert "Chebyshev Coupled Resonator Bandpass Filter" in output
         assert "Ripple:              0.5 dB" in output
 
 
@@ -315,7 +320,7 @@ class TestCalculateAndFormat:
         [
             ("lowpass", "Low Pass"),
             ("highpass", "High Pass"),
-            ("bandpass", "Band-Pass"),
+            ("bandpass", "Bandpass"),
         ],
     )
     def test_success_is_detached_from_the_live_state(self, category, title):
@@ -369,6 +374,21 @@ class TestCalculateAndFormat:
         ):
             assert heading in outcome.output_text
         assert (state.result, state.build_analysis) == ({}, None)
+
+    def test_cancelled_build_analysis_is_an_error_outcome_without_a_result(self):
+        state = _state(
+            "lowpass",
+            eseries="E24",
+            build_analysis_enabled=True,
+            build_grid_points=51,
+            build_use_toroid_candidates=False,
+        )
+
+        outcome = calculate_and_format(state, should_cancel=lambda: True)
+
+        assert (outcome.status, outcome.error) == ("error", "Calculation cancelled")
+        assert (outcome.output_text, outcome.result, outcome.build_analysis) == ("", {}, None)
+        assert not outcome.succeeded
 
     @pytest.mark.parametrize("category", ["lowpass", "highpass"])
     def test_json_build_analysis_uses_the_shared_four_block_schema(self, category):

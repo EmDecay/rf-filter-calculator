@@ -228,6 +228,27 @@ class TestResponseJson:
             export_response_json([], [], meta)
 
     @pytest.mark.parametrize(
+        "meta",
+        [
+            {**_LP_META, "order": 1},
+            {**_LP_META, "response_type": "chebyshev", "ripple_db": 3.0},
+            {**_BP_META, "response_type": "chebyshev", "ripple_db": 5e-324},
+        ],
+        ids=["first-order", "ripple-ceiling-inclusive", "smallest-positive-ripple"],
+    )
+    def test_accepts_schema_boundary_metadata(self, meta):
+        data = json.loads(export_response_json([1e6], [-3.0], meta))
+
+        assert data["filter"]["order"] == meta["order"]
+        assert data["filter"].get("ripple_db") == meta.get("ripple_db")
+
+    def test_rejects_ripple_just_above_the_ceiling(self):
+        meta = {**_LP_META, "response_type": "chebyshev", "ripple_db": 3.001}
+
+        with pytest.raises(ValueError, match="meta.ripple_db must be at most 3.0 dB"):
+            export_response_json([1e6], [-3.0], meta)
+
+    @pytest.mark.parametrize(
         ("meta", "message"),
         [
             ({**_LP_META, "note": object()}, r"\$\.filter\.note contains non-JSON value"),

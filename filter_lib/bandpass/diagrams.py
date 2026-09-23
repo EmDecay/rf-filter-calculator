@@ -73,15 +73,3 @@ def format_top_c_diagram(n: int) -> str:
             gnd_sym,
         ]
     )
-
-
-def print_top_c_diagram(n: int) -> None:
-    """Print Top-C (series coupling) topology diagram.
-
-    Shows n tanks with n-1 coupling capacitors in series on main line.
-    Each tank is a parallel LC circuit to ground.
-
-    Args:
-        n: Number of resonators
-    """
-    print(format_top_c_diagram(n))

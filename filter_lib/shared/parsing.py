@@ -3,7 +3,9 @@
 Conventions shared by both parsers: matching is case-insensitive, suffixes
 are tried longest-first so compound units win over bare prefixes, and a
 bare "m"/"M" always means mega (this is an RF tool; milli-scale inputs are
-not supported). Values must parse to a positive, finite number.
+not supported). Values must parse to a positive, finite number. Each parser takes
+a ``label`` naming the quantity being parsed (``"Bandwidth"``, ``"Load
+resistance"``), so its error message names the option the user supplied.
 """
 
 import math
@@ -34,11 +36,12 @@ def _parse_scaled_positive(
     return result
 
 
-def parse_frequency(freq_str: str) -> float:
+def parse_frequency(freq_str: str, label: str = "Frequency") -> float:
     """Parse frequency string with unit suffix (Hz, kHz, MHz, GHz).
 
     Args:
         freq_str: Frequency string (e.g., "14.2MHz", "500kHz", "1GHz")
+        label: Quantity named in error messages (e.g., "Bandwidth")
 
     Returns:
         Frequency in Hz
@@ -48,7 +51,7 @@ def parse_frequency(freq_str: str) -> float:
             positive and finite
     """
     if not isinstance(freq_str, str):
-        raise ValueError("Frequency must be supplied as text")
+        raise ValueError(f"{label} must be supplied as text")
     freq_str = freq_str.strip()
     freq_str_lower = freq_str.lower()
 
@@ -68,16 +71,17 @@ def parse_frequency(freq_str: str) -> float:
     for suffix, mult in suffixes:
         if freq_str_lower.endswith(suffix):
             num_part = freq_str[: -len(suffix)].strip()
-            return _parse_scaled_positive(num_part, mult, label="Frequency", original=freq_str)
+            return _parse_scaled_positive(num_part, mult, label=label, original=freq_str)
 
-    return _parse_scaled_positive(freq_str, 1.0, label="Frequency", original=freq_str)
+    return _parse_scaled_positive(freq_str, 1.0, label=label, original=freq_str)
 
 
-def parse_impedance(z_str: str) -> float:
+def parse_impedance(z_str: str, label: str = "Impedance") -> float:
     """Parse impedance string with unit suffix (ohm, kohm, Mohm, Ω, bare k/M).
 
     Args:
         z_str: Impedance string (e.g., "50ohm", "1kohm", "1k", "50Ω")
+        label: Quantity named in error messages (e.g., "Source resistance")
 
     Returns:
         Impedance in Ohms
@@ -87,7 +91,7 @@ def parse_impedance(z_str: str) -> float:
             positive and finite
     """
     if not isinstance(z_str, str):
-        raise ValueError("Impedance must be supplied as text")
+        raise ValueError(f"{label} must be supplied as text")
     z_str = z_str.strip()
     # Handle Unicode omega symbols
     for omega_char in ["ω", "Ω"]:
@@ -103,22 +107,23 @@ def parse_impedance(z_str: str) -> float:
             return _parse_scaled_positive(
                 z_str[: -len(suffix)].strip(),
                 mult,
-                label="Impedance",
+                label=label,
                 original=z_str,
             )
 
-    return _parse_scaled_positive(z_str, 1.0, label="Impedance", original=z_str)
+    return _parse_scaled_positive(z_str, 1.0, label=label, original=z_str)
 
 
-def parse_inductance(inductance_str: str) -> float:
+def parse_inductance(inductance_str: str, label: str = "Inductance") -> float:
     """Parse an inductance with H, mH, uH/µH/μH, or nH units.
 
     A value without a suffix is interpreted as Henries.  Unlike the RF
     frequency shorthand, ``m`` here retains its SI meaning of milli because
-    the required trailing ``H`` makes the unit unambiguous.
+    the required trailing ``H`` makes the unit unambiguous. ``label`` names
+    the quantity in error messages.
     """
     if not isinstance(inductance_str, str):
-        raise ValueError("Inductance must be supplied as text")
+        raise ValueError(f"{label} must be supplied as text")
     original = inductance_str.strip()
     normalized = original.replace("µ", "u").replace("μ", "u").lower()
     suffixes = (("mh", 1e-3), ("uh", 1e-6), ("nh", 1e-9), ("h", 1.0))
@@ -129,8 +134,8 @@ def parse_inductance(inductance_str: str) -> float:
             return _parse_scaled_positive(
                 number,
                 multiplier,
-                label="Inductance",
+                label=label,
                 original=original,
             )
     else:
-        return _parse_scaled_positive(normalized, 1.0, label="Inductance", original=original)
+        return _parse_scaled_positive(normalized, 1.0, label=label, original=original)

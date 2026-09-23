@@ -2,6 +2,8 @@
 
 from copy import deepcopy
 
+import pytest
+
 from filter_lib.shared.build_simulation import BuildConfig
 from filter_lib.wizard.state import FilterState
 
@@ -134,11 +136,16 @@ class TestFilterState:
         assert state.build_analysis is None
         assert not state.is_exportable
 
-    def test_empty_success_is_published_as_error_and_returns_false(self):
+    @pytest.mark.parametrize(
+        "output_text, result",
+        [("", {}), (" \n ", {"ok": True}), ("table", {})],
+        ids=["both-empty", "blank-text", "no-result"],
+    )
+    def test_empty_success_is_published_as_error_and_returns_false(self, output_text, result):
         state = FilterState()
         revision = state.begin_calculation()
 
-        published = state.publish_success(revision, "", {})
+        published = state.publish_success(revision, output_text, result)
 
         assert not published
         assert state.calculation_status == "error"
@@ -187,6 +194,12 @@ class TestFilterState:
         assert config.seed == 42
         assert config.grid_points == 301
         assert config.use_toroid_candidates is False
+
+    def test_build_config_carries_the_complete_resonator_q(self):
+        config = FilterState(eseries="E12", build_resonator_q=150.0).make_build_config()
+
+        assert (config.eseries, config.resonator_q) == ("E12", 150.0)
+        assert (config.inductor_q, config.capacitor_q) == (None, None)
 
     def test_build_analysis_is_required_for_exportable_build_success(self):
         state = FilterState(build_analysis_enabled=True)

@@ -183,7 +183,8 @@ Current responsibilities:
 
 Every design mutation invalidates prior output. A Results worker calculates from a deep-copied
 snapshot and may publish only to the same pending revision. Unmount cancels the worker and
-invalidates its result. Export is enabled only after a complete successful outcome; build
+invalidates its result; long work must poll a cancellation check, because a thread worker
+cannot be interrupted from outside (see `analyze_build(..., should_cancel=...)`). Export is enabled only after a complete successful outcome; build
 analysis must be present when requested.
 
 The wizard allows raw table rows with an E-series only when realized-build analysis consumes

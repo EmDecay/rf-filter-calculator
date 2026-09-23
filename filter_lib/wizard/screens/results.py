@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, RadioButton, RadioSet, Static
-from textual.worker import Worker
+from textual.worker import Worker, get_current_worker
 
 from ..calculation_handler import calculate_and_format
 from ..export_formatting import prepare_export_payloads
@@ -68,15 +68,22 @@ class ResultsScreen(Screen):
         self.query_one("#export-btn", Button).disabled = True
         # thread=True keeps the event loop free (bandpass runs a netlist
         # sweep, which is not instant); exclusive=True guards against a
-        # remount stacking a second calculation.
+        # remount stacking a second calculation. exit_on_error=False keeps an
+        # unexpected worker exception on this screen as a rendered failure
+        # (the ERROR branch below) instead of exiting the whole app.
         self._active_worker = self.run_worker(
             partial(self._calculate, snapshot),
             exclusive=True,
             thread=True,
+            exit_on_error=False,
         )
 
     def on_unmount(self) -> None:
-        """Cancel the worker and prevent late events from publishing output."""
+        """Cancel the worker and prevent late events from publishing output.
+
+        Cancelling also sets the flag the worker thread polls, so the thread stops
+        rather than finishing a long analysis after its screen is gone.
+        """
         self._accept_worker_events = False
         if self._active_worker is not None:
             self._active_worker.cancel()
@@ -102,8 +109,15 @@ class ResultsScreen(Screen):
             pass
 
     def _calculate(self, snapshot: FilterState) -> CalculationOutcome:
-        """Perform filter calculation using only the captured state snapshot."""
-        return calculate_and_format(snapshot)
+        """Perform filter calculation using only the captured state snapshot.
+
+        Runs in the worker thread. Textual cannot interrupt a thread, so the
+        calculation polls this worker's cancellation flag, which is set when the
+        screen unmounts (Esc, Design Another) or the app exits; a long realized-build
+        analysis then stops within one circuit measurement.
+        """
+        worker = get_current_worker()
+        return calculate_and_format(snapshot, should_cancel=lambda: worker.is_cancelled)
 
     def _is_current_worker_event(self, event: Worker.StateChanged) -> bool:
         """Return whether an event still belongs to this mounted revision."""

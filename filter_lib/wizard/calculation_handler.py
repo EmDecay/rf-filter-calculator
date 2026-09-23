@@ -5,22 +5,31 @@ The actual calculation logic is in filter_type_calculators.py.
 Formatting helpers are in formatting_helpers.py.
 """
 
+from collections.abc import Callable
 from copy import deepcopy
 
 from .state import CalculationOutcome, FilterState
 
 
-def calculate_and_format(state: FilterState) -> CalculationOutcome:
+def calculate_and_format(
+    state: FilterState, should_cancel: Callable[[], bool] | None = None
+) -> CalculationOutcome:
     """Calculate against a detached state snapshot and return its outcome.
 
     Args:
         state: FilterState with all parameters configured
+        should_cancel: Optional zero-argument check passed to the realized-build
+            analysis, the only step whose run time the user controls. The Results
+            worker passes its own cancellation flag so leaving the screen or quitting
+            stops the analysis instead of leaving a thread running.
 
     Returns:
         Detached success/error outcome. The supplied state is never mutated.
     """
     # Deferred so the wizard UI can start without loading the calculation
     # stack; it's only paid when the user actually reaches the results screen.
+    from filter_lib.shared.build_types import BuildAnalysisCancelled
+
     from .filter_type_calculators import calculate_bandpass, calculate_highpass, calculate_lowpass
 
     # Direct calculator functions retain their legacy state.result side effect
@@ -69,6 +78,7 @@ def calculate_and_format(state: FilterState) -> CalculationOutcome:
                 snapshot.result,
                 snapshot.category,
                 snapshot.make_build_config(),
+                should_cancel=should_cancel,
             )
             if snapshot.output_format == "json":
                 lines = [_format_build_json(snapshot, build_analysis)]
@@ -80,6 +90,9 @@ def calculate_and_format(state: FilterState) -> CalculationOutcome:
                     )
                 )
                 lines.extend(format_build_analysis_block(build_analysis))
+    except BuildAnalysisCancelled:
+        # Only a cancelled worker sees this, and its revision can no longer publish.
+        return CalculationOutcome(status="error", error="Calculation cancelled")
     except Exception as e:
         message = str(e).strip() or type(e).__name__
         return CalculationOutcome(status="error", error=message)

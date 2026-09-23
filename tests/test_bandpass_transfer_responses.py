@@ -217,6 +217,13 @@ class TestIdealBandpassMagnitudes:
         with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
             bp_transfer.chebyshev_3db_deviation(3, ripple_db)
 
+    def test_chebyshev_ripple_ceiling_is_inclusive(self):
+        assert bp_transfer.chebyshev_3db_deviation(3, 3.0) == pytest.approx(
+            _chebyshev_3db_deviation(3, 3.0), rel=1e-12
+        )
+        with pytest.raises(ValueError, match="ripple_db must be at most 3.0 dB"):
+            bp_transfer.chebyshev_3db_deviation(3, math.nextafter(3.0, 4.0))
+
     @pytest.mark.parametrize("ripple_db", [True, 0.0, float("nan"), float("inf")])
     def test_chebyshev_magnitude_and_sweep_reject_invalid_ripple(self, ripple_db):
         with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
@@ -247,6 +254,37 @@ class TestIdealBandpassMagnitudes:
 
         assert -0.5 - 1e-9 <= magnitude_db <= 0.0
 
+    @pytest.mark.parametrize(
+        ("order", "multiple"),
+        [(2**60 + 3, 3), (2**51 + 1, 1), (2**200 + 2**64 + 5, 5), (3 * 2**70 + 7, 7)],
+    )
+    def test_huge_integer_multiple_of_an_angle_is_reduced_exactly(self, order, multiple):
+        """cos(order*angle) for angle = tau/8: every 8*2^k multiple is a whole turn."""
+        from filter_lib.bandpass.ideal_response import _cos_integer_multiple
+
+        angle = math.tau / 8
+        assert _cos_integer_multiple(angle, order) == pytest.approx(
+            math.cos(multiple * angle), abs=1e-12
+        )
+
+    def test_chebyshev_ripple_defaults_to_half_db(self):
+        delta = 2.0
+        expected = _chebyshev_db(delta * _chebyshev_3db_deviation(3, 0.5), 3, 0.5)
+        frequency = _frequency_at_deviation(delta)
+
+        assert bp_transfer.magnitude_db(frequency, F0, BW, 3, "chebyshev") == pytest.approx(
+            expected, abs=1e-9
+        )
+        sweep = dict(bp_transfer.frequency_sweep(F0, BW, 3, "chebyshev", decades=0.1, points=5))
+        assert sweep[F0] == pytest.approx(0.0, abs=1e-12)
+        for frequency, response_db in sweep.items():
+            assert response_db == pytest.approx(
+                _chebyshev_db(
+                    abs(_deviation(frequency)) * _chebyshev_3db_deviation(3, 0.5), 3, 0.5
+                ),
+                abs=1e-9,
+            )
+
 
 class TestIdealBandpassSweeps:
     def test_default_sweep_samples_center_and_true_edges_exactly(self):
@@ -274,6 +312,19 @@ class TestIdealBandpassSweeps:
         assert len(sweep) == 31
         assert sweep[0][0] == pytest.approx(F0 / math.sqrt(10), rel=1e-12)
         assert sweep[-1][0] == pytest.approx(F0 * math.sqrt(10), rel=1e-12)
+
+    def test_smallest_landmark_sweep_samples_center_and_true_edges(self):
+        """Five points is the smallest grid whose interior carries f0 and both -3 dB edges."""
+        sweep = bp_transfer.frequency_sweep(F0, BW, 3, "butterworth", decades=0.5, points=5)
+        freqs = [f for f, _ in sweep]
+        low, high = _frequency_at_deviation(-1.0), _frequency_at_deviation(1.0)
+
+        assert freqs[0] == pytest.approx(F0 / math.sqrt(10), rel=1e-12)
+        assert freqs[-1] == pytest.approx(F0 * math.sqrt(10), rel=1e-12)
+        assert freqs[1:4] == pytest.approx([low, F0, high], rel=1e-12)
+        assert [db for _, db in sweep][1:4] == pytest.approx(
+            [HALF_POWER_DB, 0.0, HALF_POWER_DB], abs=1e-9
+        )
 
     def test_two_points_is_the_smallest_sweep(self):
         sweep = bp_transfer.frequency_sweep(F0, BW, 3, "butterworth", decades=1.0, points=2)

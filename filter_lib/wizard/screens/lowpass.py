@@ -8,7 +8,7 @@ from textual.types import NoActiveAppError
 from textual.validation import Integer
 from textual.widgets import Button, Footer, Input, RadioButton, RadioSet, Static
 
-from ..design_field_validation import RippleValidator, parse_ripple_db
+from ..design_field_validation import RippleValidator, parse_ripple_db, parser_error_detail
 from ..filter_screen_navigation_mixin import FilterScreenNavigationMixin
 from ..radio_button_helpers import get_selected_radio
 from ..state import FilterState
@@ -177,7 +177,9 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
         try:
             freq_hz = parse_frequency(freq_value)
         except ValueError as e:
-            self.notify(f"Invalid frequency: {e}", severity="error")
+            self.notify(
+                f"Invalid frequency: {parser_error_detail(e, 'frequency')}", severity="error"
+            )
             freq_input.focus()
             return
 
@@ -185,7 +187,9 @@ class LowpassScreen(FilterScreenNavigationMixin, Screen):
         try:
             impedance = parse_impedance(impedance_input.value.strip() or "50")
         except ValueError as e:
-            self.notify(f"Invalid impedance: {e}", severity="error")
+            self.notify(
+                f"Invalid impedance: {parser_error_detail(e, 'impedance')}", severity="error"
+            )
             impedance_input.focus()
             return
 

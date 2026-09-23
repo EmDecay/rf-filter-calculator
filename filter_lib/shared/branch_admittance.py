@@ -35,40 +35,39 @@ def normalise_branch(branch: Branch) -> tuple[int, int, str, float, float]:
     return n1, n2, kind, value, series_resistance
 
 
-def _branch_admittance_at_frequency(
-    kind: str, value: float, frequency: float, series_resistance: float = 0.0
-) -> tuple[float, complex]:
-    """Return log magnitude and phase without materializing angular frequency."""
-    if not is_finite_number(frequency) or frequency <= 0:
-        raise ValueError("frequency must be positive and finite")
-    return _branch_admittance_from_log_omega(
-        kind, value, _LOG_TWO_PI + math.log(frequency), series_resistance
-    )
+def branch_log_terms(value: float, series_resistance: float) -> tuple[float, float | None]:
+    """Frequency-independent logarithms of a branch checked by ``normalise_branch``.
+
+    Returns ``(log(value), log(series_resistance))``; a lossless branch has ``None``
+    as its loss term. Computing these once per circuit leaves only the per-frequency
+    admittance arithmetic in a sweep.
+    """
+    return math.log(value), math.log(series_resistance) if series_resistance else None
 
 
-def _branch_admittance_from_log_omega(
-    kind: str, value: float, log_omega: float, series_resistance: float
+def log_angular_frequency(frequency: float) -> float:
+    """Return ``log(2*pi*frequency)`` without materializing angular frequency."""
+    return _LOG_TWO_PI + math.log(frequency)
+
+
+def branch_admittance_from_logs(
+    kind: str, log_value: float, log_omega: float, log_series_resistance: float | None
 ) -> tuple[float, complex]:
-    """Represent an admittance as ``(log(abs(Y)), unit_phase)``."""
-    if not isinstance(kind, str) or kind not in {"C", "L", "R"}:
-        raise ValueError(f"Unknown branch kind {kind!r}: use 'C', 'L', or 'R'")
-    if not is_finite_number(value) or value <= 0:
-        raise ValueError("branch value must be positive and finite")
-    if not is_finite_number(series_resistance) or series_resistance < 0:
-        raise ValueError("branch series resistance must be finite and non-negative")
+    """Represent a validated branch admittance as ``(log(abs(Y)), unit_phase)``.
+
+    Inputs come from ``normalise_branch``/``branch_log_terms`` and a finite positive
+    frequency, so this per-frequency kernel does no validation of its own.
+    """
     if kind == "R":
-        if series_resistance:
-            raise ValueError("resistor branches cannot specify a series resistance")
-        return -math.log(value), 1 + 0j
+        return -log_value, 1 + 0j
 
-    log_reactance = log_omega + math.log(value) if kind == "L" else -log_omega - math.log(value)
+    log_reactance = log_omega + log_value if kind == "L" else -log_omega - log_value
     reactance_sign = 1.0 if kind == "L" else -1.0
-    if series_resistance == 0:
+    if log_series_resistance is None:
         return -log_reactance, complex(0.0, -reactance_sign)
 
-    log_resistance = math.log(series_resistance)
-    log_scale = max(log_resistance, log_reactance)
-    resistance_scaled = math.exp(log_resistance - log_scale)
+    log_scale = max(log_series_resistance, log_reactance)
+    resistance_scaled = math.exp(log_series_resistance - log_scale)
     reactance_scaled = math.exp(log_reactance - log_scale)
     impedance_scaled = math.hypot(resistance_scaled, reactance_scaled)
     log_impedance = log_scale + math.log(impedance_scaled)

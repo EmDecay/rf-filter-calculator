@@ -7,11 +7,15 @@ Butterworth attenuation f = fc * (10^(A/10) - 1)^(1/2n).
 """
 
 import math
+import re
+import sys
 
 import pytest
 
+from filter_lib import cli
 from filter_lib.highpass.transfer import butterworth_response as hp_butterworth_response
 from filter_lib.lowpass.transfer import butterworth_response as lp_butterworth_response
+from filter_lib.shared.plot_ascii_renderers import _format_freq_compact
 from filter_lib.shared.plot_threshold_analysis import (
     ThresholdRegion,
     _find_3db_frequency,
@@ -21,6 +25,9 @@ from filter_lib.shared.plot_threshold_analysis import (
     format_threshold_table,
 )
 from filter_lib.shared.transfer_functions import generate_frequency_points, magnitude_to_db
+from filter_lib.shared.transfer_response_dispatch import make_hp_response_db, make_lp_response_db
+from filter_lib.wizard.calculation_handler import calculate_and_format
+from filter_lib.wizard.state import FilterState
 
 FC = 10e6
 
@@ -394,3 +401,92 @@ class TestFormatThresholdTable:
             "├────────┼──────────────┤",
             "└────────┴──────────────┘",
         ]
+
+
+class TestLadderPlotLabelsAreTheResponseCrossings:
+    """``--plot`` labels, in the CLI and the wizard, name the analytic response's crossings.
+
+    Interpolating the 25-point-per-decade plot grid misplaced steep high-order crossings by
+    up to 1.6%, which changed the printed three-figure label (10.7M instead of 10.9M).
+    """
+
+    @staticmethod
+    def _exact_crossing(response, low: float, high: float, level: float, falling: bool):
+        for _ in range(200):
+            middle = math.sqrt(low * high)
+            if (response(middle) >= level) == falling:
+                low = middle
+            else:
+                high = middle
+        return low
+
+    @staticmethod
+    def _threshold_labels(text: str) -> dict[int, str]:
+        labels = {}
+        for line in text.splitlines():
+            cells = [cell.strip() for cell in line.split("│")[1:-1]]
+            if len(cells) == 2 and cells[0].endswith(" dB"):
+                labels[int(cells[0].removesuffix(" dB"))] = cells[1]
+        return labels
+
+    @staticmethod
+    def _cli_and_wizard_text(monkeypatch, capsys, state: FilterState) -> tuple[str, str]:
+        command = "lp" if state.category == "lowpass" else "hp"
+        alias = {"butterworth": "bw", "chebyshev": "ch"}[state.filter_type]
+        argv = [command, alias, "pi", f"{state.frequency_hz:g}", "-n", str(state.order)]
+        if state.filter_type == "chebyshev":
+            argv += ["-r", f"{state.ripple_db:g}"]
+        monkeypatch.setattr(sys, "argv", ["filter-calc", *argv, "--plot", "--no-match"])
+        cli.main()
+        outcome = calculate_and_format(state)
+        assert outcome.succeeded, outcome.error
+        return capsys.readouterr().out, outcome.output_text
+
+    @pytest.mark.parametrize("category", ["lowpass", "highpass"])
+    def test_threshold_rows_and_marker_are_the_bisected_crossings(
+        self, monkeypatch, capsys, category
+    ):
+        factory = make_lp_response_db if category == "lowpass" else make_hp_response_db
+        response = factory("chebyshev", FC, 9, 0.01)
+        falling = category == "lowpass"
+        low, high = (FC, 100 * FC) if falling else (FC / 100, FC)
+        arrow = "↓" if falling else "↑"
+        expected = {
+            level: _format_freq_compact(self._exact_crossing(response, low, high, level, falling))
+            for level in (-3, -10, -20)
+        }
+        state = FilterState(
+            category=category,
+            filter_type="chebyshev",
+            topology="pi",
+            frequency_hz=FC,
+            order=9,
+            ripple_db=0.01,
+            eseries="none",
+            show_plot=True,
+        )
+
+        for text in self._cli_and_wizard_text(monkeypatch, capsys, state):
+            assert self._threshold_labels(text) == {
+                level: f"{arrow} {label}" for level, label in expected.items()
+            }
+            # The -3 dB marker under the plot names the same frequency as the table.
+            markers = re.findall(r"▲(\S+)\(-3dB\)", text)
+            assert markers and set(markers) == {expected[-3]}
+
+    def test_crossing_that_rounds_to_a_thousand_rolls_over_to_the_next_prefix(
+        self, monkeypatch, capsys
+    ):
+        state = FilterState(
+            category="lowpass",
+            filter_type="butterworth",
+            topology="pi",
+            frequency_hz=1e9,
+            order=9,
+            eseries="none",
+            show_plot=True,
+        )
+
+        for text in self._cli_and_wizard_text(monkeypatch, capsys, state):
+            assert self._threshold_labels(text)[-3] == "↓ 1G"
+            assert "e+" not in text

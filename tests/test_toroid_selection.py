@@ -100,6 +100,21 @@ def test_sub_one_turn_target_is_offered_only_within_al_tolerance_of_one_turn():
     assert recommend_cores(4.6e-9, 10e6) == []
 
 
+@pytest.mark.parametrize(("one_turn_error_pct", "offered"), [(4.99, True), (5.01, False)])
+def test_sub_one_turn_screen_uses_the_full_al_tolerance(one_turn_error_pct, offered):
+    """One T50-2 turn (4.9 nH) against 4.9 nH / 1.0499 is +4.99 %, inside ±5 %.
+
+    T68-2 (one turn +22 %) and T25-6 (one turn -42 %, two turns +131 %) never qualify.
+    """
+    target = 4.9e-9 / (1 + one_turn_error_pct / 100)
+
+    recs = recommend_cores(target, 10e6)
+
+    assert _summary(recs) == (
+        [("T50-2", 1, pytest.approx(one_turn_error_pct, abs=1e-9))] if offered else []
+    )
+
+
 @pytest.mark.parametrize("target", [5e-324, 1e-9, 10e-9])
 def test_targets_with_integer_turn_error_beyond_al_tolerance_have_no_candidate(target):
     """At 10 nH the best option is T25-6 with 2 turns = 10.8 nH (+8%), beyond ±5%."""
@@ -112,6 +127,10 @@ def test_published_full_winding_capacity_is_a_hard_limit():
     assert (at_capacity.winding.n_turns, at_capacity.mechanical.awg) == (760, 44)
     assert at_capacity.mechanical.capacity_status == "manufacturer_full_winding"
 
+    # N_ideal = 760.3 rounds down to the 760-turn limit, which is still a legal winding.
+    [just_above] = recommend_cores(2.7e-9 * 760.3**2, 40e6)
+    assert just_above.winding.n_turns == 760
+    assert just_above.winding.error_pct == pytest.approx((760**2 / 760.3**2 - 1) * 100)
     # N_ideal = 760.9: 761 turns is the closest winding but exceeds the table.
     assert recommend_cores(2.7e-9 * 760.9**2, 40e6) == []
     # Far beyond capacity, including targets whose turn count is astronomically large.

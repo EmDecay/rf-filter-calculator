@@ -49,13 +49,17 @@ def format_response_export(state: FilterState, fmt: str) -> str:
         )
 
     meta = response_meta(state.category, state.result)
+    # A saved file ends with one LF, byte-identical to the CLI's --plot-data output.
     if fmt == "json":
-        return export_response_json(freqs, response_db, meta)
-    return export_response_csv(freqs, response_db)
+        return export_response_json(freqs, response_db, meta) + "\n"
+    return export_response_csv(freqs, response_db) + "\n"
 
 
 def format_component_json(state: FilterState) -> str:
-    """Return category JSON, reusing the analysis stored by the worker."""
+    """Return category JSON, reusing the analysis stored by the worker.
+
+    The document ends with one LF, byte-identical to the CLI's ``--format json``.
+    """
     eseries = None if state.eseries == "none" else state.eseries
     if state.category == "lowpass":
         from filter_lib.lowpass.display import format_json
@@ -64,15 +68,21 @@ def format_component_json(state: FilterState) -> str:
     else:
         from filter_lib.bandpass.formatters import format_json
 
-    return format_json(
-        state.result,
-        eseries=eseries,
-        build_analysis=state.build_analysis,
+    return (
+        format_json(
+            state.result,
+            eseries=eseries,
+            build_analysis=state.build_analysis,
+        )
+        + "\n"
     )
 
 
 def format_component_csv(state: FilterState) -> str:
-    """Return category CSV, rejecting the unsupported analysis combination."""
+    """Return the category CSV file, rejecting the unsupported analysis combination.
+
+    The document ends with one LF, byte-identical to the CLI's ``--format csv``.
+    """
     if state.build_analysis_enabled or state.build_analysis is not None:
         raise ValueError("realized-build analysis is not supported in component CSV")
 
@@ -83,7 +93,7 @@ def format_component_csv(state: FilterState) -> str:
         from filter_lib.highpass.display import format_csv
     else:
         from filter_lib.bandpass.formatters import format_csv
-    return format_csv(state.result, eseries=eseries)
+    return format_csv(state.result, eseries=eseries) + "\n"
 
 
 def prepare_export_payloads(state: FilterState, format_id: str) -> list[tuple[str, str]]:

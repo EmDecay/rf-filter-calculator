@@ -108,20 +108,22 @@ def setup_parser(parser: ArgumentParser) -> None:
         "--qu",
         type=float,
         default=None,
-        help="Unloaded Q of the complete resonator for the insertion-loss estimate "
-        "(estimates at Qu=100/250 are always shown)",
+        help="Unloaded Q of the complete resonator (0.01 to 1e9) for the insertion-loss "
+        "estimate (estimates at Qu=100/250 are always shown)",
     )
     parser.add_argument(
         "--ql",
         type=float,
         default=None,
-        help="Inductor Q at the center frequency; combines with --qc as 1/Qu=1/QL+1/QC",
+        help="Inductor Q at the center frequency (0.01 to 1e9); combines with --qc as "
+        "1/Qu=1/QL+1/QC",
     )
     parser.add_argument(
         "--qc",
         type=float,
         default=None,
-        help="Capacitor Q at the center frequency; combines with --ql as 1/Qu=1/QL+1/QC",
+        help="Capacitor Q at the center frequency (0.01 to 1e9); combines with --ql as "
+        "1/Qu=1/QL+1/QC",
     )
     parser.add_argument(
         "--resonator-impedance",
@@ -221,10 +223,14 @@ def run(args: Namespace) -> None:
     resonator_impedance_arg = getattr(args, "resonator_impedance", None)
     resonator_inductance_arg = getattr(args, "resonator_inductance", None)
     resonator_impedance = (
-        parse_impedance(resonator_impedance_arg) if resonator_impedance_arg is not None else None
+        parse_impedance(resonator_impedance_arg, label="Resonator impedance")
+        if resonator_impedance_arg is not None
+        else None
     )
     resonator_inductance = (
-        parse_inductance(resonator_inductance_arg) if resonator_inductance_arg is not None else None
+        parse_inductance(resonator_inductance_arg, label="Resonator inductance")
+        if resonator_inductance_arg is not None
+        else None
     )
     if filter_type == "chebyshev":
         if args.resonators % 2 == 0:
@@ -355,13 +361,13 @@ def _validate_frequencies(args: Namespace) -> tuple[float, float, float | None, 
         usage_error(args, "--fl and --fh must be supplied together")
 
     if has_center_bw:
-        f0 = parse_frequency(args.frequency)
-        bw = parse_frequency(args.bandwidth)
+        f0 = parse_frequency(args.frequency, label="Center frequency")
+        bw = parse_frequency(args.bandwidth, label="Bandwidth")
         f_low = None
         f_high = None
     else:
-        f_low = parse_frequency(args.f_low)
-        f_high = parse_frequency(args.f_high)
+        f_low = parse_frequency(args.f_low, label="Lower cutoff frequency")
+        f_high = parse_frequency(args.f_high, label="Upper cutoff frequency")
         if f_low >= f_high:
             raise ValueError("Lower frequency must be less than upper")
         f0 = positive_geometric_mean(f_low, f_high)

@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+from types import SimpleNamespace
 
+import pytest
 from textual.widgets import Button, Checkbox, Input
 
+import filter_lib.shared.tolerance_screening as tolerance_screening
+import filter_lib.wizard.screens.results as results_module
 from filter_lib.wizard.app import FilterWizardApp
 from filter_lib.wizard.screens import OutputOptionsScreen, ResultsScreen
 from filter_lib.wizard.state import FilterState
@@ -105,3 +110,114 @@ def test_realized_build_worker_completes_in_running_app() -> None:
             assert app.screen.query_one("#export-btn", Button).disabled is False
 
     asyncio.run(exercise())
+
+
+def _minutes_long_build_state() -> FilterState:
+    """A realized-build analysis of 10 000 samples on a 5001-point grid (minutes of work)."""
+    return FilterState(
+        category="lowpass",
+        filter_type="butterworth",
+        frequency_hz=10e6,
+        order=3,
+        topology="pi",
+        show_plot=False,
+        eseries="E24",
+        build_analysis_enabled=True,
+        build_sample_count=10_000,
+        build_grid_points=5001,
+        build_use_toroid_candidates=False,
+    )
+
+
+def _track_worker(monkeypatch) -> SimpleNamespace:
+    """Record the Results worker thread, when screening starts, and when it returns."""
+    tracker = SimpleNamespace(
+        threads=[], outcomes=[], screening=threading.Event(), finished=threading.Event()
+    )
+    real_calculate = results_module.calculate_and_format
+    real_measure = tolerance_screening.measure_circuit
+
+    def calculate(snapshot, *args, **kwargs):
+        tracker.threads.append(threading.current_thread())
+        try:
+            outcome = real_calculate(snapshot, *args, **kwargs)
+            tracker.outcomes.append(outcome)
+            return outcome
+        finally:
+            tracker.finished.set()
+
+    def measure(*args, **kwargs):
+        tracker.screening.set()
+        return real_measure(*args, **kwargs)
+
+    monkeypatch.setattr(results_module, "calculate_and_format", calculate)
+    monkeypatch.setattr(tolerance_screening, "measure_circuit", measure)
+    return tracker
+
+
+def _run_then_join_worker_threads(exercise, tracker: SimpleNamespace) -> None:
+    """Run ``exercise`` on its own loop and require its worker thread to have stopped.
+
+    ``asyncio.run`` joins executor threads before returning, which would turn a worker
+    that ignores cancellation into a silent multi-minute wait. Here the calculation must
+    return within 5 s of the app closing; only then is the executor shut down.
+    """
+    threads_before = set(threading.enumerate())
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(exercise())
+        assert tracker.finished.wait(timeout=5), "the calculation kept running after quit"
+        loop.run_until_complete(loop.shutdown_default_executor())
+    finally:
+        loop.close()
+    assert [outcome.error for outcome in tracker.outcomes] == ["Calculation cancelled"]
+    assert [thread for thread in threading.enumerate() if thread not in threads_before] == []
+
+
+def test_quitting_during_a_long_build_analysis_stops_its_worker_thread(monkeypatch) -> None:
+    tracker = _track_worker(monkeypatch)
+
+    async def exercise() -> None:
+        app = FilterWizardApp()
+        app.filter_state = _minutes_long_build_state()
+        async with app.run_test(size=(120, 45)) as pilot:
+            await pilot.pause()
+            app.push_screen(ResultsScreen())
+            assert await asyncio.to_thread(tracker.screening.wait, 10)
+            await pilot.press("q")
+
+    _run_then_join_worker_threads(exercise, tracker)
+
+
+@pytest.mark.parametrize("leave_by", ["escape", "design another"])
+def test_leaving_results_during_a_long_build_analysis_stops_its_worker_thread(
+    monkeypatch, leave_by
+) -> None:
+    tracker = _track_worker(monkeypatch)
+
+    async def exercise() -> None:
+        app = FilterWizardApp()
+        app.filter_state = _minutes_long_build_state()
+        async with app.run_test(size=(120, 45)) as pilot:
+            await pilot.pause()
+            app.push_screen(OutputOptionsScreen())
+            await pilot.pause()
+            app.push_screen(ResultsScreen())
+            assert await asyncio.to_thread(tracker.screening.wait, 10)
+
+            if leave_by == "escape":
+                await pilot.press("escape")
+            else:
+                app.screen.query_one("#another-btn", Button).press()
+            # The app is still running, so only the worker's own cancellation can stop it.
+            assert await asyncio.to_thread(tracker.finished.wait, 5)
+            await pilot.pause()
+
+            assert not isinstance(app.screen, ResultsScreen)
+            assert (app.filter_state.calculation_status, app.filter_state.output_text) == (
+                "idle",
+                "",
+            )
+            assert app.return_code is None
+
+    _run_then_join_worker_threads(exercise, tracker)

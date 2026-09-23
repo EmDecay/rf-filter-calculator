@@ -37,23 +37,28 @@ def test_bandpass_parser_tracks_explicit_eseries() -> None:
 
 @pytest.mark.parametrize("series", ["E12", "E24", "E96"])
 @pytest.mark.parametrize(
-    "mode",
+    ("mode", "message"),
     [
-        ("--raw",),
-        ("--quiet",),
-        ("--plot-data", "json"),
-        ("--explain",),
-        ("--format", "spice", "--spice-realization", "exact"),
+        (("--raw",), "--eseries is not represented by raw component output"),
+        (("--quiet",), "--eseries is not represented by --quiet"),
+        (("--plot-data", "json"), "--plot-data is a standalone output mode; remove --eseries"),
+        (("--explain",), "--explain is standalone; remove --eseries"),
+        (
+            ("--format", "spice", "--spice-realization", "exact"),
+            "--eseries cannot affect an exact lossless deck",
+        ),
     ],
 )
 def test_eseries_is_rejected_when_output_mode_cannot_represent_it(
-    monkeypatch, capsys, series, mode
+    monkeypatch, capsys, series, mode, message
 ) -> None:
+    # --explain takes no design arguments, so it gets the filter type alone.
+    design = ("lp", "bw") if mode == ("--explain",) else ("lp", "bw", "pi", "10MHz")
     with pytest.raises(SystemExit) as exc_info:
-        _run(monkeypatch, "lp", "bw", "pi", "10MHz", "-e", series, *mode)
+        _run(monkeypatch, *design, "-e", series, *mode)
 
     assert exc_info.value.code == 2
-    assert "--eseries" in capsys.readouterr().err
+    assert capsys.readouterr().err.endswith(f"filter-calc lowpass: error: {message}\n")
 
 
 def test_raw_build_analysis_can_use_explicit_eseries(monkeypatch, capsys) -> None:
@@ -65,14 +70,18 @@ def test_raw_build_analysis_can_use_explicit_eseries(monkeypatch, capsys) -> Non
         "10MHz",
         "--raw",
         "-e",
-        "E12",
+        "E96",
         "--sim-build",
         "--no-toroids",
         "--analysis-points",
         "51",
     )
 
-    assert "Realized-Build Analysis" in capsys.readouterr().out
+    lines = capsys.readouterr().out.splitlines()
+    assert "│ C1: 3.183099e-10 F     │ L1: 1.591549e-06 H     │" in lines
+    assert "Realized-Build Analysis (simulation, not a measurement)" in lines
+    # E96 selects the single 316 pF part; the default E24 would build 47 pF + 270 pF.
+    assert "  C1: e_series_single: 316.00 pF [recommended]" in lines
 
 
 def test_nominal_spice_can_use_explicit_eseries(monkeypatch, capsys) -> None:
@@ -157,6 +166,29 @@ def test_sim_build_table_appends_realized_build_block(
 @pytest.mark.parametrize(
     "command",
     [
+        ("lp", "bw", "pi", "10MHz", "--format", "csv"),
+        ("hp", "ch", "t", "10MHz", "--format", "csv", "--no-match", "--no-toroids"),
+        ("bp", "bw", "top", "-f", "14.175MHz", "-b", "350kHz", "--format", "csv"),
+        ("bp", "bs", "top", "-f", "10MHz", "-b", "1MHz", "--format", "csv", "--no-match"),
+        ("lp", "bw", "pi", "10MHz", "--plot-data", "csv"),
+        ("hp", "bs", "t", "10MHz", "--plot-data", "csv"),
+        ("bp", "bw", "top", "-f", "14.175MHz", "-b", "350kHz", "--plot-data", "csv"),
+    ],
+    ids=lambda command: " ".join(command),
+)
+def test_every_csv_output_uses_lf_rows_and_one_final_newline(monkeypatch, capsys, command) -> None:
+    _run(monkeypatch, *command)
+
+    output = capsys.readouterr().out
+    assert "\r" not in output
+    assert output.endswith("\n") and not output.endswith("\n\n")
+    rows = list(csv.reader(io.StringIO(output)))
+    assert len(rows) > 1 and all(len(row) == len(rows[0]) for row in rows)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
         ("lp", "bw", "pi", "10MHz"),
         ("hp", "bw", "t", "10MHz"),
     ],
@@ -203,6 +235,20 @@ def test_extreme_finite_csv_values_never_render_as_inf_or_zero(
     rows = list(csv.DictReader(io.StringIO(output)))
     assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", output)
     assert all(float(row["Value"]) != 0 for row in rows)
+
+
+@pytest.mark.parametrize("output_flags", [(), ("-q",), ("--format", "csv")])
+def test_oversized_values_print_scientific_base_units_instead_of_hundreds_of_digits(
+    monkeypatch, capsys, output_flags
+) -> None:
+    _run(monkeypatch, "lp", "bw", "pi", "1e-300", "--no-toroids", "--no-match", *output_flags)
+
+    output = capsys.readouterr().out
+    # C = 1/(2*pi*f*Z) and L = 2*Z/(2*pi*f) for 1e-300 Hz and 50 ohms.
+    separator = "," if "csv" in output_flags else " "
+    assert f"3.183099e+297{separator}F" in output
+    assert f"1.591549e+301{separator}H" in output
+    assert max(len(line) for line in output.splitlines()) <= 80
 
 
 def test_infeasible_toroid_screen_does_not_abort_valid_extreme_design(monkeypatch, capsys) -> None:
@@ -254,6 +300,46 @@ def test_subnormal_capacitor_table_does_not_present_nearest_as_recommendation(
     assert "Nearest Std (reference only)" in output
     assert "EXPERT ACTION REQUIRED; no part selected" in output
     assert "below the 1 pF automatic-selection floor" in output
+
+
+@pytest.mark.parametrize(
+    ("arguments", "ignored"),
+    [
+        (("lp", "bw", "pi", "--explain"), "--topology"),
+        (("hp", "bw", "-T", "t", "--explain"), "--topology"),
+        (("lp", "bw", "--freq", "10MHz", "--explain"), "--frequency"),
+        (("hp", "bw", "-f", "10MHz", "--explain"), "--frequency"),
+        (("bp", "bw", "top", "--explain"), "--coupling"),
+        (("bp", "bw", "-c", "top", "--explain"), "--coupling"),
+        (("bp", "bw", "-f", "10MHz", "--explain"), "--frequency"),
+        (("bp", "bw", "--fl", "9MHz", "--explain"), "--fl"),
+        (("lp", "bw", "--explain", "-z", "75"), "--impedance"),
+        (("bp", "bw", "--explain", "--resonator-inductance", "1uH"), "--resonator-inductance"),
+    ],
+)
+def test_explain_names_each_single_design_control_it_would_ignore(
+    monkeypatch, capsys, arguments, ignored
+):
+    """Each positional or flag spelling of a design control is reported on its own."""
+    with pytest.raises(SystemExit) as exc_info:
+        _run(monkeypatch, *arguments)
+
+    assert exc_info.value.code == 2
+    assert capsys.readouterr().err.endswith(f"error: --explain is standalone; remove {ignored}\n")
+
+
+@pytest.mark.parametrize("toroid_flag", ["--toroid-compact", "--toroid-full"])
+@pytest.mark.parametrize(
+    "command", [("lp", "bw", "pi", "10MHz"), ("bp", "bw", "top", "-f", "10MHz", "-b", "1MHz")]
+)
+def test_plot_data_rejects_each_toroid_table_detail_flag(monkeypatch, capsys, command, toroid_flag):
+    with pytest.raises(SystemExit) as exc_info:
+        _run(monkeypatch, *command, "--plot-data", "json", toroid_flag)
+
+    assert exc_info.value.code == 2
+    assert capsys.readouterr().err.endswith(
+        "error: --plot-data is a standalone output mode; remove --toroid-compact/--toroid-full\n"
+    )
 
 
 @pytest.mark.parametrize(
