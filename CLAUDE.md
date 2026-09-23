@@ -43,7 +43,7 @@ Python 3.10+ CLI tool for calculating LC filter component values. Entry point is
 
 - **`cli/`** — argparse subcommands (`lowpass_cmd`, `highpass_cmd`, `bandpass_cmd`, `wizard_cmd`). Each has `setup_parser()` and `run()`.
 - **`lowpass/`**, **`highpass/`** — Thin wrappers over shared base. Each has `calculations.py`, `transfer.py`, `display.py`.
-- **`bandpass/`** — Coupled resonator design. Has its own calculation, transfer, display, formatters, diagrams, and g-value modules.
+- **`bandpass/`** — Coupled resonator design. Has its own calculation, transfer, display, formatters, diagrams, and g-value modules. `display.py::format_table_lines` is the single BP table renderer for CLI and wizard; never add a wizard-side BP formatter.
 - **`wizard/`** — Textual TUI. `app.py` drives screens in `screens/` (welcome → filter config → output options → results). `state.py` holds the `FilterState` dataclass shared across screens.
 - **`shared/`** — Core logic shared across filter types:
   - `lp_hp_base_calculations.py` — Strategy pattern: LP and HP share calculation code, differing only in component formulas (`cap_formula`/`ind_formula` callables) and ordering.
@@ -85,6 +85,8 @@ outside binary64 before checking the application-specific sign or range. Use
 Invalid public input must raise a clear `ValueError`. Exact integer inputs likewise reject
 booleans and floats.
 
+Component-Q and source/load-resistance ranges are owned by `shared/physical_input_limits.py`. A new Q or port input must call `require_component_q` or `require_port_resistance`; never restate the range elsewhere.
+
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs Ruff, coverage-gated tests on Python 3.10–3.13, source/wheel builds, archive inspection, and installed-wheel smoke tests on push/PR to `main`.
@@ -96,6 +98,8 @@ Wizard Textual screens are testable without a running app: mock widgets with `Mo
 ## Testing CLI subcommands
 
 CLI tests build `argparse.Namespace` directly via `_lp_args()/_hp_args()/_bp_args()` helpers in `tests/test_cli_and_helpers.py` — pass overrides as kwargs to exercise validation branches without re-parsing argv. To exercise `setup_parser()` wiring, instantiate a plain `argparse.ArgumentParser()` and call `setup_parser(parser)` then `parser.parse_args([...])`.
+
+Every line starting with `uv run filter-calc` in `README.md` or `docs/*.md` is executed by `tests/test_cli_documented_examples.py`. A doc example must run exactly as written; write syntax templates with `<...>` or `[...]` placeholders so they are skipped.
 
 ## Netlist-Simulation Testing
 

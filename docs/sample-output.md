@@ -104,14 +104,15 @@ uv run filter-calc bp bw top -f 14.175MHz -b 350kHz --no-toroids --no-match
 ```text
 Butterworth Coupled Resonator Bandpass Filter
 ==================================================
-Center Frequency f₀: 14.18 MHz
-Lower Cutoff fₗ:     14 MHz
-Upper Cutoff fₕ:     14.35 MHz
+Center Frequency f₀: 14.175 MHz
+Lower Cutoff fₗ:     14.00108 MHz
+Upper Cutoff fₕ:     14.35108 MHz
 Bandwidth BW:        350 kHz
 Fractional BW:       2.47%
 Impedance Z₀:        50 Ω
 Resonators:          3
 Coupling:            Top-C (Series)
+Response validation: Passed synthesized-response checks
 ==================================================
 
 Loss examples use complete-resonator unloaded Q (not inductor Q alone).
@@ -188,10 +189,10 @@ A selected component fragment is:
             "kind": "parallel",
             "components": [
               {"value_farads": 4.7e-11},
-              {"value_farads": 2.7000000000000005e-10}
+              {"value_farads": 2.7e-10}
             ],
-            "value_farads": 3.1700000000000004e-10,
-            "error_pct": -0.41151288120355006
+            "value_farads": 3.17e-10,
+            "error_pct": -0.41151288120356627
           },
           "reason": "parallel_materially_improves_error",
           "warnings": []

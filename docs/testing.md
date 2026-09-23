@@ -5,7 +5,7 @@
 
 ## Quality gates
 
-The repository has more than 2,000 collected pytest cases. CI requires at least 90% line
+The repository has more than 3,600 collected pytest cases. CI requires at least 90% line
 coverage and runs the complete suite on Python 3.10, 3.11, 3.12, and 3.13. A skipped test
 is reported as a skip; failures, lint errors, format errors, and coverage shortfalls are
 not hidden.
@@ -90,9 +90,19 @@ An exhaustive 128-cell study spans:
 The matrix locks the documented validated/outside/unsupported classifications and checks
 that each individual result reports its own status.
 
+The matrix verifier shares the production netlist builder and solver, and the calibration
+loop can absorb a first-order synthesis error. For both reasons, it is not the only check
+on part values.
+[test_bandpass_independent_circuit_accuracy.py](../tests/test_bandpass_independent_circuit_accuracy.py)
+evaluates the exported components with its own ABCD cascade. It requires both −3 dB edges
+within 1e-4 and the 0.01% FBW response to match closed-form Butterworth, Chebyshev, and
+Bessel prototypes. It also checks exact frequency and impedance scaling and every
+measured field of `synthesis_validation`.
+
 ### Physical realization
 
-- E12/E24/E96 preferred-value search and deterministic selection policy
+- E12/E24/E96 preferred-value search and deterministic selection policy, including the
+  exact 10:1 pair limit, the balanced tie-break, and correctly rounded part and pair values
 - one-part preference, material two-part improvement threshold, and sub-1 pF expert action
 - toroid primary-source eligibility, frequency guidance, integer-turn error, winding
   capacity, deterministic ranking, and empty-candidate behavior
@@ -102,7 +112,12 @@ that each individual result reports its own status.
 
 - exact and nominal named circuit construction
 - unequal source/load transducer power gain
-- scale-normalized nodal solution across normal, extreme, and subnormal impedances
+- scale-normalized nodal solution across normal, extreme, and subnormal impedances; the
+  high-precision fallback's branch magnitudes against a 50-digit reference
+  ([test_circuit_decimal_fallback_precision.py](../tests/test_circuit_decimal_fallback_precision.py))
+- accepted component-Q and port-resistance ranges: inclusive bounds, rejection beyond them,
+  and analysis runtime at each bound
+  ([test_physical_input_limits.py](../tests/test_physical_input_limits.py))
 - category-aware LP/HP cutoff and BP center/bandwidth measurements
 - Q-derived series loss at an explicit reference frequency
 - deterministic tolerance corners and repeatable seeded bounded samples
@@ -117,6 +132,14 @@ that each individual result reports its own status.
 - exact and nominal-build generic SPICE topology/value consistency
 - analytic LP/HP and nodal BP response-data schemas
 - CLI rejection of accepted-but-ignored or contradictory flags
+- JSON, CSV, quiet, raw, and table output carrying the calculation API's values for the same
+  design ([test_output_value_agreement.py](../tests/test_output_value_agreement.py))
+- a representative grid that touches every CLI option for each filter kind: valid commands
+  exit 0 with well-formed output, and invalid or extreme input exits 1 or 2 with a one-line
+  message and no traceback ([test_cli_input_robustness.py](../tests/test_cli_input_robustness.py))
+- every `uv run filter-calc` example in the README and `docs/` runs cleanly as written
+  ([test_cli_documented_examples.py](../tests/test_cli_documented_examples.py)). A new or
+  edited example must stay runnable; syntax templates with `<...>` or `[...]` are skipped.
 
 SPICE tests verify the generated generic deck structurally and numerically against the
 internal named circuit. An external simulator is not a test-suite dependency.
@@ -143,6 +166,11 @@ Numerical comparisons are simulations, not measured hardware or an external-SPIC
   ([test_wizard_design_screen_journeys.py](../tests/test_wizard_design_screen_journeys.py)).
   These prove widget ids, default selections, and focus chains that the direct-handler tests
   stub out.
+- wizard tables, component exports, response sidecars, and realized-build JSON equal the CLI
+  output for the same design, with every field moved off its default so a dropped or
+  swapped field fails ([test_wizard_cli_parity.py](../tests/test_wizard_cli_parity.py))
+- designs the forms accept but the math cannot realize become visible error outcomes
+  ([test_wizard_failure_surfacing.py](../tests/test_wizard_failure_surfacing.py))
 - calculation revisioning: stale, cancelled, or popped-screen workers cannot publish
 - failure clearing, pending-save blocking, component export preselection, and independent
   response sidecars
@@ -231,10 +259,10 @@ the installed command and package data rather than importing the source checkout
 `.github/workflows/ci.yml` contains three jobs:
 
 1. **Ruff quality** — lint and format check.
-2. **Python matrix** — all tests on 3.10–3.13. Tests marked `runtime_budget` (build-analysis
-   and calibration runtime checks) run first without coverage instrumentation, so their
-   two-second limits measure application runtime; the remaining suite (`-m "not
-   runtime_budget"`) enforces the coverage gate.
+2. **Python matrix** — all tests on 3.10–3.13. Tests marked `runtime_budget` (build-analysis,
+   calibration, and extreme-input runtime checks) run first without coverage
+   instrumentation, so their wall-clock limits measure application runtime; the remaining
+   suite (`-m "not runtime_budget"`) enforces the coverage gate.
 3. **Build and smoke distributions** — build, inspect, install, smoke, and upload
    artifacts after quality/tests pass.
 

@@ -7,6 +7,7 @@ The calculator separates a synthesis target, a selected nominal build, and simul
 - Reactive-element counts are integers from 2 through 9. Equal-termination Chebyshev designs require odd order: 3, 5, 7, or 9.
 - Chebyshev ripple is finite and in `0 < ripple <= 3.0 dB` in the CLI, wizard, and public synthesis APIs.
 - Frequency, bandwidth, impedance, Q, and component values must be positive finite numbers. Values whose formulas underflow or overflow IEEE-754 binary64 are rejected instead of producing zero, infinity, NaN, or a misleading component value.
+- Component Q (`--inductor-q`, `--capacitor-q`, the wizard's resonator Q, and bandpass `--qu`/`--ql`/`--qc`) must be in `[0.01, 1e9]`; omit Q for a lossless part. Build-analysis and SPICE source/load resistances must be within 1e-6 to 1e6 times the design impedance. These bounds exclude only values no lumped filter contains; beyond them a single analysis could take minutes.
 - Bandpass requires `bw < f0`. Use either center plus bandwidth or low/high edges, not both. Explicit low/high edges must be ordered.
 - The program has no arbitrary “RF maximum,” but lumped components, interconnects, and the built-in ideal models become inappropriate well before every numerically representable input does.
 
@@ -40,7 +41,9 @@ The default automatic capacitor policy is intentionally conservative:
 
 - keep a single value when its absolute error is at most 1%;
 - otherwise choose a two-capacitor parallel realization only when it improves absolute error by at least 0.5 percentage points;
-- limit the ratio between the pair to 10:1; and
+- limit the ratio between the pair to 10:1, decided on exact nominal values so the same
+  pair is accepted in every decade;
+- when two pairs give exactly the same nominal value, choose the more balanced pair; and
 - do not automatically select a physical capacitor below 1 pF.
 
 For a sub-1 pF target, the calculated value remains visible and the nominal builder records an

@@ -159,7 +159,13 @@ The shared circuit stack is intentionally independent of display formatting:
 The nodal solver evaluates transducer power gain with independently specified positive
 finite source and load resistances. It normalizes admittances in log-polar form, so very
 large/small but valid scales do not fail merely because a reciprocal conductance or
-angular frequency cannot be materialized directly.
+angular frequency cannot be materialized directly. Beyond the float range, a port
+conductance larger than every branch is handled exactly in float: its row is divided and
+its node eliminated last. Any other case goes to the adaptive Decimal solver. Precision
+is never capped, because a capped solve would return wrong numbers rather than fail.
+Instead, [physical_input_limits.py](../filter_lib/shared/physical_input_limits.py) bounds
+component Q and port resistances to values a lumped filter can contain, which keeps every
+accepted analysis within seconds.
 
 Tolerance analysis is a bounded engineering screen. It includes deterministic named
 corners plus repeatable seeded uniform-bound samples when requested. It is not a Monte
@@ -173,7 +179,9 @@ center/bandwidth result.
 The refinement layer owns evaluated extrema, connected regions and bracketed crossings;
 calibration retains its independently tested array-based helpers and acceptance thresholds.
 This separation repairs reporting without retuning synthesis to satisfy its own measurement.
-CLI and wizard BP threshold tables share `bandpass.display.format_bandpass_thresholds`.
+The CLI and wizard build the whole BP table, threshold table included, from
+`bandpass.display.format_table_lines`, as LP/HP tables come from `shared/lp_hp_display.py`.
+A second renderer previously let the wizard drift from the CLI.
 See [measurement semantics and numerical policy](user-guide.md#interpreting-response-measurements).
 
 ## Output contracts

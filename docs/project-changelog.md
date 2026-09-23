@@ -1,5 +1,100 @@
 # Project Changelog
 
+## Unreleased — 2026-09-22 — Accuracy and Stability Fixes
+
+A test-suite review used mutation spot-checks, independent reference models, and CLI/wizard
+crash grids. It found the defects below. Each fix has a regression test that fails on the
+previous code.
+
+### Fixed
+
+- **LP/HP `--plot` threshold summary**: crossings came from the coarse plot grid and were off
+  by up to 1.6% (`lp ch pi 10MHz -n 9 -r 0.01 --plot` printed −3 dB at 10.7M; exact 10.87 MHz).
+  Labels are now bisected on the analytic response. The `(-3dB)` plot marker and the wizard
+  share the fix.
+- **E-series pair limit**: the 10:1 part-ratio limit was compared after binary64 rounding, so
+  exact 10:1 pairs were rejected in some decades only. E12 110 pF now selects 10 pF + 100 pF
+  (0%) instead of 27 pF + 82 pF (−0.91%). Harmonic (inductor) pairs are fixed the same way.
+  About 1% of recommendations change, and none is less accurate. When two pairs give exactly
+  the same nominal value, the more balanced pair is chosen in every decade: E24 143 pF is
+  68 pF + 75 pF, not 13 pF + 130 pF.
+- **Bandpass header precision**: the lower and upper cutoffs were rounded to 4 significant
+  figures, which hid the true edges (14.00108 / 14.35108 MHz printed as 14 / 14.35 MHz). They
+  now carry enough digits to restate the bandwidth. Headers restate typed inputs exactly
+  (`7.0735 MHz`, `12345 Ohm`) instead of `7.074 MHz` and `1.234e+04 Ohm`.
+- **Sub-nanohenry inductance** printed with 1–2 significant figures (15.9 pH as `0.02 nH`).
+  Inductance now has a pH unit, and values below 1 pH use scientific notation.
+- **Oversized values**: values at 1000× or more of the largest prefix printed hundreds of
+  digits. They now use scientific notation in the base unit. Capacitance gains a plain `F`
+  step. Compact plot labels roll over (`1e+03M` → `1G`).
+- **Wizard quit hang**: quitting, Esc, or Design Another during a long realized-build analysis
+  left the worker thread running for minutes. The analysis now polls a cancellation check
+  before each case.
+- **Wizard worker errors**: an unexpected exception in the Results worker exited the app. It is
+  now shown as "Calculation failed: …".
+- **`BrokenPipeError`**: piping CLI output to `head` printed a traceback; it now exits quietly.
+- **`--sim-build` runtime with extreme accepted inputs**:
+  - `--source-resistance 1e-300` and `--capacitor-q 1e-300` took 18–35 s. The high-precision
+    solver no longer evaluates every admittance at elimination precision, and a port much
+    stronger than every branch now takes an exact pinned-node float path. LP cases run in
+    0.2–1.1 s.
+  - `bp ch -n 9 -r 3 --sim-build` takes 7.8 s instead of 12.3 s, with identical results.
+- **Clear messages instead of internal ones**:
+  - Too-narrow bandwidth (previously "frequencies must be strictly increasing" or "math
+    domain error") now states the minimum fractional bandwidth.
+  - A tank impedance or inductance that is too low names that input and its limit.
+  - A gain below the binary64 range names the evaluation ports and Q.
+  - CLI parse errors name the option (`Bandwidth must be positive: 0`, `Source resistance …`).
+  - The wizard no longer doubles "Invalid frequency:" or shows an `inf%` bandwidth hint, and
+    build-option errors focus the field that was actually parsed.
+- **Float noise in JSON part values**: preferred values were built as `mantissa * 10.0**decade`,
+  and that double rounding printed 82 pF as `8.199999999999999e-11` and 47 pF + 270 pF as
+  `3.1700000000000004e-10`. Each part and each pair value is now the correctly rounded decimal
+  (`8.2e-11`, `3.17e-10`). Recommendations and printed tables are unchanged.
+- **High-precision solver accuracy beside an extreme port**: the fallback subtracted branch and
+  port logarithms in binary64. With a scale near 690, that left each branch admittance with a
+  1e-13 relative error, enough to erase a near-resonant cancellation: a 1e-300 ohm source one
+  part in 1e16 off an input trap's resonance returned 0 instead of |V| = 1. The difference is
+  now exact, and the fallback's worst error there falls from 100% to about 5e-16. The CLI and
+  wizard do not reach this path within the input limits; direct API callers do.
+- **Validation convention**: `refine_response`, `build_frequency_grid`, and the toroid wire
+  helpers now raise `ValueError` instead of leaking `TypeError`, `OverflowError`, or
+  `ZeroDivisionError`, or returning `inf`.
+
+### Changed
+
+- The CLI bandpass table and the wizard bandpass table come from one renderer. The CLI table
+  gains the `Response validation:` line, and the wizard table gains the lower and upper cutoff
+  lines.
+- CSV output from the CLI and wizard saves uses LF line endings with one final newline. Wizard
+  JSON saves also end with a newline, byte-identical to the CLI.
+- `analyze_build(..., *, should_cancel=None)` accepts an optional cancellation check and raises
+  `BuildAnalysisCancelled` (from `filter_lib.shared.build_types`).
+- New input limits reject values no lumped filter contains, which previously could keep an
+  analysis running for minutes. Component Q (`--inductor-q`, `--capacitor-q`, the wizard's
+  resonator Q, and bandpass `--qu`/`--ql`/`--qc`) must be in `[0.01, 1e9]`. Build and SPICE
+  source/load resistances must be within 1e-6 to 1e6 times the design impedance. Every value
+  inside the limits completes in seconds (at most about 7 s for a 9-resonator bandpass at
+  default settings). An out-of-range value is rejected with a message stating the range, and
+  the wizard focuses the offending field. The ranges live in
+  `filter_lib/shared/physical_input_limits.py`.
+
+### Removed
+
+- Library API: `bandpass.diagrams.print_top_c_diagram`. The shared bandpass table renders the
+  diagram with `format_top_c_diagram`; use `print(format_top_c_diagram(n))` for the old output.
+
+### Tests
+
+- The suite grows from 2,916 to 4,179 collected tests, and line+branch coverage rises to about 99%.
+- New tests check results against independent references: a separate Top-C ABCD model,
+  closed-form prototypes, Cramer's rule and reciprocity for the solver, and 50-digit
+  arithmetic.
+- New tests check that JSON, CSV, table, and wizard output carry the calculated values.
+- A crash grid covers every CLI option.
+- Every documented `uv run filter-calc` example now runs as a test.
+- Mutation kill rates rose from 57–95% to 78–99%, depending on the area.
+
 ## Unreleased — 2026-09-22 — Dead Code Cleanup
 
 ### Removed

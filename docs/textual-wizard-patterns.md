@@ -48,6 +48,14 @@ has a monotonically increasing calculation revision:
 
 This prevents a canceled or stale calculation from overwriting a newer design.
 
+Textual cannot interrupt a thread worker, so cancellation is cooperative. The worker passes
+`should_cancel` (a check of `get_current_worker().is_cancelled`) to `analyze_build`, which polls
+it before each screening case and raises `BuildAnalysisCancelled`. Quit, Esc, and Design Another
+therefore stop a long realized-build analysis after at most one more circuit measurement,
+instead of leaving the thread running until it finishes. The worker runs with
+`exit_on_error=False`: an unexpected exception is rendered as "Calculation failed: …" on
+Results and does not exit the app.
+
 ## Export
 
 The Results screen offers Design Another, Export, and Quit. Export reveals Text, JSON, or CSV
