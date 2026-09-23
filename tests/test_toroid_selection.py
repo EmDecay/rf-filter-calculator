@@ -32,9 +32,10 @@ def test_accuracy_band_outranks_turn_count():
         ("T68-2", 15, pytest.approx(-1.3462, abs=1e-4)),
         ("T50-2", 16, pytest.approx(-3.5077, abs=1e-4)),
     ]
-    # Public explanation of the order: (accuracy band, winding practicality, turns, ...).
-    assert [rec.ranking_key[:3] for rec in recs] == [(0, 0, 22), (1, 0, 15), (1, 0, 16)]
-    assert recs[0].ranking_key[3:] == (6.48, pytest.approx(0.5231, abs=1e-4), "T25-6")
+    # Ranking order: (accuracy band, winding practicality, turns, ...).
+    keys = [toroid_selection._sort_key(rec) for rec in recs]
+    assert [key[:3] for key in keys] == [(0, 0, 22), (1, 0, 15), (1, 0, 16)]
+    assert keys[0][3:] == (6.48, pytest.approx(0.5231, abs=1e-4), "T25-6")
 
 
 def test_fewer_turns_outrank_smaller_error_within_an_accuracy_band():

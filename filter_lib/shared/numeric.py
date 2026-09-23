@@ -43,14 +43,6 @@ def require_finite_real(value: object, label: str) -> int | float:
     return value
 
 
-def require_integer(value: object, label: str, *, minimum: int) -> int:
-    """Return an exact Python integer at or above ``minimum``."""
-    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
-        qualifier = "non-negative" if minimum == 0 else "positive"
-        raise ValueError(f"{label} must be a {qualifier} integer")
-    return value
-
-
 def positive_float_from_log(log_value: float, label: str) -> float:
     """Materialize a positive finite float from its logarithm.
 

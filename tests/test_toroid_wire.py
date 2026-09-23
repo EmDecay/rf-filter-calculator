@@ -88,7 +88,6 @@ def test_published_single_layer_fit_reports_gauge_length_and_scaled_dcr():
     assert fit.capacity_source_id == "micrometals-t68-2-datasheet"
     # Length uses the reported 1.600 mm datasheet diameter (see the hand calculation above).
     assert fit.wire_length_mm == pytest.approx(276.684, abs=0.01)
-    assert fit.wire_length_m == pytest.approx(0.276684, abs=1e-5)
     assert fit.dc_resistance_ohm == pytest.approx(0.0024)
     assert fit.dcr_method == "manufacturer_table_scaled_by_turn_count"
 

@@ -29,8 +29,6 @@ from filter_lib.shared.formatting import format_capacitance
 from filter_lib.shared.topology_diagrams import (
     format_pi_topology_diagram,
     format_t_topology_diagram,
-    print_pi_topology_diagram,
-    print_t_topology_diagram,
 )
 
 # Fixtures lowpass_result, highpass_result, lowpass_t_result, and highpass_pi_result
@@ -124,8 +122,6 @@ class TestTopCDiagram:
 @pytest.mark.parametrize(
     ("printer", "formatter", "arguments"),
     [
-        (print_pi_topology_diagram, format_pi_topology_diagram, (3, 2)),
-        (print_t_topology_diagram, format_t_topology_diagram, (3, 2, "C", "L")),
         (print_top_c_diagram, format_top_c_diagram, (4,)),
     ],
 )

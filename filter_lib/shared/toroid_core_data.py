@@ -94,13 +94,6 @@ class ToroidCore:
         """Whether exact-part core data is primary-source verified."""
         return self.provenance_status == "primary_verified"
 
-    def source_for(self, field_group: str) -> SourceReference | None:
-        """Source for a field group, if one was recorded."""
-        if not isinstance(field_group, str):
-            raise ValueError("field_group must be a string")
-        source_id = dict(self.field_sources).get(field_group)
-        return _SOURCES.get(source_id) if source_id else None
-
     def winding_spec_for_awg(self, awg: int) -> WindingSpecification | None:
         """Manufacturer winding-table row for ``awg``, if published."""
         if isinstance(awg, bool) or not isinstance(awg, int) or not 0 <= awg <= 50:
@@ -238,11 +231,6 @@ def get_core(name: str) -> ToroidCore:
         if name in core.aliases:
             return core
     raise ValueError(f"Unknown toroid core: {name!r}")
-
-
-def list_sources() -> list[SourceReference]:
-    """All data sources sorted by stable source ID."""
-    return [_SOURCES[source_id] for source_id in sorted(_SOURCES)]
 
 
 def get_source(source_id: str | None) -> SourceReference:

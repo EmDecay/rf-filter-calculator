@@ -136,7 +136,6 @@ class TestRunMatchedSimulation:
         assert summary.matched is nominal
         assert summary.calculated is summary.exact
         assert summary.nominal_build is summary.matched
-        assert summary.deprecated is True
         assert summary.series == "E96"
         assert summary.uses_toroid_candidates is False
 

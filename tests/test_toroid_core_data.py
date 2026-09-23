@@ -10,7 +10,6 @@ from filter_lib.shared.toroid_core_data import (
     iter_auto_selectable_cores_for_frequency,
     iter_cores_for_frequency,
     list_cores,
-    list_sources,
 )
 
 
@@ -122,14 +121,14 @@ def test_inspectable_cores_are_filtered_by_their_recorded_material_range(freq_hz
 
 
 def test_field_level_sources_separate_exact_part_and_material_data():
-    core = get_core("T68-2")
+    sources = dict(get_core("T68-2").field_sources)
 
-    assert core.source_for("al").source_id == "micrometals-t68-2-datasheet"
-    assert core.source_for("dimensions").source_id == "micrometals-t68-2-datasheet"
-    assert core.source_for("temperature_coefficient").source_id == "micrometals-rf-materials"
-    assert core.source_for("frequency_guidance").source_id == "amidon-mix-2-guidance"
-    assert core.source_for("not_recorded") is None
-    assert get_core("T37-2").source_for("al") is None
+    assert sources["al"] == "micrometals-t68-2-datasheet"
+    assert sources["dimensions"] == "micrometals-t68-2-datasheet"
+    assert sources["temperature_coefficient"] == "micrometals-rf-materials"
+    assert sources["frequency_guidance"] == "amidon-mix-2-guidance"
+    assert "not_recorded" not in sources
+    assert "al" not in dict(get_core("T37-2").field_sources)
 
 
 def test_winding_table_lookup_returns_published_row_or_none():
@@ -143,11 +142,6 @@ def test_winding_table_lookup_returns_published_row_or_none():
 
 
 def test_every_record_has_physical_geometry_and_resolvable_https_sources():
-    sources = list_sources()
-    source_ids = {source.source_id for source in sources}
-
-    assert [source.source_id for source in sources] == sorted(source_ids)
-    assert all(source.url.startswith("https://") for source in sources)
     for core in list_cores():
         assert 0 < core.id_mm < core.od_mm and core.height_mm > 0, core.name
         assert core.al_nh_per_turn2 > 0, core.name
@@ -158,7 +152,7 @@ def test_every_record_has_physical_geometry_and_resolvable_https_sources():
             core.winding_source_id,
             *(source_id for _, source_id in core.field_sources),
         } - {None}
-        assert cited <= source_ids, core.name
+        assert all(get_source(sid).url.startswith("https://") for sid in cited), core.name
 
 
 def test_legacy_records_keep_their_distinct_material_values():
@@ -184,7 +178,6 @@ def test_catalog_records_are_immutable():
         (get_source, ("nope",), "Unknown toroid source: 'nope'"),
         (get_source, (None,), "Unknown toroid source: None"),
         (lambda freq: list(iter_cores_for_frequency(freq)), (0,), "freq_hz must be positive"),
-        (get_core("T50-2").source_for, (1,), "field_group must be a string"),
         (get_core("T50-2").winding_spec_for_awg, (True,), r"awg must be an integer in \[0, 50\]"),
         (get_core("T50-2").winding_spec_for_awg, (51,), r"awg must be an integer in \[0, 50\]"),
     ],
@@ -194,7 +187,6 @@ def test_catalog_records_are_immutable():
         "unknown-source",
         "missing-source",
         "non-positive-frequency",
-        "non-string-field-group",
         "bool-awg",
         "out-of-range-awg",
     ],

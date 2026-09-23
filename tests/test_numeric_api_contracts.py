@@ -68,7 +68,6 @@ from filter_lib.shared.numeric import (
     positive_float_from_log,
     positive_geometric_mean,
     require_finite_real,
-    require_integer,
     require_nonnegative_finite,
     require_positive_finite,
     ripple_log_epsilon,
@@ -353,18 +352,6 @@ def test_real_validators_return_value_or_raise_labelled_error(
     for value in rejected:
         with pytest.raises(ValueError, match=f"^Width must be {requirement}$"):
             validator(value, "Width")
-
-
-def test_require_integer_accepts_exact_integers_at_or_above_minimum():
-    assert require_integer(0, "Count", minimum=0) == 0
-    assert require_integer(1, "Count", minimum=1) == 1
-    with pytest.raises(ValueError, match="^Count must be a non-negative integer$"):
-        require_integer(-1, "Count", minimum=0)
-    with pytest.raises(ValueError, match="^Count must be a positive integer$"):
-        require_integer(0, "Count", minimum=1)
-    for value in (True, 1.0, "1", None):
-        with pytest.raises(ValueError, match="^Count must be a non-negative integer$"):
-            require_integer(value, "Count", minimum=0)
 
 
 def test_positive_float_from_log_materializes_only_representable_results():

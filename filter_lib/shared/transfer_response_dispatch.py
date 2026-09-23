@@ -4,7 +4,7 @@ Eliminates the duplicated closure pattern across LP/HP display and wizard
 modules. Every factory returns ``f(freq_hz) -> dB``, so plotting and
 threshold code can stay agnostic of filter category.
 
-The lowpass/highpass/bandpass transfer modules are imported inside each
+The lowpass/highpass transfer modules are imported inside each
 factory, not at module level: those packages' display modules import this
 module at load time, so top-level imports here would be circular.
 """
@@ -16,11 +16,10 @@ from .numeric import require_positive_finite
 from .transfer_functions import magnitude_to_db
 
 _CANONICAL_LP_HP_TYPES = ("butterworth", "chebyshev", "bessel")
-_CANONICAL_BP_TYPES = ("butterworth", "chebyshev", "bessel")
 
 
 def _canonicalize_filter_type(filter_type: str, valid: tuple[str, ...]) -> str:
-    """Normalize an LP/HP/BP filter type string to its canonical form.
+    """Normalize an LP/HP filter type string to its canonical form.
 
     Accepts canonical names and every CLI alias (bw/b → butterworth,
     ch/c → chebyshev, bs → bessel). Raises ValueError for None or unknown.
@@ -101,45 +100,13 @@ def make_hp_response_db(
     return response_db
 
 
-def make_bp_response_db(
-    f0: float, bw: float, n_resonators: int, filter_type: str, ripple_db: float = 0.5
-) -> Callable[[float], float]:
-    """Return f(freq_hz) -> dB for the idealized symmetric bandpass prototype.
-
-    This is the formula prototype, not the simulated circuit — use
-    make_bp_netlist_response_db when the output must match a built filter.
-
-    Args:
-        f0: Center frequency in Hz
-        bw: True -3 dB bandwidth in Hz (Chebyshev edge scaling is applied
-            downstream in bandpass.transfer)
-        n_resonators: Number of coupled resonators (filter order)
-        filter_type: Canonical name or CLI alias (bw/ch/bs/b/c)
-        ripple_db: Passband ripple in dB; only Chebyshev reads it
-
-    Returns:
-        Callable mapping frequency in Hz to response in dB (<= 0).
-
-    Raises:
-        ValueError: If filter_type is None or not a known type/alias.
-    """
-    from ..bandpass.transfer import magnitude_db
-
-    ft = _canonicalize_filter_type(filter_type, _CANONICAL_BP_TYPES)
-
-    def response_db(f: float) -> float:
-        return magnitude_db(f, f0, bw, n_resonators, ft, ripple_db)
-
-    return response_db
-
-
 def make_bp_netlist_response_db(result: dict) -> Callable[[float], float]:
     """Return f(freq_hz) -> dB simulated from the synthesized bandpass netlist.
 
     The returned function evaluates |S21| of the exact prescribed circuit
     (tank/coupling/end capacitors from the result dict), so plots and
     threshold tables agree with a built filter rather than the idealized
-    symmetric prototype.
+    prototype in ``bandpass.ideal_response``.
     """
     from .netlist_builders import build_bandpass_top_c_netlist
     from .netlist_simulation import solve_s21

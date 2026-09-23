@@ -28,7 +28,6 @@ class MatchedSimSummary:
     series: str  # E-series used for the matched realization
     exact: CircuitMeasurement
     matched: CircuitMeasurement
-    deprecated: bool = True
     uses_toroid_candidates: bool = True
 
     @property

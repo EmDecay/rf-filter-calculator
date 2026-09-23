@@ -1,5 +1,33 @@
 # Project Changelog
 
+## Unreleased — 2026-09-22 — Dead Code Cleanup
+
+### Removed
+
+- Library API: unused helpers are removed from `filter_lib.shared` submodules. Some have an
+  exact equivalent, some only an alternative, and some no replacement:
+  - `toroid_core_data.list_sources`: no replacement. Look up individual source IDs with
+    `get_source`.
+  - `ToroidCore.source_for(group)`: pass `dict(core.field_sources).get(group)` to
+    `get_source` when it is not `None`. `field_sources` holds `(field_group, source_id)`
+    pairs, not source records, and an unrecorded group has no entry, where the old method
+    returned `None`.
+  - `ToroidRecommendation.ranking_key`: no replacement. `recommend_cores` already returns
+    candidates in ranked order.
+  - `MechanicalFit.wire_length_m`: use `wire_length_mm * 1e-3`, which is exactly how the
+    field was computed.
+  - `numeric.require_integer`: no replacement.
+  - `MatchedSimSummary.deprecated`: no replacement needed. The `--sim-matched` JSON still
+    reports `"deprecated": true`.
+  - `topology_diagrams.print_pi_topology_diagram` and `print_t_topology_diagram`: `print()`
+    the result of the matching `format_*_topology_diagram` function, which gives identical
+    output.
+  - `transfer_response_dispatch.make_bp_response_db`: for the same ideal-prototype response,
+    call `bandpass.ideal_response.magnitude_db(f, f0, bw, order, filter_type, ripple_db)`
+    with a canonical filter-type name; it does not accept aliases such as `bw` or `ch`.
+    `make_bp_netlist_response_db(result)` is a different model: it returns the simulated
+    response of the synthesized circuit.
+
 ## Unreleased — 2026-09-22 — Source Bug Remediation
 
 ### Input and API contracts
