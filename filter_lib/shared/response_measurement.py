@@ -106,8 +106,6 @@ def find_3db_edges(
         return None, None
     threshold = peak / math.sqrt(2)
     runs = _threshold_runs(mags, threshold)
-    if not runs:
-        return None, None
     lo_index, hi_index = _selected_run(
         freqs,
         mags,

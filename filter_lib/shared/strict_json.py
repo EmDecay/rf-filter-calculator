@@ -51,7 +51,3 @@ def dumps_strict(value: Any, *, indent: int | None = None) -> str:
     """Serialize JSON after rejecting non-finite and non-JSON tree values."""
     validate_finite_tree(value)
     return json.dumps(value, indent=indent, allow_nan=False)
-
-
-# Descriptive alias for callers that prefer the module name in the function.
-strict_json_dumps = dumps_strict

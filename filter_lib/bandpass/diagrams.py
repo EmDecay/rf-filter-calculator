@@ -33,15 +33,13 @@ def format_top_c_diagram(n: int) -> str:
         label = f"Cs{i + 1}{i + 2}"
         start = mid - len(label) // 2
         for j, ch in enumerate(label):
-            if 0 <= start + j < line_len:
-                label_chars[start + j] = ch
+            label_chars[start + j] = ch
     # 8 centers the label over the "┤├" end-cap symbols, which sit a fixed
     # distance from each end of the template regardless of resonator count.
     for label, mid in (("Ce_in", 8), ("Ce_out", line_len - 8)):
         start = mid - len(label) // 2
         for j, ch in enumerate(label):
-            if 0 <= start + j < line_len:
-                label_chars[start + j] = ch
+            label_chars[start + j] = ch
     label_line = "".join(label_chars)
 
     def build_line(elements: list[str]) -> str:
@@ -49,8 +47,7 @@ def format_top_c_diagram(n: int) -> str:
         for pos, elem in zip(tank_pos, elements):
             start = pos - len(elem) // 2
             for j, ch in enumerate(elem):
-                if 0 <= start + j < line_len:
-                    chars[start + j] = ch
+                chars[start + j] = ch
         return "".join(chars)
 
     vert_line = build_line(["   │   "] * n)

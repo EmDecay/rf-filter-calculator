@@ -193,9 +193,6 @@ def _calculate_bessel_base(
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
     n = num_components
-    if n not in BESSEL_G_VALUES:
-        raise ValueError(f"Bessel filter supports 2-9 components, got {n}")
-
     g_values = BESSEL_G_VALUES[n]
 
     capacitors = []

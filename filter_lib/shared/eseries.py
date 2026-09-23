@@ -359,8 +359,6 @@ def find_parallel_combo(
             if minimum_value is not None and v1 < minimum_value:
                 continue
             for v2 in candidates[i:]:
-                if minimum_value is not None and v2 < minimum_value:
-                    continue
                 if max(v1, v2) / min(v1, v2) > ratio_limit:
                     continue
                 combined = v1 + v2

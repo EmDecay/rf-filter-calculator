@@ -75,10 +75,7 @@ def positive_geometric_mean(first: float, second: float) -> float:
     for name, value in (("first", first), ("second", second)):
         if not is_finite_real(value) or value <= 0:
             raise ValueError(f"{name} must be positive and finite")
-    result = math.sqrt(first) * math.sqrt(second)
-    if not math.isfinite(result) or result <= 0:
-        raise ValueError("geometric mean is outside the positive finite numeric range")
-    return result
+    return math.sqrt(first) * math.sqrt(second)
 
 
 def ripple_log_epsilon(ripple_db: float) -> float:

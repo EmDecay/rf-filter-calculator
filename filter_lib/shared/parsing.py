@@ -28,10 +28,7 @@ def _parse_scaled_positive(
         raise ValueError(f"{label} must be positive and finite: {original}") from error
     if not scaled.is_finite() or scaled <= 0:
         raise ValueError(f"{label} must be positive: {original}")
-    try:
-        result = float(scaled)
-    except (OverflowError, ValueError) as error:
-        raise ValueError(f"{label} must be positive and finite: {original}") from error
+    result = float(scaled)
     if not math.isfinite(result) or result <= 0:
         raise ValueError(f"{label} must be positive and finite: {original}")
     return result

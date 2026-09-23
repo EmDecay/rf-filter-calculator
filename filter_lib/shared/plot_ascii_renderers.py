@@ -176,8 +176,7 @@ def render_ascii_plot(
     # Draw -3dB reference line (dashed) — skip if outside plot range
     if 0 < db_3db_row < plot_height - 1:
         for col in range(plot_width):
-            if grid[db_3db_row][col] == " ":
-                grid[db_3db_row][col] = "\u00b7" if col % 2 == 0 else " "
+            grid[db_3db_row][col] = "\u00b7" if col % 2 == 0 else " "
 
     _draw_filled_response(grid, freqs, response_db, log_min, log_range, db_max, db_range)
 
@@ -213,8 +212,7 @@ def render_ascii_plot(
             if freq_min <= tick_freq <= freq_max:
                 log_tick = math.log10(tick_freq)
                 tick_col = int((log_tick - log_min) / log_range * (plot_width - 1))
-                if 0 <= tick_col < plot_width:
-                    x_axis[tick_col] = "\u253c"
+                x_axis[tick_col] = "\u253c"
 
     # Add arrow at -3dB crossing
     if show_3db_marker and f_3db_col is not None and 0 <= f_3db_col < plot_width:

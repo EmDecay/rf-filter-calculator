@@ -13,7 +13,6 @@ from ..shared.lp_hp_display import (
     format_csv_for_config,
     format_json_for_config,
     format_quiet_for_config,
-    primary_component,
 )
 from ..shared.topology_diagrams import format_pi_topology_diagram, format_t_topology_diagram
 from ..shared.transfer_response_dispatch import make_lp_response_db
@@ -35,11 +34,6 @@ LOWPASS_DISPLAY_CONFIG = LpHpDisplayConfig(
     frequency_response=frequency_response,
     response_db_factory=make_lp_response_db,
 )
-
-
-def _primary_component(result: dict) -> str:
-    """Return primary component type based on topology."""
-    return primary_component(result, LOWPASS_DISPLAY_CONFIG)
 
 
 def format_json(

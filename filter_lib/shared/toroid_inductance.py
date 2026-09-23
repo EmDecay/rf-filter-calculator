@@ -26,8 +26,6 @@ def compute_ideal_turns(l_henries: float, al_nh_per_turn2: float) -> float:
         turns = math.exp(log_turns)
     except OverflowError as error:
         raise ValueError("ideal turn count is outside the finite numeric range") from error
-    if not math.isfinite(turns) or turns <= 0:
-        raise ValueError("ideal turn count is outside the finite numeric range")
     return turns
 
 

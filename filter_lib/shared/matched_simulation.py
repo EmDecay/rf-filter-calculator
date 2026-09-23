@@ -3,34 +3,21 @@
 ``run_matched_simulation`` now delegates to build-realization analysis, which
 preserves selected physical capacitor branches, uses a verified integer-turn
 toroid candidate when available, records explicit fallbacks, and applies any
-declared loss model.  Older helper functions remain for callers that need the
-former capacitor-only dictionary transformation.
+declared loss model.  The older ``matched_result`` helper remains for callers
+that need the former capacitor-only dictionary transformation.
 """
 
 import copy
-import math
 from dataclasses import dataclass
 
 from .build_analysis import measure_calculated_and_nominal
 from .build_simulation import BuildConfig, CircuitMeasurement
 from .eseries import match_component
 from .formatting import format_fixed
-from .netlist_builders import (
-    build_bandpass_top_c_netlist,
-    build_hp_netlist,
-    build_lp_netlist,
-)
-from .netlist_simulation import find_3db_edges, solve_s21
 
 # Dense grid so interpolated -3 dB edge shifts resolve well below the
 # E-series rounding error being measured (~0.04% spacing near f0).
 GRID_POINTS = 1201
-
-_BUILDERS = {
-    "lowpass": build_lp_netlist,
-    "highpass": build_hp_netlist,
-    "bandpass": build_bandpass_top_c_netlist,
-}
 
 
 @dataclass(frozen=True)
@@ -79,80 +66,6 @@ def matched_result(result: dict, category: str, series: str) -> dict:
     else:
         raise ValueError(f"Unknown category {category!r}")
     return matched
-
-
-def _simulation_grid(result: dict, category: str) -> list[float]:
-    """Log-spaced frequency grid centered on the design passband.
-
-    Bandpass reuses the plot sweep's adaptive span (10×BW clamped to
-    0.1–1.0 decades each side); LP/HP span one decade each side of the
-    cutoff, which always brackets the -3 dB point.
-    """
-    if category == "bandpass":
-        f0, bw = result["f0"], result["bw"]
-        decades = math.log10((f0 + 10 * bw) / f0)
-        decades = max(0.1, min(1.0, decades))
-        center = f0
-    else:
-        center = result["freq_hz"]
-        decades = 1.0
-    log_start = math.log10(center) - decades
-    log_end = math.log10(center) + decades
-    step = (log_end - log_start) / (GRID_POINTS - 1)
-    return [10 ** (log_start + i * step) for i in range(GRID_POINTS)]
-
-
-def _measure(
-    result: dict, category: str, freqs: list[float], passband: tuple[float, float]
-) -> CircuitMeasurement:
-    """Solve |S21| for one circuit and extract its -3 dB summary."""
-    n_nodes, branches, in_node, out_node = _BUILDERS[category](result)
-    z0 = result["z0"] if category == "bandpass" else result["impedance"]
-    mags = solve_s21(n_nodes, branches, z0, z0, in_node, out_node, freqs)
-
-    reference = result["f0"] if category == "bandpass" else None
-    measured_low, measured_high = find_3db_edges(freqs, mags, reference_frequency=reference)
-    at_grid_edge = measured_low == freqs[0] or measured_high == freqs[-1]
-    if category == "lowpass":
-        # The passband extends to DC, so the low "edge" is just the grid start.
-        at_grid_edge = measured_high == freqs[-1]
-        f_low, f_high = None, measured_high
-    elif category == "highpass":
-        # The passband extends upward, so the high "edge" is the grid end.
-        at_grid_edge = measured_low == freqs[0]
-        f_low, f_high = measured_low, None
-    else:
-        f_low, f_high = measured_low, measured_high
-
-    lo, hi = passband
-    in_band = [m for f, m in zip(freqs, mags) if lo <= f <= hi]
-    worst = min(20 * math.log10(m) if m > 0 else -math.inf for m in in_band)
-    return CircuitMeasurement(
-        f_low=f_low, f_high=f_high, worst_passband_db=worst, at_grid_edge=at_grid_edge
-    )
-
-
-def simulate_pair(result: dict, matched: dict, category: str, series: str) -> MatchedSimSummary:
-    """Simulate the exact and matched circuits on a shared grid.
-
-    The worst-passband-deviation metric is evaluated over the *design*
-    passband (design -3 dB edges for bandpass, DC..fc for lowpass, fc..grid
-    top for highpass) for both circuits, so the matched value shows how much
-    the standard-value rounding degrades the band the user asked for.
-    """
-    freqs = _simulation_grid(result, category)
-    if category == "bandpass":
-        passband = (result["f_low"], result["f_high"])
-    elif category == "lowpass":
-        passband = (freqs[0], result["freq_hz"])
-    else:
-        passband = (result["freq_hz"], freqs[-1])
-    return MatchedSimSummary(
-        category=category,
-        series=series,
-        exact=_measure(result, category, freqs, passband),
-        matched=_measure(matched, category, freqs, passband),
-    )
 
 
 def run_matched_simulation(
