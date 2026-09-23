@@ -340,7 +340,7 @@ _INVALID = [
     (
         "bp bw top -f 14MHz -b 1MHz -n 1",
         2,
-        "filter-calc bandpass: error: argument -n/--resonators: invalid choice: '1' "
+        "filter-calc bandpass: error: argument -n/--resonators: invalid choice: 1 "
         "(choose from 2, 3, 4, 5, 6, 7, 8, 9)",
     ),
     ("bp ch top -f 14MHz -b 1MHz -n 4", 1, "Error: Chebyshev requires odd resonator count"),
@@ -441,6 +441,16 @@ _INVALID = [
 ]
 
 
+def _without_choice_quotes(line: str) -> str:
+    """Drop the quoting that argparse's invalid-choice message varies by Python release.
+
+    3.10 and 3.11 print "invalid choice: 1 (choose from 2, 3)", 3.12 quotes the rejected
+    value, and 3.13 also quotes each choice. The option and its choices are the contract.
+    """
+    head, marker, tail = line.partition("invalid choice: ")
+    return head + marker + tail.replace("'", "")
+
+
 @pytest.mark.parametrize(("command", "code", "message"), _INVALID)
 def test_invalid_input_exits_with_one_line_message_and_no_traceback(
     monkeypatch, capsys, command, code, message
@@ -450,7 +460,7 @@ def test_invalid_input_exits_with_one_line_message_and_no_traceback(
     assert exit_code == code
     assert out == ""
     assert "Traceback" not in err
-    assert err.splitlines()[-1] == message
+    assert _without_choice_quotes(err.splitlines()[-1]) == message
     if code == 2:
         subcommand = message.split(":")[0]
         assert err.startswith(f"usage: {subcommand} ")
