@@ -199,18 +199,43 @@ class TestShowResultsStateMapping:
 
         assert form.state.export_format == expected
 
-    def test_output_flags_are_stored(self, monkeypatch):
-        form = _screen(monkeypatch, eseries="none", output_format="table", options=("raw",))
+    @pytest.mark.parametrize(
+        "output_format, options, eseries, expected",
+        [
+            ("table", ("raw",), "none", ("table", True, False, False)),
+            ("table", ("raw", "plot"), "none", ("table", True, False, True)),
+            ("table", ("quiet",), "none", ("table", False, True, False)),
+            ("json", (), "E96", ("json", False, False, False)),
+            ("csv", (), "E12", ("csv", False, False, False)),
+        ],
+    )
+    def test_output_flags_are_stored(self, monkeypatch, output_format, options, eseries, expected):
+        form = _screen(monkeypatch, eseries=eseries, output_format=output_format, options=options)
+        # Stale values from an earlier pass must all be overwritten.
+        form.state.show_plot = "plot" not in options
+        form.state.output_format = "csv" if output_format == "table" else "table"
 
         form.screen._show_results()
 
         state = form.state
-        assert (state.output_format, state.raw_units, state.quiet, state.show_plot) == (
-            "table",
-            True,
-            False,
-            False,
+        assert form.pushed
+        assert (state.output_format, state.raw_units, state.quiet, state.show_plot) == expected
+        assert state.eseries == eseries
+
+    def test_complete_resonator_q_is_parsed_into_bandpass_state(self, monkeypatch):
+        form = _screen(
+            monkeypatch,
+            build_enabled=True,
+            build_inputs={"#build-resonator-q": "150"},
         )
+        form.state.category = "bandpass"
+
+        form.screen._show_results()
+
+        assert form.pushed
+        assert form.state.build_resonator_q == 150.0
+        assert (form.state.build_inductor_q, form.state.build_capacitor_q) == (None, None)
+        assert form.state.make_build_config().resonator_q == 150.0
 
     def test_default_form_overwrites_stale_build_settings_and_invalidates_result(self, monkeypatch):
         form = _screen(monkeypatch)
@@ -385,6 +410,40 @@ class TestShowResultsRejections:
             ({"#build-sample-count": "10001"}, "sample_count", "#build-sample-count"),
             ({"#build-seed": "1.5"}, "seed must be an integer", "#build-seed"),
             ({"#build-grid-points": "50"}, "grid_points", "#build-grid-points"),
+            # Hostile text is rejected on its own field rather than raised.
+            (
+                {"#build-capacitor-tolerance": "nan"},
+                "capacitor_tolerance_pct",
+                "#build-capacitor-tolerance",
+            ),
+            (
+                {"#build-capacitor-tolerance": ""},
+                "capacitor tolerance must be a number",
+                "#build-capacitor-tolerance",
+            ),
+            (
+                {"#build-inductor-tolerance": "1e400"},
+                "inductor_tolerance_pct",
+                "#build-inductor-tolerance",
+            ),
+            ({"#build-inductor-q": "inf"}, "inductor_q", "#build-inductor-q"),
+            ({"#build-capacitor-q": "nan"}, "capacitor_q", "#build-capacitor-q"),
+            (
+                {"#build-source-resistance": "1e400"},
+                "source resistance",
+                "#build-source-resistance",
+            ),
+            ({"#build-load-resistance": "nan"}, "load resistance", "#build-load-resistance"),
+            ({"#build-sample-count": "-1"}, "sample_count", "#build-sample-count"),
+            # Python 3.11+ refuses the digit count; 3.10 parses it and the range check fails.
+            ({"#build-sample-count": "9" * 5000}, "sample", "#build-sample-count"),
+            ({"#build-seed": ""}, "seed must be an integer", "#build-seed"),
+            (
+                {"#build-grid-points": ""},
+                "analysis points must be an integer",
+                "#build-grid-points",
+            ),
+            ({"#build-grid-points": "5002"}, "grid_points", "#build-grid-points"),
         ],
     )
     def test_invalid_build_setting_focuses_its_input(

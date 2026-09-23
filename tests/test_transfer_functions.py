@@ -15,6 +15,8 @@ from filter_lib.highpass import transfer as hp_transfer
 from filter_lib.lowpass import transfer as lp_transfer
 from filter_lib.shared.cli_aliases import FILTER_TYPE_ALIASES
 from filter_lib.shared.transfer_functions import (
+    MAX_FLEXIBLE_FREQUENCY_INTERVALS,
+    MAX_FREQUENCY_POINTS,
     chebyshev_polynomial,
     generate_frequency_points,
     magnitude_to_db,
@@ -94,6 +96,28 @@ class TestFrequencyGrid:
     def test_two_points_is_the_smallest_grid(self):
         assert generate_frequency_points(FC, num_points=2) == pytest.approx([1e6, 1e8], rel=1e-12)
 
+    def test_one_interval_is_the_smallest_flexible_grid(self):
+        points = generate_frequency_points(FC, decades=1.0, points_per_decade=1)
+
+        assert points == pytest.approx([FC / math.sqrt(10), FC * math.sqrt(10)], rel=1e-12)
+
+    def test_largest_grid_is_accepted_and_equal_in_both_modes(self):
+        """Both modes cap at 1,000,001 points inclusive; one more point is refused."""
+        widest_flexible = {
+            "decades": 4.0,
+            "points_per_decade": MAX_FLEXIBLE_FREQUENCY_INTERVALS // 4,
+        }
+        fixed = generate_frequency_points(1.0, num_points=MAX_FREQUENCY_POINTS)
+        flexible = generate_frequency_points(1.0, **widest_flexible)
+
+        assert len(fixed) == len(flexible) == 1_000_001
+        with pytest.raises(ValueError, match="<= 1,000,001"):
+            generate_frequency_points(1.0, num_points=MAX_FREQUENCY_POINTS + 1)
+        with pytest.raises(ValueError, match="must not exceed 1,000,000 intervals"):
+            generate_frequency_points(
+                1.0, decades=4.0, points_per_decade=widest_flexible["points_per_decade"] + 1
+            )
+
     def test_flexible_grid_is_centered_on_the_cutoff(self):
         points = generate_frequency_points(1e6, decades=1.0, points_per_decade=10)
 
@@ -142,8 +166,13 @@ class TestFrequencyGrid:
 
     @pytest.mark.parametrize(
         ("f0", "kwargs"),
-        [(1e308, {"num_points": 3}), (1e308, {}), (5e-324, {})],
-        ids=["fixed-count-overflow", "flexible-overflow", "flexible-underflow"],
+        [(1e308, {"num_points": 3}), (5e-324, {"num_points": 3}), (1e308, {}), (5e-324, {})],
+        ids=[
+            "fixed-count-overflow",
+            "fixed-count-underflow",
+            "flexible-overflow",
+            "flexible-underflow",
+        ],
     )
     def test_rejects_span_that_leaves_the_positive_finite_range(self, f0, kwargs):
         with pytest.raises(ValueError, match="must remain positive and finite"):
@@ -189,6 +218,24 @@ class TestChebyshevPolynomial:
                 assert chebyshev_polynomial(n, x) ** 2 == pytest.approx(
                     recurrence_tn(n, x) ** 2, rel=1e-9
                 ), f"square mismatch at n={n}, x={x}"
+
+    @pytest.mark.parametrize(
+        ("offset", "x", "expected"),
+        [
+            (0, -1.0, 1.0),
+            (1, -1.0, -1.0),
+            (0, 0.0, 1.0),
+            (1, 0.0, 0.0),
+            (2, 0.0, -1.0),
+            (3, 0.0, 0.0),
+            (3, 1.0, 1.0),
+        ],
+    )
+    def test_arbitrary_size_order_keeps_exact_parity_and_quarter_period(self, offset, x, expected):
+        """T_n(1) = 1, T_n(-1) = (-1)^n, and T_n(0) = cos(n*pi/2) far beyond binary64 orders."""
+        order = 10**400 + offset  # 10**400 is a multiple of 4
+
+        assert chebyshev_polynomial(order, x) == pytest.approx(expected, abs=1e-15)
 
     @pytest.mark.parametrize(
         ("n", "x", "message"),
@@ -282,7 +329,7 @@ class TestLowpassHighpassMagnitudes:
 
         assert magnitude_to_db(magnitude) == pytest.approx(HALF_POWER_DB, abs=1e-3)
 
-    @pytest.mark.parametrize("order", [2, 3, 5, 9])
+    @pytest.mark.parametrize("order", range(2, 10))
     @pytest.mark.parametrize("ratio", [0.25, 0.5, 2.0, 4.0])
     def test_bessel_matches_reverse_bessel_polynomial(self, order, ratio):
         magnitude = lp_transfer.bessel_response(ratio * FC, FC, order)
@@ -365,6 +412,17 @@ class TestFrequencyResponseWrappers:
         assert module.frequency_response(alias, freqs, FC, 5, 0.5) == module.frequency_response(
             canonical, freqs, FC, 5, 0.5
         )
+
+    @pytest.mark.parametrize("module", [lp_transfer, hp_transfer], ids=["lowpass", "highpass"])
+    @pytest.mark.parametrize("ripple_db", [0.1, 3.0])
+    def test_chebyshev_ripple_argument_sets_the_band_edge_loss(self, module, ripple_db):
+        assert module.frequency_response("ch", [FC], FC, 5, ripple_db) == pytest.approx(
+            [-ripple_db], abs=1e-9
+        )
+
+    @pytest.mark.parametrize("module", [lp_transfer, hp_transfer], ids=["lowpass", "highpass"])
+    def test_chebyshev_ripple_defaults_to_half_db(self, module):
+        assert module.frequency_response("ch", [FC], FC, 5) == pytest.approx([-0.5], abs=1e-9)
 
     def test_deep_stopband_is_floored_at_minus_120_db(self):
         assert lp_transfer.frequency_response("bw", [1000 * FC], FC, 9) == [-120.0]

@@ -18,6 +18,7 @@ from filter_lib.bandpass.g_values import (
     get_chebyshev_g_values,
     get_g_values,
 )
+from filter_lib.shared.chebyshev_g_calculator import MAX_PROTOTYPE_ORDER
 
 _SI_PREFIX = {"f": 1e-15, "p": 1e-12, "n": 1e-9, "µ": 1e-6, "m": 1e-3, "": 1.0}
 _COMPONENT_ORDER = ["Cp1", "Cp2", "Cp3", "L1", "L2", "L3", "Cs12", "Cs23", "Ce_in", "Ce_out"]
@@ -64,16 +65,28 @@ def _si_value(value: str, unit: str) -> float:
 
 class TestPrototypeGValues:
     def test_butterworth_closed_form_reference_values(self):
+        assert calculate_butterworth_g_values(1) == pytest.approx([2.0], rel=1e-12)
         assert calculate_butterworth_g_values(3) == pytest.approx([1.0, 2.0, 1.0], rel=1e-12)
         assert calculate_butterworth_g_values(5) == pytest.approx(
             [0.6180339887, 1.6180339887, 2.0, 1.6180339887, 0.6180339887], rel=1e-9
         )
 
+    def test_butterworth_order_limit_is_inclusive(self):
+        g = calculate_butterworth_g_values(MAX_PROTOTYPE_ORDER)
+        assert len(g) == MAX_PROTOTYPE_ORDER
+        assert g[0] == pytest.approx(math.pi / MAX_PROTOTYPE_ORDER, rel=1e-8)  # 2·sin(π/2n)
+        assert max(g) == pytest.approx(2.0, rel=1e-7)  # 2·cos(π/2n) for even n
+        with pytest.raises(ValueError, match="n must be a positive integer"):
+            calculate_butterworth_g_values(MAX_PROTOTYPE_ORDER + 1)
+
     @pytest.mark.parametrize(
         "n, ripple_db, expected",
         [
             (3, 0.1, [1.0316, 1.1474, 1.0316]),
+            (3, 0.2, [1.2275, 1.1525, 1.2275]),
             (3, 0.5, [1.5963, 1.0967, 1.5963]),
+            # The inclusive 3.0 dB ceiling.
+            (3, 3.0, [3.3487, 0.7117, 3.3487]),
             (5, 0.5, [1.7058, 1.2296, 2.5408, 1.2296, 1.7058]),
         ],
     )
@@ -91,6 +104,7 @@ class TestPrototypeGValues:
         "n, ripple_db, message",
         [
             (3, 3.5, "Ripple .* not supported"),
+            (3, math.nextafter(3.0, 4.0), "Ripple .* not supported"),
             (3, 0.0, "must be positive"),
             (3, float("nan"), "must be positive"),
             (4, 0.5, "odd resonator count"),
@@ -112,6 +126,8 @@ class TestPrototypeGValues:
 
     def test_get_g_values_dispatches_by_family(self):
         assert get_g_values("butterworth", 4) == calculate_butterworth_g_values(4)
+        # Chebyshev ripple defaults to 0.5 dB (Matthaei/Young/Jones row).
+        assert get_g_values("chebyshev", 3) == pytest.approx([1.5963, 1.0967, 1.5963], abs=1e-4)
         assert get_g_values("chebyshev", 5, 1.0) == get_chebyshev_g_values(5, 1.0)
         assert get_g_values("bessel", 3) == get_bessel_g_values(3)
 

@@ -170,6 +170,18 @@ def test_legacy_core_capacity_is_an_estimate_with_the_family_default_gauge():
     assert fit.full_winding_capacity is None
 
 
+@pytest.mark.parametrize(("turns", "fits"), [(41, True), (42, False)])
+def test_estimated_capacity_is_an_inclusive_limit_that_pins_the_enamel_allowance(turns, fits):
+    """T80-2 (ID 12.6 mm), AWG 20 (0.8118 mm): 0.9·π·12.6 / (1.07·0.8118) = 41.01 -> 41.
+
+    The estimate sits just above 41, so a 1 % larger enamel allowance would give 40.
+    """
+    fit = fit_wire(get_core("T80-2"), turns)
+
+    assert (fit.awg, fit.n_max, fit.capacity_status) == (20, 41, "estimated")
+    assert fit.fits is fits
+
+
 def test_every_catalog_core_has_a_default_gauge():
     for core in list_cores():
         assert 14 <= default_awg_for_core(core) <= 26, core.name
@@ -201,9 +213,9 @@ def test_wire_helpers_require_integer_awg_in_range(awg):
 @pytest.mark.parametrize("turns", [0, -1, True, 1.5, "10", None])
 def test_wire_helpers_require_positive_integer_turns(turns):
     core = get_core("T50-2")
-    with pytest.raises(ValueError, match="positive integer"):
+    with pytest.raises(ValueError, match="^n must be a positive integer$"):
         wire_length_mm(core, turns, 20)
-    with pytest.raises(ValueError, match="positive integer"):
+    with pytest.raises(ValueError, match="^n_turns must be a positive integer$"):
         fit_wire(core, turns)
 
 

@@ -61,13 +61,20 @@ def _rows(lines: list[str]) -> dict[str, list[str]]:
 
 class TestMatchedResult:
     def test_lp_caps_replaced_inductors_exact(self):
+        """10 MHz, 50 Ohm, n=5: C1 = C5 = 0.618/(Z*omega) = 196.73 pF, C3 = 636.62 pF.
+
+        Single E24 parts miss by +1.66 % (200 pF) and -2.61 % (620 pF), so the policy
+        chooses 47 + 150 = 197 pF (+0.14 %) and 75 + 560 = 635 pF (-0.25 %).
+        """
         result = _lp_result()
         matched = matched_result(result, "lowpass", "E24")
         assert matched["inductors"] == result["inductors"]
+        assert result["capacitors"] == pytest.approx(
+            [196.7263e-12, 636.6198e-12, 196.7263e-12], rel=1e-6, abs=0
+        )
+        assert matched["capacitors"] == pytest.approx([197e-12, 635e-12, 197e-12], rel=1e-12, abs=0)
         for exact, m in zip(result["capacitors"], matched["capacitors"]):
-            best = match_component(exact, "E24", parallel_mode="additive").best_value
-            assert m == best
-            assert m != exact  # E24 rounding actually moves the value
+            assert m == match_component(exact, "E24", parallel_mode="additive").best_value
 
     def test_bp_all_cap_groups_replaced(self):
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top")

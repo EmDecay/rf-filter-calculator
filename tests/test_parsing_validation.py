@@ -45,6 +45,41 @@ class TestParseFrequency:
         assert parse_frequency("2.4G") == 2.4e9
         assert parse_frequency("1g") == 1e9
 
+    @pytest.mark.parametrize(
+        ("text", "hertz"),
+        [
+            # User-guide spellings not covered above map to the exact binary64 value.
+            ("10MHZ", 10e6),
+            ("10 MHz", 10e6),
+            ("10e6", 10e6),
+            ("10E6", 10e6),
+            ("10000000", 10e6),
+            ("  7.1MHz\t", 7.1e6),
+            ("14.175MHz", 14.175e6),
+            ("500 k", 500e3),
+            ("0.5M", 500e3),
+            ("1e-3", 1e-3),
+            ("1e15Hz", 1e15),
+        ],
+    )
+    def test_documented_spellings_map_to_exact_hertz(self, text, hertz):
+        assert parse_frequency(text) == hertz
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            ("0", "Frequency must be positive: 0"),
+            ("0Hz", "Frequency must be positive: 0Hz"),
+            ("0MHz", "Frequency must be positive: 0MHz"),
+            ("-0", "Frequency must be positive: -0"),
+            ("1e-400", "Frequency must be positive and finite: 1e-400"),
+        ],
+    )
+    def test_zero_and_underflow_have_distinct_messages(self, text, message):
+        """A literal zero is non-positive; only an underflowing value is non-representable."""
+        with pytest.raises(ValueError, match=f"^{message}$"):
+            parse_frequency(text)
+
     def test_suffix_scaling_preserves_representable_subnormal_token_result(self):
         assert parse_frequency("1e-325GHz") == pytest.approx(1e-316, rel=1e-12, abs=0)
 
@@ -56,13 +91,6 @@ class TestParseFrequency:
             parse_frequency("-10MHz")
         with pytest.raises(ValueError, match="must be positive"):
             parse_frequency("-1")
-
-    def test_zero_frequency_raises(self):
-        """Zero frequency should raise ValueError."""
-        with pytest.raises(ValueError, match="must be positive"):
-            parse_frequency("0Hz")
-        with pytest.raises(ValueError, match="must be positive"):
-            parse_frequency("0")
 
     @pytest.mark.parametrize("text", ["abc", "", "MHz", "1,000"])
     def test_invalid_format_raises(self, text):
@@ -150,6 +178,24 @@ class TestParseImpedance:
         assert parse_impedance("  50ohm  ") == 50.0
         assert parse_impedance("  100  ") == 100.0
 
+    @pytest.mark.parametrize(
+        ("text", "ohms"),
+        [
+            ("50", 50.0),
+            ("50ohm", 50.0),
+            ("50Ω", 50.0),
+            ("50 Ohm", 50.0),
+            ("50omega", 50.0),
+            ("1kohm", 1000.0),
+            ("1kΩ", 1000.0),
+            ("12.5", 12.5),
+            ("0.05k", 50.0),
+            ("1.5MΩ", 1.5e6),
+        ],
+    )
+    def test_documented_spellings_map_to_exact_ohms(self, text, ohms):
+        assert parse_impedance(text) == ohms
+
 
 class TestParseInductance:
     """Tests for the band-pass resonator-inductance parser."""
@@ -167,7 +213,7 @@ class TestParseInductance:
         ],
     )
     def test_supported_units(self, text, expected):
-        assert parse_inductance(text) == pytest.approx(expected)
+        assert parse_inductance(text) == expected
 
     def test_suffix_scaling_preserves_representable_overflowing_token_result(self):
         assert parse_inductance("1e309nH") == pytest.approx(1e300)

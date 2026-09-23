@@ -197,6 +197,27 @@ LP_HP_REJECTIONS = [
         "#ripple",
     ),
     ({"filter_type": "chebyshev", "ripple": "3.1"}, "error", "must be <= 3.0 dB", "#ripple"),
+    # Hostile text: every field is rejected with a message on that field, never raised.
+    ({"frequency": "10XHz"}, "error", "Invalid frequency", "#frequency"),
+    ({"frequency": "-5MHz"}, "error", "Frequency must be positive", "#frequency"),
+    ({"frequency": "0"}, "error", "Frequency must be positive", "#frequency"),
+    ({"frequency": "nan"}, "error", "Frequency must be positive", "#frequency"),
+    ({"frequency": "inf"}, "error", "Frequency must be positive", "#frequency"),
+    ({"frequency": "1e400"}, "error", "Frequency must be positive and finite", "#frequency"),
+    ({"frequency": "1e-400"}, "error", "Frequency must be positive and finite", "#frequency"),
+    ({"frequency": "1e999999999MHz"}, "error", "must be positive and finite", "#frequency"),
+    ({"frequency": "9" * 5000}, "error", "Frequency must be positive and finite", "#frequency"),
+    ({"impedance": "nan"}, "error", "Impedance must be positive", "#impedance"),
+    ({"impedance": "-50"}, "error", "Impedance must be positive", "#impedance"),
+    ({"impedance": "1e400"}, "error", "Impedance must be positive and finite", "#impedance"),
+    ({"order": ""}, "error", "Invalid order", "#order"),
+    ({"order": "3.5"}, "error", "Invalid order", "#order"),
+    ({"order": "0"}, "error", "Invalid order: must be 2-9", "#order"),
+    ({"order": "1e1"}, "error", "Invalid order", "#order"),
+    ({"order": "9" * 5000}, "error", "Invalid order", "#order"),
+    ({"filter_type": "chebyshev", "ripple": ""}, "error", "Invalid ripple", "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "3.0001"}, "error", "must be <= 3.0 dB", "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "1e400"}, "error", "must be finite", "#ripple"),
 ]
 
 
@@ -237,6 +258,13 @@ class TestLowpassHighpassForm:
             ({"filter_type": "bessel", "order": "2"}, {"filter_type": "bessel", "order": 2}),
             # A ripple left in the hidden field must not reach a non-Chebyshev design.
             ({"filter_type": "butterworth", "ripple": "1.5"}, {"ripple_db": 0.5}),
+            # Unusual but unambiguous text is parsed to the value it names.
+            ({"frequency": "１０MHz"}, {"frequency_hz": 10e6}),
+            ({"frequency": " 7.1 mhz "}, {"frequency_hz": 7.1e6}),
+            ({"frequency": "   "}, {"frequency_hz": 10e6}),
+            ({"impedance": "50k"}, {"impedance": 50000.0}),
+            ({"impedance": " 75Ω "}, {"impedance": 75.0}),
+            ({"order": " 5 "}, {"order": 5}),
         ],
     )
     def test_valid_design_is_stored_and_opens_output_options(
@@ -439,6 +467,52 @@ class TestParseBandpassForm:
             ({"filter_type": "chebyshev", "ripple": "-0.1"}, "must be positive", "ripple", "error"),
             ({"filter_type": "chebyshev", "ripple": "nan"}, "must be finite", "ripple", "error"),
             ({"filter_type": "chebyshev", "ripple": "3.1"}, "must be <= 3.0 dB", "ripple", "error"),
+            # Hostile text: each field is reported as a form error on that field.
+            ({"frequency": ""}, "Invalid center frequency", "frequency", "error"),
+            ({"frequency": "nan"}, "Invalid center frequency", "frequency", "error"),
+            ({"frequency": "-5MHz"}, "Invalid center frequency", "frequency", "error"),
+            ({"frequency": "1e400"}, "Invalid center frequency", "frequency", "error"),
+            ({"bandwidth": "0"}, "Invalid bandwidth", "bandwidth", "error"),
+            ({"bandwidth": "inf"}, "Invalid bandwidth", "bandwidth", "error"),
+            ({"bandwidth": "10XHz"}, "Invalid bandwidth", "bandwidth", "error"),
+            (
+                {"frequency": "１０MHz", "bandwidth": "１０MHz"},
+                "Bandwidth must be less than center frequency",
+                "bandwidth",
+                "error",
+            ),
+            ({"impedance": "nan"}, "Invalid impedance", "impedance", "error"),
+            ({"impedance": "1e400"}, "Invalid impedance", "impedance", "error"),
+            (
+                {"resonator_impedance": "0"},
+                "Invalid tank impedance",
+                "resonator-impedance",
+                "error",
+            ),
+            (
+                {"resonator_inductance": "-1uH"},
+                "Invalid tank inductance",
+                "resonator-inductance",
+                "error",
+            ),
+            (
+                {"resonator_inductance": "1e400H"},
+                "Invalid tank inductance",
+                "resonator-inductance",
+                "error",
+            ),
+            ({"resonators": ""}, "Invalid resonators", "resonators", "error"),
+            ({"resonators": "3.5"}, "Invalid resonators", "resonators", "error"),
+            ({"resonators": "10"}, "Invalid resonators: must be 2-9", "resonators", "error"),
+            ({"resonators": "9" * 5000}, "Invalid resonators", "resonators", "error"),
+            ({"filter_type": "chebyshev", "ripple": ""}, "Invalid ripple", "ripple", "error"),
+            ({"filter_type": "chebyshev", "ripple": "0"}, "must be positive", "ripple", "error"),
+            (
+                {"filter_type": "chebyshev", "ripple": "3.0001"},
+                "must be <= 3.0 dB",
+                "ripple",
+                "error",
+            ),
         ],
     )
     def test_invalid_values_name_the_field_to_focus(self, overrides, message, field_id, severity):
@@ -521,8 +595,10 @@ class TestBandpassScreen:
             filter_type="chebyshev",
             frequency="",
             bandwidth="500kHz",
+            impedance="75ohm",
+            resonators="5",
             ripple="0.1",
-            resonator_impedance="75ohm",
+            resonator_impedance="100ohm",
         )
 
         form.screen._validate_and_continue()
@@ -536,8 +612,29 @@ class TestBandpassScreen:
         )
         assert state.frequency_hz == 14.175e6  # empty field falls back to the placeholder
         assert state.bandwidth_hz == 500e3
-        assert (state.impedance, state.order, state.ripple_db) == (50.0, 3, 0.1)
-        assert (state.resonator_impedance, state.resonator_inductance) == (75.0, None)
+        # Port impedance and resonator count differ from the FilterState defaults (50, 3),
+        # so a dropped assignment cannot pass by leaving the default in place.
+        assert (state.impedance, state.order, state.ripple_db) == (75.0, 5, 0.1)
+        assert (state.resonator_impedance, state.resonator_inductance) == (100.0, None)
+
+    def test_accepting_a_design_invalidates_the_previous_result(self, monkeypatch):
+        form = _bp_form(monkeypatch)
+        revision = form.state.begin_calculation()
+        form.state.publish_success(revision, "old table", {"old": True})
+
+        form.screen._validate_and_continue()
+
+        assert form.pushed
+        assert form.state.calculation_revision == revision + 1
+        assert (form.state.calculation_status, form.state.result) == ("idle", {})
+
+    def test_clearing_the_tank_inductance_replaces_the_stale_value(self, monkeypatch):
+        form = _bp_form(monkeypatch)
+        form.state.resonator_inductance = 1e-6  # from an earlier pass through this form
+
+        form.screen._validate_and_continue()
+
+        assert (form.state.resonator_impedance, form.state.resonator_inductance) == (None, None)
 
     @pytest.mark.parametrize(
         "values, severity, focus",
@@ -667,3 +764,28 @@ class TestPreviousResultInvalidation:
 
         with pytest.raises(AttributeError):
             screen_cls()._invalidate_previous_result()
+
+    @pytest.mark.parametrize(
+        "screen_cls, handler",
+        [
+            (LowpassScreen, "_on_topology_changed"),
+            (HighpassScreen, "_on_topology_changed"),
+            (HighpassScreen, "_on_design_input_changed"),
+            (BandpassScreen, "_on_coupling_changed"),
+            (BandpassScreen, "_on_design_input_changed"),
+        ],
+    )
+    def test_changing_a_design_choice_clears_the_previous_result(
+        self, monkeypatch, screen_cls, handler
+    ):
+        app = Mock(filter_state=FilterState())
+        monkeypatch.setattr(screen_cls, "app", property(lambda _self: app))
+        state = app.filter_state
+        revision = state.begin_calculation()
+        state.publish_success(revision, "old table", {"old": True})
+
+        getattr(screen_cls(), handler)(Mock())
+
+        assert state.calculation_revision == revision + 1
+        assert (state.calculation_status, state.result, state.output_text) == ("idle", {}, "")
+        assert not state.is_exportable

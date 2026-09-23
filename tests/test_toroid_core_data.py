@@ -223,7 +223,10 @@ def _validate_changed_core(changes: dict) -> None:
         (_validate_changed_core, ({"al_tolerance_pct": -1.0},), "Invalid A_L tolerance"),
         (_validate_changed_core, ({"al_tolerance_pct": math.nan},), "Non-finite numeric data"),
         (_validate_changed_core, ({"id_mm": _T68_2.od_mm},), "Invalid dimensions"),
+        (_validate_changed_core, ({"id_mm": 0.0},), "Invalid dimensions"),
+        (_validate_changed_core, ({"height_mm": 0.0},), "Invalid dimensions"),
         (_validate_changed_core, ({"al_nh_per_turn2": 0.0},), "Invalid magnetic data"),
+        (_validate_changed_core, ({"freq_min_hz": 0.0},), "Invalid magnetic data"),
         (
             _validate_changed_core,
             ({"freq_min_hz": _T68_2.freq_max_hz * 2},),
@@ -260,7 +263,10 @@ def _validate_changed_core(changes: dict) -> None:
         "negative-al-tolerance",
         "nan-al-tolerance",
         "inner-diameter-not-below-outer",
+        "zero-inner-diameter",
+        "zero-height",
         "zero-al",
+        "zero-minimum-frequency",
         "inverted-frequency-range",
         "unknown-source-id",
         "verified-core-without-manufacturer",
@@ -272,6 +278,33 @@ def _validate_changed_core(changes: dict) -> None:
 def test_packaged_data_guards_reject_malformed_entries(function, args, message):
     with pytest.raises(RuntimeError, match=message):
         function(*args)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"al_tolerance_pct": 0.0},
+        {"freq_min_hz": _T68_2.freq_max_hz},
+    ],
+    ids=["exact-al-tolerance", "single-frequency-guidance"],
+)
+def test_packaged_data_guards_accept_boundary_values(changes):
+    _validate_changed_core(changes)
+
+
+@pytest.mark.parametrize("awg", [0, 50])
+def test_winding_lookup_accepts_the_full_awg_range(awg):
+    """T68-2 publishes AWG 14-34 only, so both range limits are valid lookups with no row."""
+    assert get_core("T68-2").winding_spec_for_awg(awg) is None
+
+
+@pytest.mark.parametrize("document", ['{"schema_version": 1, "cores": []}', "[2]"])
+def test_packaged_data_loader_requires_schema_version_2_object(monkeypatch, tmp_path, document):
+    (tmp_path / "toroid_core_data.json").write_text(document, encoding="utf-8")
+    monkeypatch.setattr(toroid_core_data, "files", lambda _package: tmp_path)
+
+    with pytest.raises(RuntimeError, match="expected version 2"):
+        toroid_core_data._load_raw_data()
 
 
 @pytest.mark.parametrize("literal", ["1e999", "NaN"])

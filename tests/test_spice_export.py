@@ -190,6 +190,36 @@ class TestDeckMatchesNamedCircuit:
         assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", deck)
 
 
+def _bp_resonators(n: int, bw: float = 1e6) -> dict:
+    """Synthetic Top-C chain; exact export only needs well-formed positive values."""
+    return {
+        **_bp_result(),
+        "bw": bw,
+        "n_resonators": n,
+        "c_tank": [10e-12] * n,
+        "c_coupling": [2e-12] * (n - 1),
+    }
+
+
+class TestBandpassSweep:
+    @pytest.mark.parametrize("n, bw", [(2, 1e6), (3, 10e3), (9, 200e3), (5, 9e6)])
+    def test_linear_sweep_resolves_128_intervals_per_resonator_bandwidth(self, n, bw):
+        deck = export_spice_deck(_bp_resonators(n, bw), "bandpass")
+        _, kind, points, start, stop = next(
+            line for line in deck.splitlines() if line.startswith(".ac ")
+        ).split()
+
+        assert kind == "lin"
+        step = (float(stop) - float(start)) / (int(points) - 1)
+        assert step <= bw / (128 * n)
+        assert float(start) < 10e6 - bw / 2 and float(stop) > 10e6 + bw / 2
+
+    def test_sweep_beyond_the_resolution_budget_is_refused(self):
+        """600 resonators over a 5-20 MHz window need 1,152,001 points (limit 1,000,000)."""
+        with pytest.raises(ValueError, match="exceeds the supported resolution budget"):
+            export_spice_deck(_bp_resonators(600), "bandpass")
+
+
 class TestNominalSpiceDecks:
     def test_parallel_physical_caps_and_loss_resistors_are_exported_separately(self):
         result = {

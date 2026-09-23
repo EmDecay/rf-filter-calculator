@@ -1,6 +1,7 @@
 """Top-C bandpass synthesis: coupling math, resonators, loss estimates, and true -3 dB edges."""
 
 import math
+from decimal import Decimal
 from fractions import Fraction
 
 import pytest
@@ -9,6 +10,7 @@ from filter_lib.bandpass import calculate_bandpass_filter, compute_bandpass_3db_
 from filter_lib.bandpass.calculations import (
     BANDPASS_EDGE_CALIBRATION_FBW_MAX,
     BANDPASS_LUMPED_MODEL_CAUTION_FBW,
+    _synthesize_top_c_raw,
     calculate_coupling_capacitors,
     calculate_coupling_coefficients,
     calculate_end_coupling,
@@ -50,6 +52,41 @@ class TestEndCoupling:
         ce, _ = calculate_end_coupling(qe, omega0, l_resonant, z0)
         q = 1 / (omega0 * z0 * ce)
         assert z0 * (1 + q * q) == pytest.approx(qe * omega0 * l_resonant, rel=1e-9)
+
+    @pytest.mark.parametrize(
+        "qe, q_squared_rel",
+        [
+            # Just above the Rp = Z0 limit, q² = Rp/Z0 − 1 is ill-conditioned: a 1e-15
+            # rounding in Rp/Z0 is a 1e-6 relative change of q².
+            (1.0 + 1e-9, 1e-5),
+            (1.001, 1e-9),
+            (1.2, 1e-9),
+            (1.5, 1e-9),
+            (1.999, 1e-9),
+            (2.0, 1e-9),
+            (2.001, 1e-9),
+            (3.0, 1e-9),
+            (25.0, 1e-9),
+            (1e6, 1e-9),
+        ],
+    )
+    def test_series_to_parallel_conversion_across_step_up_ratios(self, qe, q_squared_rel):
+        """q² = Rp/Z0 − 1 and ΔC = Ce·q²/(1+q²) with q = 1/(ω0·Z0·Ce), including q < 1."""
+        f0, z0 = 10e6, 50.0
+        omega0 = 2 * math.pi * f0
+        l_resonant = z0 / omega0  # makes Rp = qe * z0
+        ce, delta_c = calculate_end_coupling(qe, omega0, l_resonant, z0)
+        q = 1 / (omega0 * z0 * ce)
+        assert q * q == pytest.approx(qe - 1.0, rel=q_squared_rel, abs=0)
+        assert delta_c == pytest.approx(ce * q * q / (1 + q * q), rel=1e-9, abs=0)
+
+    def test_low_step_up_reference_values(self):
+        """Rp = 62.5 Ω from a 50 Ω port: q = 0.5, Ce = 636.62 pF, ΔC = Ce/5 = 127.32 pF."""
+        f0, z0 = 10e6, 50.0
+        omega0 = 2 * math.pi * f0
+        ce, delta_c = calculate_end_coupling(1.25, omega0, z0 / omega0, z0)
+        assert ce == pytest.approx(636.6197724e-12, rel=1e-9, abs=0)
+        assert delta_c == pytest.approx(127.3239545e-12, rel=1e-9, abs=0)
 
     def test_infeasible_when_rp_at_or_below_z0(self):
         f0, z0 = 10e6, 50.0
@@ -158,6 +195,53 @@ class TestCouplingAndTankCapacitors:
         cp = calculate_tank_capacitors(3, 100e-12, [5e-12, 4e-12])
         # End tanks lose one coupling capacitor; the middle tank loses both.
         assert cp == pytest.approx([95e-12, 91e-12, 96e-12], rel=1e-12, abs=0)
+
+
+class TestRawTopCSynthesis:
+    """First-order Top-C values before calibration, worked by hand.
+
+    Butterworth n=3 (g = 1, 2, 1), f0 = 10 MHz, FBW = 10%, 50 Ω ports:
+    k = 0.1/√2, Cs = k·C, Qe = 10 so Rp = Qe·X_tank and q = √(Rp/50 − 1),
+    Ce = 1/(ω0·50·q), ΔC = Ce·q²/(1+q²), Cp_end = C − Cs − ΔC, Cp_mid = C − 2·Cs.
+    """
+
+    @pytest.mark.parametrize(
+        "tank_impedance, expected",
+        [
+            # X = 50 Ω: L = 795.775 nH, C = 318.310 pF, Rp = 500 Ω, q = 3.
+            (
+                None,
+                {
+                    "L_resonant": 795.7747155e-9,
+                    "c_coupling": [22.50790790e-12] * 2,
+                    "c_end_in": 106.1032954e-12,
+                    "c_tank": [200.3090124e-12, 273.2940704e-12, 200.3090124e-12],
+                },
+            ),
+            # X = 200 Ω: L = 3.1831 µH, C = 79.577 pF, Rp = 2000 Ω, q = √39.
+            (
+                200.0,
+                {
+                    "L_resonant": 3.183098862e-6,
+                    "c_coupling": [5.626976976e-12] * 2,
+                    "c_end_in": 50.97037441e-12,
+                    "c_tank": [24.25437952e-12, 68.32351759e-12, 24.25437952e-12],
+                },
+            ),
+        ],
+    )
+    def test_hand_worked_component_values(self, tank_impedance, expected):
+        raw = _synthesize_top_c_raw(10e6, 0.1, 50.0, 3, [1.0, 2.0, 1.0], tank_impedance, None)
+
+        for name, value in expected.items():
+            assert raw[name] == pytest.approx(value, rel=1e-8, abs=0), name
+        assert raw["c_end_out"] == raw["c_end_in"]
+        assert (raw["qe_in"], raw["qe_out"]) == pytest.approx((10.0, 10.0), rel=1e-12)
+
+    @pytest.mark.parametrize("fbw_synth", [0.0, -0.1, math.nan, math.inf, True])
+    def test_rejects_invalid_prototype_bandwidth(self, fbw_synth):
+        with pytest.raises(ValueError, match="fbw_synth must be positive and finite"):
+            _synthesize_top_c_raw(10e6, fbw_synth, 50.0, 3, [1.0, 2.0, 1.0], None, None)
 
 
 class TestSynthesisRealizabilityLimits:
@@ -299,6 +383,16 @@ class TestInsertionLossAndQModel:
 
     def test_min_q_heuristic_is_loaded_q_times_safety_factor(self):
         assert calculate_min_q(f0=14.175e6, bw=350e3, safety_factor=2.0) == pytest.approx(81.0)
+        # The documented default safety factor is 2.0.
+        assert calculate_min_q(f0=14.175e6, bw=350e3) == pytest.approx(81.0)
+
+    def test_synthesis_defaults_are_half_db_ripple_and_safety_factor_two(self):
+        result = calculate_bandpass_filter(14.175e6, 350e3, 50, 3, "chebyshev", "top")
+        assert result["ripple_db"] == 0.5
+        # Matthaei/Young/Jones 0.5 dB, n=3 prototype.
+        assert result["g_values"] == pytest.approx([1.5963, 1.0967, 1.5963], abs=1e-4)
+        assert result["q_safety"] == 2.0
+        assert result["q_min"] == pytest.approx(81.0, rel=1e-12)
 
     @pytest.mark.parametrize("arguments", [(0.0, 1e3, 2.0), (1e6, math.inf, 2.0), (1e6, 1e3, -2)])
     def test_min_q_heuristic_rejects_invalid_inputs(self, arguments):
@@ -542,6 +636,16 @@ class TestCalibratedBandpassSynthesis:
         )
         assert result["L_resonant"] == chosen_l
         assert result["resonator_selection"] == "fixed_inductance"
+        # A fixed inductor sets the tank reactance X = ω_tank·L = √(L/C) at the tuned frequency.
+        reactance = 2 * math.pi * result["f_tank_hz"] * chosen_l
+        assert result["resonator_impedance"] == pytest.approx(reactance, rel=1e-12)
+        assert result["resonator_impedance"] == pytest.approx(
+            math.sqrt(chosen_l / result["C_resonant"]), rel=1e-12
+        )
+        assert (
+            result["internal_synthesis_parameters"]["resonator_impedance_ohms"]
+            == (result["resonator_impedance"])
+        )
         assert abs(result["synthesis_validation"]["lower_edge_error_rel"]) <= 1e-3
         assert abs(result["synthesis_validation"]["upper_edge_error_rel"]) <= 1e-3
 
@@ -580,15 +684,15 @@ class TestBandpassFbwGuidance:
         assert BANDPASS_LUMPED_MODEL_CAUTION_FBW == 0.40
 
     @pytest.mark.parametrize(
-        "fbw, validation_warning, lumped_warning",
+        "fbw, validation_warning, lumped_warning, percent",
         [
-            (BANDPASS_EDGE_CALIBRATION_FBW_MAX, False, False),
-            (BANDPASS_EDGE_CALIBRATION_FBW_MAX + 1e-6, True, False),
-            (BANDPASS_LUMPED_MODEL_CAUTION_FBW, True, False),
-            (BANDPASS_LUMPED_MODEL_CAUTION_FBW + 1e-6, True, True),
+            (BANDPASS_EDGE_CALIBRATION_FBW_MAX, False, False, None),
+            (BANDPASS_EDGE_CALIBRATION_FBW_MAX + 1e-6, True, False, "FBW 10.0%"),
+            (BANDPASS_LUMPED_MODEL_CAUTION_FBW, True, False, "FBW 40.0%"),
+            (BANDPASS_LUMPED_MODEL_CAUTION_FBW + 1e-6, True, True, "FBW 40.0%"),
         ],
     )
-    def test_warning_boundaries_are_strict(self, fbw, validation_warning, lumped_warning):
+    def test_warning_boundaries_are_strict(self, fbw, validation_warning, lumped_warning, percent):
         result = calculate_bandpass_filter(10e6, 10e6 * fbw, 50, 3, "butterworth", "top")
         warnings = result["warnings"]
         assert (
@@ -596,6 +700,16 @@ class TestBandpassFbwGuidance:
             is validation_warning
         )
         assert any("transmission-line design" in warning for warning in warnings) is lumped_warning
+        # The warnings quote the requested fractional bandwidth as a percentage.
+        assert all(warning.startswith(percent) for warning in warnings if "FBW" in warning)
+        # Edges are calibrated at every width; only the studied envelope carries the claim.
+        assert result["synthesis_validation"]["edge_validated"] is True
+        assert result["synthesis_validation"]["validated"] is not validation_warning
+        assert result["response_validation_status"] == (
+            "outside_validated_envelope" if validation_warning else "validated"
+        )
+        if not validation_warning:
+            assert warnings == []
 
 
 class TestBandpassPublicInputValidation:
@@ -697,6 +811,90 @@ class TestBandpassPublicInputValidation:
         arguments.update(filter_type="chebyshev", ripple_db=True)
         with pytest.raises(ValueError, match="ripple_db must be positive and finite"):
             calculate_bandpass_filter(**arguments)
+
+    @pytest.mark.parametrize(
+        "changes, message",
+        [
+            ({"f0": Decimal("1e7")}, "Center frequency"),
+            ({"f0": Fraction(10**7)}, "Center frequency"),
+            ({"f0": 1e7 + 0j}, "Center frequency"),
+            ({"f0": "10e6"}, "Center frequency"),
+            ({"z0": 10**400}, "Impedance"),
+            ({"bw": 10.000001e6}, "less than center frequency"),
+            ({"bw": math.nextafter(10e6, 0.0)}, "too wide to realize"),
+            # Far below the float resolution of the band edges: any ValueError, not a crash.
+            # (The current message names the internal grid rather than the bandwidth.)
+            ({"bw": 1e-6}, "."),
+            ({"f0": 1.7e308, "bw": 1.7e308 * 0.05}, "positive finite frequency"),
+            ({"z0": 5e-324}, "numeric range"),
+            ({"qu": 5e-324}, "numeric range"),
+            ({"q_safety": 1e308}, "numeric range"),
+            ({"resonator_impedance": 0.1}, "input/output coupling"),
+            ({"resonator_inductance": 1e-3}, "would be negative"),
+        ],
+        ids=[
+            "decimal",
+            "fraction",
+            "complex",
+            "string",
+            "huge-int-impedance",
+            "bandwidth-above-center",
+            "bandwidth-just-below-center",
+            "sub-resolution-bandwidth",
+            "overflowing-grid",
+            "subnormal-impedance",
+            "subnormal-q",
+            "huge-q-safety",
+            "tiny-tank-impedance",
+            "huge-tank-inductance",
+        ],
+    )
+    def test_hostile_inputs_raise_clear_value_errors(self, changes, message):
+        arguments = self._arguments()
+        arguments.update(changes)
+        with pytest.raises(ValueError, match=message):
+            calculate_bandpass_filter(**arguments)
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"f0": 1e-300, "bw": 5e-302},
+            {"f0": 1e300, "bw": 5e298},
+            {"z0": 1e-300},
+            {"z0": 1.7e308},
+            {"bw": 1e-3},
+            {"filter_type": "chebyshev", "n_resonators": 9, "ripple_db": 5e-324},
+            {"qu": 1e-300},
+            {"ql": 1e300, "qc": 1e300},
+        ],
+        ids=[
+            "tiny-frequency",
+            "huge-frequency",
+            "tiny-impedance",
+            "huge-impedance",
+            "fbw-1e-10",
+            "subnormal-ripple",
+            "tiny-q",
+            "huge-component-q",
+        ],
+    )
+    def test_extreme_valid_inputs_give_finite_calibrated_results(self, changes):
+        arguments = self._arguments()
+        arguments.update(changes)
+        result = calculate_bandpass_filter(**arguments)
+
+        def non_finite(value, path="result"):
+            if isinstance(value, float):
+                return [] if math.isfinite(value) else [path]
+            if isinstance(value, dict):
+                return [bad for key, item in value.items() for bad in non_finite(item, key)]
+            if isinstance(value, (list, tuple)):
+                return [bad for item in value for bad in non_finite(item, path)]
+            return []
+
+        assert non_finite(result) == []
+        assert result["synthesis_validation"]["edge_validated"] is True
+        assert all(value > 0 for value in result["c_tank"] + result["c_coupling"])
 
 
 class TestBandpassCompatibilityFacades:

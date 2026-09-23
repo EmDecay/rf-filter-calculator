@@ -1,8 +1,9 @@
 """Results screen: worker publication guards, export preselection, saving, and navigation.
 
 Handlers are called directly with ``Mock(spec=...)`` widgets. The mounted worker
-lifecycle is covered by ``test_wizard_build_analysis_pilot.py`` and
-``test_wizard_design_screen_journeys.py``.
+lifecycle is covered by ``test_wizard_build_analysis_pilot.py``,
+``test_wizard_design_screen_journeys.py``, and (for a failed calculation)
+``test_wizard_failure_surfacing.py``.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, mock_open
 
@@ -17,7 +19,7 @@ import pytest
 from textual.widgets import Button, RadioButton, RadioSet, Static
 
 import filter_lib.wizard.screens.results as results_module
-from filter_lib.wizard.filter_type_calculators import calculate_lowpass
+from filter_lib.wizard.filter_type_calculators import calculate_highpass, calculate_lowpass
 from filter_lib.wizard.screens.results import ResultsScreen
 from filter_lib.wizard.screens.welcome import WelcomeScreen
 from filter_lib.wizard.state import CalculationOutcome, FilterState
@@ -137,6 +139,7 @@ class TestWorkerPublication:
                 CalculationOutcome(status="success", output_text="table only", result={"ok": 1}),
                 "Calculation returned no realized-build analysis",
             ),
+            ({}, "table text instead of an outcome", "Calculation returned an invalid outcome"),
         ],
     )
     def test_unusable_outcome_is_published_as_a_failure(
@@ -159,7 +162,14 @@ class TestWorkerPublication:
         "error, message",
         [(RuntimeError("solver exploded"), "solver exploded"), (KeyError(), "KeyError")],
     )
-    def test_worker_exception_is_shown_instead_of_hanging(self, monkeypatch, error, message):
+    def test_worker_error_event_renders_the_failure(self, monkeypatch, error, message):
+        """The ERROR branch renders a failure if Textual delivers one to the screen.
+
+        In a running app the worker uses Textual's default ``exit_on_error=True``, so an
+        exception escaping the worker exits the app; ``calculate_and_format`` must turn
+        every exception into an error outcome instead
+        (``test_wizard_failure_surfacing.py``).
+        """
         state = FilterState()
         view = _running_calculation(monkeypatch, state)
 
@@ -206,6 +216,15 @@ class TestWorkerPublication:
         view.w["#results-text"].update.assert_not_called()
         assert view.screen._result_text == ""
 
+    def test_unmounting_before_a_calculation_started_changes_nothing(self, monkeypatch):
+        state = FilterState(category="lowpass")
+        revision = state.begin_calculation()
+        view = _results_screen(monkeypatch, state)
+
+        view.screen.on_unmount()
+
+        assert (state.calculation_status, state.calculation_revision) == ("pending", revision)
+
 
 class TestExportPreselection:
     @pytest.mark.parametrize(
@@ -215,6 +234,8 @@ class TestExportPreselection:
             ({"output_format": "json"}, "export-json", False),
             ({"output_format": "csv", "export_format": "json"}, "export-csv", False),
             ({"output_format": "json", "build_analysis_enabled": True}, "export-json", True),
+            # CSV cannot carry a build analysis, so the text export is preselected instead.
+            ({"output_format": "csv", "build_analysis_enabled": True}, "export-txt", True),
         ],
     )
     def test_component_format_follows_output_not_response_sidecar(
@@ -393,6 +414,32 @@ class TestSaving:
             "component CSV",
             severity="error",
         )
+
+    def test_response_that_cannot_be_computed_blocks_the_save_with_a_message(
+        self, monkeypatch, tmp_path
+    ):
+        # A cutoff at the largest float synthesizes, but no response sweep can span it.
+        state = FilterState(
+            category="highpass",
+            frequency_hz=sys.float_info.max,
+            order=3,
+            show_plot=False,
+            eseries="none",
+            export_format="csv",
+        )
+        state.output_text = "\n".join(calculate_highpass(state))
+        state.calculation_status = "success"
+        view = _saving_screen(monkeypatch, tmp_path, state, "export-txt")
+
+        view.screen._save_export()
+
+        assert list(tmp_path.iterdir()) == []
+        view.screen.notify.assert_called_once_with(
+            "Cannot export current result: Requested frequency span must remain positive "
+            "and finite",
+            severity="error",
+        )
+        assert view.w["#export-section"].display is False
 
     def test_write_failure_is_reported_without_claiming_success(self, monkeypatch, tmp_path):
         view = _saving_screen(monkeypatch, tmp_path, _lowpass_success(), "export-txt")
