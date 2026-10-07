@@ -5,54 +5,28 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
-from .filter_type_calculators import BANDPASS_WIZARD_RESPONSE_POINTS
 from .state import FilterState
 
 
 def format_response_export(state: FilterState, fmt: str) -> str:
-    """Return response data in the shared CLI-compatible export schema."""
-    from filter_lib.shared.response_export import (
-        export_response_csv,
-        export_response_json,
-        response_meta,
+    """Return response data in the shared CLI-compatible export schema.
+
+    A saved file ends with one LF, byte-identical to the CLI's --plot-data output.
+    """
+    from filter_lib.design import export_response_data
+
+    return export_response_data(state.design_result(), fmt) + "\n"
+
+
+def _component_document(state: FilterState, output_format: str) -> str:
+    """Render the stored result as a JSON or CSV document ending with one LF."""
+    from filter_lib.design import RenderOptions, render_lines
+
+    options = RenderOptions(
+        output_format=output_format,
+        eseries=None if state.eseries == "none" else state.eseries,
     )
-
-    if state.category == "bandpass":
-        from filter_lib.bandpass.transfer import netlist_frequency_sweep
-
-        sweep = netlist_frequency_sweep(
-            state.result,
-            points=BANDPASS_WIZARD_RESPONSE_POINTS,
-        )
-        freqs = [frequency for frequency, _ in sweep]
-        response_db = [magnitude for _, magnitude in sweep]
-    else:
-        if state.category == "lowpass":
-            from filter_lib.lowpass.transfer import (
-                frequency_response,
-                generate_frequency_points,
-            )
-        else:
-            from filter_lib.highpass.transfer import (
-                frequency_response,
-                generate_frequency_points,
-            )
-
-        result = state.result
-        freqs = generate_frequency_points(result["freq_hz"])
-        response_db = frequency_response(
-            result["filter_type"],
-            freqs,
-            result["freq_hz"],
-            result["order"],
-            result.get("ripple") or 0.5,
-        )
-
-    meta = response_meta(state.category, state.result)
-    # A saved file ends with one LF, byte-identical to the CLI's --plot-data output.
-    if fmt == "json":
-        return export_response_json(freqs, response_db, meta) + "\n"
-    return export_response_csv(freqs, response_db) + "\n"
+    return render_lines(state.design_result(), options)[0] + "\n"
 
 
 def format_component_json(state: FilterState) -> str:
@@ -60,22 +34,7 @@ def format_component_json(state: FilterState) -> str:
 
     The document ends with one LF, byte-identical to the CLI's ``--format json``.
     """
-    eseries = None if state.eseries == "none" else state.eseries
-    if state.category == "lowpass":
-        from filter_lib.lowpass.display import format_json
-    elif state.category == "highpass":
-        from filter_lib.highpass.display import format_json
-    else:
-        from filter_lib.bandpass.formatters import format_json
-
-    return (
-        format_json(
-            state.result,
-            eseries=eseries,
-            build_analysis=state.build_analysis,
-        )
-        + "\n"
-    )
+    return _component_document(state, "json")
 
 
 def format_component_csv(state: FilterState) -> str:
@@ -85,15 +44,7 @@ def format_component_csv(state: FilterState) -> str:
     """
     if state.build_analysis_enabled or state.build_analysis is not None:
         raise ValueError("realized-build analysis is not supported in component CSV")
-
-    eseries = None if state.eseries == "none" else state.eseries
-    if state.category == "lowpass":
-        from filter_lib.lowpass.display import format_csv
-    elif state.category == "highpass":
-        from filter_lib.highpass.display import format_csv
-    else:
-        from filter_lib.bandpass.formatters import format_csv
-    return format_csv(state.result, eseries=eseries) + "\n"
+    return _component_document(state, "csv")
 
 
 def prepare_export_payloads(state: FilterState, format_id: str) -> list[tuple[str, str]]:

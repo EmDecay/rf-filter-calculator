@@ -175,3 +175,36 @@ def test_help_describes_q_semantics_and_hides_legacy_q_safety(capsys) -> None:
     assert "inductor q" in output.lower()
     assert "capacitor q" in output.lower()
     assert "--q-safety" not in output
+
+
+@pytest.mark.parametrize(
+    "extra, expected_err",
+    [
+        (
+            ("-n", "4", "--q-safety", "3", "--format", "json"),
+            "Warning: --q-safety is deprecated and retained only for the legacy Q heuristic\n"
+            "Error: Chebyshev requires odd resonator count\n",
+        ),
+        (
+            ("--q-safety", "3", "--resonator-impedance", "-5", "--format", "json"),
+            "Warning: --q-safety is deprecated and retained only for the legacy Q heuristic\n"
+            "Error: Resonator impedance must be positive: -5\n",
+        ),
+        (
+            ("--q-safety", "0", "--resonator-impedance", "-5"),
+            "Error: Q safety factor must be positive\n",
+        ),
+    ],
+    ids=["warning-before-design-error", "warning-before-tank-error", "q-safety-checked-first"],
+)
+def test_legacy_q_safety_is_checked_and_warned_before_other_inputs(
+    monkeypatch, capsys, extra, expected_err
+):
+    monkeypatch.setattr(
+        "sys.argv", ["filter-calc", "bp", "ch", "top", "-f", "10MHz", "-b", "500kHz", *extra]
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main()
+
+    assert excinfo.value.code == 1
+    assert capsys.readouterr().err == expected_err
