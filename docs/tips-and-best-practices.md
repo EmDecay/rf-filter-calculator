@@ -19,6 +19,8 @@ Get the most out of RF Filter Calculator.
 - Can tolerate some passband ripple
 - Adjacent channel rejection is critical
 - Start with 0.5 dB ripple, increase only if needed
+- Use an odd order (3, 5, 7, or 9 components or resonators); equal source and load
+  terminations require it, and even orders are rejected
 
 ### When to Use Bessel
 
@@ -178,7 +180,8 @@ behavior unless you add suitable models.
 ### Design Iteration
 
 1. Start with `--explain` to understand filter types
-2. Run with no arguments for the wizard if unfamiliar with designs
+2. Run with no arguments for the wizard, or `uv run filter-calc web` for the browser page, if
+   unfamiliar with the options; both show the same results the CLI prints
 3. Try different orders: `uv run filter-calc lp bw pi 10MHz -n 3` vs `-n 5`
 4. Compare Butterworth vs Chebyshev at same order
 5. Use `--plot` to visualize response

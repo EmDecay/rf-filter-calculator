@@ -21,12 +21,22 @@ Version 2.2.0 also ships every change in the 2.2.0 sections below, which were ma
 - The web applies the CLI's output rules, including refusing resonator-loss Q (Qu, QL, QC)
   for outputs that cannot show it.
 
+### Security
+
+- The web UI sends a self-only Content Security Policy, `nosniff`, and `no-referrer` on every
+  response, including unexpected errors.
+- HTMX runs with eval and swapped-script execution turned off; the vendored `htmx.min.js`
+  hash is recorded beside its license and checked by a test.
+
 ### Changed
 
 - The CLI handlers and the wizard now share one orchestration path, `filter_lib.design`
   (request validation, synthesis, optional realized-build analysis, rendering, and exports).
   CLI and wizard output is unchanged.
 - The development group uses `httpx2`, the HTTP client Starlette's test client now prefers.
+- CI installs the `web` extra for the coverage matrix, adds a core-install job that runs the
+  suite without it, pins every GitHub Action to a commit SHA, and allows the test matrix 30
+  minutes (coverage on Python 3.10 approached the old 20-minute limit).
 
 ## 2.2.0 — 2026-09-22 — Accuracy and Stability Fixes
 

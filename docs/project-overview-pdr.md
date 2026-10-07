@@ -5,12 +5,12 @@ RF Filter Calculator - LC component value calculator for RF circuit design.
 ## Project Overview
 
 ### Purpose
-Provide RF engineers and amateur radio operators with a fast, accurate command-line tool to calculate LC filter component values. Designed to reduce design iteration time and eliminate manual calculation errors.
+Provide RF engineers and amateur radio operators with a fast, accurate tool to calculate LC filter component values, usable from the command line, a terminal wizard, or a local web page. Designed to reduce design iteration time and eliminate manual calculation errors.
 
 ### Core Value Proposition
 - **Accuracy**: Precision calculations based on normalized filter prototypes
 - **Speed**: Real-time component value generation
-- **Accessibility**: Simple CLI with interactive wizard for learning mode
+- **Accessibility**: Simple CLI, an interactive wizard for learning, and a local web UI for point-and-click design
 - **Flexibility**: Multiple filter types, topologies, and response types
 - **Practicality**: E-series component matching to real-world available values
 
@@ -22,7 +22,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 ### Current Status
 **Version**: 2.2.0 (local web UI on a shared design service)
-- More than 2,000 collected tests, with a 90% CI coverage floor
+- More than 4,500 collected tests, with a 90% CI coverage floor
 - Full CLI, interactive TUI, and local web UI with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
@@ -59,13 +59,13 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
   - ✓ Both topologies produce equivalent response magnitude
 
 **FR-1.1.2: Highpass Filters**
-- **Definition**: High-pass filter design with inverted topologies
+- **Definition**: High-pass filter design by the LP→HP transform
 - **Response Types**: Butterworth, Chebyshev, Bessel
-- **Topologies**: T (series-shunt pattern), Pi (shunt-series pattern) [reversed from lowpass]
+- **Topologies**: Pi (shunt-first) and T (series-first), as for lowpass; the transform swaps component roles, so shunt elements are inductors and series elements are capacitors
 - **Order Range**: 2-9 reactive components
 - **Acceptance Criteria**:
   - ✓ Accurate component values
-  - ✓ Topology inversion vs lowpass verified
+  - ✓ LP→HP component-role swap verified
   - ✓ Frequency response shows proper high-pass behavior
 
 **FR-1.1.3: Bandpass Filters**
@@ -193,6 +193,22 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Components/Resonators: 3 (user configurable)
 - Placeholders show defaults in input fields
 
+#### 1.7 Web UI (optional `web` extra)
+
+**FR-1.7.1: Local Browser Design**
+- `filter-calc web` serves the UI on `127.0.0.1:8765` by default; `--host` and `--port` change it
+- A tab per category with form fields that mirror the CLI flags and use the CLI's parsers,
+  defaults, and error messages
+- The result panel shows the CLI's text output; an optional SVG plot uses the response-data samples
+- Downloads (JSON, CSV, exact and nominal-build SPICE, response JSON/CSV) are byte-identical to
+  CLI output; `POST /api/design/<category>` returns the `--format json` document
+
+**FR-1.7.2: Safe Local Defaults**
+- Loopback bind by default, with a warning for any other address
+- Only the page's own origin may submit work; requests must be addressed to this server
+- Calculations are bounded (two workers, 60 s timeout that cancels build analysis)
+- Without the extra, `filter-calc web` exits 1 with an install hint
+
 ---
 
 ### Section 2: Non-Functional Requirements
@@ -243,7 +259,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - No silent failures
 
 **NFR-2.4.2: Testing**
-- More than 2,000 collected tests covering calculations, outputs, build analysis,
+- More than 4,500 collected tests covering calculations, outputs, build analysis,
   packaging, and the Textual wizard
 - Coverage must remain at or above 90%
 - GitHub Actions CI runs lint, format, Python 3.10–3.13 tests, coverage, and
@@ -273,7 +289,9 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 
 **NFR-2.6.2: Dependencies**
 - Minimal external dependencies
-- Textual (TUI for interactive wizard) — the only runtime dependency
+- Textual (TUI for interactive wizard) — the only required runtime dependency
+- Optional `web` extra (FastAPI, uvicorn, Jinja2, python-multipart) for the web UI; the core
+  install never needs it
 - CLI built on stdlib argparse
 - No system dependencies beyond Python
 
@@ -344,7 +362,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Enables easy updates to all filters simultaneously
 
 **DD-4.1.3: Calculation/Presentation Decoupling**
-- LP/HP calculations return `(capacitors, inductors, order)` tuples; bandpass returns a result dict with coupling fields
+- Lowpass calculations return `(capacitors, inductors, order)` and highpass `(inductors, capacitors, order)`; bandpass returns a result dict with coupling fields
 - Display functions assemble result dicts and return formatted strings
 - Rationale: Decouples calculation from presentation
 - Enables flexible output format switching
@@ -378,6 +396,15 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Space for checkboxes
 - Enter to confirm
 - Rationale: Familiar to CLI users, accessible without mouse
+
+
+**DD-4.3.3: Local Web UI as an Optional Third Surface**
+- `uv run filter-calc web` serves a browser page on 127.0.0.1:8765 from the optional `web` extra
+- The page shows the CLI's own output text, and its downloads are byte-identical to CLI output
+- CLI, wizard, and web share one design service, so results cannot drift between surfaces
+- Local-only by default: loopback bind, same-page request check, no stored data
+- Rationale: a graphical surface with a response plot, without a second implementation or a
+  Node toolchain; see [system-architecture.md](system-architecture.md#web-architecture)
 
 ---
 
@@ -478,7 +505,7 @@ Status: ✓ Measured ~200ms on reference machine
 - [ ] Manufacturing cost estimation
 
 #### 6.2 Potential Platforms
-- [ ] Web UI (Streamlit or FastAPI)
+- [x] Web UI: delivered in 2.2.0 as a local FastAPI + HTMX page (`filter-calc web`)
 - [ ] GUI application (PyQt/Tkinter)
 - [ ] Mobile app (iOS/Android via React Native)
 - [ ] Excel add-in via PyXLL
@@ -496,7 +523,7 @@ Status: ✓ Measured ~200ms on reference machine
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
 | Test Coverage | ≥90% | Enforced by CI | ✓ Met |
-| Test Count | >300 | >2,000 collected | ✓ Exceeded |
+| Test Count | >300 | >4,500 collected | ✓ Exceeded |
 | Documentation Files | >6 | 14 | ✓ Exceeded |
 | Code Issues | 0 critical | 0 | ✓ Met |
 | Response Time | <500ms | ~200ms | ✓ Met |
@@ -544,7 +571,7 @@ Status: ✓ Measured ~200ms on reference machine
 
 ## Document Control
 
-**Last Updated**: July 19, 2026
+**Last Updated**: October 7, 2026
 **Author**: Matt N3AR
 **Status**: Active (Production)
-**Next Review**: Q3 2026
+**Next Review**: Q1 2027

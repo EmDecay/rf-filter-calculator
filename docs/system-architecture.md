@@ -78,10 +78,12 @@ The normal command flow is:
 logic in `shared/lp_hp_base_calculations.py` and
 `shared/lp_hp_base_transfer_functions.py`.
 
-Public calculation functions preserve the historical return shape:
+Public calculation functions preserve the historical return shape. Lowpass returns
+capacitors first; highpass returns inductors first, because the LP→HP transform swaps the
+component roles:
 
 ```python
-capacitors, inductors, order = calculate_butterworth(
+capacitors, inductors, order = lowpass.calculate_butterworth(
     cutoff_hz=10e6,
     impedance=50.0,
     num_components=5,
@@ -89,7 +91,9 @@ capacitors, inductors, order = calculate_butterworth(
 )
 ```
 
-The element lists contain Farads and Henries. The display layer adds the filter metadata.
+The element lists contain Farads and Henries. `filter_lib.design` adds the filter metadata
+and builds the result dictionary every surface renders.
+
 Butterworth and Bessel use their normalized prototypes; Chebyshev g-values are computed
 from formula for ripple in `(0, 3]` dB. Equal-termination Chebyshev ladders require odd
 order. For LP/HP, the requested Chebyshev cutoff is the ripple-band edge rather than the
@@ -195,9 +199,10 @@ center/bandwidth result.
 The refinement layer owns evaluated extrema, connected regions and bracketed crossings;
 calibration retains its independently tested array-based helpers and acceptance thresholds.
 This separation repairs reporting without retuning synthesis to satisfy its own measurement.
-The CLI and wizard build the whole BP table, threshold table included, from
-`bandpass.display.format_table_lines`, as LP/HP tables come from `shared/lp_hp_display.py`.
-A second renderer previously let the wizard drift from the CLI.
+The CLI, wizard, and web UI all render tables through `filter_lib.design.render_lines`, which
+builds the whole BP table, threshold table included, from `bandpass.display.format_table_lines`
+and LP/HP tables from `shared/lp_hp_display.py`. A second renderer previously let the wizard
+drift from the CLI.
 See [measurement semantics and numerical policy](user-guide.md#interpreting-response-measurements).
 
 ## Output contracts

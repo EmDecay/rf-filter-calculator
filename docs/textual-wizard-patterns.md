@@ -49,8 +49,8 @@ has a monotonically increasing calculation revision:
 This prevents a canceled or stale calculation from overwriting a newer design.
 
 Textual cannot interrupt a thread worker, so cancellation is cooperative. The worker passes
-`should_cancel` (a check of `get_current_worker().is_cancelled`) to `analyze_build`, which polls
-it before each screening case and raises `BuildAnalysisCancelled`. Quit, Esc, and Design Another
+`should_cancel` (a check of the worker's `is_cancelled`) through `filter_lib.design` to the build
+analysis, which polls it before each screening case and raises `BuildAnalysisCancelled`. Quit, Esc, and Design Another
 therefore stop a long realized-build analysis after at most one more circuit measurement,
 instead of leaving the thread running until it finishes. The worker runs with
 `exit_on_error=False`: an unexpected exception is rendered as "Calculation failed: …" on
@@ -68,13 +68,15 @@ sidecar is written beside the component file. Files use UTF-8 and CSV-safe newli
 - Screen modules: widgets, focus flow, notifications, and navigation.
 - `bandpass_form.py`: BP form parsing and field-specific errors.
 - `build_options.py`: output/build compatibility and `BuildConfig` mapping.
-- `filter_type_calculators.py`: category calculation and primary rendering.
-- `calculation_handler.py`: detached orchestration and success/error outcomes.
-- `export_formatting.py`: component and response serialization.
+- `filter_type_calculators.py`: map state to a `DesignRequest` and render with
+  `filter_lib.design`.
+- `calculation_handler.py`: detached orchestration, optional build analysis, and success/error
+  outcomes.
+- `export_formatting.py`: component and response files, rendered by `filter_lib.design`.
 - `state.py`: state, snapshots, revisions, and publication invariants.
 
-Business calculations and machine schemas belong in shared calculator modules so CLI and wizard
-cannot drift.
+Business calculations, rendering, and machine schemas belong in `filter_lib.design` and the
+shared calculator modules, never in a screen, so the CLI, wizard, and web UI cannot drift.
 
 ## Testing
 

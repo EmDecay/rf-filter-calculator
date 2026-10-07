@@ -5,7 +5,7 @@ The calculator separates a synthesis target, a selected nominal build, and simul
 ## Input and numeric limits
 
 - Reactive-element counts are integers from 2 through 9. Equal-termination Chebyshev designs require odd order: 3, 5, 7, or 9.
-- Chebyshev ripple is finite and in `0 < ripple <= 3.0 dB` in the CLI, wizard, and public synthesis APIs.
+- Chebyshev ripple is finite and in `0 < ripple <= 3.0 dB` in the CLI, wizard, web UI, and public synthesis APIs.
 - Frequency, bandwidth, impedance, Q, and component values must be positive finite numbers. Values whose formulas underflow or overflow IEEE-754 binary64 are rejected instead of producing zero, infinity, NaN, or a misleading component value.
 - Component Q (`--inductor-q`, `--capacitor-q`, the wizard's resonator Q, and bandpass `--qu`/`--ql`/`--qc`) must be in `[0.01, 1e9]`; omit Q for a lossless part. Build-analysis and SPICE source/load resistances must be within 1e-6 to 1e6 times the design impedance. These bounds exclude only values no lumped filter contains; beyond them a single analysis could take minutes.
 - Bandpass requires `bw < f0`. Use either center plus bandwidth or low/high edges, not both. Explicit low/high edges must be ordered.
@@ -131,6 +131,14 @@ The project structurally and numerically tests generated decks but does not bund
 The bandwidth/order-aware BP linear sweep resolves the requested passband; it does not qualify
 every possible sharp resonance in a perturbed build. Extend or refine it for the particular
 measurement and remote rejection requirements. LP/HP decks use logarithmic sweeps.
+
+## Web UI limits
+
+- The web UI is a local tool. It has no login, stores nothing, and is not hardened for hosting on the internet. Binding with `--host 0.0.0.0` exposes it to everyone on the network and turns off its check that requests are addressed to this computer.
+- Browser submissions are accepted only from the web UI's own page. Scripts that send no browser origin headers, such as `curl`, can still use it.
+- A calculation is cut off after 60 seconds. Realized-build analysis stops at its next case; synthesis already running cannot be interrupted and finishes in the background, then is discarded. At most two calculations run at once and the rest wait their turn.
+- Form fields that do not apply to the chosen output are ignored rather than rejected, because a form always submits every field. Combinations the CLI refuses as contradictory, such as resonator-loss Q with an output that cannot show it, are refused the same way.
+- The response plot shows magnitude only, on a fixed grid from the response-data export; zoom with the CLI's `--plot` or by plotting the downloaded data.
 
 ## Construction reality
 

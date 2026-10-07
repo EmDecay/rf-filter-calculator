@@ -1,6 +1,12 @@
 # RF Filter Calculator
 
-A command-line tool for calculating LC filter component values. Designed for RF engineers and amateur radio operators.
+Calculates LC filter component values for RF engineers and amateur radio operators. There are three ways to use it, all backed by the same engine and producing the same results:
+
+| Interface | Start it with | Best for |
+|---|---|---|
+| Command line | `uv run filter-calc lowpass …` | Scripting, repeatable designs, machine-readable output |
+| Interactive wizard (terminal) | `uv run filter-calc` | Guided design without remembering flags |
+| Web UI (browser, this computer only) | `uv run filter-calc web` | Point-and-click design with a response plot and downloads; needs the optional `web` extra |
 
 ## Features
 
@@ -14,8 +20,8 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 - **Screened Toroid Candidates**: Automatic selection is limited to exact parts with primary-source core data (currently T25-6, T50-2, and T68-2), published material guidance, acceptable integer-turn error, and winding-capacity checks. RF Q, SRF, core loss, saturation, temperature rise, and power suitability are explicitly not assessed
 - **ASCII Plots**: Visualize frequency response (LP/HP analytic, BP simulated)
 - **Multiple Outputs**: Table, JSON, CSV, generic SPICE, and standalone response-data exports
-- **Interactive Wizard**: Guided TUI design mode with error surface
-- **Web UI**: `filter-calc web` serves a local browser page with the same designs, the CLI's own output text, an SVG response plot, and byte-identical downloads (optional `web` extra)
+- **Interactive Wizard**: Guided terminal (TUI) design mode with clear error messages
+- **Web UI**: A local browser page with the same designs, the CLI's own output text, an SVG response plot, and downloads identical to the CLI's files
 - **Root --version Support**: `filter-calc --version` prints the installed version and exits
 
 ## Installation
@@ -45,20 +51,11 @@ For the browser UI, add the optional `web` extra (FastAPI, uvicorn, Jinja2):
 uv sync --extra web                  # add --group dev for development
 ```
 
-### Breaking Changes (v2.0.0)
-
-**Migration from v1.x:** `-t` short flag removed (use `--type` instead); `--verify` removed from bandpass; `-r` now warns if used with non-Chebyshev filters; ripple validation changed from hardcoded tiers to 0 < r ≤ 3.0; wizard resonator default changed to 3. See [docs/project-changelog.md](docs/project-changelog.md) for full details and migration path.
-
-### Accuracy and Build Remediation (v2.1.0)
-
-Version 2.1.0 makes calculated, nominal-build, tolerance-screening, and SPICE results explicit. It also replaces blanket bandpass support claims with per-design validation metadata, hardens finite-number handling, adds independent tank L/impedance controls and complete-resonator Q semantics, restricts automatic toroid selection to primary-sourced parts, and makes E-series selection deterministic. `--sim-matched` remains as a deprecated compatibility alias; use `--sim-build` for new workflows.
-
 ## Quick Start
 
-```bash
-# Start interactive wizard (default when no arguments given)
-uv run filter-calc
+### Command line
 
+```bash
 # 5th-order Butterworth lowpass Pi at 10 MHz
 uv run filter-calc lowpass butterworth pi 10MHz -n 5
 
@@ -75,6 +72,23 @@ uv run filter-calc highpass chebyshev -T pi -f 14MHz -r 0.5
 uv run filter-calc bandpass butterworth top -f 14.175MHz -b 350kHz
 ```
 
+### Interactive wizard
+
+```bash
+uv run filter-calc
+```
+
+Running with no arguments opens the terminal wizard: pick a filter category, fill in the form, choose output options, and read the result. See [Interactive Wizard](#interactive-wizard) below.
+
+### Web UI
+
+```bash
+uv sync --extra web        # once: installs the optional web dependencies
+uv run filter-calc web     # then open http://127.0.0.1:8765/ in your browser
+```
+
+Pick a tab (Low-pass, High-pass, Band-pass), adjust the form, and select **Design filter**. Press `Ctrl+C` in the terminal to stop the server. See [Web UI](#web-ui) below.
+
 ### Running without `uv run`
 
 The `uv sync` command creates a virtual environment in `.venv/` at the project root. If you activate that virtual environment in your shell, you can run `./filter-calc.py` directly instead of prefixing every command with `uv run`:
@@ -87,12 +101,14 @@ source .venv/bin/activate.fish  # Fish shell
 
 # Now you can run the script directly
 ./filter-calc.py lowpass butterworth pi 10MHz -n 5
+./filter-calc.py            # wizard
+./filter-calc.py web        # web UI (needs the web extra)
 
 # When you're done, deactivate the virtual environment
 deactivate
 ```
 
-## Usage
+## Command-Line Usage
 
 ### Lowpass Filter
 
@@ -138,48 +154,17 @@ bandwidth and agree with the requested values to floating-point precision.
 **Coupling topologies:**
 - `top` / `t` — Top-coupled series capacitors (Ce_in/Ce_out for external Q, Cs12/Cs23 for inter-resonator coupling; the only supported kind)
 
-### Interactive Wizard
-
-```bash
-uv run filter-calc          # default when no arguments given
-uv run filter-calc wizard   # explicit subcommand (alias: w)
-```
-
-Running with no arguments starts a Textual TUI wizard with screen-based navigation:
-
-1. **Welcome Screen** - Select filter type (lowpass, highpass, bandpass)
-2. **Filter Configuration** - Set response type, topology, frequency, impedance, order
-3. **Output Options** - Choose E-series matching, output/export settings, toroid winding detail (Full or Compact), and optional realized-build controls
-4. **Results** - View the current calculation; stale or canceled workers cannot overwrite a newer result, and Save exports the component format independently of an optional response-data sidecar
-
-**Keyboard shortcuts:**
-- `Tab` / `Shift+Tab` - Navigate between fields
-- `Enter` - Submit / select
-- `Escape` - Go back to previous screen
-- `Ctrl+C` - Quit
-
-Default values shown as placeholders; press Enter with empty field to use default.
-
-### Web UI
-
-```bash
-uv run filter-calc web [--host <address>] [--port <port>]
-```
-
-Starts a local server, by default at `http://127.0.0.1:8765/`, and prints the address. The page has a tab per filter category, a form whose fields mirror the CLI flags, and a result panel. The panel shows exactly the text the CLI prints for those settings, with an optional SVG response plot drawn from the same samples as `--plot-data`. Downloads (JSON, CSV, exact or nominal-build SPICE, response JSON/CSV) are byte-identical to the corresponding CLI output.
-
-The web UI is for use on one computer: it binds to the loopback address unless `--host` says otherwise, prints a warning for any other address, and has no authentication. Without the `web` extra, `filter-calc web` exits with an install hint. See [docs/user-guide.md](docs/user-guide.md#web-ui) for the field-to-flag mapping.
-
-## Options
+### Options
 
 | Option | Description |
 |--------|-------------|
 | `-T, --topology` | Filter topology: pi or t (required for lowpass/highpass) |
 | `--type` | Filter response: butterworth, chebyshev, bessel (or bw/ch/bs aliases) |
-| `-n, --components` | LP/HP reactive component count (2–9, default: 3) |
+| `-n, --components` | LP/HP reactive component count (2–9, default: 3; Chebyshev requires odd) |
 | `-n, --resonators` | Bandpass resonator count (2–9, default: 3; Chebyshev requires odd) |
 | `-f, --freq` | LP/HP cutoff frequency |
 | `-f, --frequency` | Bandpass center frequency (or use `--fl`/`--fh`) |
+| `-c, --coupling` | Bandpass coupling `top` (alias `t`), as an alternative to the positional form |
 | `-z, --impedance` | System impedance (default: 50Ω; accepts 50, 50ohm, 1k, 1M, etc.) |
 | `-r, --ripple` | Chebyshev passband ripple in dB, 0 < r ≤ 3.0 (default: 0.5; warns if used with non-Chebyshev) |
 | `-b, --bandwidth` | Bandpass bandwidth (or use `--fl`/`--fh` for explicit edges) |
@@ -196,17 +181,59 @@ The web UI is for use on one computer: it binds to the loopback address unless `
 | `--toroid-full` | Show up to three qualified toroid candidates per inductor in table output (default top-1; JSON includes up to three, CSV the best available) |
 | `--sim-matched` | Deprecated nominal-build comparison alias; use `--sim-build` |
 | `--sim-build` | Compare calculated and selected nominal circuits; add bounded tolerance screening and optional finite-Q loss |
-| `--capacitor-tolerance`, `--inductor-tolerance` | Independent bounds used by `--sim-build`; these are not inferred from the selected E-series |
+| `--capacitor-tolerance`, `--inductor-tolerance` (aliases `--cap-tolerance`, `--ind-tolerance`) | Independent bounds used by `--sim-build`; these are not inferred from the selected E-series |
 | `--inductor-q`, `--capacitor-q` | Component Q at the loss-reference frequency for build analysis or nominal SPICE |
 | `--loss-reference-frequency` | Reference used to convert supplied Q to constant series resistance; requires an effective Q |
 | `--source-resistance`, `--load-resistance` | Evaluation ports for transducer gain; synthesis remains equal-termination |
-| `--sample-count`, `--seed`, `--analysis-points` | Repeatable bounded screening and initial frequency-grid controls; measurements refine automatically |
+| `--sample-count` (alias `--samples`), `--seed`, `--analysis-points` | Repeatable bounded screening and initial frequency-grid controls; measurements refine automatically |
 | `--no-toroid-build` | Keep exact inductance as an explicit nominal fallback instead of selecting a screened winding |
 | `--spice-realization` | Select `exact` or `nominal-build` for `--format spice` (default: `nominal-build`) |
 | `--qu` | Complete resonator unloaded Q for bandpass loss estimates/build realization |
 | `--ql`, `--qc` | Bandpass inductor/capacitor Q; combined as `1/Qu = 1/QL + 1/QC` |
-| `--resonator-impedance`, `--resonator-inductance` | Choose tank reactance or L independently of the termination impedance |
+| `--resonator-impedance`, `--resonator-inductance` (aliases `--tank-impedance`, `--tank-inductance`) | Choose tank reactance or L independently of the termination impedance |
 | `--version` | Root option: `filter-calc --version` |
+| `--host`, `--port` | `web` subcommand only: bind address (default `127.0.0.1`) and port (default `8765`) |
+
+## Interactive Wizard
+
+```bash
+uv run filter-calc          # default when no arguments given
+uv run filter-calc wizard   # explicit subcommand (alias: w)
+```
+
+Running with no arguments starts a Textual TUI wizard with screen-based navigation:
+
+1. **Welcome Screen** - Select filter type (lowpass, highpass, bandpass)
+2. **Filter Configuration** - Set response type, topology, frequency, impedance, order
+3. **Output Options** - Choose E-series matching, output/export settings, toroid winding detail (Full or Compact), and optional realized-build controls
+4. **Results** - View the calculation and save it; the component file and an optional response-data file are chosen separately
+
+**Keyboard shortcuts:**
+- `Tab` / `Shift+Tab` - Navigate between fields
+- `Enter` - Submit / select
+- `Escape` - Go back to previous screen
+- `Ctrl+C` - Quit
+
+Default values shown as placeholders; press Enter with empty field to use default.
+
+## Web UI
+
+The web UI needs the optional `web` extra (`uv sync --extra web`). Start it with:
+
+```bash
+uv run filter-calc web [--host <address>] [--port <port>]
+```
+
+It prints its address (by default `http://127.0.0.1:8765/`) and serves until you press `Ctrl+C`. Without the extra, it exits with a message saying how to install it.
+
+**What the page offers:**
+- A tab for each filter category and a form whose fields match the command-line flags (see the [field-to-flag table](docs/user-guide.md#web-ui)).
+- A result panel showing exactly the text the command line prints for the same settings, with a **Copy** button.
+- An optional **response plot**, drawn from the same frequency samples as `--plot-data`.
+- **Downloads**: JSON, CSV, exact or nominal-parts SPICE, and response data (JSON or CSV), each identical to the matching command-line output.
+- Optional realized-build analysis. A calculation that runs longer than 60 seconds is stopped.
+
+**Local by design.** The web UI is meant for use on your own computer. It listens only on the loopback address unless you pass `--host`, warns when you do, and has no login. It accepts form submissions only from its own page, so other websites you visit cannot make your browser use it. Only use `--host 0.0.0.0` on a network you trust.
 
 ## Filter Type Aliases
 
@@ -218,7 +245,7 @@ The web UI is for use on one computer: it binds to the loopback address unless `
 
 ## Frequency Input Formats
 
-All of these are equivalent (case-insensitive):
+These formats work on the command line, in the wizard, and in the web form. All of these are equivalent (case-insensitive):
 ```
 10MHz  10M  10mhz  10m  10000000  10e6  10000k  10000kHz
 ```
@@ -228,6 +255,8 @@ Supported suffixes: `GHz`, `MHz`, `kHz`, `Hz`, `G`, `M`, `k`
 **Note:** Frequency and impedance must be positive values. Zero or negative values raise a validation error.
 
 ## Output Formats
+
+The web UI offers the same formats as download buttons; each download is identical to the command shown here.
 
 **JSON:**
 ```bash
@@ -261,11 +290,27 @@ uv run filter-calc bp bw top -f 14.175MHz -b 350kHz \
 
 The deck prints load-node voltage. Its comment gives the transducer-gain expression; the printed voltage is not itself gain in dB.
 
+## Release Notes
+
+### Web UI and shared design service (v2.2.0)
+
+Version 2.2.0 adds the local web UI (`filter-calc web`, optional `web` extra) and moves the command line, wizard, and web UI onto one shared design engine, so all three produce identical results. Command-line and wizard output is unchanged. It also ships the accuracy and stability fixes made after 2.1.0. See [docs/project-changelog.md](docs/project-changelog.md).
+
+### Accuracy and build remediation (v2.1.0)
+
+Version 2.1.0 makes calculated, nominal-build, tolerance-screening, and SPICE results explicit. It also replaces blanket bandpass support claims with per-design validation metadata, hardens finite-number handling, adds independent tank L/impedance controls and complete-resonator Q semantics, restricts automatic toroid selection to primary-sourced parts, and makes E-series selection deterministic. `--sim-matched` remains as a deprecated compatibility alias; use `--sim-build` for new workflows.
+
+### Breaking changes (v2.0.0)
+
+**Migration from v1.x:** `-t` short flag removed (use `--type` instead); `--verify` removed from bandpass; `-r` now warns if used with non-Chebyshev filters; ripple validation changed from hardcoded tiers to 0 < r ≤ 3.0; wizard resonator default changed to 3. See [docs/project-changelog.md](docs/project-changelog.md) for full details and migration path.
+
 ## Testing & CI
 
-Run the test suite with pytest:
+Run the test suite with pytest. Install the `web` extra too, or the web UI tests skip themselves:
 
 ```bash
+uv sync --group dev --extra web
+
 # Run all tests
 uv run pytest tests/ -v
 
@@ -273,7 +318,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** More than 2,000 collected cases, with a CI coverage floor of 90%, including an exhaustive 128-cell bandpass study, independent response verification, build/tolerance/loss contracts, strict JSON, generic SPICE, Python 3.10–3.13, wheel/sdist inspection, installed-wheel smoke tests, and real Textual pilot tests. See [docs/testing.md](docs/testing.md) for current details.
+**Test suite:** More than 4,500 collected cases, with a CI coverage floor of 90%, including an exhaustive 128-cell bandpass study, independent response verification, build/tolerance/loss contracts, strict JSON, generic SPICE, Python 3.10–3.13, wheel/sdist inspection, installed-wheel smoke tests, and real Textual pilot tests. See [docs/testing.md](docs/testing.md) for current details.
 
 ### Linting
 
@@ -307,9 +352,12 @@ rf-filter-calculator/
 
 ## Documentation
 
-See [docs/](docs/) for comprehensive documentation:
-- [User Guide](docs/user-guide.md) - Complete usage reference
+See [docs/](docs/README.md) for the full index. Good starting points:
+- [Quick Start Guide](docs/quick-start.md) - Common commands for all three interfaces
+- [User Guide](docs/user-guide.md) - Complete reference, including the [web UI field-to-flag table](docs/user-guide.md#web-ui)
+- [Sample Output](docs/sample-output.md) - What each output format looks like
 - [Filter Theory](docs/filter-theory.md) - Background on filter types
+- [Caveats & Known Issues](docs/caveats-and-known-issues.md) - Limits of the models and of the web UI
 - [Testing Guide](docs/testing.md) - Test suite documentation
 
 ## License

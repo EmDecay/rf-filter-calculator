@@ -352,13 +352,17 @@ must be positive finite numbers and magnitudes must be finite real dB values. CS
 use the shortest decimal that round-trips to the same binary64 value, so each row matches the
 JSON `frequency_hz` exactly; neither format prints a negative zero.
 
-## Wizard and Version
+## Wizard, Web UI, and Version
 
 ```bash
 uv run filter-calc       # wizard
+uv run filter-calc web   # web UI (needs the web extra)
 uv run filter-calc --version
 ```
 
 The wizard uses four screens: Welcome, one filter form, Output Options, and Results. The
 Results screen renders a selected plot in place and offers Design Another, Save/Export, and
 Quit. Escape navigates back; Ctrl+C exits.
+
+The web UI's result panel shows the same text as the table examples above, and its downloads
+match the JSON, CSV, SPICE, and response-data examples byte for byte.
