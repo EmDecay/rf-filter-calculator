@@ -1,0 +1,161 @@
+/*
+ * Design tokens for the filter calculator web UI (product register).
+ * Brief: instrument panel, restrained cool-steel palette (--hue 215), one UI family,
+ * monospace for every number the tool prints or the user types. Every value in
+ * app.css and the SVG plot references one of these tokens.
+ */
+:root {
+  /* Brand hue drives neutral tint and accent (0-360). */
+  --hue: 215;
+
+  /* Neutrals: one tinted gray ramp. */
+  --gray-0: oklch(99% 0.003 var(--hue));
+  --gray-50: oklch(97.5% 0.005 var(--hue));
+  --gray-100: oklch(95% 0.006 var(--hue));
+  --gray-200: oklch(91% 0.008 var(--hue));
+  --gray-300: oklch(85% 0.01 var(--hue));
+  --gray-400: oklch(70% 0.012 var(--hue));
+  --gray-500: oklch(56% 0.014 var(--hue));
+  --gray-600: oklch(45% 0.014 var(--hue));
+  --gray-700: oklch(36% 0.012 var(--hue));
+  --gray-800: oklch(26% 0.01 var(--hue));
+  --gray-900: oklch(19% 0.008 var(--hue));
+
+  /* Roles (use these in components, not the ramp). */
+  --bg: var(--gray-50);
+  --surface: var(--gray-0);
+  --surface-sunken: var(--gray-100);
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --text: var(--gray-900);
+  --text-muted: var(--gray-600);
+  --text-subtle: var(--gray-500);
+  --accent: oklch(50% 0.15 var(--hue)); /* 4.5:1 with white text at hue 215 */
+  --accent-hover: oklch(45% 0.15 var(--hue));
+  --accent-soft: oklch(95% 0.03 var(--hue));
+  --on-accent: oklch(99% 0 0);
+  --focus-ring: oklch(62% 0.16 var(--hue));
+  --success: oklch(55% 0.13 150);
+  --warning: oklch(70% 0.14 75);
+  --danger: oklch(55% 0.18 25);
+  --danger-soft: oklch(96% 0.02 25);
+  --warning-soft: oklch(96% 0.03 75);
+
+  /* Type: one family, ratio 1.2, fixed rem. */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;   /* 12 labels, meta */
+  --text-sm: 0.8125rem; /* 13 table cells, secondary */
+  --text-base: 0.875rem;/* 14 body in dense UI */
+  --text-md: 1rem;      /* 16 inputs, reading text */
+  --text-lg: 1.125rem;  /* 18 section titles */
+  --text-xl: 1.375rem;  /* 22 page titles */
+  --text-2xl: 1.75rem;  /* 28 rare, empty-state headline */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Space: 4pt scale. Related items use 1-3, groups use 5-6, regions use 7-8. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+  --space-9: 64px;
+
+  /* Shape and depth: hairlines and tints; shadow only for overlays. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 999px;
+  --shadow-overlay: 0 1px 2px oklch(20% 0.02 var(--hue) / 0.06),
+    0 8px 24px oklch(20% 0.02 var(--hue) / 0.12);
+
+  /* Sizing */
+  --control-h-sm: 28px;
+  --control-h: 36px;
+  --control-h-lg: 44px;
+  --sidebar-w: 240px;
+  --topbar-h: 56px;
+  --content-max: 1280px;
+  --form-col-w: 420px;   /* design form column on wide screens */
+  --plot-min-w: 520px;   /* below this the plot scrolls instead of shrinking its labels */
+  --hairline: 1px;
+
+  /* Motion: state changes only. */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 240ms;
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+
+  /* Layers */
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-tooltip: 60;
+}
+
+/* Dark scheme: lighten surfaces for elevation instead of adding shadows. */
+:root[data-theme="dark"] {
+  --bg: oklch(16% 0.008 var(--hue));
+  --surface: oklch(19.5% 0.009 var(--hue));
+  --surface-sunken: oklch(14% 0.008 var(--hue));
+  --border: oklch(28% 0.01 var(--hue));
+  --border-strong: oklch(35% 0.012 var(--hue));
+  --text: oklch(94% 0.005 var(--hue));
+  --text-muted: oklch(72% 0.01 var(--hue));
+  --text-subtle: oklch(62% 0.012 var(--hue));
+  --accent: oklch(68% 0.14 var(--hue));
+  --accent-hover: oklch(74% 0.13 var(--hue));
+  --accent-soft: oklch(28% 0.05 var(--hue));
+  --on-accent: oklch(16% 0.01 var(--hue));
+  --danger: oklch(72% 0.15 25);
+  --danger-soft: oklch(26% 0.05 25);
+  --warning-soft: oklch(27% 0.05 75);
+}
+
+/* Follow the operating system unless a theme is forced. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: oklch(16% 0.008 var(--hue));
+    --surface: oklch(19.5% 0.009 var(--hue));
+    --surface-sunken: oklch(14% 0.008 var(--hue));
+    --border: oklch(28% 0.01 var(--hue));
+    --border-strong: oklch(35% 0.012 var(--hue));
+    --text: oklch(94% 0.005 var(--hue));
+    --text-muted: oklch(72% 0.01 var(--hue));
+    --text-subtle: oklch(62% 0.012 var(--hue));
+    --accent: oklch(68% 0.14 var(--hue));
+    --accent-hover: oklch(74% 0.13 var(--hue));
+    --accent-soft: oklch(28% 0.05 var(--hue));
+    --on-accent: oklch(16% 0.01 var(--hue));
+    --danger: oklch(72% 0.15 25);
+    --danger-soft: oklch(26% 0.05 25);
+    --warning-soft: oklch(27% 0.05 75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur: 0ms; --dur-slow: 0ms; }
+}
+
+/* Touch screens and phone widths: controls grow to a 44px target. */
+@media (pointer: coarse), (max-width: 520px) {
+  :root { --control-h-sm: 36px; --control-h: 44px; --control-h-lg: 48px; }
+}
+
+body {
+  font: var(--weight-regular) var(--text-base) / var(--leading-normal) var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }

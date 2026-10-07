@@ -7,9 +7,9 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as metadata_version
 
 from .. import __version__
-from . import bandpass_cmd, highpass_cmd, lowpass_cmd, wizard_cmd
+from . import bandpass_cmd, highpass_cmd, lowpass_cmd, web_cmd, wizard_cmd
 
-__all__ = ["lowpass_cmd", "highpass_cmd", "bandpass_cmd", "wizard_cmd", "main"]
+__all__ = ["lowpass_cmd", "highpass_cmd", "bandpass_cmd", "wizard_cmd", "web_cmd", "main"]
 
 
 def _package_version() -> str:
@@ -45,6 +45,7 @@ def main():
   highpass (hp)  LC high-pass filter (Pi or T topology)
   bandpass (bp)  Coupled resonator bandpass filter
   wizard (w)     Interactive wizard (TUI)
+  web            Browser UI on this computer (optional web extra)
 
 Run with no arguments to start the interactive wizard.
 
@@ -89,6 +90,12 @@ Examples:
     wizard_parser = subparsers.add_parser("wizard", aliases=["w"], help="Interactive wizard (TUI)")
     wizard_cmd.setup_parser(wizard_parser)
     wizard_parser.set_defaults(func=wizard_cmd.run)
+
+    web_parser = subparsers.add_parser(
+        "web", help="Browser UI on this computer (needs the web extra)"
+    )
+    web_cmd.setup_parser(web_parser)
+    web_parser.set_defaults(func=web_cmd.run)
 
     args = parser.parse_args()
 

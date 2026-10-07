@@ -30,7 +30,8 @@ def _documented_commands() -> list[tuple[str, str]]:
             arguments = match.group("arguments").strip()
             if not arguments or any(marker in arguments for marker in "<[$"):
                 continue
-            if shlex.split(arguments)[0] in {"wizard", "w"}:
+            # Interactive surfaces never return; a documented server launch would block.
+            if shlex.split(arguments)[0] in {"wizard", "w", "web"}:
                 continue
             commands.setdefault(arguments, document.name)
     return [(document, arguments) for arguments, document in commands.items()]
