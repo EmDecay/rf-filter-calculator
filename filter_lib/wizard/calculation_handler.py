@@ -1,8 +1,8 @@
 """Calculation orchestration for wizard results.
 
 Main entry point that routes to filter-specific calculators.
-The actual calculation logic is in filter_type_calculators.py.
-Formatting helpers are in formatting_helpers.py.
+The actual calculation logic is in filter_type_calculators.py, which calls the shared
+``filter_lib.design`` service and renderer.
 """
 
 from collections.abc import Callable
@@ -28,6 +28,7 @@ def calculate_and_format(
     """
     # Deferred so the wizard UI can start without loading the calculation
     # stack; it's only paid when the user actually reaches the results screen.
+    from filter_lib.design import render_lines, with_build_analysis
     from filter_lib.shared.build_types import BuildAnalysisCancelled
 
     from .filter_type_calculators import calculate_bandpass, calculate_highpass, calculate_lowpass
@@ -40,56 +41,32 @@ def calculate_and_format(
     snapshot.output_text = ""
     snapshot.build_analysis = None
 
-    if snapshot.build_analysis_enabled:
-        if snapshot.output_format not in {"table", "json"}:
-            return CalculationOutcome(
-                status="error",
-                error=(
-                    "Realized-build analysis is supported only with table or JSON component output"
-                ),
-            )
-        if snapshot.quiet:
-            return CalculationOutcome(
-                status="error",
-                error="Realized-build analysis cannot be combined with quiet output",
-            )
-        if snapshot.eseries == "none":
-            return CalculationOutcome(
-                status="error",
-                error="Realized-build analysis requires an E-series",
-            )
+    try:
+        options = snapshot.to_render_options()
+        # Reject unsupported output modes before any synthesis or analysis runs.
+        if snapshot.build_analysis_enabled:
+            options.validate_for_build()
+    except ValueError as e:
+        return CalculationOutcome(status="error", error=str(e))
+
+    calculators = {
+        "lowpass": calculate_lowpass,
+        "highpass": calculate_highpass,
+        "bandpass": calculate_bandpass,
+    }
+    if snapshot.category not in calculators:
+        return CalculationOutcome(status="error", error="Unknown filter category")
 
     try:
-        if snapshot.category == "lowpass":
-            lines = calculate_lowpass(snapshot)
-        elif snapshot.category == "highpass":
-            lines = calculate_highpass(snapshot)
-        elif snapshot.category == "bandpass":
-            lines = calculate_bandpass(snapshot)
-        else:
-            return CalculationOutcome(status="error", error="Unknown filter category")
+        lines = calculators[snapshot.category](snapshot)
 
         build_analysis = None
         if snapshot.build_analysis_enabled:
-            from filter_lib.shared.build_output import format_build_analysis_block
-            from filter_lib.shared.build_simulation import analyze_build
-
-            build_analysis = analyze_build(
-                snapshot.result,
-                snapshot.category,
-                snapshot.make_build_config(),
-                should_cancel=should_cancel,
+            outcome = with_build_analysis(
+                snapshot.design_result(), snapshot.make_build_config(), should_cancel
             )
-            if snapshot.output_format == "json":
-                lines = [_format_build_json(snapshot, build_analysis)]
-            else:
-                lines.extend(
-                    (
-                        "",
-                        "Synthesis target: requested response and calculated components above.",
-                    )
-                )
-                lines.extend(format_build_analysis_block(build_analysis))
+            build_analysis = outcome.build_analysis
+            lines = render_lines(outcome, options)
     except BuildAnalysisCancelled:
         # Only a cancelled worker sees this, and its revision can no longer publish.
         return CalculationOutcome(status="error", error="Calculation cancelled")
@@ -105,21 +82,4 @@ def calculate_and_format(
         output_text=output_text,
         result=deepcopy(snapshot.result),
         build_analysis=deepcopy(build_analysis),
-    )
-
-
-def _format_build_json(state: FilterState, build_analysis) -> str:
-    """Format component JSON with the shared realized-build schema attached."""
-    eseries = state.eseries
-    if state.category == "lowpass":
-        from filter_lib.lowpass.display import format_json
-    elif state.category == "highpass":
-        from filter_lib.highpass.display import format_json
-    else:
-        from filter_lib.bandpass.formatters import format_json
-
-    return format_json(
-        state.result,
-        eseries=eseries,
-        build_analysis=build_analysis,
     )

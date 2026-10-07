@@ -20,19 +20,19 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
 
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           cache-suffix: quality
 
       - name: Install dependencies
-        run: uv sync --locked --group dev
+        run: uv sync --locked --group dev --extra web
 
       - name: Lint
         run: uv run --locked ruff check .
@@ -50,19 +50,19 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ matrix.python-version }}
 
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           cache-suffix: py${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: uv sync --locked --group dev
+      - name: Install dependencies (with the web extra)
+        run: uv sync --locked --group dev --extra web
 
       - name: Check runtimes without coverage overhead
         run: uv run --locked pytest tests/ -m runtime_budget
@@ -76,20 +76,53 @@ jobs:
           --cov-report=xml
           --cov-fail-under=90
 
+  core-install:
+    name: Core install without the web extra
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.10"
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-suffix: core
+
+      - name: Install dependencies (no extras)
+        run: uv sync --locked --group dev
+
+      - name: Run the suite; web tests skip themselves
+        run: uv run --locked pytest tests/ -m "not runtime_budget" -q
+
+      - name: filter-calc web explains how to install the extra
+        run: |
+          set +e
+          message=$(uv run --locked filter-calc web 2>&1)
+          status=$?
+          set -e
+          echo "$message"
+          test "$status" -eq 1
+          test "$message" = "Error: The web UI needs the optional web dependencies; install with: uv sync --extra web"
+
   package:
     name: Build and smoke distributions
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [quality, test]
+    needs: [quality, test, core-install]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
 
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           cache-suffix: package
@@ -109,7 +142,7 @@ jobs:
         run: python tests/wheel_smoke.py dist/*.whl
 
       - name: Upload distributions
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rf-filter-calculator-${{ github.sha }}
           path: dist/*

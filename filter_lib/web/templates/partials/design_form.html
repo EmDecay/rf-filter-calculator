@@ -1,0 +1,57 @@
+{%- from "partials/fields.html" import segmented, text_field with context -%}
+<nav class="tabs" aria-label="Filter category">
+  {% for name in categories %}
+  <a class="tab" href="/?category={{ name }}"
+     hx-get="/form/{{ name }}" hx-target="#design-form-slot" hx-push-url="/?category={{ name }}"
+     {%- if name == category %} aria-current="page"{% endif %}>{{ category_labels[name] }}</a>
+  {% endfor %}
+</nav>
+
+<form id="design-form" class="design-form" method="post" action="/design/{{ category }}"
+      hx-post="/design/{{ category }}" hx-target="#result" hx-indicator="#design-form"
+      hx-disabled-elt="find .btn--primary">
+  <fieldset class="group">
+    <legend class="group__title">Response</legend>
+    <div class="fields">
+      {{ segmented("filter_type", "Filter type", [("butterworth", "Butterworth"), ("chebyshev", "Chebyshev"), ("bessel", "Bessel")]) }}
+      {% if category == "bandpass" %}
+      <div class="field field--wide">
+        <span class="field__label">Coupling</span>
+        <p class="field__static">Top-C: series capacitors couple the resonators</p>
+        <input type="hidden" name="coupling" value="top">
+      </div>
+      {% else %}
+      {{ segmented("topology", "Topology", [("pi", "Pi · shunt first"), ("t", "T · series first")]) }}
+      {% endif %}
+      {{ text_field("ripple", "Passband ripple (dB)", help="Chebyshev only; above 0 and at most 3 dB.", show_for="chebyshev") }}
+    </div>
+  </fieldset>
+
+  {% if category == "bandpass" %}
+    {% include "partials/bandpass_fields.html" %}
+  {% else %}
+  <fieldset class="group">
+    <legend class="group__title">Frequency and size</legend>
+    <div class="fields">
+      {{ text_field("frequency", "Cutoff frequency", help="Units: Hz, kHz, MHz, GHz (10MHz, 10M, 10e6).", wide=true) }}
+      {{ text_field("components", "Components", help="2 to 9.", inputmode="numeric") }}
+      {{ text_field("impedance", "Impedance (Ω)", help="Source and load; k and M allowed.") }}
+    </div>
+  </fieldset>
+  {% endif %}
+
+  {% include "partials/output_options.html" %}
+  {% include "partials/build_options.html" %}
+
+  <div class="submit-bar">
+    <button class="btn btn--primary" type="submit">
+      <span class="btn__spinner" aria-hidden="true"></span>
+      <span class="btn__label">Design filter</span>
+      <span class="btn__busy-label">Designing…</span>
+    </button>
+  </div>
+</form>
+
+{% if reset_result %}
+<div id="result" class="result-slot" aria-live="polite" hx-swap-oob="true">{% include "partials/empty.html" %}</div>
+{% endif %}

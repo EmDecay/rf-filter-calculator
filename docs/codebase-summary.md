@@ -1,9 +1,9 @@
 # Codebase Summary
 
-**Last updated:** July 19, 2026
-**Version:** 2.1.0
+**Last updated:** October 7, 2026
+**Version:** 2.2.0
 
-RF Filter Calculator is a Python 3.10+ command-line and Textual TUI application for
+RF Filter Calculator is a Python 3.10+ command-line, Textual TUI, and local web application for
 synthesizing lowpass, highpass, and coupled-resonator bandpass LC filters. The current
 design explicitly separates calculated values, selected physical parts, estimated loss,
 and simulated build behavior.
@@ -15,26 +15,58 @@ and simulated build behavior.
 - Ruff lint and format gates
 - Full test matrix on Python 3.10–3.13
 - Wheel and source-distribution inspection plus installed-wheel smoke test
-- One runtime dependency: Textual
+- One required runtime dependency, Textual; the optional `web` extra adds FastAPI, uvicorn,
+  Jinja2, and python-multipart for the browser UI
 
 ## Entry points
 
 - Installed command: `filter-calc` → `filter_lib.cli:main`
 - Source shim: `filter-calc.py`
 - No arguments: launches `filter_lib.wizard.FilterWizardApp`
+- `filter-calc web`: `filter_lib/cli/web_cmd.py` serves `filter_lib.web.create_app` with
+  uvicorn
 - Version: dynamically read from `filter_lib.__version__`
 
 ## Package layout
 
 ```text
 filter_lib/
-├── cli/            argparse setup, category handlers, mode validation
+├── cli/            argparse setup, category handlers, mode validation, web launcher
+├── design/         shared request → synthesis/build analysis → render/export path
 ├── lowpass/        LP public calculations, transfer, and display facades
 ├── highpass/       HP public calculations, transfer, and display facades
 ├── bandpass/       calibrated Top-C synthesis and independent verification
 ├── shared/         realization, solver, build analysis, outputs, parsing, plots
-└── wizard/         Textual screens, state, calculation workers, exports
+├── wizard/         Textual screens, state, calculation workers, exports
+└── web/            FastAPI app, form parsing, bounded execution, SVG plot, templates
 ```
+
+### Design service
+
+`filter_lib/design/` is the orchestration every surface calls; see
+[system-architecture.md](system-architecture.md#shared-design-service) for why.
+
+- `design_request.py` — `DesignRequest` and the cross-field rules every surface enforces
+- `design_service.py` — `design()`, `synthesize()`, `with_build_analysis()`
+- `render_options.py`, `render.py` — `RenderOptions` and `render_lines` for table, quiet,
+  JSON, and CSV
+- `export.py` — `export_spice`, `export_response_data`, and `response_series`
+
+The CLI maps its flags in `cli/design_output_args.py`; the wizard maps `FilterState` in
+`FilterState.to_design_request` and `to_render_options`.
+
+### Web UI
+
+- `app.py` — app factory, lifespan-owned calculation pool, error handlers, headers
+- `form_parsing.py`, `build_form_parsing.py`, `form_values.py` — form fields to request,
+  options, and build configuration
+- `execution.py` — bounded pool with timeout and cancellation
+- `request_guard.py` — same-origin and Host check applied to every request
+- `routes_pages.py`, `routes_design.py`, `routes_export.py` — page, design, and download
+  routes
+- `svg_plot.py` — SVG response chart
+- `templates/`, `static/` — Jinja2 partials, tokens and stylesheet, vendored HTMX with its
+  license
 
 ### Lowpass and highpass
 
@@ -110,6 +142,7 @@ comparison. New integrations should use `--sim-build`.
 | SPICE | Generic exact or nominal-build passive deck from the shared named circuit |
 | Plot data | Shared JSON/CSV response schema; analytic LP/HP, nodal BP |
 | Wizard save | Component export plus independent optional response-data sidecar |
+| Web UI | The CLI's text in the page, optional SVG plot, and downloads byte-identical to the CLI |
 
 Unsupported option/output combinations are rejected rather than silently ignored.
 Examples include E-series flags with raw/quiet/plot-data/exact-SPICE output and toroid
@@ -164,9 +197,10 @@ sidecar selection are separate.
 
 - `pyproject.toml` — setuptools build, dynamic version, dependency and tool settings
 - `uv.lock` — locked resolution
-- `.github/workflows/ci.yml` — quality, Python matrix, packaging/smoke jobs
+- `.github/workflows/ci.yml` — quality, Python matrix, core-install, packaging/smoke jobs
 - `filter_lib/shared/toroid_core_data.json` — packaged toroid data
 - `filter_lib/wizard/styles.tcss` — packaged wizard stylesheet
+- `filter_lib/web/templates/`, `filter_lib/web/static/` — packaged web templates and assets
 - `tests/wheel_smoke.py` — isolated installed-wheel smoke check
 - `plans/` — ignored implementation work records when a broad change needs a plan
 

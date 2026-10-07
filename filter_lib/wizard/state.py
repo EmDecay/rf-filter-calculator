@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from filter_lib.design import DesignRequest, DesignResult, RenderOptions
     from filter_lib.shared.build_simulation import BuildAnalysisResult, BuildConfig
 
 CalculationStatus = Literal["idle", "pending", "success", "error"]
@@ -181,6 +182,64 @@ class FilterState:
             seed=self.build_seed,
             grid_points=self.build_grid_points,
             use_toroid_candidates=self.build_use_toroid_candidates,
+        )
+
+    def to_design_request(self, include_build: bool) -> DesignRequest:
+        """Return the shared design request for the current inputs.
+
+        ``order`` carries the component count for ladders and the resonator count for
+        bandpass; ``topology`` carries the coupling id for bandpass. The build
+        configuration is attached only when ``include_build`` is true.
+        """
+        from filter_lib.design import DesignRequest
+
+        bandpass = self.category == "bandpass"
+        return DesignRequest(
+            category=self.category,
+            filter_type=self.filter_type,
+            topology=self.topology,
+            frequency_hz=self.frequency_hz,
+            impedance=self.impedance,
+            order=self.order,
+            ripple_db=self.ripple_db,
+            bandwidth_hz=self.bandwidth_hz if bandpass else None,
+            resonator_impedance=self.resonator_impedance if bandpass else None,
+            resonator_inductance=self.resonator_inductance if bandpass else None,
+            build=self.make_build_config() if include_build else None,
+        )
+
+    def to_render_options(self) -> RenderOptions:
+        """Return the shared render options for the wizard's output choices.
+
+        Unlike the CLI, the wizard always shows toroid windings, ends its table
+        without a blank line, and labels the synthesis target above a build block.
+        """
+        from filter_lib.design import RenderOptions
+
+        if self.output_format in ("json", "csv"):
+            output_format = self.output_format
+        else:
+            output_format = "quiet" if self.quiet else "table"
+        return RenderOptions(
+            output_format=output_format,
+            raw=self.raw_units,
+            eseries=None if self.eseries == "none" else self.eseries,
+            show_plot=self.show_plot,
+            include_toroids=True,
+            toroid_compact=self.toroid_detail == "compact",
+            toroid_full=self.toroid_detail == "full",
+            trailing_blank=False,
+            build_target_note=True,
+        )
+
+    def design_result(self) -> DesignResult:
+        """Return the stored calculation as a shared ``DesignResult`` for exports."""
+        from filter_lib.design import DesignResult
+
+        return DesignResult(
+            category=self.category,
+            result=self.result,
+            build_analysis=self.build_analysis,
         )
 
     def cancel_calculation(self, revision: int) -> bool:

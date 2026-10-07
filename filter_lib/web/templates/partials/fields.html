@@ -1,0 +1,37 @@
+{#- Form controls shared by the three category forms. `values` holds either the
+    submitted fields or the fresh defaults; a checkbox is checked when its name is present. -#}
+
+{% macro text_field(name, label, help="", placeholder="", wide=false, show_for="", band="", inputmode="decimal") -%}
+<div class="field{% if wide %} field--wide{% endif %}"{% if show_for %} data-show-for="{{ show_for }}"{% endif %}{% if band %} data-band="{{ band }}"{% endif %}>
+  <label class="field__label" for="f-{{ name }}">{{ label }}</label>
+  <input class="input" id="f-{{ name }}" name="{{ name }}" type="text" inputmode="{{ inputmode }}"
+         autocomplete="off" spellcheck="false" value="{{ values.get(name, '') }}"
+         {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
+         {%- if help %} aria-describedby="f-{{ name }}-help"{% endif %}>
+  {% if help %}<p class="field__help" id="f-{{ name }}-help">{{ help }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro segmented(name, label, options, wide=true) -%}
+<div class="field{% if wide %} field--wide{% endif %}">
+  <span class="field__label" id="f-{{ name }}-label">{{ label }}</span>
+  <div class="segmented" role="radiogroup" aria-labelledby="f-{{ name }}-label">
+    {% for value, text in options %}
+    <label class="segmented__option">
+      <input type="radio" name="{{ name }}" value="{{ value }}"{% if values.get(name) == value %} checked{% endif %}>
+      <span>{{ text }}</span>
+    </label>
+    {% endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro checkbox(name, label, help="") -%}
+<label class="check">
+  <input type="checkbox" name="{{ name }}"{% if name in values %} checked{% endif %}>
+  <span class="check__text">
+    <span class="check__label">{{ label }}</span>
+    {% if help %}<span class="check__help">{{ help }}</span>{% endif %}
+  </span>
+</label>
+{%- endmacro %}

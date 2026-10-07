@@ -3,7 +3,17 @@
 import sys
 from argparse import SUPPRESS, ArgumentParser, Namespace
 
-from ..bandpass import calculate_bandpass_filter, display_results
+from ..bandpass import display_results
+from ..design import (
+    DesignRequest,
+    band_from_edges,
+    design,
+    export_response_data,
+    export_spice,
+    render_lines,
+    with_build_analysis,
+)
+from ..design.design_request import check_q_safety
 from ..shared.cli_aliases import (
     DEFAULT_IMPEDANCE,
     DEFAULT_Q_SAFETY,
@@ -26,8 +36,8 @@ from ..shared.cli_helpers import (
     usage_error,
     validate_output_mode_args,
 )
-from ..shared.numeric import is_finite_real, positive_geometric_mean
 from ..shared.parsing import parse_frequency, parse_impedance, parse_inductance
+from .design_output_args import render_options_from_args, spice_realization_from_args
 from .toroid_flags import add_toroid_flags
 
 BP_EXAMPLE = "try: filter-calc bp bw top -f 14.2MHz -b 500kHz"
@@ -211,8 +221,7 @@ def run(args: Namespace) -> None:
     f0, bw, requested_f_low, requested_f_high = _validate_frequencies(args)
     z0 = parse_impedance(args.impedance)
 
-    if args.q_safety <= 0:
-        raise ValueError("Q safety factor must be positive")
+    check_q_safety(args.q_safety)
     if args.q_safety != DEFAULT_Q_SAFETY:
         print(
             "Warning: --q-safety is deprecated and retained only for the legacy Q heuristic",
@@ -232,24 +241,17 @@ def run(args: Namespace) -> None:
         if resonator_inductance_arg is not None
         else None
     )
-    if filter_type == "chebyshev":
-        if args.resonators % 2 == 0:
-            raise ValueError("Chebyshev requires odd resonator count")
-        # The 3.0 dB ripple ceiling is enforced upstream by resolve_ripple_arg
-        # (shared with LP/HP); only NaN/non-positive can reach this point.
-        if not is_finite_real(ripple_db) or ripple_db <= 0:
-            raise ValueError("Ripple must be positive and finite")
-
-    result = calculate_bandpass_filter(
-        f0=f0,
-        bw=bw,
-        z0=z0,
-        n_resonators=args.resonators,
+    request = DesignRequest(
+        category="bandpass",
         filter_type=filter_type,
-        coupling=coupling,
-        # Non-Chebyshev types ignore ripple but the parameter must still pass
-        # validation, so send the known-good default rather than user input.
-        ripple_db=ripple_db if filter_type == "chebyshev" else DEFAULT_RIPPLE_DB,
+        topology=coupling,
+        frequency_hz=f0,
+        impedance=z0,
+        order=args.resonators,
+        ripple_db=ripple_db,
+        bandwidth_hz=bw,
+        requested_f_low_hz=requested_f_low,
+        requested_f_high_hz=requested_f_high,
         q_safety=args.q_safety,
         qu=args.qu,
         ql=ql,
@@ -257,59 +259,43 @@ def run(args: Namespace) -> None:
         resonator_impedance=resonator_impedance,
         resonator_inductance=resonator_inductance,
     )
-    if requested_f_low is not None and requested_f_high is not None:
-        result["requested_parameters"].update(
-            {
-                "frequency_specification": "edge_frequencies",
-                "f_low_hz": requested_f_low,
-                "f_high_hz": requested_f_high,
-            }
-        )
+    outcome = design(request)
+    result = outcome.result
     validate_bandpass_output_args(args)
 
-    for w in result.get("warnings", []):
+    for w in outcome.warnings:
         print(f"Warning: {w}", file=sys.stderr)
 
-    build_config = None
-    build_analysis = None
-    matched_summary = None
-    matched_sim = None
     if args.format == "spice":
-        from ..shared.spice_export import export_spice_deck
-
-        build_config = make_build_config(args)
-        realization = (getattr(args, "spice_realization", None) or "nominal-build").replace(
-            "-", "_"
-        )
-        print(
-            export_spice_deck(
-                result,
-                "bandpass",
-                realization=realization,
-                config=build_config,
-            ),
-            end="",
-        )
+        config = make_build_config(args)
+        print(export_spice(outcome, spice_realization_from_args(args), config), end="")
         return
 
     if getattr(args, "sim_build", False):
-        from ..shared.build_simulation import analyze_build
-
-        build_config = make_build_config(args)
-        build_analysis = analyze_build(result, "bandpass", build_config)
+        outcome = with_build_analysis(outcome, make_build_config(args))
     elif getattr(args, "sim_matched", False):
-        from ..shared.matched_simulation import matched_sim_json_payload, run_matched_simulation
+        _run_deprecated_matched_simulation(args, result)
+        return
 
-        print("Warning: --sim-matched is deprecated; use --sim-build", file=sys.stderr)
-        matched_summary = run_matched_simulation(
-            result,
-            "bandpass",
-            args.eseries,
-            use_toroid_candidates=not args.no_toroids,
-        )
-        if args.format == "json":
-            matched_sim = matched_sim_json_payload(matched_summary)
+    if args.plot_data:
+        print(export_response_data(outcome, args.plot_data))
+        return
 
+    print("\n".join(render_lines(outcome, render_options_from_args(args))))
+
+
+def _run_deprecated_matched_simulation(args: Namespace, result: dict) -> None:
+    """Print the deprecated ``--sim-matched`` output, kept apart from the dispatcher."""
+    from ..shared.matched_simulation import (
+        format_matched_sim_block,
+        matched_sim_json_payload,
+        run_matched_simulation,
+    )
+
+    print("Warning: --sim-matched is deprecated; use --sim-build", file=sys.stderr)
+    summary = run_matched_simulation(
+        result, "bandpass", args.eseries, use_toroid_candidates=not args.no_toroids
+    )
     display_results(
         result,
         raw=args.raw,
@@ -317,22 +303,13 @@ def run(args: Namespace) -> None:
         quiet=args.quiet,
         eseries=None if args.no_match else args.eseries,
         show_plot=args.plot,
-        plot_data=args.plot_data,
         include_toroids=not args.no_toroids,
         toroid_compact=args.toroid_compact,
         toroid_full=args.toroid_full,
-        matched_sim=matched_sim,
-        build_analysis=build_analysis,
+        matched_sim=matched_sim_json_payload(summary) if args.format == "json" else None,
     )
-
-    if build_analysis is not None and args.format == "table" and not args.quiet:
-        from ..shared.build_output import format_build_analysis_block
-
-        print("\n".join(format_build_analysis_block(build_analysis)))
-    elif matched_summary is not None and args.format == "table" and not args.quiet:
-        from ..shared.matched_simulation import format_matched_sim_block
-
-        print("\n".join(format_matched_sim_block(matched_summary)))
+    if args.format == "table" and not args.quiet:
+        print("\n".join(format_matched_sim_block(summary)))
 
 
 def _validate_frequencies(args: Namespace) -> tuple[float, float, float | None, float | None]:
@@ -368,9 +345,6 @@ def _validate_frequencies(args: Namespace) -> tuple[float, float, float | None, 
     else:
         f_low = parse_frequency(args.f_low, label="Lower cutoff frequency")
         f_high = parse_frequency(args.f_high, label="Upper cutoff frequency")
-        if f_low >= f_high:
-            raise ValueError("Lower frequency must be less than upper")
-        f0 = positive_geometric_mean(f_low, f_high)
-        bw = f_high - f_low
+        f0, bw = band_from_edges(f_low, f_high)
 
     return f0, bw, f_low, f_high

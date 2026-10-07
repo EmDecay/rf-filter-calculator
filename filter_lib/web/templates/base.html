@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  {#- Error responses carry the message to show, so they are swapped like successes.
+      Indicator styles are ours: the CSP allows no injected style element. The page never
+      needs htmx to evaluate code or run scripts from swapped content, so both are off. #}
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false, "selfRequestsOnly": true, "responseHandling": [{"code": "204", "swap": false}, {"code": "[2345]..", "swap": true}, {"code": "...", "swap": false}]}'>
+  <title>{% block title %}RF Filter Calculator{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#design-form">Skip to the design form</a>
+  {% block body %}{% endblock %}
+</body>
+</html>

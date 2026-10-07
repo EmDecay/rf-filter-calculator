@@ -18,10 +18,17 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10 CI
 from filter_lib import __version__
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "2.1.0"
+EXPECTED_VERSION = "2.2.0"
 RUNTIME_RESOURCES = (
     "filter_lib/shared/toroid_core_data.json",
     "filter_lib/wizard/styles.tcss",
+    "filter_lib/web/templates/index.html",
+    "filter_lib/web/templates/partials/result.html",
+    "filter_lib/web/static/htmx.min.js",
+    "filter_lib/web/static/LICENSE-htmx.txt",
+    "filter_lib/web/static/tokens.css",
+    "filter_lib/web/static/app.css",
+    "filter_lib/web/static/app.js",
 )
 
 
@@ -50,6 +57,25 @@ def test_runtime_resources_are_explicit_package_data(project_config: dict) -> No
 
     assert package_data["filter_lib.shared"] == ["toroid_core_data.json"]
     assert package_data["filter_lib.wizard"] == ["styles.tcss"]
+    assert package_data["filter_lib.web"] == [
+        "templates/*.html",
+        "templates/partials/*.html",
+        "static/*",
+    ]
+
+
+def test_web_dependencies_are_an_optional_extra(project_config: dict) -> None:
+    """The core install must not pull in the web server stack."""
+    project = project_config["project"]
+    web_extra = project["optional-dependencies"]["web"]
+
+    assert project["dependencies"] == ["textual>=0.89.0"]
+    assert {requirement.split(">=")[0] for requirement in web_extra} == {
+        "fastapi",
+        "uvicorn",
+        "jinja2",
+        "python-multipart",
+    }
 
 
 def test_license_uses_pep639_metadata(project_config: dict) -> None:

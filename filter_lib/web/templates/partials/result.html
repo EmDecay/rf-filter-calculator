@@ -1,0 +1,34 @@
+{% if warnings %}
+<div class="notice notice--warning" role="status">
+  <p class="notice__title">Design warnings</p>
+  <ul class="notice__list">
+    {% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+<article class="frame" aria-labelledby="output-title">
+  <header class="frame__head">
+    <h2 class="frame__title" id="output-title">Output</h2>
+    <span class="frame__meta">Exactly what filter-calc prints</span>
+    <button class="btn btn--ghost btn--sm" type="button" data-copy="output-text">Copy</button>
+  </header>
+  {#- HTML drops one newline right after <pre>; supply it so the output's own first line survives. #}
+  <pre class="output" id="output-text" tabindex="0" aria-label="Calculator output">
+{{ output }}</pre>
+  {% if svg %}
+  <figure class="plot">
+    <div class="plot__scroll" tabindex="0" aria-label="Response plot, scrollable">{{ svg | safe }}</div>
+    <figcaption class="plot__caption">Magnitude response; the dashed line marks −3 dB.</figcaption>
+  </figure>
+  {% endif %}
+  <footer class="downloads" aria-labelledby="downloads-title">
+    <h3 class="downloads__title" id="downloads-title">Download</h3>
+    <div class="downloads__buttons">
+      {% for kind, text in [("json", "JSON"), ("csv", "CSV"), ("spice-exact", "SPICE exact"), ("spice-nominal", "SPICE nominal parts"), ("response-json", "Response JSON"), ("response-csv", "Response CSV")] %}
+      <button class="btn btn--secondary btn--sm" type="submit" form="design-form"
+              formaction="/export/{{ category }}/{{ kind }}" formmethod="post" data-download>{{ text }}</button>
+      {% endfor %}
+    </div>
+    <p class="downloads__status" id="download-status" role="status" aria-live="polite"></p>
+  </footer>
+</article>

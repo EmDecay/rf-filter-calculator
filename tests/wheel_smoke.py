@@ -18,7 +18,7 @@ import textwrap
 import venv
 from pathlib import Path
 
-EXPECTED_VERSION = "2.1.0"
+EXPECTED_VERSION = "2.2.0"
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -89,6 +89,15 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
         css_resource = files("filter_lib.wizard").joinpath("styles.tcss")
         assert css_resource.read_text(encoding="utf-8").strip()
 
+        web_root = files("filter_lib.web")
+        for resource in (
+            "templates/index.html",
+            "templates/partials/result.html",
+            "static/htmx.min.js",
+            "static/app.css",
+        ):
+            assert web_root.joinpath(resource).read_text(encoding="utf-8").strip(), resource
+
         print(json.dumps({{
             "version": filter_lib.__version__,
             "loaded_core_count": len(loaded_cores),
@@ -149,6 +158,17 @@ def _probe_cli(filter_calc: Path, *, cwd: Path, env: dict[str, str]) -> None:
     assert re.search(r"(?im)^\.ac\s", spice_deck)
     assert re.search(r"(?im)^\.end\s*$", spice_deck)
     assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", spice_deck)
+
+
+def _probe_web_without_extra(filter_calc: Path, *, cwd: Path, env: dict[str, str]) -> None:
+    """A wheel installed without the web extra explains how to add it."""
+    result = subprocess.run(
+        [str(filter_calc), "web"], cwd=cwd, env=env, check=False, capture_output=True, text=True
+    )
+    assert result.returncode == 1, (result.returncode, result.stdout, result.stderr)
+    assert result.stderr.strip() == (
+        "Error: The web UI needs the optional web dependencies; install with: uv sync --extra web"
+    ), result.stderr
 
 
 def _probe_wizard(python: Path, *, cwd: Path, env: dict[str, str]) -> None:
@@ -226,6 +246,7 @@ def main() -> int:
         _run(install_command, cwd=work_dir, env=clean_env)
         package_details = _probe_installed_package(python, cwd=work_dir, env=clean_env)
         _probe_cli(filter_calc, cwd=work_dir, env=clean_env)
+        _probe_web_without_extra(filter_calc, cwd=work_dir, env=clean_env)
         _probe_wizard(python, cwd=work_dir, env=clean_env)
 
     print(

@@ -1,217 +1,44 @@
-"""Filter-specific calculation and formatting logic.
+"""Filter-specific calculation entry points for the wizard.
 
-Contains lowpass, highpass, and bandpass calculation implementations,
-dispatched to by calculation_handler.calculate_and_format.
-
-Contract shared by all three calculators: run the synthesis from the
-FilterState the screens populated, stash the raw result dict on
-`state.result` (the results screen's export paths re-format it later), and
-return display lines for the requested output format.
+Contract shared by all three calculators: design the filter from the FilterState the
+screens populated through the shared ``filter_lib.design`` service, stash the raw
+result dict on `state.result` (the results screen's export paths re-format it later),
+and return display lines rendered by the shared dispatcher.
 """
+
+from filter_lib.design.export import BANDPASS_RESPONSE_POINTS
 
 from .state import FilterState
 
-# Dense enough to resolve both skirts of narrow wizard band-pass designs. Used by
-# the response-data export; equals the CLI's bandpass.display.PLOT_POINTS, which the
-# shared table renderer uses for the on-screen plot, so both match the CLI.
-BANDPASS_WIZARD_RESPONSE_POINTS = 601
+# Kept for callers that size the wizard's response export; the shared export owns it.
+BANDPASS_WIZARD_RESPONSE_POINTS = BANDPASS_RESPONSE_POINTS
+
+
+def _calculate(state: FilterState) -> list[str]:
+    """Synthesize without build analysis, store the result, and render it."""
+    from filter_lib.design import design, render_lines
+
+    outcome = design(state.to_design_request(include_build=False))
+    # Keep the raw result so the results screen can export JSON/CSV/response
+    # data later without re-running the synthesis.
+    state.result = outcome.result
+    return render_lines(outcome, state.to_render_options())
 
 
 def calculate_lowpass(state: FilterState) -> list[str]:
-    """Calculate lowpass filter and return formatted output lines.
-
-    Args:
-        state: Fully populated wizard state; `state.result` is set as a
-            side effect for later export.
-
-    Returns:
-        Display lines in the format selected by `state.output_format`.
-    """
-    from filter_lib.lowpass import calculate_bessel, calculate_butterworth, calculate_chebyshev
-    from filter_lib.lowpass.display import (
-        LOWPASS_DISPLAY_CONFIG,
-        LP_WIZARD_MATCH,
-        format_csv,
-        format_json,
-        format_quiet,
-    )
-    from filter_lib.shared.lp_hp_display import LpHpRenderOptions, render_results_lines
-
-    # Only Chebyshev has a ripple parameter; ripple=None tells the display
-    # layer to omit the ripple row for the other response types.
-    if state.filter_type == "butterworth":
-        caps, inds, order = calculate_butterworth(
-            state.frequency_hz, state.impedance, state.order, state.topology
-        )
-        ripple = None
-    elif state.filter_type == "chebyshev":
-        caps, inds, order = calculate_chebyshev(
-            state.frequency_hz, state.impedance, state.ripple_db, state.order, state.topology
-        )
-        ripple = state.ripple_db
-    else:  # bessel
-        caps, inds, order = calculate_bessel(
-            state.frequency_hz, state.impedance, state.order, state.topology
-        )
-        ripple = None
-
-    result = {
-        "filter_type": state.filter_type,
-        "freq_hz": state.frequency_hz,
-        "impedance": state.impedance,
-        "capacitors": caps,
-        "inductors": inds,
-        "order": order,
-        "ripple": ripple,
-        "topology": state.topology,
-    }
-    # Keep the raw result so the results screen can export JSON/CSV/response
-    # data later without re-running the synthesis.
-    state.result = result
-
-    eseries = None if state.eseries == "none" else state.eseries
-
-    if state.output_format == "json":
-        return [format_json(result, eseries=eseries)]
-    if state.output_format == "csv":
-        return [format_csv(result, eseries=eseries)]
-    if state.quiet:
-        return [format_quiet(result, state.raw_units)]
-
-    return render_results_lines(
-        result,
-        LpHpRenderOptions(
-            config=LOWPASS_DISPLAY_CONFIG,
-            raw=state.raw_units,
-            eseries=eseries,
-            show_match=eseries is not None,
-            show_plot=state.show_plot,
-            include_toroids=True,
-            toroid_compact=state.toroid_detail == "compact",
-            toroid_full=state.toroid_detail == "full",
-            match=LP_WIZARD_MATCH,
-            trailing_blank=False,
-        ),
-    )
+    """Calculate a lowpass filter and return output lines for `state.output_format`."""
+    return _calculate(state)
 
 
 def calculate_highpass(state: FilterState) -> list[str]:
-    """Calculate highpass filter and return formatted output lines.
-
-    Args:
-        state: Fully populated wizard state; `state.result` is set as a
-            side effect for later export.
-
-    Returns:
-        Display lines in the format selected by `state.output_format`.
-    """
-    from filter_lib.highpass import calculate_bessel, calculate_butterworth, calculate_chebyshev
-    from filter_lib.highpass.display import (
-        HIGHPASS_DISPLAY_CONFIG,
-        HP_WIZARD_MATCH,
-        format_csv,
-        format_json,
-        format_quiet,
-    )
-    from filter_lib.shared.lp_hp_display import LpHpRenderOptions, render_results_lines
-
-    # Highpass calculators return inductors first: the LP→HP transform swaps
-    # component roles, so the tuple order is the mirror of the lowpass one.
-    if state.filter_type == "butterworth":
-        inds, caps, order = calculate_butterworth(
-            state.frequency_hz, state.impedance, state.order, state.topology
-        )
-        ripple = None
-    elif state.filter_type == "chebyshev":
-        inds, caps, order = calculate_chebyshev(
-            state.frequency_hz, state.impedance, state.ripple_db, state.order, state.topology
-        )
-        ripple = state.ripple_db
-    else:  # bessel
-        inds, caps, order = calculate_bessel(
-            state.frequency_hz, state.impedance, state.order, state.topology
-        )
-        ripple = None
-
-    result = {
-        "filter_type": state.filter_type,
-        "freq_hz": state.frequency_hz,
-        "impedance": state.impedance,
-        "inductors": inds,
-        "capacitors": caps,
-        "order": order,
-        "ripple": ripple,
-        "topology": state.topology,
-    }
-    # Keep the raw result so the results screen can export JSON/CSV/response
-    # data later without re-running the synthesis.
-    state.result = result
-
-    eseries = None if state.eseries == "none" else state.eseries
-
-    if state.output_format == "json":
-        return [format_json(result, eseries=eseries)]
-    if state.output_format == "csv":
-        return [format_csv(result, eseries=eseries)]
-    if state.quiet:
-        return [format_quiet(result, state.raw_units)]
-
-    return render_results_lines(
-        result,
-        LpHpRenderOptions(
-            config=HIGHPASS_DISPLAY_CONFIG,
-            raw=state.raw_units,
-            eseries=eseries,
-            show_match=eseries is not None,
-            show_plot=state.show_plot,
-            include_toroids=True,
-            toroid_compact=state.toroid_detail == "compact",
-            toroid_full=state.toroid_detail == "full",
-            match=HP_WIZARD_MATCH,
-            trailing_blank=False,
-        ),
-    )
+    """Calculate a highpass filter and return output lines for `state.output_format`."""
+    return _calculate(state)
 
 
 def calculate_bandpass(state: FilterState) -> list[str]:
-    """Calculate bandpass filter and return formatted output lines.
+    """Calculate a bandpass filter and return output lines for `state.output_format`.
 
-    Args:
-        state: Fully populated wizard state; `state.topology` carries the
-            coupling id ("top") and `state.order` the resonator count.
-            `state.result` is set as a side effect for later export.
-
-    Returns:
-        Display lines in the format selected by `state.output_format`.
+    `state.topology` carries the coupling id ("top") and `state.order` the resonator
+    count.
     """
-    from filter_lib.bandpass import calculate_bandpass_filter
-    from filter_lib.bandpass.formatters import format_csv, format_json, format_quiet
-
-    from .formatting_helpers import format_bandpass_table
-
-    result = calculate_bandpass_filter(
-        f0=state.frequency_hz,
-        bw=state.bandwidth_hz,
-        z0=state.impedance,
-        n_resonators=state.order,
-        filter_type=state.filter_type,
-        coupling=state.topology,
-        ripple_db=state.ripple_db,
-        resonator_impedance=state.resonator_impedance,
-        resonator_inductance=state.resonator_inductance,
-    )
-    # Keep the raw result so the results screen can export JSON/CSV/response
-    # data later without re-running the synthesis.
-    state.result = result
-
-    eseries = None if state.eseries == "none" else state.eseries
-
-    if state.output_format == "json":
-        return [format_json(result, eseries=eseries)]
-    if state.output_format == "csv":
-        return [format_csv(result, eseries=eseries)]
-    if state.quiet:
-        return [format_quiet(result, state.raw_units)]
-
-    # The CLI's renderer: header, tables, preferred values, windings, and plot.
-    return format_bandpass_table(result, state)
+    return _calculate(state)

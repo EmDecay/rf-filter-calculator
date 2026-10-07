@@ -1,0 +1,14 @@
+{%- from "partials/fields.html" import checkbox, segmented with context -%}
+<fieldset class="group">
+  <legend class="group__title">Output</legend>
+  <div class="fields">
+    {{ segmented("output_format", "Format", [("table", "Table"), ("quiet", "Values only"), ("json", "JSON"), ("csv", "CSV")]) }}
+    {{ segmented("eseries", "Preferred capacitor values", [("E12", "E12"), ("E24", "E24"), ("E96", "E96"), ("none", "None")]) }}
+    {{ segmented("toroids", "Toroid windings", [("best", "Best"), ("full", "Top three"), ("compact", "Compact"), ("none", "None")]) }}
+    <div class="field field--wide checks">
+      {{ checkbox("svg_plot", "Response plot", "Drawn from the same samples as the response download.") }}
+      {{ checkbox("plot", "Text plot in the table", "The CLI's --plot chart and -3 dB table.") }}
+      {{ checkbox("raw", "Raw values", "Scientific notation in farads and henries; skips preferred values.") }}
+    </div>
+  </div>
+</fieldset>

@@ -1,6 +1,34 @@
 # Project Changelog
 
-## Unreleased — 2026-09-22 — Accuracy and Stability Fixes
+## 2.2.0 — 2026-10-07 — Web UI and Shared Design Service
+
+Version 2.2.0 also ships every change in the 2.2.0 sections below, which were made after 2.1.0.
+
+### Added
+
+- **Web UI** (`filter-calc web`): a local browser interface for lowpass, highpass, and
+  bandpass design with the same options as the CLI and the wizard. The page shows the CLI's
+  own table text, and downloads are byte-identical to the CLI's JSON, CSV, exact and
+  nominal-build SPICE, and response-data output. It binds to `127.0.0.1:8765` by default and
+  warns on any other address. It has no authentication and is meant for use on one computer.
+- **SVG response plot** in the web UI, drawn from the same samples as the response-data
+  export.
+- **Optional `web` extra** (FastAPI, uvicorn, Jinja2, python-multipart). The core install is
+  unchanged. Without the extra, `filter-calc web` exits 1 and prints how to install it.
+- **Same-page check**: the server refuses browser submissions from other sites (HTTP 403)
+  and requests addressed to a host name other than loopback or its bind address. Scripts
+  are unaffected.
+- The web applies the CLI's output rules, including refusing resonator-loss Q (Qu, QL, QC)
+  for outputs that cannot show it.
+
+### Changed
+
+- The CLI handlers and the wizard now share one orchestration path, `filter_lib.design`
+  (request validation, synthesis, optional realized-build analysis, rendering, and exports).
+  CLI and wizard output is unchanged.
+- The development group uses `httpx2`, the HTTP client Starlette's test client now prefers.
+
+## 2.2.0 — 2026-09-22 — Accuracy and Stability Fixes
 
 A test-suite review used mutation spot-checks, independent reference models, and CLI/wizard
 crash grids. It found the defects below. Each fix has a regression test that fails on the
@@ -95,7 +123,7 @@ previous code.
 - Every documented `uv run filter-calc` example now runs as a test.
 - Mutation kill rates rose from 57–95% to 78–99%, depending on the area.
 
-## Unreleased — 2026-09-22 — Dead Code Cleanup
+## 2.2.0 — 2026-09-22 — Dead Code Cleanup
 
 ### Removed
 
@@ -146,7 +174,7 @@ previous code.
 - Loading the packaged toroid data rejects overflowing number literals such as `1e999`,
   non-finite core fields, and a negative A_L tolerance.
 
-## Unreleased — 2026-09-22 — Source Bug Remediation
+## 2.2.0 — 2026-09-22 — Source Bug Remediation
 
 ### Input and API contracts
 
@@ -229,7 +257,7 @@ previous code.
 - Usage errors use a singular verb for one flag (`--capacitor-tolerance requires --sim-build or
   --format spice`, `... affects tolerance analysis ...`).
 
-## Unreleased — 2026-09-22 — Test Suite Audit
+## 2.2.0 — 2026-09-22 — Test Suite Audit
 
 - Tests now check component values and responses against published prototype tables and
   independent closed-form or ABCD calculations, rather than repeating implementation formulas
@@ -245,7 +273,7 @@ previous code.
 - The deprecated `--sim-matched` compatibility tests share their expensive simulations, which
   cut about two minutes from a coverage run.
 
-## Unreleased — 2026-09-22 — Wizard Toroid Output
+## 2.2.0 — 2026-09-22 — Wizard Toroid Output
 
 - Wizard table output for lowpass, highpass, and bandpass now includes the screened toroid
   winding candidates. It previously omitted them even though wizard JSON and CSV output
@@ -259,7 +287,7 @@ previous code.
 - CLI table and toroid output are unchanged. CLI and wizard now share one toroid-section
   formatter.
 
-## Unreleased — 2026-09-07 — Response Measurement Accuracy
+## 2.2.0 — 2026-09-07 — Response Measurement Accuracy
 
 - Build analysis now evaluates requested passband boundaries, refines extrema and half-power
   crossings, and checks successive meshes for convergence. Every tolerance case uses the same

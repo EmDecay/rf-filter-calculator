@@ -68,6 +68,18 @@ uv run filter-calc
 
 Running with no arguments starts the interactive wizard.
 
+### Web UI
+
+```bash
+uv sync --extra web
+uv run filter-calc web [--port <port>]
+```
+
+Open the printed address (default `http://127.0.0.1:8765/`), pick a tab, and select
+**Design filter**. The result is the CLI's own text for the same settings, with an
+optional response plot and download buttons. See the
+[user guide](user-guide.md#web-ui) for how each field maps to a CLI flag.
+
 ## Common Options
 
 | Option | Description |

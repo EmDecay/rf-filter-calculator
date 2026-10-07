@@ -24,11 +24,13 @@ Command-line tool for calculating LC filter component values. Designed for RF en
 - **Screened Toroid Candidates**: Primary-sourced integer turns and winding capacity, with RF-Q/SRF/power limitations stated explicitly
 - **Outputs**: Table, strict JSON, rectangular CSV, response data, ASCII plots, and generic exact or nominal-build SPICE decks
 - **Interactive Wizard**: Guided design and build-analysis controls with safe export behavior
+- **Web UI**: Local browser page with the CLI's output text, an SVG response plot, and byte-identical downloads (optional `web` extra)
 
 ## Requirements
 
 - Python 3.10 or higher
 - `textual` library (for interactive TUI wizard)
+- Optional `web` extra for the browser UI: FastAPI, uvicorn, Jinja2, and python-multipart (`uv sync --extra web`)
 - The development dependency group supplies pytest, coverage, and Ruff
 
 ## Installation

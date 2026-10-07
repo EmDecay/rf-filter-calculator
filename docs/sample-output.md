@@ -1,7 +1,6 @@
 # Sample Output
 
-These examples reflect version 2.1.0 with the unreleased updates listed in the
-[changelog](project-changelog.md). Long machine-readable payloads are shown as
+These examples reflect version 2.2.0 (see the [changelog](project-changelog.md)). Long machine-readable payloads are shown as
 selected valid fragments; run the command to obtain the complete schema.
 
 ## Lowpass Table

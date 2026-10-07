@@ -1,7 +1,7 @@
 # System Architecture
 
-**Last updated:** July 19, 2026
-**Applies to:** RF Filter Calculator 2.1.0
+**Last updated:** October 7, 2026
+**Applies to:** RF Filter Calculator 2.2.0
 
 ## Overview
 
@@ -11,9 +11,9 @@ calculated value, a selected catalog value, and a simulated lossy build are rela
 they are not interchangeable claims.
 
 ```text
-CLI or Textual wizard
+CLI · Textual wizard · web UI      (each parses its own input into a DesignRequest)
         │
-        ├─ parse and validate the requested mode
+        ├─ filter_lib.design: validate the request
         │
         ├─ ideal synthesis ────────────────┐
         │    LP/HP ladder or Top-C BP      │
@@ -29,16 +29,32 @@ CLI or Textual wizard
 
 The package entry point is `filter_lib.cli:main`; the repository-level
 `filter-calc.py` file is only a source-checkout shim. With no arguments, the entry point
-starts the Textual wizard.
+starts the Textual wizard; `filter-calc web` serves the browser UI.
+
+## Shared design service
+
+`filter_lib/design/` is the only orchestration path. Every surface builds a
+`DesignRequest`, calls `design()`, and hands the `DesignResult` to `render_lines`,
+`export_spice`, or `export_response_data`. No surface calls a calculator, a category
+formatter, or the build analysis directly.
+
+The service exists so that a third surface did not mean a third copy of the
+orchestration. Before it, the CLI handlers and the wizard each sequenced synthesis, build
+analysis, and formatting, and kept identical results only through parity tests. Each
+surface still owns its input parsing and its defaults (the wizard shows a plot by
+default; the web shows the SVG plot by default; the CLI shows neither), and maps them to
+`RenderOptions`. Cross-field rules that every surface must enforce (Chebyshev ripple and
+order, the realized-build output modes) live in `DesignRequest` and `RenderOptions`, so
+all three report them with the same message.
+
+The CLI keeps a few things outside the service on purpose: argparse usage errors for
+contradictory flags, `--explain`, and the deprecated `--sim-matched` path.
 
 ## Command layer
 
-`filter_lib/cli/` contains the root parser and one handler per design category:
-
-- `lowpass_cmd.py`
-- `highpass_cmd.py`
-- `bandpass_cmd.py`
-- `wizard_cmd.py`
+`filter_lib/cli/` contains the root parser, one handler per design category
+(`lowpass_cmd.py` and `highpass_cmd.py` share `ladder_command.py`; `bandpass_cmd.py`),
+`wizard_cmd.py`, and `web_cmd.py`.
 
 The handlers share parser construction and compatibility validation from
 `filter_lib/shared/cli_*.py`. Validation is mode-aware. For example, an explicit
@@ -50,8 +66,8 @@ The normal command flow is:
 
 1. Parse aliases, frequencies, impedances, component counts, and optional build inputs.
 2. Reject contradictory or unsupported combinations.
-3. Call the category synthesis API.
-4. Route to the requested output or optional build analysis.
+3. Build a `DesignRequest` and call `filter_lib.design`.
+4. Route to the requested output or optional build analysis through the same package.
 5. Convert expected validation failures to concise CLI errors without a traceback.
 
 ## Ideal synthesis
@@ -218,6 +234,40 @@ Component export selection is independent of the optional response-data sidecar.
 Results screen cannot save while calculation is pending, and build-analysis CSV is
 rejected because that compound result currently has table and JSON contracts only.
 
+## Web architecture
+
+`filter_lib/web/` is a FastAPI application served by uvicorn, with Jinja2 templates and
+HTMX for partial page updates. `filter-calc web` imports it only inside the command, so
+the core install never needs the `web` extra.
+
+- **Request flow.** Form fields (named after the CLI flags) are parsed with the CLI's
+  parsers and defaults into a `DesignRequest` and `RenderOptions`; the result panel shows
+  `render_lines` text, downloads come from the same export functions, and the SVG plot is
+  drawn from `response_series`, the sweep behind `--plot-data`.
+- **Execution.** Calculations run on a bounded thread pool (two workers by default) so
+  the event loop stays free. Each request waits up to 60 seconds; on expiry its
+  cancellation flag is set and the request returns 503. Only the realized-build analysis
+  polls that flag. A synthesis already running finishes in the background and its result
+  is dropped; the accepted input ranges bound how long that can take. Shutdown flags
+  running work and joins the pool threads.
+- **Exposure.** The server binds to loopback by default, has no authentication, stores
+  nothing, and writes no files. `request_guard.py` accepts submissions only from the
+  page's own origin (`Sec-Fetch-Site`, else `Origin` against `Host`), which blocks
+  cross-site request forgery. It also refuses any `Host` other than a loopback name or
+  the specific bind address, which blocks DNS rebinding; a wildcard bind (`0.0.0.0`)
+  cannot know its names and skips that check. Every response, including unexpected
+  500s, carries the CSP, and HTMX runs with eval and swapped-script execution off. Scripts that send neither header are
+  accepted; they are not a browser acting for someone else. Pages load only same-origin assets (HTMX is vendored) under
+  a self-only Content Security Policy, and output is inserted as escaped text. It is not
+  hardened for hosting.
+
+Framework choice: FastAPI with server-rendered HTMX keeps one language and one validation
+path, and the CLI's text output can be shown verbatim. A React single-page app was
+rejected because it adds a Node toolchain and a second validation layer. Running the
+calculator in the browser through Pyodide was rejected because bandpass calibration and
+tolerance screening already take seconds natively. Streamlit and NiceGUI were rejected as
+heavy dependencies that would own the page layout.
+
 ## Numeric and validation contract
 
 Public numeric inputs reject booleans, wrong types, non-finite values, and non-positive
@@ -232,14 +282,19 @@ SI-prefixed form exists, it falls back to scientific notation in the base unit.
 
 ## Packaging and CI
 
-Version 2.1.0 is read dynamically from `filter_lib.__version__`. Setuptools includes the
-toroid JSON database and Textual stylesheet in both the wheel and source distribution.
+The version is read dynamically from `filter_lib.__version__`. Setuptools includes the
+toroid JSON database, the Textual stylesheet, and the web templates and static files in
+both the wheel and source distribution. The web dependencies are the optional `web`
+extra.
 
 GitHub Actions runs on pushes and pull requests to `main`:
 
 1. Ruff lint and format check on Python 3.13.
-2. Full coverage-gated test suite on Python 3.10, 3.11, 3.12, and 3.13.
-3. Wheel and source-distribution build, archive inspection, installed-wheel smoke test,
+2. Full coverage-gated test suite on Python 3.10, 3.11, 3.12, and 3.13 with the `web`
+   extra installed.
+3. The suite on a core install without the extra, plus a check of the `filter-calc web`
+   install hint.
+4. Wheel and source-distribution build, archive inspection, installed-wheel smoke test,
    and artifact upload.
 
 This is continuous integration and artifact production; the workflow does not deploy a
@@ -253,4 +308,6 @@ release.
 - Extend output schemas additively unless a versioned breaking change is intentional.
 - Add new wizard inputs to `FilterState`, validation, CLI-equivalent build configuration,
   and lifecycle tests together.
+- A new surface or input goes through `filter_lib.design`; put a rule every surface must
+  enforce in `DesignRequest` or `RenderOptions`, not in one surface.
 - Accompany new accuracy claims with reference cases and independent response checks.

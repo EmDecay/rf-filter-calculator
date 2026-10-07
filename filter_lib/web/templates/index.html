@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ category_labels[category] }} filter · RF Filter Calculator{% endblock %}
+{% block body %}
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="/">RF Filter Calculator</a>
+    <span class="topbar__meta">filter-calc {{ version }} · running on this computer</span>
+  </div>
+</header>
+<main class="workspace">
+  <section class="workspace__form" aria-labelledby="page-title">
+    <h1 id="page-title" class="page-title">Design an LC filter</h1>
+    <p class="page-lede">Component values, preferred parts, and toroid windings from the same engine as the <code>filter-calc</code> command.</p>
+    <div id="design-form-slot">
+      {% include "partials/design_form.html" %}
+    </div>
+  </section>
+  <section class="workspace__result" aria-label="Result">
+    <div id="result" class="result-slot" aria-live="polite">
+      {% if error %}
+        {% with message = error %}{% include "partials/error.html" %}{% endwith %}
+      {% elif output is defined %}
+        {% include "partials/result.html" %}
+      {% else %}
+        {% include "partials/empty.html" %}
+      {% endif %}
+    </div>
+  </section>
+</main>
+{% endblock %}
