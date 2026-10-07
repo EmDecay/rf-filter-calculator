@@ -5,8 +5,10 @@ from __future__ import annotations
 import pytest
 
 from filter_lib.web.request_guard import CROSS_SITE_REFUSED, UNKNOWN_HOST_REFUSED, refusal
+from filter_lib.web.settings import WebSettings
 
 HOST = "127.0.0.1:8765"
+LOOPBACK = WebSettings().allowed_hosts
 
 
 def _headers(**values: str) -> dict[str, str]:
@@ -48,27 +50,51 @@ def _headers(**values: str) -> dict[str, str]:
     ],
 )
 def test_submissions_must_come_from_the_page(method, headers, expected):
-    assert refusal(method, headers, loopback_only=True) == expected
+    assert refusal(method, headers, allowed_hosts=LOOPBACK) == expected
 
 
 @pytest.mark.parametrize("host", ["127.0.0.1:8765", "localhost:8765", "[::1]:8765", "LOCALHOST"])
 def test_loopback_hosts_are_accepted(host):
-    assert refusal("GET", {"host": host}, loopback_only=True) is None
+    assert refusal("GET", {"host": host}, allowed_hosts=LOOPBACK) is None
 
 
 @pytest.mark.parametrize("host", ["evil.example:8765", "192.168.1.5:8765", "", "127.0.0.2"])
 def test_other_hosts_are_refused_on_a_loopback_bind(host):
-    assert refusal("GET", {"host": host}, loopback_only=True) == UNKNOWN_HOST_REFUSED
+    assert refusal("GET", {"host": host}, allowed_hosts=LOOPBACK) == UNKNOWN_HOST_REFUSED
 
 
-def test_a_non_loopback_bind_accepts_any_host_but_still_checks_origin():
+def test_a_specific_bind_address_is_accepted_alongside_loopback():
+    allowed = WebSettings(host="192.168.1.5").allowed_hosts
+
+    assert refusal("GET", {"host": "192.168.1.5:8765"}, allowed_hosts=allowed) is None
+    assert refusal("GET", {"host": "localhost:8765"}, allowed_hosts=allowed) is None
+    assert refusal("GET", {"host": "rebound.example:8765"}, allowed_hosts=allowed) == (
+        UNKNOWN_HOST_REFUSED
+    )
+
+
+@pytest.mark.parametrize(
+    "host, allowed",
+    [
+        ("127.0.0.1", {"127.0.0.1", "localhost", "::1"}),
+        ("fe80::1", {"127.0.0.1", "localhost", "::1", "fe80::1"}),
+        ("MyBox.local", {"127.0.0.1", "localhost", "::1", "mybox.local"}),
+        ("0.0.0.0", None),
+        ("::", None),
+    ],
+)
+def test_allowed_hosts_follow_the_bind_address(host, allowed):
+    expected = None if allowed is None else frozenset(allowed)
+
+    assert WebSettings(host=host).allowed_hosts == expected
+
+
+def test_a_wildcard_bind_accepts_any_host_but_still_checks_origin():
     lan = {"host": "192.168.1.5:8765"}
 
-    assert refusal("GET", lan, loopback_only=False) is None
-    assert (
-        refusal("POST", {**lan, "origin": "http://192.168.1.5:8765"}, loopback_only=False) is None
-    )
-    assert refusal("POST", {**lan, "origin": "https://evil.example"}, loopback_only=False) == (
+    assert refusal("GET", lan, allowed_hosts=None) is None
+    assert refusal("POST", {**lan, "origin": "http://192.168.1.5:8765"}, allowed_hosts=None) is None
+    assert refusal("POST", {**lan, "origin": "https://evil.example"}, allowed_hosts=None) == (
         CROSS_SITE_REFUSED
     )
 

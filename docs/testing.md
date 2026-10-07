@@ -298,7 +298,8 @@ the installed command and package data rather than importing the source checkout
    artifacts after the other jobs pass.
 
 The workflow uses read-only repository permissions and cancels an older in-progress run
-for the same ref. It performs CI and artifact upload; it does not deploy a release.
+for the same ref. Third-party actions are pinned to full commit SHAs, with the release
+in a trailing comment; when updating an action, change the SHA and the comment together. It performs CI and artifact upload; it does not deploy a release.
 
 ## Troubleshooting
 

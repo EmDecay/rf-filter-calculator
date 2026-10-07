@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -75,9 +75,16 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     for exc_type in (ValueError, CalculationTimeout, BuildAnalysisCancelled):
         app.add_exception_handler(exc_type, handle_expected_failure)
 
+    # Unexpected errors are answered by Starlette's outermost error middleware, outside
+    # the header middleware below, so this response carries the headers itself.
+    async def handle_unexpected_failure(_request: Request, _exc: Exception) -> Response:
+        return PlainTextResponse("Internal Server Error", status_code=500, headers=SECURITY_HEADERS)
+
+    app.add_exception_handler(Exception, handle_unexpected_failure)
+
     @app.middleware("http")
     async def guard_and_secure(request: Request, call_next) -> Response:
-        reason = refusal(request.method, request.headers, loopback_only=settings.is_loopback)
+        reason = refusal(request.method, request.headers, allowed_hosts=settings.allowed_hosts)
         if reason is not None:
             response = json_error(reason, 403)
         else:

@@ -253,8 +253,10 @@ the core install never needs the `web` extra.
 - **Exposure.** The server binds to loopback by default, has no authentication, stores
   nothing, and writes no files. `request_guard.py` accepts submissions only from the
   page's own origin (`Sec-Fetch-Site`, else `Origin` against `Host`), which blocks
-  cross-site request forgery, and on a loopback bind it also refuses any `Host` that is
-  not a loopback name, which blocks DNS rebinding. Scripts that send neither header are
+  cross-site request forgery. It also refuses any `Host` other than a loopback name or
+  the specific bind address, which blocks DNS rebinding; a wildcard bind (`0.0.0.0`)
+  cannot know its names and skips that check. Every response, including unexpected
+  500s, carries the CSP, and HTMX runs with eval and swapped-script execution off. Scripts that send neither header are
   accepted; they are not a browser acting for someone else. Pages load only same-origin assets (HTMX is vendored) under
   a self-only Content Security Policy, and output is inserted as escaped text. It is not
   hardened for hosting.

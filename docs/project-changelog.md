@@ -16,7 +16,8 @@ Version 2.2.0 also ships every change in the 2.2.0 sections below, which were ma
 - **Optional `web` extra** (FastAPI, uvicorn, Jinja2, python-multipart). The core install is
   unchanged. Without the extra, `filter-calc web` exits 1 and prints how to install it.
 - **Same-page check**: the server refuses browser submissions from other sites (HTTP 403)
-  and, on a loopback bind, requests addressed to any other host name. Scripts are unaffected.
+  and requests addressed to a host name other than loopback or its bind address. Scripts
+  are unaffected.
 - The web applies the CLI's output rules, including refusing resonator-loss Q (Qu, QL, QC)
   for outputs that cannot show it.
 

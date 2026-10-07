@@ -61,7 +61,7 @@ The CLI maps its flags in `cli/design_output_args.py`; the wizard maps `FilterSt
 - `form_parsing.py`, `build_form_parsing.py`, `form_values.py` — form fields to request,
   options, and build configuration
 - `execution.py` — bounded pool with timeout and cancellation
-- `request_guard.py` — same-origin and loopback-host check applied to every request
+- `request_guard.py` — same-origin and Host check applied to every request
 - `routes_pages.py`, `routes_design.py`, `routes_export.py` — page, design, and download
   routes
 - `svg_plot.py` — SVG response chart

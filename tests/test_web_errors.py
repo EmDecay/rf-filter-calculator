@@ -237,6 +237,8 @@ def test_unexpected_failures_are_not_reported_as_input_errors(monkeypatch):
 
     assert response.status_code == 500
     assert "bug" not in response.text
+    assert "script-src 'self'" in response.headers["content-security-policy"]
+    assert response.headers["x-content-type-options"] == "nosniff"
 
 
 @pytest.mark.parametrize(

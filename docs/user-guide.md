@@ -489,9 +489,11 @@ address prints a warning.
 
 Only the calculator's own page can submit designs. A browser request that comes from
 another site is refused with HTTP 403, so a web page you visit cannot make your browser
-use the calculator. Scripts such as `curl` are not affected. On the default loopback
-address, requests must also be addressed to this computer (`127.0.0.1`, `localhost`, or
-`[::1]`).
+use the calculator. Scripts such as `curl` are not affected. Requests must also be
+addressed to this server: `127.0.0.1`, `localhost`, `[::1]`, or the specific address given
+to `--host`. Binding to every interface (`--host 0.0.0.0` or `::`) skips that address check,
+because the server cannot know which names other machines will use; only do that on a
+network you trust.
 
 ### What the page shows
 

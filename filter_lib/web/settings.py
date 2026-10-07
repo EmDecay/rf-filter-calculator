@@ -7,6 +7,9 @@ from dataclasses import dataclass
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+# Bind addresses that listen on every interface; the server then cannot know which
+# names clients will use to reach it.
+WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", ""})
 
 
 @dataclass(frozen=True)
@@ -35,3 +38,14 @@ class WebSettings:
     @property
     def is_loopback(self) -> bool:
         return self.host in LOOPBACK_HOSTS
+
+    @property
+    def allowed_hosts(self) -> frozenset[str] | None:
+        """Host names a request may be addressed to, or ``None`` to accept any.
+
+        Loopback names are always allowed; a specific bind address is allowed too. A
+        wildcard bind accepts any Host because its reachable names are unknown.
+        """
+        if self.host in WILDCARD_HOSTS:
+            return None
+        return LOOPBACK_HOSTS | {self.host.lower()}

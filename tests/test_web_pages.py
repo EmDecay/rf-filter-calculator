@@ -129,3 +129,34 @@ def test_output_keeps_its_leading_blank_line_in_the_browser(client):
 
     # The parser drops the first newline after <pre>; the CLI text itself starts with one.
     assert 'aria-label="Calculator output">\n\n' in fragment
+
+
+def test_vendored_htmx_matches_its_recorded_hash():
+    import hashlib
+    from pathlib import Path
+
+    import filter_lib.web
+
+    static = Path(filter_lib.web.__file__).parent / "static"
+    recorded = next(
+        line.split(":", 1)[1].strip()
+        for line in (static / "LICENSE-htmx.txt").read_text(encoding="utf-8").splitlines()
+        if line.startswith("htmx.min.js SHA-256:")
+    )
+
+    assert hashlib.sha256((static / "htmx.min.js").read_bytes()).hexdigest() == recorded
+
+
+def test_htmx_may_not_evaluate_code_or_run_swapped_scripts(client):
+    import html
+    import json
+    import re
+
+    page = client.get("/").text
+    config = json.loads(
+        html.unescape(re.search(r'name="htmx-config" content=\'([^\']+)\'', page).group(1))
+    )
+
+    assert config["allowEval"] is False
+    assert config["allowScriptTags"] is False
+    assert config["selfRequestsOnly"] is True

@@ -1,4 +1,5 @@
 htmx 2.0.11 (https://htmx.org), vendored unmodified from the npm package htmx.org@2.0.11.
+htmx.min.js SHA-256: d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717
 
 Zero-Clause BSD
 =============
