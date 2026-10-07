@@ -18,7 +18,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10 CI
 from filter_lib import __version__
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "2.1.0"
+EXPECTED_VERSION = "2.2.0"
 RUNTIME_RESOURCES = (
     "filter_lib/shared/toroid_core_data.json",
     "filter_lib/wizard/styles.tcss",

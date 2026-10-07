@@ -21,9 +21,9 @@ Provide RF engineers and amateur radio operators with a fast, accurate command-l
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 2.1.0 (real-world build-analysis and accuracy release)
+**Version**: 2.2.0 (local web UI on a shared design service)
 - More than 2,000 collected tests, with a 90% CI coverage floor
-- Full CLI and interactive modes with advanced plotting
+- Full CLI, interactive TUI, and local web UI with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
 - Automated CI with GitHub Actions
@@ -529,6 +529,7 @@ Status: ✓ Measured ~200ms on reference machine
 | 1.4+ | Apr 24 2026 | Coverage pass: 826→1046 tests (94% coverage); CLI/wizard/validation full testing; filter-type alias canonicalization; bandpass true -3dB edges; Chebyshev odd-order constraint |
 | 2.0.0 | Jun 11-12 2026 | Accuracy remediation: bandpass series end-coupling (shunt-C removed); netlist-simulated bandpass plots; formula-based Chebyshev g-values for arbitrary ripple; capacitors-only E-series matching; unified --plot-data export schema; coordinated breaking CLI cleanup; 1046→1227 tests |
 | 2.1.0 | Jul 19 2026 | Per-design calibrated bandpass validation; deterministic preferred-value policy; primary-sourced toroid screening; realized-build loss/tolerance analysis; generic SPICE; strict machine output; numeric/API hardening; wizard/export lifecycle fixes; Python 3.10–3.13 packaging and CI gates |
+| 2.2.0 | Oct 7 2026 | Local web UI (`filter-calc web`, optional `web` extra) with CLI-identical output and an SVG response plot; one shared design service for CLI, wizard, and web; accuracy and stability fixes made after 2.1.0 |
 
 ---
 

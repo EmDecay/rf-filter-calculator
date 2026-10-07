@@ -1,7 +1,7 @@
 # Testing Guide
 
-**Last updated:** September 22, 2026
-**Applies to:** RF Filter Calculator 2.1.0
+**Last updated:** October 7, 2026
+**Applies to:** RF Filter Calculator 2.2.0
 
 ## Quality gates
 
@@ -10,10 +10,12 @@ coverage and runs the complete suite on Python 3.10, 3.11, 3.12, and 3.13. A ski
 is reported as a skip; failures, lint errors, format errors, and coverage shortfalls are
 not hidden.
 
-Run the same primary gates locally:
+Run the same primary gates locally. The coverage gate assumes the `web` extra is
+installed; without it the web tests skip themselves and `filter_lib/web/` counts as
+uncovered.
 
 ```bash
-uv sync --locked --group dev
+uv sync --locked --group dev --extra web
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked pytest tests/ -m runtime_budget
@@ -139,7 +141,8 @@ measured field of `synthesis_validation`.
   message and no traceback ([test_cli_input_robustness.py](../tests/test_cli_input_robustness.py))
 - every `uv run filter-calc` example in the README and `docs/` runs cleanly as written
   ([test_cli_documented_examples.py](../tests/test_cli_documented_examples.py)). A new or
-  edited example must stay runnable; syntax templates with `<...>` or `[...]` are skipped.
+  edited example must stay runnable; syntax templates with `<...>` or `[...]` are skipped,
+  and so are `wizard` and `web` lines, which never return.
 
 SPICE tests verify the generated generic deck structurally and numerically against the
 internal named circuit. An external simulator is not a test-suite dependency.
@@ -175,10 +178,36 @@ Numerical comparisons are simulations, not measured hardware or an external-SPIC
 - failure clearing, pending-save blocking, component export preselection, and independent
   response sidecars
 
+### Design service and web UI
+
+- the shared request, synthesis, rendering, and export path equals the calculators and live
+  CLI output ([test_design_service.py](../tests/test_design_service.py),
+  [test_design_render_and_export.py](../tests/test_design_render_and_export.py))
+- every web document, download, and result text is byte-identical to live CLI output for
+  designs with every field off its default
+  ([test_web_equivalence.py](../tests/test_web_equivalence.py))
+- invalid web input returns 400 with the CLI's message, escaped in HTML
+  ([test_web_errors.py](../tests/test_web_errors.py))
+- timeouts return 503, cancel build analysis, queue excess requests, and leave no pool
+  threads; exports write no files ([test_web_execution.py](../tests/test_web_execution.py))
+- cross-site submissions and foreign `Host` names are refused before any work runs
+  ([test_web_request_guard.py](../tests/test_web_request_guard.py))
+- the SVG plot draws exactly the response-data samples
+  ([test_web_svg_plot.py](../tests/test_web_svg_plot.py))
+- pages, form parsing, `filter-calc web`, and importing the CLI without FastAPI
+  (`test_web_pages.py`, `test_web_form_parsing.py`, `test_web_cmd.py`,
+  `test_web_optional_import.py`)
+
+Web tests call `pytest.importorskip("fastapi")` and share `tests/web_helpers.py`; CLI
+comparisons go through `tests/cli_parity_helpers.py`. A browser is not a test dependency.
+
 ### Packaging and CI
 
 - dynamic version and project metadata
-- wheel/sdist contents, including `toroid_core_data.json` and `styles.tcss`
+- wheel/sdist contents, including `toroid_core_data.json`, `styles.tcss`, and the web
+  templates and static files
+- the web dependencies stay an optional extra, and an installed wheel without it prints the
+  `filter-calc web` install hint
 - installed-wheel CLI/API smoke checks from an isolated environment
 - locked dependency resolution
 
@@ -256,15 +285,17 @@ the installed command and package data rather than importing the source checkout
 
 ## CI workflow
 
-`.github/workflows/ci.yml` contains three jobs:
+`.github/workflows/ci.yml` contains four jobs:
 
 1. **Ruff quality** — lint and format check.
-2. **Python matrix** — all tests on 3.10–3.13. Tests marked `runtime_budget` (build-analysis,
+2. **Python matrix** — all tests on 3.10–3.13 with the `web` extra. Tests marked `runtime_budget` (build-analysis,
    calibration, and extreme-input runtime checks) run first without coverage
    instrumentation, so their wall-clock limits measure application runtime; the remaining
    suite (`-m "not runtime_budget"`) enforces the coverage gate.
-3. **Build and smoke distributions** — build, inspect, install, smoke, and upload
-   artifacts after quality/tests pass.
+3. **Core install** — the suite on Python 3.10 without the `web` extra (web tests skip),
+   plus the exact `filter-calc web` install hint and exit code.
+4. **Build and smoke distributions** — build, inspect, install, smoke, and upload
+   artifacts after the other jobs pass.
 
 The workflow uses read-only repository permissions and cancels an older in-progress run
 for the same ref. It performs CI and artifact upload; it does not deploy a release.

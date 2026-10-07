@@ -9,7 +9,8 @@ Complete reference for all commands, options, and features.
 | `lowpass` | `lp` | Low-pass filter (Pi or T topology) |
 | `highpass` | `hp` | High-pass filter (Pi or T topology) |
 | `bandpass` | `bp` | Coupled resonator bandpass filter |
-| *(no args)* | - | Interactive wizard (default) |
+| `wizard` | `w` | Interactive wizard (also the default with no arguments) |
+| `web` | - | Local browser UI (needs the optional `web` extra) |
 
 ---
 
@@ -472,6 +473,94 @@ Save can also write the selected response-data sidecar.
 All frequency and impedance inputs support the same formats as CLI commands (see [Input Formats](#input-formats) section below).
 
 ---
+
+## Web UI
+
+The web UI is a third way to use the same calculator. It needs the optional extra:
+
+```bash
+uv sync --extra web
+uv run filter-calc web [--host <address>] [--port <port>]
+```
+
+The server listens on `127.0.0.1:8765` unless told otherwise and prints its address.
+It has no authentication and is meant for use on one computer; binding to any other
+address prints a warning.
+
+Only the calculator's own page can submit designs. A browser request that comes from
+another site is refused with HTTP 403, so a web page you visit cannot make your browser
+use the calculator. Scripts such as `curl` are not affected. On the default loopback
+address, requests must also be addressed to this computer (`127.0.0.1`, `localhost`, or
+`[::1]`).
+
+### What the page shows
+
+- The result panel shows exactly the text `filter-calc` prints for the same settings:
+  tables, preferred values, toroid windings, the text plot when **Text plot in the table**
+  is ticked, and the realized-build block.
+- **Response plot** adds an SVG chart beneath the text. It draws the same frequency and
+  magnitude samples as `--plot-data` (analytic for LP/HP, simulated circuit for BP), with
+  a dashed −3 dB guide.
+- Invalid input shows the same message the CLI gives (fields that exist only on the web
+  have their own plain messages), and the form keeps what you typed. The page
+  also works without JavaScript; submissions then reload the whole page.
+
+### Downloads
+
+Each button returns a file whose contents are byte-identical to the CLI command shown:
+
+| Button | CLI equivalent |
+|---|---|
+| JSON | `--format json` (includes the realized-build analysis when that box is ticked) |
+| CSV | `--format csv` |
+| SPICE exact | `--format spice --spice-realization exact` |
+| SPICE nominal parts | `--format spice` (uses the build section's Q and port values when it is ticked; needs an E-series) |
+| Response JSON / CSV | `--plot-data json` / `--plot-data csv` |
+
+As in the CLI, resonator-loss Q (Qu, QL, QC) is refused by the outputs that cannot show its
+effect: CSV, exact SPICE, response data, and the CSV and "Values only" formats on the page.
+Use the table, JSON, or the nominal-parts SPICE deck with those values.
+
+`POST /api/design/<category>` with the same form fields returns the `--format json`
+document directly, for scripts.
+
+### Form fields and CLI flags
+
+Field names mirror the CLI flags, so a design can move between the two.
+
+| Form field (name) | CLI flag | Notes |
+|---|---|---|
+| Filter type (`filter_type`) | positional type or `--type` | Aliases such as `bw`, `ch`, `bs` are accepted |
+| Topology (`topology`) | positional or `-T` | Lowpass and highpass |
+| Coupling (`coupling`) | positional `top` | Bandpass; Top-C is the only coupling |
+| Cutoff / Center frequency (`frequency`) | positional or `-f` | Same unit suffixes as the CLI |
+| Bandwidth (`bandwidth`) | `-b` | Bandpass, when the band is given by center and width |
+| Lower / Upper edge (`f_low`, `f_high`) | `--fl`, `--fh` | Bandpass, when `band_spec` is `edges` |
+| Components / Resonators (`components`, `resonators`) | `-n` | |
+| Impedance (`impedance`) | `-z` | |
+| Passband ripple (`ripple`) | `-r` | Shown and used for Chebyshev only |
+| Tank impedance / inductance (`resonator_impedance`, `resonator_inductance`) | `--resonator-impedance`, `--resonator-inductance` | Bandpass |
+| Resonator Qu, QL, QC (`qu`, `ql`, `qc`) | `--qu`, `--ql`, `--qc` | Bandpass |
+| Format (`output_format`: table, quiet, json, csv) | `--format`; quiet is `-q` | |
+| Preferred capacitor values (`eseries`) | `-e`; **None** is `--no-match` | |
+| Toroid windings (`toroids`: best, full, compact, none) | default, `--toroid-full`, `--toroid-compact`, `--no-toroids` | |
+| Text plot in the table (`plot`) | `--plot` | |
+| Raw values (`raw`) | `--raw` | |
+| Response plot (`svg_plot`) | none | Web only |
+| Analyze the realized build (`sim_build`) | `--sim-build` | Needs table or JSON output and an E-series |
+| Build fields (`build_capacitor_tolerance_pct`, `build_inductor_tolerance_pct`, `build_inductor_q`, `build_capacitor_q`, `build_reference_frequency`, `build_source_resistance`, `build_load_resistance`, `build_sample_count`, `build_seed`, `build_grid_points`) | `--capacitor-tolerance`, `--inductor-tolerance`, `--inductor-q`, `--capacitor-q`, `--loss-reference-frequency`, `--source-resistance`, `--load-resistance`, `--sample-count`, `--seed`, `--analysis-points` | Read only when the build box is ticked; blanks take the CLI defaults |
+| Keep calculated inductance (`no_toroid_build`) | `--no-toroid-build` | |
+
+Two behaviours differ from the CLI on purpose. Fields that do not apply to the chosen
+output are ignored instead of rejected, because the form always submits every field. The
+deprecated `--sim-matched` and `--q-safety` have no web fields.
+
+### Long calculations
+
+A request waits up to 60 seconds. When that runs out, the page reports
+"Calculation cancelled after 60 s" and a running realized-build analysis stops at its next
+case. Synthesis itself cannot be interrupted, but the accepted input ranges bound its run
+time. At most two calculations run at once; further requests wait their turn.
 
 ## Input Formats
 

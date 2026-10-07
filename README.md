@@ -15,6 +15,7 @@ A command-line tool for calculating LC filter component values. Designed for RF 
 - **ASCII Plots**: Visualize frequency response (LP/HP analytic, BP simulated)
 - **Multiple Outputs**: Table, JSON, CSV, generic SPICE, and standalone response-data exports
 - **Interactive Wizard**: Guided TUI design mode with error surface
+- **Web UI**: `filter-calc web` serves a local browser page with the same designs, the CLI's own output text, an SVG response plot, and byte-identical downloads (optional `web` extra)
 - **Root --version Support**: `filter-calc --version` prints the installed version and exits
 
 ## Installation
@@ -37,6 +38,11 @@ uv sync
 For development (includes pytest and ruff):
 ```bash
 uv sync --group dev
+```
+
+For the browser UI, add the optional `web` extra (FastAPI, uvicorn, Jinja2):
+```bash
+uv sync --extra web                  # add --group dev for development
 ```
 
 ### Breaking Changes (v2.0.0)
@@ -154,6 +160,16 @@ Running with no arguments starts a Textual TUI wizard with screen-based navigati
 
 Default values shown as placeholders; press Enter with empty field to use default.
 
+### Web UI
+
+```bash
+uv run filter-calc web [--host <address>] [--port <port>]
+```
+
+Starts a local server, by default at `http://127.0.0.1:8765/`, and prints the address. The page has a tab per filter category, a form whose fields mirror the CLI flags, and a result panel. The panel shows exactly the text the CLI prints for those settings, with an optional SVG response plot drawn from the same samples as `--plot-data`. Downloads (JSON, CSV, exact or nominal-build SPICE, response JSON/CSV) are byte-identical to the corresponding CLI output.
+
+The web UI is for use on one computer: it binds to the loopback address unless `--host` says otherwise, prints a warning for any other address, and has no authentication. Without the `web` extra, `filter-calc web` exits with an install hint. See [docs/user-guide.md](docs/user-guide.md#web-ui) for the field-to-flag mapping.
+
 ## Options
 
 | Option | Description |
@@ -270,7 +286,7 @@ uv run ruff format --check .  # Check formatting
 
 ### Continuous Integration
 
-GitHub Actions runs Ruff, the full coverage-gated suite on Python 3.10–3.13, and wheel/sdist build plus installed-wheel smoke checks on every push and PR to `main`.
+GitHub Actions runs Ruff, the full coverage-gated suite on Python 3.10–3.13 with the `web` extra, the suite again on a core install without it, and wheel/sdist build plus installed-wheel smoke checks on every push and PR to `main`.
 
 ## Project Structure
 
@@ -280,10 +296,12 @@ rf-filter-calculator/
 ├── tests/                  # Test suite (pytest)
 └── filter_lib/
     ├── cli/                # Subcommand handlers
+    ├── design/             # Shared request → synthesis → render/export path for every surface
     ├── lowpass/            # Lowpass calculations (Pi/T)
     ├── highpass/           # Highpass calculations (Pi/T)
     ├── bandpass/           # Calibrated Top-C synthesis and independent verification
     ├── wizard/             # Interactive design mode
+    ├── web/                # Local browser UI (optional web extra)
     └── shared/             # Parsing, realization, loss/tolerance analysis, SPICE, plotting
 ```
 

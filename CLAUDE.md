@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies (runtime only)
 uv sync
 
-# Install with dev tools (pytest, ruff)
-uv sync --group dev
+# Install with dev tools (pytest, ruff); add --extra web for the browser UI and its tests
+uv sync --group dev --extra web
 
 # Run the tool
 uv run filter-calc lowpass butterworth pi 10MHz -n 5
@@ -17,6 +17,7 @@ uv run filter-calc lp bw pi 10MHz --format json     # short aliases (lp/hp/bp); 
 uv run filter-calc bp bw top -f 10MHz -b 500kHz --sim-build --format json
 uv run filter-calc lp bw pi 10MHz --format spice --spice-realization nominal-build
 uv run filter-calc                  # starts interactive wizard
+uv run filter-calc web              # browser UI on 127.0.0.1:8765 (needs the web extra)
 
 # Tests
 uv run pytest tests/ -v             # all tests
@@ -37,11 +38,13 @@ uv run ruff format .                # auto-format
 
 ## Architecture
 
-Python 3.10+ CLI tool for calculating LC filter component values. Entry point is `filter_lib.cli:main` (registered as `filter-calc` script). No arguments launches a Textual TUI wizard.
+Python 3.10+ CLI tool for calculating LC filter component values. Entry point is `filter_lib.cli:main` (registered as `filter-calc` script). No arguments launches a Textual TUI wizard; `filter-calc web` serves a FastAPI + HTMX browser UI from the optional `web` extra.
 
 ### Package layout (`filter_lib/`)
 
-- **`cli/`** — argparse subcommands (`lowpass_cmd`, `highpass_cmd`, `bandpass_cmd`, `wizard_cmd`). Each has `setup_parser()` and `run()`.
+- **`cli/`** — argparse subcommands (`lowpass_cmd`, `highpass_cmd`, `bandpass_cmd`, `wizard_cmd`, `web_cmd`). Each has `setup_parser()` and `run()`. LP/HP share `ladder_command.py`. `web_cmd` imports FastAPI/uvicorn only inside `run()`; keep it that way so the core install never needs the extra.
+- **`design/`** — the only orchestration path: `DesignRequest` → `design()` → `render_lines` / `export_spice` / `export_response_data`. CLI, wizard, and web all call it.
+- **`web/`** — FastAPI app (`create_app`), form parsing, bounded `CalculationRunner`, SVG plot, Jinja2 templates, vendored HTMX. Output shown or downloaded must stay byte-identical to the CLI.
 - **`lowpass/`**, **`highpass/`** — Thin wrappers over shared base. Each has `calculations.py`, `transfer.py`, `display.py`.
 - **`bandpass/`** — Coupled resonator design. Has its own calculation, transfer, display, formatters, diagrams, and g-value modules. `display.py::format_table_lines` is the single BP table renderer for CLI and wizard; never add a wizard-side BP formatter.
 - **`wizard/`** — Textual TUI. `app.py` drives screens in `screens/` (welcome → filter config → output options → results). `state.py` holds the `FilterState` dataclass shared across screens.
@@ -61,6 +64,8 @@ Python 3.10+ CLI tool for calculating LC filter component values. Entry point is
 Full module map: `docs/codebase-summary.md`.
 
 ### Key design patterns
+
+- **One orchestration path**: new surfaces and inputs go through `filter_lib.design`; never call `calculate_*`, category `format_*`, or `analyze_build` from `cli/`, `wizard/`, or `web/`. A rule every surface must enforce belongs in `DesignRequest` or `RenderOptions`, with the message copied verbatim from the CLI.
 
 - **LP/HP duality**: Lowpass and highpass use the same base calculation functions with different formulas injected (LP: `C=g/(Z*ω)`, `L=g*Z/ω`; HP: inverse). Topology (Pi/T) controls shunt vs series placement.
 - **Filter-type alias canonicalization**: `shared/cli_aliases.py::FILTER_TYPE_ALIASES` is the single source of truth (`bw/b`→butterworth, `ch/c`→chebyshev, `bs`→bessel). Any new dispatch code must consult it rather than re-implement — see `shared/transfer_response_dispatch.py::_canonicalize_filter_type`.
@@ -89,7 +94,7 @@ Component-Q and source/load-resistance ranges are owned by `shared/physical_inpu
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs Ruff, coverage-gated tests on Python 3.10–3.13, source/wheel builds, archive inspection, and installed-wheel smoke tests on push/PR to `main`.
+GitHub Actions (`.github/workflows/ci.yml`) runs Ruff, coverage-gated tests on Python 3.10–3.13 with the `web` extra, a core-install job without it (web tests skip; `filter-calc web` must print the install hint), source/wheel builds, archive inspection, and installed-wheel smoke tests on push/PR to `main`.
 
 ## Testing wizard screens
 
@@ -99,7 +104,11 @@ Wizard Textual screens are testable without a running app: mock widgets with `Mo
 
 CLI tests build `argparse.Namespace` directly via `_lp_args()/_hp_args()/_bp_args()` helpers in `tests/test_cli_and_helpers.py` — pass overrides as kwargs to exercise validation branches without re-parsing argv. To exercise `setup_parser()` wiring, instantiate a plain `argparse.ArgumentParser()` and call `setup_parser(parser)` then `parser.parse_args([...])`.
 
-Every line starting with `uv run filter-calc` in `README.md` or `docs/*.md` is executed by `tests/test_cli_documented_examples.py`. A doc example must run exactly as written; write syntax templates with `<...>` or `[...]` placeholders so they are skipped.
+Every line starting with `uv run filter-calc` in `README.md` or `docs/*.md` is executed by `tests/test_cli_documented_examples.py`. A doc example must run exactly as written; write syntax templates with `<...>` or `[...]` placeholders so they are skipped. `wizard`/`w`/`web` lines are skipped because they never return. Top-level `--help` examples are also executed (`tests/test_cli_help_accuracy.py`), so do not add a `web` example there.
+
+## Testing the web UI
+
+Web tests start with `pytest.importorskip("fastapi")` and use `tests/web_helpers.py::web_client(**settings)`, which runs the app lifespan so the calculation pool is joined on exit. A raw `TestClient` needs `base_url=BASE_URL`: the request guard refuses the default `testserver` host on a loopback bind. Compare against live CLI output via `tests/cli_parity_helpers.py` (`cli_stdout`, `cli_error_message`), never fixtures. A fake slow analysis must be bounded so a cancellation regression fails instead of hanging.
 
 ## Netlist-Simulation Testing
 
