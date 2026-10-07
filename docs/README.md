@@ -1,11 +1,12 @@
 # RF Filter Calculator Documentation
 
-Command-line tool for calculating LC filter component values. Designed for RF engineers and amateur radio operators.
+Calculates LC filter component values for RF engineers and amateur radio operators. Use it from the command line, in a guided terminal wizard, or in a local web page; all three share one engine and give identical results.
 
 ## Documentation Index
 
 - [Quick Start Guide](quick-start.md) - Get up and running quickly
 - [User Guide](user-guide.md) - Complete usage reference
+- [Web UI](user-guide.md#web-ui) - Browser interface, form-field to CLI-flag table, downloads, and local-only behaviour
 - [Response Measurement Interpretation](user-guide.md#interpreting-response-measurements) - Convergence, peak references, disconnected regions, and approximation limits
 - [Filter Theory](filter-theory.md) - Background on filter types and topologies
 - [Tips & Best Practices](tips-and-best-practices.md) - Get the most out of the tool
@@ -43,14 +44,17 @@ cd rf-filter-calculator
 uv sync
 ```
 
-For development (includes pytest):
+For the web UI, add the optional extra; for development (pytest, Ruff), add the dev group:
 
 ```bash
-uv sync --group dev
+uv sync --extra web
+uv sync --group dev --extra web
 ```
 
 Run the tool:
 
 ```bash
-uv run filter-calc lowpass butterworth pi 10MHz
+uv run filter-calc lowpass butterworth pi 10MHz   # command line
+uv run filter-calc                                # interactive wizard
+uv run filter-calc web                            # web UI at http://127.0.0.1:8765/
 ```

@@ -1,9 +1,9 @@
 # Code Standards and Architecture Guidelines
 
-**Last updated:** July 19, 2026
+**Last updated:** October 7, 2026
 
 This document records the conventions that matter for the current calculator. Follow the
-repository-level `AGENTS.md`, then these project-specific rules and nearby code patterns.
+repository-level `CLAUDE.md`, then these project-specific rules and nearby code patterns.
 
 ## Priorities
 
@@ -36,15 +36,21 @@ uv run ruff format --check .
 
 ## Calculation Contracts
 
-LP/HP calculation functions return a tuple:
+LP/HP calculation functions return a tuple whose first two items follow the category: lowpass
+returns capacitors first, highpass returns inductors first (the LP→HP transform swaps the
+component roles):
 
 ```python
-capacitors, inductors, order = calculate_butterworth(
+capacitors, inductors, order = lowpass.calculate_butterworth(
+    cutoff_hz, impedance, num_components, topology
+)
+inductors, capacitors, order = highpass.calculate_butterworth(
     cutoff_hz, impedance, num_components, topology
 )
 ```
 
-The CLI and wizard assemble the user-facing result dictionaries. Bandpass synthesis returns a
+`filter_lib.design` assembles the ladder result dictionaries for every surface (CLI, wizard,
+and web UI). Bandpass synthesis returns a
 dictionary because it carries calibrated component values, requested/internal parameters,
 Q-model metadata, warnings, and per-design validation evidence.
 
@@ -95,8 +101,12 @@ The maintained boundaries are:
   ideal response, and display adapters.
 - `filter_lib/shared/`: parsing, prototypes, E-series policy, named circuits, nodal solving,
   realization, loss/tolerance analysis, export, plotting, and toroid screening.
+- `filter_lib/design/`: the one request → synthesis → render/export path that every surface
+  calls; cross-surface input rules live in `DesignRequest` and `RenderOptions`.
 - `filter_lib/cli/`: argument definitions and thin command orchestration.
-- `filter_lib/wizard/`: Textual screens, shared state, calculation orchestration, and export.
+- `filter_lib/wizard/`: Textual screens, shared state, calculation workers, and export.
+- `filter_lib/web/`: the optional FastAPI web UI: form parsing, bounded execution, request
+  guard, SVG plot, and templates. Imported only by `filter-calc web`.
 
 Keep calibrated synthesis separate from validation. The bandpass calibration sweep may place
 the skirts; `response_verification.py` independently checks skirts, connected regions, shape,
@@ -122,8 +132,8 @@ selection applies to capacitors only:
   0.5 percentage points;
 - below 1 pF, require explicit expert action rather than silently selecting a sub-pF value.
 
-Table, JSON, CSV, wizard, nominal realization, and SPICE must agree on the selected policy
-result. Inductors remain calculated/wound values or screened integer-turn toroid candidates.
+Table, JSON, CSV, wizard, web UI, nominal realization, and SPICE must agree on the selected
+policy result. Inductors remain calculated/wound values or screened integer-turn toroid candidates.
 
 ## Toroid Data and Claims
 
@@ -176,15 +186,19 @@ Current responsibilities:
 
 - `bandpass_form.py`: BP form parsing and focus/error mapping.
 - `build_options.py`: wizard/engine build-control mapping and compatibility checks.
-- `filter_type_calculators.py`: category-specific calculation and primary formatting.
-- `calculation_handler.py`: detached calculation orchestration and outcome construction.
-- `export_formatting.py`: component and response export payloads.
+- `filter_type_calculators.py`: builds the `DesignRequest` from state and renders through
+  `filter_lib.design`.
+- `calculation_handler.py`: detached calculation, optional build analysis through
+  `filter_lib.design`, and outcome construction.
+- `export_formatting.py`: component and response export payloads, rendered by
+  `filter_lib.design`.
 - `screens/results.py`: background worker lifecycle, revision guard, and save UI.
 
 Every design mutation invalidates prior output. A Results worker calculates from a deep-copied
 snapshot and may publish only to the same pending revision. Unmount cancels the worker and
 invalidates its result; long work must poll a cancellation check, because a thread worker
-cannot be interrupted from outside (see `analyze_build(..., should_cancel=...)`). Export is enabled only after a complete successful outcome; build
+cannot be interrupted from outside (see `design(..., should_cancel=...)`, which forwards the
+check to the build analysis). Export is enabled only after a complete successful outcome; build
 analysis must be present when requested.
 
 The wizard allows raw table rows with an E-series only when realized-build analysis consumes
@@ -200,7 +214,8 @@ realization, serialization, and UI parsing rather than large cross-layer routers
 ## Testing
 
 Run the narrowest relevant test first, then the broad release gates when shared contracts
-change:
+change. Install the `web` extra first (`uv sync --group dev --extra web`), or the web tests
+skip and the coverage gate counts `filter_lib/web/` as uncovered:
 
 ```bash
 uv run pytest -q tests/test_relevant_module.py

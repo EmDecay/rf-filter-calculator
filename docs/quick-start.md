@@ -1,6 +1,12 @@
 # Quick Start Guide
 
-## Basic Commands
+There are three ways to design a filter. They share one engine, so the same settings give the same values everywhere:
+
+- **Command line** — `uv run filter-calc <category> …`, best for scripts and repeatable designs.
+- **Interactive wizard** — `uv run filter-calc` with no arguments, a guided terminal form.
+- **Web UI** — `uv run filter-calc web`, a page in your browser on this computer (needs `uv sync --extra web` once).
+
+## Command Line
 
 ### Lowpass Filter (Pi/T Topology)
 
@@ -60,7 +66,7 @@ uv run filter-calc lp bw pi 10MHz --format spice \
 Build analysis is a finite circuit simulation, not a measurement, guaranteed worst
 case, yield prediction, or substitute for a VNA check.
 
-### Interactive Wizard
+## Interactive Wizard
 
 ```bash
 uv run filter-calc
@@ -68,7 +74,7 @@ uv run filter-calc
 
 Running with no arguments starts the interactive wizard.
 
-### Web UI
+## Web UI
 
 ```bash
 uv sync --extra web

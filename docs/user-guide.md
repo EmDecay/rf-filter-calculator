@@ -12,6 +12,9 @@ Complete reference for all commands, options, and features.
 | `wizard` | `w` | Interactive wizard (also the default with no arguments) |
 | `web` | - | Local browser UI (needs the optional `web` extra) |
 
+`filter-calc --version` prints the installed version, and `filter-calc <command> --help` lists
+every option for that command.
+
 ---
 
 ## Lowpass Command
@@ -40,10 +43,12 @@ uv run filter-calc lp <filter_type> -T pi|t -f <frequency> [options]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--topology` | - | Filter topology: `pi` or `t` (required if not positional) |
-| `-n, --components` | 3 | Number of reactive components (2-9) |
+| `--type` | - | Filter type, as an alternative to the positional form |
+| `-T, --topology` | - | Filter topology: `pi` or `t` (required if not positional) |
+| `-f, --freq` | - | Cutoff frequency, as an alternative to the positional form |
+| `-n, --components` | 3 | Number of reactive components (2-9; Chebyshev requires odd) |
 | `-z, --impedance` | 50 | System impedance in ohms |
-| `-r, --ripple` | 0.5 | Chebyshev passband ripple in dB |
+| `-r, --ripple` | 0.5 | Chebyshev passband ripple in dB, `0 < r <= 3.0` |
 | `-e, --eseries` | E24 | Preferred-value density for capacitor selection (E12, E24, E96) |
 | `--no-match` | - | Keep calculated capacitor values; disable preferred-value selection |
 | `--raw` | - | Show raw values (Farads/Henries) |
@@ -95,13 +100,13 @@ These controls are shared by lowpass, highpass, and bandpass commands:
 | Option | Meaning |
 |--------|---------|
 | `--sim-build` | Compare calculated values, selected nominal branches, and bounded tolerance cases |
-| `--capacitor-tolerance PCT` | Capacitor bound for deterministic corners (default 5%) |
-| `--inductor-tolerance PCT` | Inductor bound for deterministic corners (default 10%) |
+| `--capacitor-tolerance PCT` (alias `--cap-tolerance`) | Capacitor bound for deterministic corners (default 5%) |
+| `--inductor-tolerance PCT` (alias `--ind-tolerance`) | Inductor bound for deterministic corners (default 10%) |
 | `--inductor-q Q`, `--capacitor-q Q` | Convert Q (0.01 to 1e9) to constant series resistance at the reference frequency |
 | `--source-resistance`, `--load-resistance` | Evaluate transducer gain with unequal ports (1e-6 to 1e6 times the design impedance); synthesis remains equal-termination |
 | `--loss-reference-frequency` | Frequency at which supplied Q is converted to series resistance |
-| `--sample-count N`, `--seed S` | Add repeatable uniform-bound screening cases; not a yield/probability model |
-| `--analysis-points N` | Initial response grid size, 51–5001 (default 601); measurements refine automatically |
+| `--sample-count N` (alias `--samples`), `--seed S` | Add repeatable uniform-bound screening cases; not a yield/probability model |
+| `--analysis-points N` | Initial response grid size for `--sim-build`, 51–5001 (default 601); measurements refine automatically |
 | `--no-toroid-build` | Use calculated inductance as an explicit fallback in the nominal realization |
 | `--format spice --spice-realization exact` | Generic lossless deck with calculated values |
 | `--format spice --spice-realization nominal-build` | Generic deck with selected parts/fallbacks and configured loss |
@@ -215,13 +220,15 @@ with the request to floating-point precision.
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `--type` | - | Filter type, as an alternative to the positional form |
+| `-c, --coupling` | - | Coupling `top` (alias `t`), as an alternative to the positional form |
 | `-f, --frequency` | - | Center frequency |
 | `-b, --bandwidth` | - | 3 dB bandwidth |
 | `--fl` | - | Lower cutoff frequency |
 | `--fh` | - | Upper cutoff frequency |
-| `-n, --resonators` | 3 | Number of resonators (2-9) |
+| `-n, --resonators` | 3 | Number of resonators (2-9; Chebyshev requires odd) |
 | `-z, --impedance` | 50 | System impedance |
-| `-r, --ripple` | 0.5 | Chebyshev ripple in dB |
+| `-r, --ripple` | 0.5 | Chebyshev ripple in dB, `0 < r <= 3.0` |
 | `-e, --eseries` | E24 | E-series for matching |
 | `--no-match` | - | Disable E-series matching |
 | `--raw` | - | Raw scientific notation |
@@ -233,10 +240,10 @@ with the request to floating-point precision.
 | `--no-toroids` | - | Suppress toroid recommendations |
 | `--toroid-compact` | - | Compact 1-line-per-rec toroid output (text only) |
 | `--toroid-full` | - | Show up to three qualified toroid candidates |
-| `--qu` | - | Complete resonator unloaded Q (0.01 to 1e9); used for Cohn estimate and nominal-build loss |
+| `--qu` | - | Complete resonator unloaded Q (0.01 to 1e9); used for the Cohn estimate and nominal-build loss. Estimates at Qu = 100 and 250 are always shown |
 | `--ql`, `--qc` | - | Inductor and tank-capacitor Q (each 0.01 to 1e9); combined as `1/Qu = 1/QL + 1/QC` |
-| `--resonator-impedance` | design Z | Select tank reactance `sqrt(L/C)` independently of terminations |
-| `--resonator-inductance` | - | Fix tank inductance; mutually exclusive with tank impedance |
+| `--resonator-impedance` (alias `--tank-impedance`) | design Z | Select tank reactance `sqrt(L/C)` independently of terminations |
+| `--resonator-inductance` (alias `--tank-inductance`) | - | Fix tank inductance; mutually exclusive with tank impedance |
 | `--sim-build` | - | Analyze nominal parts, effective loss, and tolerance cases |
 | `--sim-matched` | - | Deprecated compatibility alias |
 
@@ -299,162 +306,55 @@ The wizard is a **Terminal User Interface (TUI)** built with Textual framework, 
 - **Tab/Shift+Tab**: Jump to next/previous input field
 - **Enter**: Submit form or confirm selection
 - **Space**: Toggle checkbox options
-- **Escape**: Go back to previous screen
+- **Escape**: Go back to previous screen (quits from Welcome)
 - **Ctrl+C**: Exit the wizard
 
 ### Design Flow
 
 The wizard guides you through four screens. A selected frequency plot is rendered in Results;
-it is not a separate screen.
+it is not a separate screen. Every text field shows its default as a placeholder; leave it
+blank to use that value.
 
-#### 1. Welcome Screen
-Select your filter category:
-```
-┌──────────────────────────────┐
-│ RF Filter Calculator         │
-├──────────────────────────────┤
-│ Select Filter Category:      │
-│                              │
-│ ❯ Lowpass                    │
-│   Highpass                   │
-│   Bandpass                   │
-│                              │
-│ [Enter] to continue          │
-└──────────────────────────────┘
-```
+#### 1. Welcome
 
-#### 2. Parameter Screen (Lowpass/Highpass/Bandpass)
+Choose **Low-Pass**, **High-Pass**, or **Band-Pass** with ↑/↓ and press Enter.
 
-Enter filter parameters with defaults shown as placeholders:
+#### 2. Filter design (one screen per category)
 
-**Lowpass/Highpass Example:**
-```
-┌──────────────────────────────┐
-│ Lowpass Filter Parameters    │
-├──────────────────────────────┤
-│ Response Type: [Butterworth] │
-│ ❯ Butterworth               │
-│   Chebyshev (Ripple: 0.5 dB)│
-│   Bessel                     │
-│                              │
-│ Topology: [Pi]              │
-│ ❯ Pi                        │
-│   T                         │
-│                              │
-│ Frequency: [10.0 MHz]       │
-│ ▌                           │ (input field)
-│                              │
-│ Impedance: [50 Ω]           │
-│ ▌                           │ (input field)
-│                              │
-│ Components: [3]             │
-│ ▌                           │ (input field)
-│                              │
-│ [Tab] next field [Enter] next│
-└──────────────────────────────┘
-```
+- **Low-pass and high-pass:** *Response Type* (Butterworth, Chebyshev, Bessel); *Topology*
+  (shunt-first ladder = Pi, series-first ladder = T); *Parameters*: cutoff frequency
+  (placeholder `10MHz`), impedance (`50`), order (2-9), and ripple in dB, shown only for
+  Chebyshev.
+- **Band-pass:** *Response Type*; *Coupling Topology* (Top-C, the only option); *Frequency*:
+  center frequency (`14.175MHz`) and bandwidth (`350kHz`), with the fractional bandwidth shown
+  as you type; *Parameters*: impedance, resonators (2-9), and ripple for Chebyshev; and an
+  optional *Advanced Tank Choice*: tank impedance or a fixed tank inductance.
 
-**Bandpass Example:**
-```
-┌──────────────────────────────┐
-│ Bandpass Filter Parameters   │
-├──────────────────────────────┤
-│ Center Frequency: [10.0 MHz] │
-│ ▌                           │ (input field)
-│                              │
-│ Bandwidth: [1.0 MHz]        │
-│ ▌                           │ (input field)
-│                              │
-│ Coupling: [Top-C (Series)]  │
-│ ❯ Top-C (Series)           │
-│                              │
-│ Resonators: [3]             │
-│ ▌                           │ (input field)
-│                              │
-│ [Tab] next field [Enter] next│
-└──────────────────────────────┘
-```
+Invalid values are reported on the field that needs fixing.
 
-**Key Features:**
-- Input fields show **placeholder defaults** (e.g., "10.0 MHz")
-- Press Tab to move between fields
-- Press Enter to submit and continue
-- Arrow keys to select among radio options
-- Chebyshev ripple field appears only when needed
+#### 3. Output Options
 
-#### 3. Output Options Screen (Optional Export/Format Settings)
+- *Component Matching*: E24 (default), E12, E96, or None (calculated values only).
+- *Output Format*: Table, JSON, or CSV.
+- *Additional Options*: raw units, quiet mode, and the frequency response plot (on by default).
+- *Toroid Winding Detail (table output)*: Full (up to three cores, default) or Compact.
+- *Export Plot Data*: no export, or a JSON or CSV response file saved alongside the results.
+- *Realized-Build Analysis (optional)*: tick it to reveal evaluation ports, tolerance bounds,
+  inductor and capacitor Q, screening samples and seed, analysis points, and whether to keep
+  calculated inductance instead of screened toroids.
 
-Configure output format and display options:
+Select **Show Results** to calculate.
 
-```
-┌──────────────────────────────┐
-│ Output Options               │
-├──────────────────────────────┤
-│ E-Series Matching:           │
-│ ❯ E24 (24 values/decade)    │
-│   E12 (12 values/decade)    │
-│   E96 (96 values/decade)    │
-│   None (calculated only)    │
-│                              │
-│ Output Format:               │
-│ ❯ Table (pretty display)    │
-│   JSON (machine-readable)   │
-│   CSV (spreadsheet)         │
-│                              │
-│ Export Frequency Data:       │
-│ ❯ No export                 │
-│   JSON file                 │
-│   CSV file                  │
-│                              │
-│ Additional Options:          │
-│ ☑ Show frequency plot       │
-│ ☐ Raw units (Farads/Henries)│
-│ ☐ Quiet mode (minimal)      │
-│                              │
-│ Toroid Winding Detail        │
-│ (table output):              │
-│ ❯ Full (up to 3 cores)      │
-│   Compact (best, one line)  │
-│                              │
-│ Realized-Build Analysis:     │
-│ ☐ Analyze nominal parts and │
-│   bounded tolerances         │
-│   (reveals ports, tolerance, │
-│    Q, sample, and grid input)│
-│                              │
-│ [Space] toggle [Enter] next  │
-└──────────────────────────────┘
-```
+#### 4. Results
 
-#### 4. Results Screen
-
-View calculated filter components:
-
-```
-┌──────────────────────────────┐
-│ Filter Results               │
-├──────────────────────────────┤
-│ [Loading calculation...]     │
-│                              │
-│ Then displays full output:   │
-│ - Circuit topology diagram   │
-│ - Component table            │
-│ - E-series recommendations   │
-│ - Toroid winding candidates  │
-│   (Full or Compact)          │
-│ - Frequency plot (if chosen  │
-│   on Output Options screen)  │
-│                              │
-│ [Design Another] [Export]    │
-│ [Quit]                       │
-│ Esc: back · Q: quit          │
-└──────────────────────────────┘
-```
+Shows the same output the CLI prints for these settings: header, warnings, topology
+diagram, component table, preferred values, toroid windings, and the plot if selected.
+**Design Another** starts over, and **Export** offers Text, JSON, or CSV plus **Save**, which
+also writes the selected response-data file. CSV is unavailable with realized-build analysis.
 
 Output choices that would silently hide selected information are rejected. Raw table output
 may use an E-series only when realized-build analysis consumes it for nominal part selection;
-quiet output cannot hide build analysis. Export offers Text, JSON, or CSV as applicable, and
-Save can also write the selected response-data sidecar.
+quiet output cannot hide build analysis.
 
 ### Keyboard Reference
 
@@ -465,7 +365,8 @@ Save can also write the selected response-data sidecar.
 | Shift+Tab | Move to previous field |
 | Enter | Confirm selection / Submit form / Continue |
 | Space | Toggle checkbox |
-| Escape | Go back to previous screen |
+| Escape | Go back to previous screen (quits from Welcome) |
+| Q | Quit (Results screen) |
 | Ctrl+C | Exit wizard |
 
 ### Input Formats

@@ -10,7 +10,7 @@ and simulated build behavior.
 
 ## Current status
 
-- More than 2,000 collected pytest cases
+- More than 4,500 collected pytest cases
 - 90% minimum coverage enforced in CI
 - Ruff lint and format gates
 - Full test matrix on Python 3.10–3.13
@@ -70,7 +70,8 @@ The CLI maps its flags in `cli/design_output_args.py`; the wizard maps `FilterSt
 
 ### Lowpass and highpass
 
-LP/HP public calculation functions return `(capacitors, inductors, order)`. Shared
+Lowpass calculation functions return `(capacitors, inductors, order)` and highpass ones
+`(inductors, capacitors, order)`. Shared
 strategy modules provide prototype scaling and analytic magnitude responses. Supported
 topologies are Pi and T; supported response types are Butterworth, Chebyshev, and Bessel.
 

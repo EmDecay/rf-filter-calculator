@@ -5,7 +5,7 @@
 
 ## Quality gates
 
-The repository has more than 3,600 collected pytest cases. CI requires at least 90% line
+The repository has more than 4,500 collected pytest cases. CI requires at least 90% line
 coverage and runs the complete suite on Python 3.10, 3.11, 3.12, and 3.13. A skipped test
 is reported as a skip; failures, lint errors, format errors, and coverage shortfalls are
 not hidden.
@@ -241,11 +241,14 @@ its meaningful success and failure paths.
 ## Multi-version checks
 
 CI is authoritative for all four supported Python versions. Locally, uv can select an
-installed interpreter explicitly:
+installed interpreter explicitly. `uv run --python X.Y` rebuilds the project's `.venv` for
+that interpreter, and syncs only what the command asks for, so pass `--extra web` (or the web
+tests skip) and point `UV_PROJECT_ENVIRONMENT` at a directory outside the repository to keep
+your main environment intact:
 
 ```bash
-uv run --python 3.10 --locked pytest tests/
-uv run --python 3.13 --locked pytest tests/
+UV_PROJECT_ENVIRONMENT=/tmp/rf-filter-py310 uv run --python 3.10 --locked --extra web pytest tests/
+UV_PROJECT_ENVIRONMENT=/tmp/rf-filter-py313 uv run --python 3.13 --locked --extra web pytest tests/
 ```
 
 Do not update the lock file during a verification-only run. Use `uv lock --check` to
