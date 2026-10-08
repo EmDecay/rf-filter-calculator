@@ -5,6 +5,7 @@ from collections.abc import Mapping
 
 from .build_types import BuildConfig, CircuitMeasurement
 from .circuit_model import NamedCircuit
+from .formatting import format_frequency
 from .nodal_solver import make_transducer_gain_evaluator
 from .numeric import is_finite_real
 from .physical_input_limits import require_port_resistance
@@ -78,8 +79,8 @@ def evaluation_ports(result: dict, category: str, config: BuildConfig) -> tuple[
         raise ValueError(f"{key} must be positive and finite")
     source = config.source_resistance_ohm or synthesized
     load = config.load_resistance_ohm or synthesized
-    require_port_resistance(source, synthesized, "Source resistance")
-    require_port_resistance(load, synthesized, "Load resistance")
+    require_port_resistance(source, synthesized, "Simulation source resistance")
+    require_port_resistance(load, synthesized, "Simulation load resistance")
     return source, load
 
 
@@ -94,9 +95,9 @@ def _passband(result: dict, category: str, freqs: list[float]) -> tuple[float, f
 def _underflow_message(
     circuit: NamedCircuit, frequency: float, source_resistance: float, load_resistance: float
 ) -> str:
-    """Name the evaluation inputs behind a transducer gain below the binary64 range."""
-    inputs = [f"source resistance {source_resistance:.3g} ohm"]
-    inputs.append(f"load resistance {load_resistance:.3g} ohm")
+    """Name the simulation inputs behind a transducer gain below the binary64 range."""
+    inputs = [f"source resistance {source_resistance:.3g} \u03a9"]
+    inputs.append(f"load resistance {load_resistance:.3g} \u03a9")
     for kind, label in (("L", "inductor"), ("C", "capacitor")):
         factors = [
             element.quality_factor
@@ -106,8 +107,8 @@ def _underflow_message(
         if factors:
             inputs.append(f"lowest {label} Q {min(factors):.3g}")
     return (
-        f"The simulated transducer gain at {frequency:.6g} Hz underflows binary64 (below "
-        f"about 4.9e-324, or -3233 dB), so the response cannot be measured. Evaluation "
+        f"The simulated transducer gain at {format_frequency(frequency)} underflows binary64 "
+        f"(below about 4.9e-324, or -3233 dB), so the response cannot be measured. Simulation "
         f"inputs: {', '.join(inputs)}; use less extreme component Q or port resistances"
     )
 

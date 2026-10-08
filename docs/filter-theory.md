@@ -31,7 +31,7 @@ Background on filter types, response characteristics, and topologies.
 **Cutoff convention**: For Chebyshev LP/HP, the specified cutoff is the ripple-band
 edge (attenuation equals the ripple value at fc), matching ARRL Handbook / Elsie /
 Zverev tables — not the −3 dB point. The −3 dB frequency lies beyond fc for lowpass
-and below fc for highpass; the threshold table in plot output reports it. Bandpass
+and below fc for highpass; the table of −3/−10/−20 dB frequencies printed with `--plot` reports it. Bandpass
 `bw` is different: it is the true −3 dB bandwidth (what a VNA measures).
 
 **Note**: For bandpass Chebyshev filters, an odd number of resonators is required.
@@ -39,7 +39,7 @@ and below fc for highpass; the threshold table in plot output reports it. Bandpa
 ### Bessel (Maximally Flat Delay)
 
 - Best pulse response (minimal overshoot/ringing)
-- Linear phase response in passband
+- Nearly linear phase in the passband (maximally flat group delay)
 - Gentlest rolloff of the three types
 - Preserves waveform shape
 
@@ -116,8 +116,8 @@ IN ──┤├──┬──────┤├──────┬───�
 
 - LC tank circuits tuned to center frequency
 - **Top-coupled series capacitors only**: Cs12, Cs23 couple adjacent resonators; Ce_in/Ce_out couple to ports
-- Both requested −3 dB skirts are numerically calibrated; a separate netlist sweep reports per-design edge, connected-region, outer-skirt, ripple, passband-shape, and near-stopband validation
-- External Q realized by series end-coupling capacitors (Ce)
+- Both requested −3 dB edges are placed numerically; a separate circuit sweep, the response check, reports per design on the edges, separate −3 dB ranges, the outer edges, ripple, passband shape, and points just outside the passband
+- External Q set by series end-coupling capacitors (Ce)
 
 ---
 
@@ -183,17 +183,17 @@ For compatibility, the result still includes the heuristic:
 Q_min = f₀ / BW × Q_safety
 ```
 
-The default safety factor is 2.0. This number is not a stability boundary, a component specification, or the loss model used by realized-build simulation. `q_safety` is explicitly marked compatibility-only in JSON.
+The default safety factor is 2.0. This number is not a stability boundary, a component specification, or the loss model used by the build simulation. `q_safety` is explicitly marked compatibility-only in JSON.
 
-### Complete-resonator Q
+### Resonator Qu
 
-`Qu` is the unloaded Q of the complete resonator. If inductor and capacitor Q are known separately, the calculator combines their loss channels as:
+`Qu` is the unloaded Q of each resonator, with inductor and capacitor losses together. If inductor and capacitor Q are known separately, the calculator combines their loss channels as:
 
 ```text
 1 / Qu = 1 / QL + 1 / QC
 ```
 
-The omission of one channel means that channel is modeled as ideal. In realized-build analysis, Q at one reference frequency is converted to explicit series resistance. The resistance is held constant during the sweep, so Q then varies with frequency.
+If one of them is omitted, that part is modeled as lossless. In the build simulation, each Q is turned into a fixed series resistance at the frequency where the Q values apply. The resistance is held constant during the sweep, so the modeled Q varies with frequency.
 
 **Cohn Insertion Loss Estimate**:
 
@@ -205,12 +205,12 @@ IL (dB) ≈ 4.343 × Σgᵢ / (FBW_synth × Qu)
 Where:
 - **Σgᵢ** = sum of normalized g-values for all resonators
 - **FBW_synth** = synthesized fractional bandwidth (may differ slightly from requested BW for Chebyshev)
-- **Qu** = unloaded Q of the complete resonator
+- **Qu** = unloaded Q of each resonator (inductor and capacitor losses together)
 - **4.343** ≈ `10 / ln(10)`, the coefficient in this small-loss power-gain approximation (not a general voltage-neper conversion)
 
-The calculator shows reference estimates at Qu = 100 and Qu = 250 and adds the supplied complete-resonator Q. This is a low-loss approximation, not a substitute for the named-circuit loss simulation or a measurement.
+The calculator shows estimates at Qu = 100 and Qu = 250 and adds the resonator Qu you give (`--qu`, or `--ql`/`--qc` combined). This is a low-loss approximation, not a substitute for the named-circuit loss simulation or a measurement.
 
-The exact-component center-loss comparison makes the approximation's breakdown visible. For
+The **Added loss at f₀** block prints each Cohn estimate next to a circuit simulation of the calculated values, which makes the approximation's breakdown visible. For
 a 3-resonator Butterworth design at 10 MHz with 10 kHz bandwidth and Qu=100, Cohn gives about
 174 dB while the equivalent-loss circuit gives about 62 dB of center loss. A finite answer
 does not establish an approximation's applicability. See the [reporting policy](user-guide.md#interpreting-response-measurements)
@@ -219,12 +219,12 @@ and [independent circuit regressions](../tests/test_response_accuracy.py).
 ### Top-C rejection away from the passband
 
 Capacitive couplers are frequency dependent; their near-passband equivalence to prototype
-inverters does not extend to arbitrary remote frequencies. At 20 MHz, a validated 3-resonator
-Butterworth Top-C design centered at 10 MHz with 1 MHz bandwidth gives about −47.66 dB circuit
+inverters does not extend to arbitrary remote frequencies. At 20 MHz, a 3-resonator
+Butterworth Top-C design that passes the response check, centered at 10 MHz with 1 MHz bandwidth, gives about −47.66 dB circuit
 gain, versus about −70.57 dB for the ideal prototype. Both calculations can be correct for
-their respective models. The four near-stopband validation samples use normalized deviations
-−2, −1.5, +1.5 and +2. Informational circuit samples at 2× and 3× center are separate from the
-unchanged synthesis acceptance gates; specific blocker/harmonic requirements need their own
+their respective models. The response check's four points just outside the passband use normalized
+deviations −2, −1.5, +1.5 and +2. The attenuation printed at 2× and 3× the center is for
+information only and is not part of the response check; specific blocker/harmonic requirements need their own
 frequency and rejection mask, including physical parasitics when relevant.
 
 ---
@@ -267,7 +267,7 @@ Rp = Z₀·(1 + q²)   where  q = 1/(ω₀·Z₀·Ce)
 
 The designer solves for Ce such that the tank sees the target Rp. A series-equivalent capacitance correction is included in the tank. Because finite coupling reactance perturbs the complete multi-resonator network, the implementation subsequently calibrates tank frequency and prototype fractional bandwidth against both requested −3 dB skirts.
 
-The calculator displays Q_ext values indicating the external Q realized by the end-coupling capacitors.
+The calculator displays the external Q set by the end-coupling capacitors, e.g. `External Q (input):  40.55 (set by Ce_in)`.
 
 ## Iron-Powder Toroid Winding Math
 
@@ -277,9 +277,9 @@ For a core with published inductance factor A_L in nH/turn², the nominal turns 
 Nideal = sqrt(1000 * L[uH] / A_L[nH/turn^2])
 ```
 
-Turns must be integral, so the realized nominal inductance is `A_L * N²`. The calculator compares adjacent turn options and accepts an automatic candidate only when the selected turn count's nominal error is within that exact core's published A_L tolerance.
+Turns must be whole, so the wound inductance is nominally `A_L * N²`. The calculator compares adjacent turn counts and suggests a core only when the chosen turn count's nominal error is within that exact core's published A_L tolerance.
 
-Frequency guidance, A_L, and physical dimensions do not establish RF suitability. The automatic screen is deliberately limited to exact primary-sourced parts and checks only recorded material guidance, integer-turn accuracy, and winding capacity. Its `omega L / Rdc` value uses wire DC resistance and is only a diagnostic ceiling—not RF Q. Core loss, AC copper loss, SRF, saturation, thermal rise, and power handling require separate data and measurement.
+Frequency guidance, A_L, and physical dimensions do not establish RF suitability. Automatic suggestions are deliberately limited to exact primary-sourced parts and check only the rated frequency range, whole-turn inductance within the A_L tolerance, and wire fit. The `ωL/DCR` value uses only the wire's DC resistance, so it is an upper limit, not RF Q. Core loss, AC copper loss, SRF, saturation, heating, and power handling require separate data and measurement.
 
-See [the user guide](user-guide.md#toroid-winding-recommendations) for the output contract and
-[caveats](caveats-and-known-issues.md#toroid-candidate-screen) for the trust boundary.
+See [the user guide](user-guide.md#toroid-winding-suggestions) for the output contract and
+[caveats](caveats-and-known-issues.md#toroid-winding-suggestions) for the trust boundary.

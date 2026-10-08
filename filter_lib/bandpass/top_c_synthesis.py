@@ -9,6 +9,8 @@ from .coupling_math import (
     calculate_coupling_coefficients,
     calculate_external_q,
     calculate_tank_capacitors,
+    negative_tank_message,
+    tank_capacitor_names,
 )
 from .resonator_math import _resolve_resonator_components
 
@@ -41,12 +43,11 @@ def _synthesize_top_c_raw(
     c_tank[0] -= delta_c_in
     c_tank[-1] -= delta_c_out
 
-    negative_caps = [index + 1 for index, value in enumerate(c_tank) if value <= 0]
+    # Coupling compensation alone left every tank positive, so only the end tanks can fail here.
+    negative_caps = [index for index, value in enumerate(c_tank) if value <= 0]
     if negative_caps:
-        cap_list = ", ".join(f"Cp{index}" for index in negative_caps)
         raise ValueError(
-            f"Bandwidth too wide: tank capacitors {cap_list} would be negative. "
-            "Reduce bandwidth, tank impedance, or resonator count."
+            negative_tank_message(tank_capacitor_names(negative_caps), end_tanks_only=True)
         )
 
     return {

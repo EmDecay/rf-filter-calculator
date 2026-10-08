@@ -1,7 +1,7 @@
 # System Architecture
 
-**Last updated:** October 7, 2026
-**Applies to:** RF Filter Calculator 2.2.0
+**Last updated:** October 8, 2026
+**Applies to:** RF Filter Calculator 2.3.0
 
 ## Overview
 
@@ -18,11 +18,11 @@ CLI · Textual wizard · web UI      (each parses its own input into a DesignReq
         ├─ ideal synthesis ────────────────┐
         │    LP/HP ladder or Top-C BP      │
         │                                 │
-        ├─ optional physical realization  │
-        │    E-series parts + toroid screen│
+        ├─ optional chosen parts          │
+        │    E-series parts + toroid windings
         │                                 ▼
-        ├─ optional build analysis ── named passive circuit
-        │    loss + bounded tolerances       │
+        ├─ optional build simulation ── named passive circuit
+        │    loss + tolerance cases          │
         │                                    ▼
         └─ table / strict JSON / CSV / generic SPICE / response data
 ```
@@ -41,14 +41,41 @@ formatter, or the build analysis directly.
 The service exists so that a third surface did not mean a third copy of the
 orchestration. Before it, the CLI handlers and the wizard each sequenced synthesis, build
 analysis, and formatting, and kept identical results only through parity tests. Each
-surface still owns its input parsing and its defaults (the wizard shows a plot by
-default; the web shows the SVG plot by default; the CLI shows neither), and maps them to
+surface still owns its input parsing and its defaults (the web shows the SVG plot by
+default; the wizard and the CLI show no plot unless asked), and maps them to
 `RenderOptions`. Cross-field rules that every surface must enforce (Chebyshev ripple and
-order, the realized-build output modes) live in `DesignRequest` and `RenderOptions`, so
-all three report them with the same message.
+order, the build-simulation output modes, `--allow-sub-pf` needing an E-series) live in
+`DesignRequest` and `RenderOptions`, so all three report them with the same message.
+Messages shared by surfaces outside those classes are module constants (see
+[code standards](code-standards.md#user-facing-text)).
 
 The CLI keeps a few things outside the service on purpose: argparse usage errors for
 contradictory flags, `--explain`, and the deprecated `--sim-matched` path.
+
+### Option applicability
+
+The wizard and the web offer the same options with the same labels, defaults, and order, and
+disable a control that cannot apply to the chosen output instead of ignoring it or refusing the
+submission. Which options apply is one rule,
+[`design/option_applicability.py`](../filter_lib/design/option_applicability.py):
+`inapplicable_options(OutputChoices)` returns `{option: reason}` for the eight options
+(`eseries`, `allow_sub_pf`, `toroid_detail`, `plot`, `raw`, `build`, `toroid_build`,
+`loss_q`). It restates, in the interfaces' words, exactly the combinations the CLI refuses
+(`shared/cli_output_validation.py`, `shared/cli_bandpass_output_validation.py`,
+`RenderOptions`); a test checks every combination against the CLI validators. A disabled control
+counts as unset, which is what leaving out the CLI flag means.
+
+`document_options(choices, document, applied=…, visible=…)` decides which options another
+document of the same design uses. Each document follows the rules of one output format
+(`DOCUMENT_FORMATS`: design JSON and the chosen-parts SPICE deck follow JSON; CSV, the
+calculated-values deck, and response data follow CSV). A disabled control's visible value is
+added to each document it applies to, so Values only with E-series None downloads JSON as
+`--format json --no-match`, never with a substituted E24. The web downloads
+(`web/download_inputs.py`) and the wizard's saved files (`wizard/state_design_inputs.py`) both
+call it. A new option or rule belongs here, never in one interface.
+
+The build simulation's Q reference frequency label, help, and parser are shared the same way in
+`design/q_reference_frequency.py`.
 
 ## Command layer
 
@@ -60,7 +87,11 @@ The handlers share parser construction and compatibility validation from
 `filter_lib/shared/cli_*.py`. Validation is mode-aware. For example, an explicit
 E-series request is rejected when the selected output cannot represent it; toroid table
 detail flags are rejected in JSON/CSV/quiet modes; and exact SPICE rejects build/Q flags
-that cannot change that deck. This prevents accepted-but-ignored options.
+that cannot change that deck. This prevents accepted-but-ignored options. All three
+subcommands accept `-f`, `--frequency`, and `--freq`, and check `-n` in `run()` with
+`require_count` and the shared count message rather than with argparse choices.
+`--spice-realization` accepts `calculated` and `chosen-parts`, stored as `exact` and
+`nominal-build` at parse time (`shared/cli_aliases.py::SPICE_REALIZATION_ALIASES`).
 
 The normal command flow is:
 
@@ -113,7 +144,7 @@ The implementation is split by responsibility:
   coupling mathematics
 - `top_c_synthesis.py` — raw Top-C series-coupled circuit
 - `top_c_calibration.py` — adjusts internal tank frequency and synthesis FBW so the
-  realized ideal circuit meets both requested −3 dB edges
+  ideal circuit meets both requested −3 dB edges
 - `response_sweep.py`, `passband_measurement.py`, `response_verification.py` — independent
   nodal sweep and per-design response checks
 - `bandpass_design.py`, `design_result.py` — orchestration and result metadata
@@ -124,31 +155,38 @@ frequency specification from internal calibrated parameters and carries per-desi
 synthesis-validation metadata. Validation checks the connected −3 dB region, both outer
 skirts, center/bandwidth, response shape, ripple where applicable, and representative
 near-stopband points. Far-stopband diagnostics do not change these gates. The published support matrix contains 128 studied combinations; the
-individual result, not a blanket family claim, determines whether a design is inside the
-validated envelope.
+individual result, not a blanket family claim, determines whether a design passes the
+response check (`Response Check:` in the table; `response_validation_status` in JSON).
+Solver failures in `top_c_calibration.py` raise `TopCCalibrationError`; `bandpass_design.py`
+re-raises one plain `ValueError` from `calibration_failure_message` with the solver reason on
+`__cause__`.
 
-`--qu` means unloaded Q of the complete resonator. Separate `--ql` and `--qc` combine as
-`1/Qu = 1/QL + 1/QC`. The Cohn insertion-loss value is an estimate; finite-Q build
-analysis is a separate circuit calculation.
+`--qu` is the resonator Qu: unloaded Q of each resonator, inductor and capacitor losses
+together. Separate `--ql` and `--qc` combine as `1/Qu = 1/QL + 1/QC`. The Cohn insertion-loss
+value is an estimate; the build simulation with part losses (Q) is a separate circuit
+calculation.
 
 ## Physical realization
 
-`shared/eseries.py` treats E12/E24/E96 as preferred-value density, never as component
-tolerance. Its default capacitor policy is deterministic:
+`shared/eseries.py` treats E12/E24/E96 as values per decade, never as component
+tolerance. Its capacitor selection rule (`MatchPolicy`) is deterministic:
 
 - select one part when its error is at most 1%;
 - otherwise select a two-part parallel value only when it improves absolute error by at
   least 0.5 percentage points;
 - below 1 pF, report `expert_override_required` and retain the calculated value rather
-  than silently substituting a part.
+  than silently substituting a part, unless `MatchPolicy.allow_sub_pf` is set. Surfaces set it
+  only through `DesignRequest.allow_sub_pf` (`--allow-sub-pf`, wizard/web **Allow capacitors
+  below 1 pF**); `design()` applies it to the table, JSON, CSV, build, and SPICE policies,
+  combined with (never overriding) an explicit `BuildConfig.match_policy.allow_sub_pf`.
 
 `component_realization.py` and `nominal_realization.py` turn that policy into named
 physical branches. If no eligible preferred value or winding exists, the realization
 records an exact calculated fallback explicitly.
 
-### Toroid screening
+### Toroid winding suggestions
 
-The vendored database contains legacy records for inspection, but automatic screening is
+The vendored database contains legacy records for inspection, but automatic suggestions are
 limited to T25-6, T50-2, and T68-2 because those entries have primary-source dimensional,
 `A_L`, material-frequency, and winding-capacity data. Screening covers:
 
@@ -157,7 +195,7 @@ limited to T25-6, T50-2, and T68-2 because those entries have primary-source dim
 - manufacturer winding-capacity limits where available;
 - wire length and DC resistance as construction diagnostics.
 
-It does **not** assess RF Q, SRF, core loss, saturation, thermal rise, or power handling.
+It does **not** check RF Q, SRF, core loss, saturation, heating, or power handling.
 The legacy `q_dc_upper_bound` API name is retained, but the value is labeled as a
 wire-DCR reactance-ratio ceiling and is not presented as predicted RF Q.
 
@@ -169,11 +207,13 @@ The shared circuit stack is intentionally independent of display formatting:
 - `circuit_builders.py` — category-specific exact circuits
 - `nominal_realization.py` — selected physical parts and explicit fallbacks
 - `build_loss_models.py` — converts Q at a stated reference frequency to series loss
-- `tolerance_screening.py` — deterministic corners and optional seeded bounded samples
+- `tolerance_screening.py` — fixed tolerance cases and optional seeded extra random cases
 - `nodal_solver.py` and `branch_admittance.py` — passive AC solution
 - `build_response.py` and `response_refinement.py` — evaluated build landmarks and convergence evidence
 - `response_measurement.py` — existing array-based synthesis/calibration measurement helpers
 - `build_output*.py` — table/JSON contracts
+- `circuit_display_names.py` — bandpass circuit names → table names for readable text and the
+  SPICE `* names:` comment
 - `spice_export.py` — generic passive decks
 
 The nodal solver evaluates transducer power gain with independently specified positive
@@ -187,8 +227,9 @@ Instead, [physical_input_limits.py](../filter_lib/shared/physical_input_limits.p
 component Q and port resistances to values a lumped filter can contain, which keeps every
 accepted analysis within seconds.
 
-Tolerance analysis is a bounded engineering screen. It includes deterministic named
-corners plus repeatable seeded uniform-bound samples when requested. It is not a Monte
+The tolerance cases are a bounded engineering check. They include the fixed cases (all
+parts low, all high, each part low and high alone) plus repeatable extra random cases when
+requested. It is not a Monte
 Carlo yield estimate, a proof of the mathematical worst case, or a replacement for
 measurement.
 
@@ -211,14 +252,15 @@ The output mode is selected before formatting:
 
 | Mode | Contract |
 |---|---|
-| Table | Human-readable calculated values, selected realization, warnings, and optional plots/build analysis |
+| Table | Human-readable calculated values, standard-value choices, warnings, and optional plots/build simulation |
 | JSON | Strict JSON; non-finite values are rejected rather than emitted as `NaN`/`Infinity` |
 | CSV | RFC-style quoted rows produced by `csv.writer`; warnings containing commas remain rectangular |
-| SPICE | Generic passive exact or nominal-build deck; prints load-node voltage and documents the transducer-gain formula |
+| SPICE | Generic passive deck, `exact` (calculated values) or `nominal-build` (chosen parts); prints load-node voltage and documents the transducer-gain formula |
 | `--plot-data` | Standalone analytic LP/HP or nodal BP response data with a shared schema |
 
-Exact SPICE contains calculated components only. Nominal-build SPICE uses selected
-physical parts, optional Q-derived series loss, and explicit calculated fallbacks. The
+Exact SPICE contains calculated components only (`* values: calculated, lossless (exact)`).
+Nominal-build SPICE uses the chosen parts, optional Q-derived series loss, and explicit
+calculated fallbacks (`* values: chosen parts (nominal-build)`, one `* part used:` line each). The
 internal solver and SPICE exporter consume the same named circuit representation.
 
 ## Wizard architecture
@@ -227,17 +269,20 @@ internal solver and SPICE exporter consume the same named circuit representation
 `FilterState`:
 
 ```text
-Welcome → category form → Output Options → Results
+Welcome → category form → Output options → Results
 ```
 
-The state stores design inputs, output choices, advanced build settings, and the latest
-calculation outcome. Results calculations run in a worker. Each run receives a revision;
-stale, cancelled, or post-pop workers cannot overwrite a newer state. A failure clears
-previous exportable results.
+The state stores design inputs, the visible value of every output and build control, and
+the latest calculation outcome. Output options disables controls from the shared
+applicability rule as choices change; the result uses only the options that apply, and saved
+files use `document_options` like the web downloads. Results calculations run in a worker.
+Each run receives a revision; stale, cancelled, or post-pop workers cannot overwrite a newer
+state. A failure clears previous exportable results.
 
-Component export selection is independent of the optional response-data sidecar. The
-Results screen cannot save while calculation is pending, and build-analysis CSV is
-rejected because that compound result currently has table and JSON contracts only.
+Component export selection is independent of the optional response-data sidecar, which
+leaves out resonator Q. The Results screen cannot save while calculation is pending, and the
+CSV choice is disabled, with its reason, when the result includes the build simulation
+(that compound result has table and JSON contracts only) or resonator Q.
 
 ## Web architecture
 
@@ -249,9 +294,18 @@ the core install never needs the `web` extra.
   parsers and defaults into a `DesignRequest` and `RenderOptions`; the result panel shows
   `render_lines` text, downloads come from the same export functions, and the SVG plot is
   drawn from `response_series`, the sweep behind `--plot-data`.
+- **Options and downloads.** `web/option_states.py` evaluates the shared applicability
+  rule for all 64 combinations of the page's five deciding choices and embeds the table in
+  the page, so `static/app.js` only looks answers up and disables controls with their
+  reasons; the rule is never restated in JavaScript. A disabled control is not submitted;
+  its visible value is sent as `visible.<name>`. The result keeps the submitted fields as a
+  snapshot form, and every download posts that snapshot, so downloads describe the result
+  shown; the page shows a stale notice when the form no longer matches it.
+  `download_fields` applies each visible value to the downloads that can use it. The server
+  still refuses a hand-made request that sets an option the rule disables.
 - **Execution.** Calculations run on a bounded thread pool (two workers by default) so
   the event loop stays free. Each request waits up to 60 seconds; on expiry its
-  cancellation flag is set and the request returns 503. Only the realized-build analysis
+  cancellation flag is set and the request returns 503. Only the build simulation
   polls that flag. A synthesis already running finishes in the background and its result
   is dropped; the accepted input ranges bound how long that can take. Shutdown flags
   running work and joins the pool threads.
@@ -270,7 +324,7 @@ Framework choice: FastAPI with server-rendered HTMX keeps one language and one v
 path, and the CLI's text output can be shown verbatim. A React single-page app was
 rejected because it adds a Node toolchain and a second validation layer. Running the
 calculator in the browser through Pyodide was rejected because bandpass calibration and
-tolerance screening already take seconds natively. Streamlit and NiceGUI were rejected as
+the tolerance cases already take seconds natively. Streamlit and NiceGUI were rejected as
 heavy dependencies that would own the page layout.
 
 ## Numeric and validation contract
@@ -315,4 +369,6 @@ release.
   and lifecycle tests together.
 - A new surface or input goes through `filter_lib.design`; put a rule every surface must
   enforce in `DesignRequest` or `RenderOptions`, not in one surface.
+- Decide whether a wizard or web option applies only through
+  `design/option_applicability.py`; extend that rule instead of adding a check in one UI.
 - Accompany new accuracy claims with reference cases and independent response checks.

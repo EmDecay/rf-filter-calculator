@@ -94,10 +94,10 @@ def _assert_structurally_valid(command: str, out: str) -> None:
         assert not _NON_FINITE.search(out), _NON_FINITE.search(out)
         assert re.search(r"(?m)^\w+ .*Filter$", out)
         assert "Component Values" in out
-        assert ("dB Threshold Summary" in out) is ("--plot" in argv)
-        assert ("Realized-Build Analysis" in out) is ("--sim-build" in argv)
-        assert ("legacy --sim-matched" in out) is ("--sim-matched" in argv)
-        toroids_shown = "Screened Toroid Winding Candidates" in out or " target: " in out
+        assert ("Frequencies at -3 / -10 / -20 dB" in out) is ("--plot" in argv)
+        assert ("Build Simulation (chosen parts;" in out) is ("--sim-build" in argv)
+        assert ("--sim-matched is deprecated" in out) is ("--sim-matched" in argv)
+        toroids_shown = "Toroid Winding Suggestions (" in out or " target: " in out
         assert toroids_shown is ("--no-toroids" not in argv)
 
 
@@ -207,7 +207,11 @@ _INVALID = [
         2,
         "filter-calc lowpass: error: frequency required (try: filter-calc lp bw pi 10MHz)",
     ),
-    ("lp bw pi 10XHz", 1, "Error: Invalid frequency: 10XHz"),
+    (
+        "lp bw pi 10XHz",
+        1,
+        "Error: Invalid frequency: 10XHz (use a number with an optional k, M, or G suffix, e.g. 14.2MHz)",
+    ),
     ("lp bw pi --freq=-5MHz", 1, "Error: Frequency must be positive: -5MHz"),
     ("hp bw t 0", 1, "Error: Frequency must be positive: 0"),
     ("hp bw t 0Hz", 1, "Error: Frequency must be positive: 0Hz"),
@@ -215,80 +219,84 @@ _INVALID = [
     ("lp bw pi inf", 1, "Error: Frequency must be positive: inf"),
     ("lp bw pi 1e400", 1, "Error: Frequency must be positive and finite: 1e400"),
     ("hp bw t 1e-400", 1, "Error: Frequency must be positive and finite: 1e-400"),
-    ("lp bw pi 1e99999999999999999999", 1, "Error: Invalid frequency: 1e99999999999999999999"),
+    (
+        "lp bw pi 1e99999999999999999999",
+        1,
+        "Error: Invalid frequency: 1e99999999999999999999 (use a number with an optional k, M, or G suffix, e.g. 14.2MHz)",
+    ),
     ("lp bw pi 10MHz -z 0", 1, "Error: Impedance must be positive: 0"),
     ("lp bw pi 10MHz --impedance=-50", 1, "Error: Impedance must be positive: -50"),
     ("hp bw t 10MHz -z 1e400", 1, "Error: Impedance must be positive and finite: 1e400"),
     ("hp bw t 10MHz -z nan", 1, "Error: Impedance must be positive: nan"),
-    ("hp bw t 10MHz -z 50Ohms", 1, "Error: Invalid impedance: 50ohms"),
-    ("lp bw pi 10MHz -n 0", 1, "Error: Components must be 2-9"),
-    ("lp bw pi 10MHz --components=-1", 1, "Error: Components must be 2-9"),
-    ("hp bw t 10MHz -n 10", 1, "Error: Components must be 2-9"),
-    ("hp bw t 10MHz -n 99", 1, "Error: Components must be 2-9"),
     (
-        "lp bw pi 10MHz -n 3.5",
-        2,
-        "filter-calc lowpass: error: argument -n/--components: invalid int value: '3.5'",
+        "hp bw t 10MHz -z 50Ohms",
+        1,
+        "Error: Invalid impedance: 50ohms (use a number of ohms with an optional k or M suffix, e.g. 50 or 1k)",
     ),
-    ("lp ch pi 10MHz -r 0", 1, "Error: Ripple must be positive"),
-    ("hp ch t 10MHz --ripple=-0.1", 1, "Error: Ripple must be positive"),
-    ("lp ch pi 10MHz -r 3.0001", 1, "Error: Ripple must be at most 3.0 dB"),
-    ("hp ch t 10MHz -r inf", 1, "Error: Ripple must be at most 3.0 dB"),
+    *(
+        (f"{command} 10MHz {count}", 1, "Error: Number of components must be from 2 to 9")
+        for command in ("lp bw pi", "hp bw t")
+        for count in ("-n 0", "--components=-1", "-n 10", "-n 99", "-n 3.5", "-n x", "-n ''")
+    ),
+    ("lp ch pi 10MHz -r 0", 1, "Error: Ripple must be greater than 0 and at most 3.0 dB"),
+    ("hp ch t 10MHz --ripple=-0.1", 1, "Error: Ripple must be greater than 0 and at most 3.0 dB"),
+    ("lp ch pi 10MHz -r 3.0001", 1, "Error: Ripple must be greater than 0 and at most 3.0 dB"),
+    ("hp ch t 10MHz -r inf", 1, "Error: Ripple must be greater than 0 and at most 3.0 dB"),
     (
         "lp ch pi 10MHz -r nan",
         1,
-        "Error: ripple_db must be positive, finite, and at most 3.0 dB for Chebyshev",
+        "Error: Ripple must be greater than 0 and at most 3.0 dB",
     ),
     (
         "hp ch t 10MHz -n 4",
         1,
-        "Error: Chebyshev LP/HP requires odd order for equal source/load terminations "
-        "(use 3, 5, 7, or 9)",
+        "Error: Chebyshev needs an odd number of components (3, 5, 7, or 9) for equal source and "
+        "load impedance",
     ),
     (
         "lp bw pi 10MHz --sim-build --capacitor-tolerance nan",
         1,
-        "Error: capacitor_tolerance_pct must be finite and in [0, 100)",
+        "Error: Capacitor tolerance must be at least 0% and less than 100%",
     ),
     (
         "hp bw t 10MHz --sim-build --inductor-tolerance 100",
         1,
-        "Error: inductor_tolerance_pct must be finite and in [0, 100)",
+        "Error: Inductor tolerance must be at least 0% and less than 100%",
     ),
     (
         "lp bw pi 10MHz --sim-build --inductor-q 0",
         1,
-        "Error: inductor_q must be finite and in [0.01, 1e+09]",
+        "Error: Inductor Q must be between 0.01 and 1e9",
     ),
     (
         "lp bw pi 10MHz --format spice --capacitor-q nan",
         1,
-        "Error: capacitor_q must be finite and in [0.01, 1e+09]",
+        "Error: Capacitor Q must be between 0.01 and 1e9",
     ),
     (
         "hp bw t 10MHz --sim-build --sample-count 10001",
         1,
-        "Error: sample_count must be an integer in [0, 10000]",
+        "Error: The number of extra random tolerance cases must be a whole number from 0 to 10000",
     ),
     (
         "lp bw pi 10MHz --sim-build --analysis-points 50",
         1,
-        "Error: grid_points must be an integer in [51, 5001]",
+        "Error: Frequency points must be a whole number from 51 to 5001",
     ),
     (
         "lp bw pi 10MHz --sim-build --analysis-points 5002",
         1,
-        "Error: grid_points must be an integer in [51, 5001]",
+        "Error: Frequency points must be a whole number from 51 to 5001",
     ),
     (
         "lp bw pi 10MHz --sim-build --source-resistance 0",
         1,
-        "Error: Source resistance must be positive: 0",
+        "Error: Simulation source resistance must be positive: 0",
     ),
     (
         "hp bw t 10MHz --sim-build --load-resistance=-50",
         1,
-        "Error: Load resistance must be positive: -50",
+        "Error: Simulation load resistance must be positive: -50",
     ),
     (
         "hp bw t 10MHz --format spice --inductor-q 10 --loss-reference-frequency nan",
@@ -321,41 +329,73 @@ _INVALID = [
     (
         "bp bw top -f 10MHz -b 9.99MHz",
         1,
-        "Error: Bandwidth too wide to realize: derived tank capacitances must be positive and "
-        "finite",
+        "Error: Cannot realize this design: resonator capacitor Cp2 would be negative. Reduce the "
+        "bandwidth or the number of resonators; changing the resonator impedance or inductance "
+        "does not fix this.",
     ),
     ("bp bw top -f 10MHz -b 0", 1, "Error: Bandwidth must be positive: 0"),
     ("bp bw top -f 10MHz --bandwidth=-1MHz", 1, "Error: Bandwidth must be positive: -1MHz"),
-    ("bp bw top -f 10MHz -b 5XHz", 1, "Error: Invalid bandwidth: 5XHz"),
+    (
+        "bp bw top -f 10MHz -b 5XHz",
+        1,
+        "Error: Invalid bandwidth: 5XHz (use a number with an optional k, M, or G suffix, e.g. 14.2MHz)",
+    ),
     ("bp bw top -f 0 -b 1MHz", 1, "Error: Center frequency must be positive: 0"),
     ("bp bw top --fl 0 --fh 14MHz", 1, "Error: Lower cutoff frequency must be positive: 0"),
-    ("bp bw top --fl 14MHz --fh 14MHz", 1, "Error: Lower frequency must be less than upper"),
-    ("bp bw top --fl 15MHz --fh 14MHz", 1, "Error: Lower frequency must be less than upper"),
+    (
+        "bp bw top --fl 14MHz --fh 14MHz",
+        1,
+        "Error: Lower cutoff frequency must be below the upper cutoff frequency",
+    ),
+    (
+        "bp bw top --fl 15MHz --fh 14MHz",
+        1,
+        "Error: Lower cutoff frequency must be below the upper cutoff frequency",
+    ),
     ("bp bw top --fl 14MHz --fh nan", 1, "Error: Upper cutoff frequency must be positive: nan"),
     (
         "bp bw top -f 14MHz -b 1MHz --fl 13MHz --fh 15MHz",
         2,
-        "filter-calc bandpass: error: use (-f + -b) OR (--fl + --fh), not both",
+        "filter-calc bandpass: error: give either -f and -b, or --fl and --fh, not both",
+    ),
+    *(
+        (
+            f"{command} -f 14MHz -b 1MHz {count}",
+            1,
+            "Error: Number of resonators must be from 2 to 9",
+        )
+        for command in ("bp bw top", "bp ch top")
+        for count in ("-n 1", "--resonators=-1", "-n 10", "-n 3.5", "-n x", "-n ''")
     ),
     (
-        "bp bw top -f 14MHz -b 1MHz -n 1",
-        2,
-        "filter-calc bandpass: error: argument -n/--resonators: invalid choice: 1 "
-        "(choose from 2, 3, 4, 5, 6, 7, 8, 9)",
+        "bp ch top -f 14MHz -b 1MHz -n 4",
+        1,
+        "Error: Chebyshev needs an odd number of resonators (3, 5, 7, or 9) for equal source and load impedance",
     ),
-    ("bp ch top -f 14MHz -b 1MHz -n 4", 1, "Error: Chebyshev requires odd resonator count"),
-    ("bp ch top -f 14MHz -b 1MHz -r nan", 1, "Error: Ripple must be positive and finite"),
-    ("bp ch top -f 14MHz -b 1MHz -r 0", 1, "Error: Ripple must be positive and finite"),
-    ("bp ch top -f 14MHz -b 1MHz -r 3.0001", 1, "Error: Ripple must be at most 3.0 dB"),
-    ("bp bw top -f 14MHz -b 1MHz --qu nan", 1, "Error: Qu must be finite and in [0.01, 1e+09]"),
-    ("bp bw top -f 14MHz -b 1MHz --qu inf", 1, "Error: Qu must be finite and in [0.01, 1e+09]"),
-    ("bp bw top -f 14MHz -b 1MHz --qu 0", 1, "Error: Qu must be finite and in [0.01, 1e+09]"),
-    ("bp bw top -f 14MHz -b 1MHz --qu 2e9", 1, "Error: Qu must be finite and in [0.01, 1e+09]"),
-    ("bp bw top -f 14MHz -b 1MHz --ql nan", 1, "Error: QL must be finite and in [0.01, 1e+09]"),
+    (
+        "bp ch top -f 14MHz -b 1MHz -r nan",
+        1,
+        "Error: Ripple must be greater than 0 and at most 3.0 dB",
+    ),
+    (
+        "bp ch top -f 14MHz -b 1MHz -r 0",
+        1,
+        "Error: Ripple must be greater than 0 and at most 3.0 dB",
+    ),
+    (
+        "bp ch top -f 14MHz -b 1MHz -r 3.0001",
+        1,
+        "Error: Ripple must be greater than 0 and at most 3.0 dB",
+    ),
+    ("bp bw top -f 14MHz -b 1MHz --qu nan", 1, "Error: Qu must be between 0.01 and 1e9"),
+    ("bp bw top -f 14MHz -b 1MHz --qu inf", 1, "Error: Qu must be between 0.01 and 1e9"),
+    ("bp bw top -f 14MHz -b 1MHz --qu 0", 1, "Error: Qu must be between 0.01 and 1e9"),
+    ("bp bw top -f 14MHz -b 1MHz --qu 2e9", 1, "Error: Qu must be between 0.01 and 1e9"),
+    ("bp bw top -f 14MHz -b 1MHz --ql nan", 1, "Error: QL must be between 0.01 and 1e9"),
     (
         "bp bw top -f 14MHz -b 1MHz --ql 100 --qc 0",
         1,
-        "Error: QC must be finite and in [0.01, 1e+09]",
+        "Error: QC must be between 0.01 and 1e9",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --q-safety nan --format json",
@@ -380,63 +420,63 @@ _INVALID = [
     (
         "bp bw top -f 14MHz -b 1MHz --resonator-inductance xyz",
         1,
-        "Error: Invalid resonator inductance: xyz",
+        "Error: Invalid resonator inductance: xyz (use a number with H, mH, uH, or nH, e.g. 1.2uH)",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --resonator-impedance 1e300",
         1,
-        "Error: Bandwidth too wide: tank capacitors Cp1, Cp3 would be negative. Reduce "
-        "bandwidth, tank impedance, or resonator count.",
+        "Error: Cannot realize this design: resonator capacitors Cp1, Cp3 would be negative. "
+        "Lower the resonator impedance or inductance, or reduce the bandwidth.",
     ),
     (
         "bp bw top -f 10MHz -b 500kHz --resonator-impedance 1e-300",
         1,
-        "Error: Resonator impedance 1e-300 ohm is too low to realize the input/output "
-        "coupling to the 50 ohm terminations at this bandwidth and order; it must exceed "
-        "about 2.5 ohm (necessary, not sufficient: a wide enough bandwidth fails at any tank "
-        "value)",
+        "Error: Resonator impedance 1e-300 Ω is too low to couple the resonators to the 50 Ω "
+        "source and load at this bandwidth and number of resonators. Use more than about "
+        "2.5 Ω; a very wide bandwidth can fail even then.",
     ),
     (
         "bp bw top -f 10MHz -b 1e-9",
         1,
         "Error: Bandwidth 1e-09 Hz is too narrow relative to the 1e+07 Hz center frequency "
-        "to synthesize at double precision; use a fractional bandwidth of at least "
+        "to calculate reliably; use a fractional bandwidth of at least "
         "3.6e-12 (a bandwidth of at least 3.6e-05 Hz)",
     ),
     # Q values no lumped part has are rejected up front; 1e-300 once took 30 s to underflow.
     (
         "lp bw pi 10MHz --sim-build --inductor-q 1e-300",
         1,
-        "Error: inductor_q must be finite and in [0.01, 1e+09]",
+        "Error: Inductor Q must be between 0.01 and 1e9",
     ),
     (
         "hp bw t 10MHz --sim-build --capacitor-q 2e9",
         1,
-        "Error: capacitor_q must be finite and in [0.01, 1e+09]",
+        "Error: Capacitor Q must be between 0.01 and 1e9",
     ),
     # Port resistances are limited to 1e-6..1e6 times the design impedance.
     (
         "lp bw pi 10MHz --sim-build --load-resistance 1e9",
         1,
-        "Error: Load resistance 1e+09 ohm is outside the supported range 5e-05 to 5e+07 ohm "
+        "Error: Simulation load resistance 1e+09 ohm is outside the supported range 5e-05 to 5e+07 ohm "
         "(1e-06 to 1e+06 times the 50 ohm design impedance)",
     ),
     (
         "bp bw top -f 10MHz -b 500kHz -z 75 --format spice --source-resistance 1e-5",
         1,
-        "Error: Source resistance 1e-05 ohm is outside the supported range 7.5e-05 to "
+        "Error: Simulation source resistance 1e-05 ohm is outside the supported range 7.5e-05 to "
         "7.5e+07 ohm (1e-06 to 1e+06 times the 75 ohm design impedance)",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --qu 100 --format csv",
         2,
-        "filter-calc bandpass: error: Loss-Q input --qu is not represented by this output "
-        "mode; use table, JSON, or nominal-build SPICE",
+        "filter-calc bandpass: error: --qu has no effect on this output. Resonator Q values "
+        "are used only in table and JSON output and in the chosen-parts (nominal-build) SPICE "
+        "deck; remove --qu or change the output",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --sim-build --analysis-points 0",
         1,
-        "Error: grid_points must be an integer in [51, 5001]",
+        "Error: Frequency points must be a whole number from 51 to 5001",
     ),
 ]
 

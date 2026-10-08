@@ -14,6 +14,7 @@ from ..shared.display_common import (
     csv_match_fields,
 )
 from ..shared.display_helpers import format_eseries_match as _shared_format_eseries
+from ..shared.eseries import MatchPolicy
 from ..shared.formatting import format_capacitance, format_inductance
 from ..shared.strict_json import dumps_strict, validate_finite_tree
 from ..shared.toroid_display import (
@@ -28,7 +29,10 @@ BandpassResult = dict[str, Any]
 
 
 def format_eseries_match(
-    value: float, series: str, unit_formatter: Callable[[float], str]
+    value: float,
+    series: str,
+    unit_formatter: Callable[[float], str],
+    policy: MatchPolicy | None = None,
 ) -> list[str]:
     """Format E-series match for a component value.
 
@@ -38,11 +42,14 @@ def format_eseries_match(
         value: Component value
         series: E-series name (E12, E24, E96)
         unit_formatter: Function to format value with units
+        policy: Match policy (None selects the default policy)
 
     Returns:
         List of formatted match strings
     """
-    return _shared_format_eseries(value, series, unit_formatter, parallel_mode="additive")
+    return _shared_format_eseries(
+        value, series, unit_formatter, parallel_mode="additive", policy=policy
+    )
 
 
 def format_json(
@@ -51,6 +58,7 @@ def format_json(
     include_toroids: bool = True,
     matched_sim: dict[str, Any] | None = None,
     build_analysis=None,
+    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format results as JSON.
 
@@ -61,10 +69,15 @@ def format_json(
         matched_sim: Optional matched-value simulation summary (additive
             top-level ``matched_sim`` key when present)
         build_analysis: Optional realized-build analysis result
+        match_policy: E-series match policy (None selects the default policy)
 
     Returns:
         JSON formatted string
     """
+
+    def component(name: str, value: float, unit_key: str, parallel_mode: str) -> dict[str, Any]:
+        return _bandpass_json_component(name, value, unit_key, eseries, parallel_mode, match_policy)
+
     output = {
         "filter_type": result["filter_type"],
         "coupling": result["coupling"],
@@ -91,19 +104,15 @@ def format_json(
         "warnings": list(result.get("warnings", [])),
         "components": {
             "tank_capacitors": [
-                _bandpass_json_component(f"Cp{i + 1}", v, "value_farads", eseries, "additive")
+                component(f"Cp{i + 1}", v, "value_farads", "additive")
                 for i, v in enumerate(result["c_tank"])
             ],
             "inductors": [
-                _bandpass_json_component(
-                    f"L{i + 1}", result["L_resonant"], "value_henries", eseries, "harmonic"
-                )
+                component(f"L{i + 1}", result["L_resonant"], "value_henries", "harmonic")
                 for i in range(result["n_resonators"])
             ],
             "coupling_capacitors": [
-                _bandpass_json_component(
-                    f"Cs{i + 1}{i + 2}", v, "value_farads", eseries, "additive"
-                )
+                component(f"Cs{i + 1}{i + 2}", v, "value_farads", "additive")
                 for i, v in enumerate(result["c_coupling"])
             ],
         },
@@ -115,12 +124,8 @@ def format_json(
     # present whenever the synthesis emits end caps.
     if result.get("c_end_in") is not None and result.get("c_end_out") is not None:
         output["components"]["end_coupling_capacitors"] = [
-            _bandpass_json_component(
-                "Ce_in", result["c_end_in"], "value_farads", eseries, "additive"
-            ),
-            _bandpass_json_component(
-                "Ce_out", result["c_end_out"], "value_farads", eseries, "additive"
-            ),
+            component("Ce_in", result["c_end_in"], "value_farads", "additive"),
+            component("Ce_out", result["c_end_out"], "value_farads", "additive"),
         ]
     if result.get("ripple_db") is not None:
         output["ripple_db"] = result["ripple_db"]
@@ -141,7 +146,12 @@ def format_json(
 
 
 def _bandpass_json_component(
-    name: str, value: float, unit_key: str, eseries: str | None, parallel_mode: str
+    name: str,
+    value: float,
+    unit_key: str,
+    eseries: str | None,
+    parallel_mode: str,
+    policy: MatchPolicy | None = None,
 ) -> dict[str, Any]:
     """Build one JSON component entry for bandpass export.
 
@@ -151,7 +161,9 @@ def _bandpass_json_component(
     """
     component: dict[str, Any] = {"name": name, unit_key: value}
     if eseries and unit_key == "value_farads":
-        component["standard_match"] = build_standard_match(value, eseries, unit_key, parallel_mode)
+        component["standard_match"] = build_standard_match(
+            value, eseries, unit_key, parallel_mode, policy
+        )
     return component
 
 
@@ -159,6 +171,7 @@ def format_csv(
     result: BandpassResult,
     eseries: str | None = None,
     include_toroids: bool = True,
+    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format results as CSV.
 
@@ -166,6 +179,7 @@ def format_csv(
         result: Dict from calculate_bandpass_filter()
         eseries: E-series name (None disables matching)
         include_toroids: Append toroid best-match columns and populate inductor rows
+        match_policy: E-series match policy (None selects the default policy)
 
     Returns:
         CSV rows separated by LF, without a final line terminator (the caller
@@ -204,7 +218,7 @@ def format_csv(
         formatted = format_capacitance(v)
         val, unit = formatted.rsplit(" ", 1)
         row = [f"Cp{i + 1}", val, unit]
-        row.extend(csv_match_fields(v, format_capacitance, eseries, "additive"))
+        row.extend(csv_match_fields(v, format_capacitance, eseries, "additive", match_policy))
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
@@ -221,7 +235,7 @@ def format_csv(
         formatted = format_capacitance(v)
         val, unit = formatted.rsplit(" ", 1)
         row = [f"Cs{i + 1}{i + 2}", val, unit]
-        row.extend(csv_match_fields(v, format_capacitance, eseries, "additive"))
+        row.extend(csv_match_fields(v, format_capacitance, eseries, "additive", match_policy))
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
@@ -229,7 +243,7 @@ def format_csv(
         formatted = format_capacitance(value)
         val, unit = formatted.rsplit(" ", 1)
         row = [name, val, unit]
-        row.extend(csv_match_fields(value, format_capacitance, eseries, "additive"))
+        row.extend(csv_match_fields(value, format_capacitance, eseries, "additive", match_policy))
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
@@ -243,8 +257,19 @@ def _end_cap_items(result: BandpassResult) -> list[tuple[str, float]]:
     return [("Ce_in", result["c_end_in"]), ("Ce_out", result["c_end_out"])]
 
 
+def coupling_capacitor_rows(result: BandpassResult) -> list[tuple[str, float]]:
+    """Coupling capacitors in table order: Ce_in (when present), Cs12…, then Ce_out."""
+    rows: list[tuple[str, float]] = []
+    if result.get("c_end_in") is not None:
+        rows.append(("Ce_in", result["c_end_in"]))
+    rows.extend((f"Cs{i + 1}{i + 2}", cs) for i, cs in enumerate(result["c_coupling"]))
+    if result.get("c_end_out") is not None:
+        rows.append(("Ce_out", result["c_end_out"]))
+    return rows
+
+
 def format_quiet(result: BandpassResult, raw: bool = False) -> str:
-    """Format results as minimal text (values only).
+    """Format results as minimal text (values only), in the table's order.
 
     Args:
         result: Dict from calculate_bandpass_filter()
@@ -253,25 +278,15 @@ def format_quiet(result: BandpassResult, raw: bool = False) -> str:
     Returns:
         Minimal text output
     """
+    rows = [(f"Cp{i + 1}", v, "F") for i, v in enumerate(result["c_tank"])]
+    rows += [(f"L{i + 1}", result["L_resonant"], "H") for i in range(result["n_resonators"])]
+    rows += [(name, value, "F") for name, value in coupling_capacitor_rows(result)]
     lines: list[str] = []
-    for i, v in enumerate(result["c_tank"]):
+    for name, value, unit in rows:
         if raw:
-            lines.append(f"Cp{i + 1}: {v:.6e} F")
-        else:
-            lines.append(f"Cp{i + 1}: {format_capacitance(v)}")
-    for i in range(result["n_resonators"]):
-        if raw:
-            lines.append(f"L{i + 1}: {result['L_resonant']:.6e} H")
-        else:
-            lines.append(f"L{i + 1}: {format_inductance(result['L_resonant'])}")
-    for i, v in enumerate(result["c_coupling"]):
-        if raw:
-            lines.append(f"Cs{i + 1}{i + 2}: {v:.6e} F")
-        else:
-            lines.append(f"Cs{i + 1}{i + 2}: {format_capacitance(v)}")
-    for name, value in _end_cap_items(result):
-        if raw:
-            lines.append(f"{name}: {value:.6e} F")
+            lines.append(f"{name}: {value:.6e} {unit}")
+        elif unit == "H":
+            lines.append(f"{name}: {format_inductance(value)}")
         else:
             lines.append(f"{name}: {format_capacitance(value)}")
     return "\n".join(lines)

@@ -23,6 +23,8 @@ from filter_lib.shared.chebyshev_g_calculator import MAX_PROTOTYPE_ORDER
 _SI_PREFIX = {"f": 1e-15, "p": 1e-12, "n": 1e-9, "µ": 1e-6, "m": 1e-3, "": 1.0}
 _FREQUENCY_UNIT = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6, "GHz": 1e9}
 _COMPONENT_ORDER = ["Cp1", "Cp2", "Cp3", "L1", "L2", "L3", "Cs12", "Cs23", "Ce_in", "Ce_out"]
+# Values-only output follows the component table: Ce_in, then Cs12…, then Ce_out.
+_TABLE_ORDER = ["Cp1", "Cp2", "Cp3", "L1", "L2", "L3", "Ce_in", "Cs12", "Cs23", "Ce_out"]
 
 
 def _make_result(**overrides):
@@ -53,6 +55,18 @@ def _expected_values(result):
         + [result["L_resonant"]] * n
         + list(result["c_coupling"])
         + [result["c_end_in"], result["c_end_out"]]
+    )
+
+
+def _expected_table_values(result):
+    """Component values in component-table order, from the synthesis result."""
+    n = result["n_resonators"]
+    return (
+        list(result["c_tank"])
+        + [result["L_resonant"]] * n
+        + [result["c_end_in"]]
+        + list(result["c_coupling"])
+        + [result["c_end_out"]]
     )
 
 
@@ -219,17 +233,17 @@ class TestFormatters:
     def test_format_quiet_lists_every_component_with_units(self, result):
         lines = format_quiet(result, raw=False).splitlines()
         names = [line.split(": ")[0] for line in lines]
-        assert names == _COMPONENT_ORDER
+        assert names == _TABLE_ORDER
         parsed = [_si_value(*line.split(": ")[1].split(" ")) for line in lines]
-        assert parsed == pytest.approx(_expected_values(result), rel=2e-3, abs=0)
+        assert parsed == pytest.approx(_expected_table_values(result), rel=2e-3, abs=0)
 
     def test_format_quiet_raw_prints_scientific_si_values(self, result):
         lines = format_quiet(result, raw=True).splitlines()
-        assert [line.split(": ")[0] for line in lines] == _COMPONENT_ORDER
+        assert [line.split(": ")[0] for line in lines] == _TABLE_ORDER
         units = [line.rsplit(" ", 1)[1] for line in lines]
         assert units == list("FFFHHHFFFF")
         values = [float(line.split(": ")[1].split(" ")[0]) for line in lines]
-        assert values == pytest.approx(_expected_values(result), rel=1e-6, abs=0)
+        assert values == pytest.approx(_expected_table_values(result), rel=1e-6, abs=0)
 
 
 # --- display ---
@@ -253,11 +267,11 @@ class TestDisplay:
     def test_display_table_header_describes_the_design(self, result, capsys):
         display_results(result, output_format="table", include_toroids=False)
         out = capsys.readouterr().out
-        assert "Butterworth Coupled Resonator Bandpass Filter" in out
+        assert "Butterworth Coupled-Resonator Band-Pass Filter" in out
         assert "Center Frequency f₀: 14.175 MHz" in out
-        assert "Bandwidth BW:        350 kHz" in out
+        assert "-3 dB Bandwidth:     350 kHz" in out
         assert "Resonators:          3" in out
-        assert "Coupling:            Top-C (Series)" in out
+        assert "Coupling:            Top-C (series capacitors)" in out
         assert "Ripple:" not in out
 
     @staticmethod
@@ -291,8 +305,8 @@ class TestDisplay:
         display_results(result, eseries=None, include_toroids=False)
 
         header = self._header_hz(capsys.readouterr().out)
-        lower, upper = header["Lower Cutoff fₗ"], header["Upper Cutoff fₕ"]
-        bandwidth = header["Bandwidth BW"]
+        lower, upper = header["Lower -3 dB Edge fₗ"], header["Upper -3 dB Edge fₕ"]
+        bandwidth = header["-3 dB Bandwidth"]
         assert bandwidth == bw
         # The printed edges subtract to the printed bandwidth at four significant figures.
         assert float(f"{upper - lower:.4g}") == float(f"{bandwidth:.4g}")
@@ -306,7 +320,7 @@ class TestDisplay:
 
         lines = capsys.readouterr().out.splitlines()
         assert "Center Frequency f₀: 7.0735 MHz" in lines
-        assert "Bandwidth BW:        12.345 kHz" in lines
+        assert "-3 dB Bandwidth:     12.345 kHz" in lines
         assert "Impedance Z₀:        12345 Ω" in lines
 
     def test_display_table_shows_ripple_and_warnings(self, capsys):
@@ -320,29 +334,15 @@ class TestDisplay:
     @pytest.mark.parametrize(
         "q_model, expected_lines",
         [
-            (
-                {"resonator_qu": None},
-                ["", "Loss examples use complete-resonator unloaded Q (not inductor Q alone)."],
-            ),
-            (
-                {"resonator_qu": 150.0},
-                ["", "Loss-model complete-resonator unloaded Q: 150"],
-            ),
+            ({"resonator_qu": None}, [""]),
+            ({"resonator_qu": 150.0}, ["", "Your Qu: 150"]),
             (
                 {"resonator_qu": 400.0 / 3.0, "inductor_ql": 200.0, "capacitor_qc": 400.0},
-                [
-                    "",
-                    "Loss-model complete-resonator unloaded Q: 133.3",
-                    "  Derived from QL=200 and QC=400 at f₀",
-                ],
+                ["", "Your Qu: 133.3 (from QL=200 and QC=400 at f₀)"],
             ),
             (
                 {"resonator_qu": 400.0, "inductor_ql": None, "capacitor_qc": 400.0},
-                [
-                    "",
-                    "Loss-model complete-resonator unloaded Q: 400",
-                    "  Derived from QC=400 at f₀",
-                ],
+                ["", "Your Qu: 400 (from QC=400 at f₀)"],
             ),
         ],
     )
@@ -352,20 +352,16 @@ class TestDisplay:
     @pytest.mark.parametrize(
         ("q_model", "expected_lines"),
         [
-            ({"resonator_qu": 12345.0}, ["", "Loss-model complete-resonator unloaded Q: 12345"]),
-            ({"resonator_qu": 1e6}, ["", "Loss-model complete-resonator unloaded Q: 1e+06"]),
-            ({"resonator_qu": 123456.7}, ["", "Loss-model complete-resonator unloaded Q: 123457"]),
+            ({"resonator_qu": 12345.0}, ["", "Your Qu: 12345"]),
+            ({"resonator_qu": 1e6}, ["", "Your Qu: 1e+06"]),
+            ({"resonator_qu": 123456.7}, ["", "Your Qu: 123457"]),
             (
                 {
                     "resonator_qu": 12345.0 * 20000.0 / 32345.0,
                     "inductor_ql": 12345.0,
                     "capacitor_qc": 20000.0,
                 },
-                [
-                    "",
-                    "Loss-model complete-resonator unloaded Q: 7633",
-                    "  Derived from QL=12345 and QC=20000 at f₀",
-                ],
+                ["", "Your Qu: 7633 (from QL=12345 and QC=20000 at f₀)"],
             ),
         ],
     )
@@ -375,18 +371,16 @@ class TestDisplay:
     def test_widened_user_qu_label_matches_the_insertion_loss_line(self):
         result = calculate_bandpass_filter(10e6, 350e3, 50, 3, "butterworth", "top", qu=100.00001)
 
-        assert format_q_model_lines(result)[1] == (
-            "Loss-model complete-resonator unloaded Q: 100.00001"
-        )
+        assert format_q_model_lines(result)[1] == "Your Qu: 100.00001"
 
     def test_display_with_eseries(self, result, capsys):
         display_results(result, eseries="E12", include_toroids=False)
         out = capsys.readouterr().out
-        assert "E12 Preferred-Value Capacitor Selection" in out
-        assert "Cp1 Calculated:" in out
+        assert "E12 Standard Capacitor Values" in out
+        assert "Cp1 calculated " in out
 
         display_results(result, eseries="E12", raw=True, include_toroids=False)
-        assert "Preferred-Value Capacitor Selection" not in capsys.readouterr().out
+        assert "Standard Capacitor Values" not in capsys.readouterr().out
 
     def test_display_plot_appends_simulated_response_and_thresholds(self, result, capsys):
         display_results(result, include_toroids=False)
@@ -395,13 +389,25 @@ class TestDisplay:
         with_plot = capsys.readouterr().out
 
         for marker in (
-            "Butterworth 3-pole Response",
-            "Passband Detail",
-            "Threshold reference: local peak",
-            "dB Threshold Summary",
+            "Simulated Response, ideal parts (dB): Butterworth, 3 resonators",
+            "Simulated Response Detail",
+            "Levels below are relative to the peak nearest the center (",
+            "Frequencies at -3 / -10 / -20 dB",
         ):
             assert marker in with_plot
             assert marker not in without_plot
+
+    def test_threshold_note_names_separate_ranges_only_when_there_are_several(self, capsys):
+        split = calculate_bandpass_filter(10e6, 1e6, 50, 9, "chebyshev", "top", ripple_db=3.0)
+        display_results(split, show_plot=True, eseries=None, include_toroids=False)
+        split_out = capsys.readouterr().out
+        display_results(_make_result(), show_plot=True, eseries=None, include_toroids=False)
+        single_out = capsys.readouterr().out
+
+        assert "The response is above -3 dB in 5 separate ranges." in split_out
+        assert "separate ranges" not in single_out
+        assert "Levels below are relative to the peak nearest the center (" in single_out
+        assert " Hz;" not in single_out  # the reference frequency carries a unit prefix
 
     def test_display_plot_data_json(self, result, capsys):
         display_results(result, plot_data="json")
@@ -466,14 +472,14 @@ class TestEndCapOutputs:
         out = capsys.readouterr().out
         assert "Ce_in" in out
         assert "Ce_out" in out
-        assert "(realized by Ce_in)" in out
-        assert "(realized by Ce_out)" in out
+        assert "(set by Ce_in)" in out
+        assert "(set by Ce_out)" in out
 
     def test_table_eseries_section_covers_end_caps(self, result, capsys):
         display_results(result, output_format="table", eseries="E24")
         out = capsys.readouterr().out
-        assert "Ce_in Calculated:" in out
-        assert "Ce_out Calculated:" in out
+        assert "Ce_in calculated " in out
+        assert "Ce_out calculated " in out
 
     def test_wizard_table_includes_end_caps_and_their_preferred_values(self, result):
         from filter_lib.wizard.formatting_helpers import format_bandpass_table
@@ -481,6 +487,6 @@ class TestEndCapOutputs:
 
         table = "\n".join(format_bandpass_table(result, FilterState(show_plot=False)))
         assert "Ce_in" in table
-        assert "(realized by Ce_out)" in table
-        assert "Ce_in Calculated:" in table
-        assert "Ce_out Calculated:" in table
+        assert "(set by Ce_out)" in table
+        assert "Ce_in calculated " in table
+        assert "Ce_out calculated " in table

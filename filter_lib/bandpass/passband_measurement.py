@@ -41,7 +41,7 @@ def require_resolvable_bandwidth(f0: float, bw: float) -> None:
     minimum_fbw = _minimum_resolvable_fbw(f0)
     raise ValueError(
         f"Bandwidth {bw:.3g} Hz is too narrow relative to the {f0:.3g} Hz center frequency "
-        f"to synthesize at double precision; use a fractional bandwidth of at least "
+        f"to calculate reliably; use a fractional bandwidth of at least "
         f"{minimum_fbw:.2g} (a bandwidth of at least {_round_up(minimum_fbw * f0):.2g} Hz)"
     )
 
@@ -91,13 +91,19 @@ def measure_netlist_passband(
     )
     peak = mags[peak_index]
     if peak <= 0 or not math.isfinite(peak):
-        raise ValueError("Synthesized circuit has no finite passband peak")
+        raise ValueError(
+            "Cannot calculate this design: the simulated circuit has no usable passband "
+            "peak near the center frequency."
+        )
     response_db = [magnitude_to_db(magnitude) for magnitude in mags]
     peak_db = magnitude_to_db(peak)
     regions = find_threshold_regions(freqs, response_db, peak_db - THREE_DB_DOWN)
     f_low, f_high = find_3db_edges(freqs, mags, reference_frequency=target_f0)
     if f_low is None or f_high is None or f_low == freqs[0] or f_high == freqs[-1]:
-        raise ValueError("Synthesized passband skirts are outside the calibration grid")
+        raise ValueError(
+            "Cannot calculate this design: the circuit's -3 dB edges fall outside the "
+            "simulated frequency range."
+        )
 
     outer_f_low = regions[0].f_low if regions else None
     outer_f_high = regions[-1].f_high if regions else None

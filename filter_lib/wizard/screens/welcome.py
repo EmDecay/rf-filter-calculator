@@ -25,7 +25,7 @@ class WelcomeScreen(Screen):
         yield Static("RF Filter Calculator", classes="header")
         yield Static("Enter: select · ↑/↓: choose · Esc: quit", classes="nav-hint")
         with VerticalScroll(classes="content"):
-            yield Static("Select Filter Type", classes="welcome-title")
+            yield Static("Choose a filter", classes="welcome-title")
             yield Static("Design LC filters for RF applications", classes="welcome-subtitle")
             yield OptionList(
                 Option("Low-Pass Filter - Attenuates frequencies above cutoff", id="lowpass"),

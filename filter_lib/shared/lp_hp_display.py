@@ -17,10 +17,11 @@ from .display_common import (
     format_json_result,
     format_quiet_result,
 )
-from .display_helpers import format_eseries_match
+from .display_helpers import eseries_section_lines, format_eseries_match
+from .eseries import MatchPolicy
 from .formatting import format_capacitance
 from .plotting import find_db_thresholds, format_threshold_table, render_plot_pair
-from .toroid_display import format_winding_candidate_section
+from .toroid_display import format_winding_candidate_section, has_winding_suggestion
 
 # Injection points supplied by each filter module's display config:
 #   ComponentFormatter: value in F/H -> display string
@@ -93,9 +94,28 @@ class LpHpRenderOptions:
     toroid_full: bool = False
     match: MatchConfig | None = None
     trailing_blank: bool = True
+    match_policy: MatchPolicy | None = None
 
 
 CAPACITOR_MATCH = MatchConfig("capacitors", "C", "Capacitor", format_capacitance, "additive")
+
+# Header spelling for every LP/HP surface (CLI, wizard, web share this renderer).
+TOPOLOGY_LABELS = {"pi": "Pi", "t": "T"}
+
+
+def chebyshev_cutoff_note_lines(ripple_db: float | None) -> list[str]:
+    """Explain that a Chebyshev cutoff is the ripple-band edge, not the -3 dB point.
+
+    At fc the loss equals the ripple setting; the -3 dB point lies past fc toward the
+    stopband (higher for LP, lower for HP). The wording stays surface-neutral because
+    the wizard and web print the same lines; each surface offers the response plot,
+    whose threshold table lists the -3 dB frequency.
+    """
+    ripple = f"the {ripple_db:g} dB ripple" if ripple_db is not None else "the ripple"
+    return [
+        f"Note: The Chebyshev cutoff is the ripple-band edge, where loss equals {ripple}.",
+        "      The -3 dB point lies beyond it, toward the stopband (listed with the response plot).",
+    ]
 
 
 def primary_component(result: dict, config: LpHpDisplayConfig) -> str:
@@ -111,6 +131,7 @@ def format_json_for_config(
     include_toroids: bool = True,
     matched_sim: dict | None = None,
     build_analysis=None,
+    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format an LP/HP result as JSON."""
     return format_json_result(
@@ -121,6 +142,7 @@ def format_json_for_config(
         include_toroids=include_toroids,
         matched_sim=matched_sim,
         build_analysis=build_analysis,
+        match_policy=match_policy,
     )
 
 
@@ -129,6 +151,7 @@ def format_csv_for_config(
     config: LpHpDisplayConfig,
     eseries: str | None = None,
     include_toroids: bool = True,
+    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format an LP/HP result as CSV."""
     return format_csv_result(
@@ -137,6 +160,7 @@ def format_csv_for_config(
         eseries=eseries,
         toroid_freq_hz=result["freq_hz"],
         include_toroids=include_toroids,
+        match_policy=match_policy,
     )
 
 
@@ -152,13 +176,14 @@ def render_results_lines(result: dict, options: LpHpRenderOptions) -> list[str]:
     topology = str(result.get("topology", config.default_topology)).lower()
     primary = primary_component(result, config)
     lines = [
-        format_header(result, topology=topology.upper(), filter_category=config.category),
+        format_header(
+            result,
+            topology=TOPOLOGY_LABELS.get(topology, topology.upper()),
+            filter_category=config.category,
+        ),
     ]
     if resolve_filter_type(str(result.get("filter_type", ""))) == "chebyshev":
-        lines.append(
-            "Note: Chebyshev cutoff = ripple-band edge (attenuation = ripple at fc); "
-            "see threshold table for the -3 dB frequency."
-        )
+        lines.extend(chebyshev_cutoff_note_lines(result.get("ripple")))
     lines += [
         "\nTopology:",
         config.diagrams[topology].render(result),
@@ -166,12 +191,13 @@ def render_results_lines(result: dict, options: LpHpRenderOptions) -> list[str]:
             result,
             raw=options.raw,
             primary_component=primary,
-            mention_toroids=options.include_toroids,
+            mention_toroids=options.include_toroids
+            and has_winding_suggestion(result["inductors"], result["freq_hz"]),
         ),
     ]
 
     if options.show_match and not options.raw and options.eseries:
-        _extend_match_lines(lines, result, match, options.eseries)
+        _extend_match_lines(lines, result, match, options.eseries, options.match_policy)
 
     if options.include_toroids:
         lines.extend(_toroid_lines(result, options.toroid_compact, 3 if options.toroid_full else 1))
@@ -240,23 +266,24 @@ def display_results_for_config(
     print("\n".join(render_results_lines(result, options)))
 
 
-def _extend_match_lines(lines: list[str], result: dict, match: MatchConfig, eseries: str) -> None:
+def _extend_match_lines(
+    lines: list[str],
+    result: dict,
+    match: MatchConfig,
+    eseries: str,
+    policy: MatchPolicy | None = None,
+) -> None:
     """Append the E-series standard-value recommendation section in place."""
-    lines.append(f"\n{eseries} Preferred-Value {match.display_name} Selection")
-    lines.append("-" * 45)
-    lines.append(
-        "(Series density is not part tolerance; policy selects at most one realization; "
-        "expert action may be required)"
-    )
-    lines.append("")
+    lines.extend(eseries_section_lines(eseries, match.display_name, policy))
     for i, value in enumerate(result[match.component_key]):
-        lines.append(f"{match.prefix}{i + 1} Calculated: {match.formatter(value)}")
+        lines.append(f"{match.prefix}{i + 1} calculated {match.formatter(value)}")
         lines.extend(
             format_eseries_match(
                 value,
                 eseries,
                 match.formatter,
                 parallel_mode=match.parallel_mode,
+                policy=policy,
             )
         )
 

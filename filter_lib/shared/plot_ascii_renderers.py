@@ -3,7 +3,7 @@
 Provides adaptive ASCII frequency response plots with:
 - Logarithmic frequency axis
 - Labeled dB and frequency axes
-- -3dB reference line with crossing point marker
+- -3 dB reference line with crossing point marker
 - Adaptive Y-axis range based on response data
 - Support for lowpass, highpass, and bandpass filters
 """
@@ -18,21 +18,41 @@ from .plot_threshold_analysis import _find_3db_frequency, find_db_thresholds
 _COMPACT_PREFIXES = ((1e9, "G"), (1e6, "M"), (1e3, "k"))
 
 
-def _format_freq_compact(freq_hz: float) -> str:
-    """Format a frequency in Hz as a short label like '10M' or '3.5k'.
+def _compact_freq_parts(freq_hz: float) -> tuple[str, str]:
+    """Split a frequency into a 3-significant-figure number and an SI prefix.
 
-    Suffix only (no 'Hz') to keep axis labels narrow; 3 significant
-    figures is the most that fits under a 60-column plot. Rounding happens
-    before the prefix is chosen, so 999.6 MHz reads '1G' rather than
-    '1e+03M'; from 1000G the label is scientific notation in hertz.
+    Rounding happens before the prefix is chosen, so 999.6 MHz reads '1' 'G'
+    rather than '1e+03' 'M'; from 1000G the number is scientific notation in
+    hertz with no prefix.
     """
     rounded = float(f"{freq_hz:.3g}")
     if rounded >= 1e12:
-        return f"{freq_hz:.3g}"
+        return f"{freq_hz:.3g}", ""
     for scale, suffix in _COMPACT_PREFIXES:
         if rounded >= scale:
-            return f"{rounded / scale:.3g}{suffix}"
-    return f"{freq_hz:.3g}"
+            return f"{rounded / scale:.3g}", suffix
+    return f"{freq_hz:.3g}", ""
+
+
+def _format_freq_compact(freq_hz: float) -> str:
+    """Format a frequency in Hz as a short axis label like '10M' or '3.5k'.
+
+    Suffix only (no 'Hz') to keep axis labels narrow; 3 significant
+    figures is the most that fits under a 60-column plot.
+    """
+    number, prefix = _compact_freq_parts(freq_hz)
+    return f"{number}{prefix}"
+
+
+def _format_freq_with_unit(freq_hz: float) -> str:
+    """Format a frequency as a 3-significant-figure reading with its unit, e.g. '10.6 MHz'."""
+    number, prefix = _compact_freq_parts(freq_hz)
+    return f"{number} {prefix}Hz"
+
+
+def _floor_label(db_floor: float, width: int) -> str:
+    """Bottom-row dB label. Values at or below the floor are drawn on that row."""
+    return f"≤{db_floor:.0f}".rjust(width)
 
 
 def _plottable_samples(freqs, response_db) -> list[tuple[float, float]]:
@@ -104,7 +124,7 @@ def render_ascii_plot(
     cutoff_hz: float,
     width: int = 60,
     height: int = 12,
-    title: str = "Frequency Response (dB)",
+    title: str = "Ideal Frequency Response (dB)",
     filter_type: str = "lowpass",
     db_floor: float | None = None,
     response_fn: Callable[[float], float] | None = None,
@@ -211,7 +231,7 @@ def render_ascii_plot(
         elif row_idx == 0:
             label = f"{db_val:5.0f} \u2502"
         elif row_idx == plot_height - 1:
-            label = f"{db_min:5.0f} \u2502"
+            label = f"{_floor_label(db_min, 5)} \u2502"
         elif row_idx == plot_height // 2 and abs(row_idx - db_3db_row) > 1:
             label = f"{(db_max + db_min) / 2:5.0f} \u2502"
         else:
@@ -249,7 +269,7 @@ def render_ascii_plot(
 
     # Add -3dB frequency label if it differs from cutoff
     if show_3db_marker and f_3db and 0 < db_3db_row < plot_height - 1:
-        f3_label = _format_freq_compact(f_3db) + "(-3dB)"
+        f3_label = f" -3 dB at {_format_freq_with_unit(f_3db)}"
         f3_col = f_3db_col if f_3db_col else plot_width // 2
         lines.append(" " * 7 + " " * f3_col + "\u25b2" + f3_label)
 
@@ -331,15 +351,15 @@ def render_bandpass_plot(
 
     # Build output
     lines = [title, ""]
-    db_labels = {0: 0}
+    db_labels = {0: f"{0:4d}"}
     if 0 < row_3db < height - 1:
-        db_labels[row_3db] = -3
-    db_labels[height - 1] = int(db_min)
+        db_labels[row_3db] = f"{-3:4d}"
+    db_labels[height - 1] = _floor_label(int(db_min), 4)
 
     for row in range(height):
         db_label = db_labels.get(row, None)
         if db_label is not None:
-            prefix = f"{db_label:4d} \u2502"
+            prefix = f"{db_label} \u2502"
         else:
             prefix = "     \u2502"
         lines.append(prefix + "".join(grid[row]))

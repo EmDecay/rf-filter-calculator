@@ -56,11 +56,11 @@ def test_guide_axes_and_accessible_name_are_present(plotted):
     texts = [text.text for text in root.iter(f"{SVG}text")]
 
     assert root.find(f"{SVG}line[@class='plot-guide']") is not None
-    assert {"−3 dB", "Frequency", "dB"} <= set(texts)
+    assert {"−3 dB", "Frequency", "Magnitude (dB)"} <= set(texts)
     assert root.get("role") == "img"
     assert root.find(f"{SVG}title").text == root.get("aria-label")
-    assert f"{len(freqs)} samples" in root.get("aria-label")
-    source = "simulated" if category == "bandpass" else "analytic"
+    assert f"{len(freqs)} frequency points" in root.get("aria-label")
+    source = "(simulated circuit)" if category == "bandpass" else "(ideal transfer function)"
     assert source in root.get("aria-label")
 
 

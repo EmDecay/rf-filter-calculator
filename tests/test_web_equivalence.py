@@ -194,8 +194,9 @@ def test_design_view_shows_the_cli_text(monkeypatch, capsys, client, design, ext
             argv = (*design.argv, *TOROID_FLAG[design.toroids], *flags)
             form = design.form(**extra, eseries="E24")
     elif mode in ("json", "csv"):
+        # Toroid detail is table-only: the page disables it, so it is not sent.
         argv = design.cli_argv(mode)
-        form = design.form(**extra)
+        form = {k: v for k, v in design.form(**extra).items() if k != "toroids"}
     else:
         argv = design.cli_argv("table", *flags)
         form = design.form(**extra)
@@ -254,7 +255,7 @@ def test_realized_build_output_is_the_cli_output(
 def test_nominal_spice_uses_the_submitted_loss_and_ports(monkeypatch, capsys, client):
     design = DESIGNS[1]
     form = design.form(
-        sim_build="on", build_capacitor_q="500", build_load_resistance="75", no_toroid_build="on"
+        sim_build="on", build_capacitor_q="500", build_load_resistance="75", toroid_build="off"
     )
     expected = cli_stdout(
         monkeypatch,

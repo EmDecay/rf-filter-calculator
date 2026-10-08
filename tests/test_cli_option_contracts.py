@@ -39,13 +39,28 @@ def test_bandpass_parser_tracks_explicit_eseries() -> None:
 @pytest.mark.parametrize(
     ("mode", "message"),
     [
-        (("--raw",), "--eseries is not represented by raw component output"),
-        (("--quiet",), "--eseries is not represented by --quiet"),
-        (("--plot-data", "json"), "--plot-data is a standalone output mode; remove --eseries"),
-        (("--explain",), "--explain is standalone; remove --eseries"),
+        (
+            ("--raw",),
+            "--eseries has no effect with --raw, which skips standard-value matching; "
+            "remove --eseries",
+        ),
+        (
+            ("--quiet",),
+            "--eseries has no effect with --quiet, which prints only calculated values; "
+            "remove --eseries",
+        ),
+        (
+            ("--plot-data", "json"),
+            "--plot-data prints only frequency-response data; remove --eseries",
+        ),
+        (
+            ("--explain",),
+            "--explain prints only a description of the filter type; remove --eseries",
+        ),
         (
             ("--format", "spice", "--spice-realization", "exact"),
-            "--eseries cannot affect an exact lossless deck",
+            "--eseries has no effect on an exact SPICE deck, which uses the calculated values "
+            "without losses; remove it or use --spice-realization nominal-build",
         ),
     ],
 )
@@ -79,9 +94,9 @@ def test_raw_build_analysis_can_use_explicit_eseries(monkeypatch, capsys) -> Non
 
     lines = capsys.readouterr().out.splitlines()
     assert "│ C1: 3.183099e-10 F     │ L1: 1.591549e-06 H     │" in lines
-    assert "Realized-Build Analysis (simulation, not a measurement)" in lines
+    assert "Build Simulation (chosen parts; simulated, not measured)" in lines
     # E96 selects the single 316 pF part; the default E24 would build 47 pF + 270 pF.
-    assert "  C1: e_series_single: 316.00 pF [recommended]" in lines
+    assert "  C1: 316.00 pF (E96)" in lines
 
 
 def test_nominal_spice_can_use_explicit_eseries(monkeypatch, capsys) -> None:
@@ -130,7 +145,7 @@ def test_explicit_eseries_conflicts_with_no_match(monkeypatch, capsys) -> None:
         ),
         (
             ("--no-toroids", "--toroid-full"),
-            "--no-toroids cannot be combined with a toroid table-detail option",
+            "--no-toroids cannot be combined with --toroid-compact or --toroid-full",
         ),
     ],
 )
@@ -159,7 +174,7 @@ def test_sim_build_table_appends_realized_build_block(
 
     output = capsys.readouterr().out
     component_table = output.index(f"│ {first_capacitor}: ")
-    build_block = output.index("Realized-Build Analysis (simulation, not a measurement)")
+    build_block = output.index("Build Simulation (chosen parts; simulated, not measured)")
     assert component_table < build_block
 
 
@@ -296,10 +311,13 @@ def test_subnormal_capacitor_table_does_not_present_nearest_as_recommendation(
     )
 
     output = capsys.readouterr().out
-    assert "policy selects at most one realization; expert action may be required" in output
-    assert "Nearest Std (reference only)" in output
-    assert "EXPERT ACTION REQUIRED; no part selected" in output
-    assert "below the 1 pF automatic-selection floor" in output
+    assert "Each capacitor gets one choice" in output
+    assert "  Use:            none (below 1 pF; see warning)" in output
+    assert ", for reference only" in output
+    assert (
+        "  Warning: Below 1 pF no part is chosen automatically. Choose one manually, or" in output
+    )
+    assert '           turn on "Allow capacitors below 1 pF" (--allow-sub-pf).' in output
 
 
 @pytest.mark.parametrize(
@@ -325,7 +343,9 @@ def test_explain_names_each_single_design_control_it_would_ignore(
         _run(monkeypatch, *arguments)
 
     assert exc_info.value.code == 2
-    assert capsys.readouterr().err.endswith(f"error: --explain is standalone; remove {ignored}\n")
+    assert capsys.readouterr().err.endswith(
+        f"error: --explain prints only a description of the filter type; remove {ignored}\n"
+    )
 
 
 @pytest.mark.parametrize("toroid_flag", ["--toroid-compact", "--toroid-full"])
@@ -338,7 +358,7 @@ def test_plot_data_rejects_each_toroid_table_detail_flag(monkeypatch, capsys, co
 
     assert exc_info.value.code == 2
     assert capsys.readouterr().err.endswith(
-        "error: --plot-data is a standalone output mode; remove --toroid-compact/--toroid-full\n"
+        "error: --plot-data prints only frequency-response data; remove --toroid-compact/--toroid-full\n"
     )
 
 
@@ -367,4 +387,39 @@ def test_explain_rejects_design_controls_it_would_ignore(monkeypatch, capsys, ar
         _run(monkeypatch, *arguments)
 
     assert exc_info.value.code == 2
-    assert "--explain is standalone" in capsys.readouterr().err
+    assert "--explain prints only a description of the filter type" in capsys.readouterr().err
+
+
+def _capture_run(monkeypatch, capsys, arguments: list[str]) -> tuple[object, str, str]:
+    try:
+        _run(monkeypatch, *arguments)
+        code = 0
+    except SystemExit as exc:
+        code = exc.code
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
+
+
+@pytest.mark.parametrize(
+    ("alias", "canonical"), [("calculated", "exact"), ("chosen-parts", "nominal-build")]
+)
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["lp", "bw", "pi", "10MHz", "--format", "spice"],
+        ["hp", "ch", "t", "10MHz", "--format", "spice", "--inductor-q", "100"],
+        ["bp", "ch", "top", "-f", "14.175MHz", "-b", "350kHz", "--format", "spice", "--qu", "200"],
+        ["bp", "bw", "top", "-f", "14.175MHz", "-b", "350kHz", "--format", "spice", "--no-match"],
+        ["lp", "bw", "pi", "10MHz"],
+    ],
+    ids=["lp-lossless", "hp-inductor-q", "bp-qu", "bp-no-match", "not-spice"],
+)
+def test_spice_realization_alias_output_is_byte_identical_to_canonical(
+    monkeypatch, capsys, alias, canonical, arguments
+) -> None:
+    """Output, stderr, and exit code match, including validation messages that name the value."""
+    expected = _capture_run(monkeypatch, capsys, [*arguments, "--spice-realization", canonical])
+    actual = _capture_run(monkeypatch, capsys, [*arguments, "--spice-realization", alias])
+
+    assert actual == expected
+    assert expected[1] or expected[2]

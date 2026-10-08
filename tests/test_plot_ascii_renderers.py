@@ -21,8 +21,8 @@ CHEBYSHEV_3DB_RATIO = math.cosh(math.acosh(1 / math.sqrt(10**0.05 - 1)) / 5)
 
 
 def _marked_minus_3db_hz(label_line: str) -> float:
-    """Parse the "▲<freq>M(-3dB)" annotation printed under the frequency axis."""
-    match = re.fullmatch(r"▲(\d+(?:\.\d+)?)M\(-3dB\)", label_line.strip())
+    """Parse the "▲ -3 dB at <freq> MHz" annotation printed under the frequency axis."""
+    match = re.fullmatch(r"▲ -3 dB at (\d+(?:\.\d+)?) MHz", label_line.strip())
     assert match, label_line
     return float(match.group(1)) * 1e6
 
@@ -155,7 +155,8 @@ class TestRenderAsciiPlot:
 
     @pytest.mark.parametrize(
         ("response_db", "bottom_label"),
-        [([-1, -10, -20], "  -25 │"), ([-3, -50, -100], "  -60 │")],
+        # The bottom row also holds every sample at or below the floor, hence "≤".
+        [([-1, -10, -20], " ≤-25 │"), ([-3, -50, -100], " ≤-60 │")],
         ids=["five-db-below-deepest", "clamped-at-minus-60"],
     )
     def test_auto_range_puts_zero_on_top_and_floor_below_data(self, response_db, bottom_label):
@@ -168,7 +169,7 @@ class TestRenderAsciiPlot:
         rows = _lp_hp_rows(render_ascii_plot([100, 1e3, 1e4], [-1, -10, -50], 1e3, db_floor=-6), 12)
 
         minus_3_rows = [row for row in rows if row.startswith("   -3 │")]
-        assert rows[-1].startswith("   -6 │")
+        assert rows[-1].startswith("  ≤-6 │")
         assert len(minus_3_rows) == 1
         assert "·" in minus_3_rows[0]
         assert not any("-50" in row or "-30" in row for row in rows)
@@ -198,7 +199,7 @@ class TestRenderAsciiPlot:
 
         assert "●" not in plot
         assert "▲" not in plot
-        assert "(-3dB)" not in plot
+        assert "-3 dB at" not in plot
 
     def test_chebyshev_minus_3db_point_beyond_cutoff_is_marked(self):
         freqs, response_db = _dense_response(chebyshev_response, 5, 0.5)
@@ -252,7 +253,7 @@ class TestRenderBandpassPlot:
         assert [row[center_column] for row in rows] == ["│"] * 4 + ["┼"] + ["│"] * 4 + [BLOCK]
         assert rows[0].startswith("   0 │")
         assert rows[4].startswith("  -3 │")
-        assert rows[-1].startswith("  -6 │")
+        assert rows[-1].startswith(" ≤-6 │")
 
     def test_non_positive_center_falls_back_to_arithmetic_edge_labels(self):
         plot = render_bandpass_plot([(100, -10), (200, -3), (300, -10)], 0, 100)

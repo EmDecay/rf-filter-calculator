@@ -3,7 +3,12 @@
 import sys
 from argparse import Namespace
 
-from .cli_aliases import DEFAULT_RIPPLE_DB
+from .cli_aliases import (
+    COMPONENT_COUNT_MESSAGE,
+    DEFAULT_RIPPLE_DB,
+    MAX_RIPPLE_DB,
+    RIPPLE_RANGE_MESSAGE,
+)
 from .cli_argument_parsers import (
     FILTER_TYPE_CHOICES,
     FREQ_SUFFIX_HELP,
@@ -14,26 +19,28 @@ from .cli_argument_parsers import (
     add_output_args,
     add_plot_args,
     add_sim_matched_arg,
+    require_count,
 )
 from .cli_build_options import add_build_analysis_args, make_build_config
 from .cli_output_validation import usage_error, validate_output_mode_args
 from .numeric import require_positive_finite
 
+SIM_MATCHED_DEPRECATION_WARNING = "Warning: --sim-matched is deprecated; use --sim-build"
 
-def validate_filter_args(freq_hz: float, impedance: float, components: int) -> None:
+
+def validate_filter_args(freq_hz: float, impedance: float, components: object) -> None:
     """Validate common design frequency, impedance, and order inputs."""
     require_positive_finite(freq_hz, "Frequency")
     require_positive_finite(impedance, "Impedance")
-    if isinstance(components, bool) or not isinstance(components, int) or not 2 <= components <= 9:
-        raise ValueError("Components must be 2-9")
+    require_count(components, COMPONENT_COUNT_MESSAGE)
 
 
 def resolve_ripple_arg(args: Namespace, filter_type: str) -> float:
     """Resolve the Chebyshev-ripple default and warn when it is ignored."""
     if args.ripple is not None and filter_type != "chebyshev":
-        print("Warning: ripple is only used by Chebyshev; ignoring", file=sys.stderr)
-    if filter_type == "chebyshev" and args.ripple is not None and args.ripple > 3.0:
-        raise ValueError("Ripple must be at most 3.0 dB")
+        print("Warning: -r/--ripple applies only to Chebyshev and was ignored", file=sys.stderr)
+    if filter_type == "chebyshev" and args.ripple is not None and args.ripple > MAX_RIPPLE_DB:
+        raise ValueError(RIPPLE_RANGE_MESSAGE)
     return args.ripple if args.ripple is not None else DEFAULT_RIPPLE_DB
 
 
@@ -77,6 +84,7 @@ def export_plot_data(
 __all__ = [
     "FILTER_TYPE_CHOICES",
     "FREQ_SUFFIX_HELP",
+    "SIM_MATCHED_DEPRECATION_WARNING",
     "TOPOLOGY_CHOICES",
     "add_build_analysis_args",
     "add_common_filter_args",
@@ -88,6 +96,7 @@ __all__ = [
     "export_plot_data",
     "get_filter_type_arg",
     "make_build_config",
+    "require_count",
     "resolve_alternative_arg",
     "resolve_ripple_arg",
     "usage_error",

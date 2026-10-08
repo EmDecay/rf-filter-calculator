@@ -12,15 +12,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..shared.cli_aliases import DEFAULT_Q_SAFETY, resolve_coupling, resolve_filter_type
+from ..shared.cli_aliases import (
+    DEFAULT_Q_SAFETY,
+    MAX_RIPPLE_DB,
+    RIPPLE_RANGE_MESSAGE,
+    chebyshev_odd_count_message,
+    resolve_coupling,
+    resolve_filter_type,
+)
 from ..shared.cli_bandpass_output_validation import loss_q_not_shown_message
+from ..shared.eseries import SUB_PF_OPTION_LABEL
 from ..shared.numeric import is_finite_real, positive_geometric_mean, require_positive_finite
 
 if TYPE_CHECKING:
     from ..shared.build_types import BuildConfig
 
 CATEGORIES = ("lowpass", "highpass", "bandpass")
-MAX_RIPPLE_DB = 3.0
 
 
 def band_from_edges(f_low_hz: float, f_high_hz: float) -> tuple[float, float]:
@@ -32,7 +39,7 @@ def band_from_edges(f_low_hz: float, f_high_hz: float) -> tuple[float, float]:
     require_positive_finite(f_low_hz, "Lower cutoff frequency")
     require_positive_finite(f_high_hz, "Upper cutoff frequency")
     if f_low_hz >= f_high_hz:
-        raise ValueError("Lower frequency must be less than upper")
+        raise ValueError("Lower cutoff frequency must be below the upper cutoff frequency")
     return positive_geometric_mean(f_low_hz, f_high_hz), f_high_hz - f_low_hz
 
 
@@ -55,6 +62,13 @@ class DesignRequest:
     bandpass; ``order`` is the component count for ladders and the resonator count
     for bandpass. ``requested_f_low_hz``/``requested_f_high_hz`` record a band
     specified by its edges so the result metadata can restate them exactly.
+
+    ``allow_sub_pf`` is the one switch for choosing standard capacitor values below
+    1 pF (``--allow-sub-pf``; "Allow capacitors below 1 pF" in the wizard and web).
+    ``design()`` carries it to every place that picks standard capacitors: the
+    E-series table section, CSV/JSON standard matches, the build simulation, and the
+    chosen-parts SPICE deck. An explicit ``build.match_policy.allow_sub_pf`` opt-in is
+    combined with it (either one allows sub-pF parts), never overwritten.
     """
 
     category: str
@@ -74,10 +88,13 @@ class DesignRequest:
     resonator_impedance: float | None = None
     resonator_inductance: float | None = None
     build: BuildConfig | None = None
+    allow_sub_pf: bool = False
 
     def __post_init__(self) -> None:
         if self.category not in CATEGORIES:
             raise ValueError("Unknown filter category")
+        if not isinstance(self.allow_sub_pf, bool):
+            raise ValueError(f'"{SUB_PF_OPTION_LABEL}" must be on or off')
         object.__setattr__(self, "filter_type", resolve_filter_type(self.filter_type))
         if self.category == "bandpass":
             object.__setattr__(self, "topology", resolve_coupling(self.topology))
@@ -107,13 +124,10 @@ class DesignRequest:
         if not self.is_chebyshev:
             return
         ripple = self.ripple_db
-        if not _is_real(ripple):
-            raise ValueError("Ripple must be positive")
-        if ripple > MAX_RIPPLE_DB:
-            raise ValueError("Ripple must be at most 3.0 dB")
-        # NaN compares false here and reaches the calculator's finiteness check.
-        if ripple <= 0:
-            raise ValueError("Ripple must be positive")
+        # NaN compares false here and reaches the calculator's finiteness check, which
+        # reports the same message.
+        if not _is_real(ripple) or ripple > MAX_RIPPLE_DB or ripple <= 0:
+            raise ValueError(RIPPLE_RANGE_MESSAGE)
 
     def _validate_bandpass(self) -> None:
         if self.bandwidth_hz is None:
@@ -125,8 +139,8 @@ class DesignRequest:
             return
         ripple = self.ripple_db
         if _is_real(ripple) and ripple > MAX_RIPPLE_DB:
-            raise ValueError("Ripple must be at most 3.0 dB")
+            raise ValueError(RIPPLE_RANGE_MESSAGE)
         if isinstance(self.order, int) and not isinstance(self.order, bool) and self.order % 2 == 0:
-            raise ValueError("Chebyshev requires odd resonator count")
+            raise ValueError(chebyshev_odd_count_message("resonators"))
         if not is_finite_real(ripple) or ripple <= 0:
-            raise ValueError("Ripple must be positive and finite")
+            raise ValueError(RIPPLE_RANGE_MESSAGE)

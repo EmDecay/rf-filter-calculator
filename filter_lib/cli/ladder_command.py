@@ -17,6 +17,7 @@ from ..design import (
 )
 from ..shared.cli_aliases import resolve_filter_type
 from ..shared.cli_helpers import (
+    SIM_MATCHED_DEPRECATION_WARNING,
     get_filter_type_arg,
     make_build_config,
     resolve_alternative_arg,
@@ -88,6 +89,7 @@ def run_ladder(args: Namespace, category: str, explanations: dict, example: str)
         impedance=impedance,
         order=args.components,
         ripple_db=ripple_db,
+        allow_sub_pf=bool(getattr(args, "allow_sub_pf", False)),
     )
     outcome = design(request)
 
@@ -122,7 +124,7 @@ def _run_deprecated_matched_simulation(args: Namespace, category: str, result: d
     else:
         from ..highpass import display_results
 
-    print("Warning: --sim-matched is deprecated; use --sim-build", file=sys.stderr)
+    print(SIM_MATCHED_DEPRECATION_WARNING, file=sys.stderr)
     summary = run_matched_simulation(
         result, category, args.eseries, use_toroid_candidates=not args.no_toroids
     )

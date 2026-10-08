@@ -81,14 +81,16 @@ class TestPassbandMeasurementGuards:
     def test_skirts_beyond_the_grid_are_not_reported_as_edges(
         self, butterworth_design, target_f0, target_bw
     ):
-        with pytest.raises(ValueError, match="skirts are outside the calibration grid"):
+        with pytest.raises(
+            ValueError, match="-3 dB edges fall outside the simulated frequency range"
+        ):
             measure_netlist_passband(butterworth_design, target_f0, target_bw)
 
     def test_underflowing_transmission_has_no_passband_peak(self, butterworth_design):
         isolated = copy.deepcopy(butterworth_design)
         isolated["c_coupling"] = [value * 1e-200 for value in isolated["c_coupling"]]
 
-        with pytest.raises(ValueError, match="no finite passband peak"):
+        with pytest.raises(ValueError, match="no usable passband peak near the center frequency"):
             measure_netlist_passband(isolated, 10e6, 0.5e6)
 
     def test_model_diagnostics_report_underflow_instead_of_failing(self, butterworth_design):

@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from .build_loss_models import _with_loss
 from .build_types import BuildConfig, ComponentSubstitution
+from .circuit_display_names import display_component_name
 from .circuit_model import CircuitElement
 from .eseries import match_component
 from .toroid_selection import find_core_candidates
@@ -25,7 +26,8 @@ def _realize_capacitor(
     if selected is None:
         warnings = list(match.warnings)
         warnings.append(
-            f"{element.name}: exact calculated value retained and is not a selected physical part."
+            f"{display_component_name(element.name)}: No standard part chosen; "
+            "the simulation uses the calculated value."
         )
         physical = [_with_loss(element, quality_factor, reference_frequency_hz)]
         substitution = ComponentSubstitution(
@@ -111,20 +113,21 @@ def _realize_inductor(
             wire_awg=candidate.mechanical.awg,
             wire_length_mm=candidate.mechanical.wire_length_mm,
         )
-        warnings = [f"{element.name}: {warning}" for warning in candidate.warnings]
+        name = display_component_name(element.name)
+        warnings = [f"{name}: {warning}" for warning in candidate.warnings]
         return realized, substitution, warnings
 
     if config.use_toroid_candidates:
         status = "no_verified_candidate"
         warning = (
-            f"{element.name}: No verified integer-turn toroid candidate was available; "
-            "the exact calculated inductance is an explicit fallback."
+            f"{display_component_name(element.name)}: No suitable toroid; "
+            "the simulation uses the calculated value."
         )
     else:
         status = "candidate_screen_disabled"
         warning = (
-            f"{element.name}: toroid candidate screening was disabled; the exact "
-            "calculated inductance is an explicit fallback."
+            f"{display_component_name(element.name)}: Toroid windings are off; "
+            "the simulation uses the calculated value."
         )
     realized = _with_loss(element, quality_factor, loss_reference_frequency_hz)
     substitution = ComponentSubstitution(

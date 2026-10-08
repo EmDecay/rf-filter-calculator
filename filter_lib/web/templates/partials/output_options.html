@@ -3,12 +3,16 @@
   <legend class="group__title">Output</legend>
   <div class="fields">
     {{ segmented("output_format", "Format", [("table", "Table"), ("quiet", "Values only"), ("json", "JSON"), ("csv", "CSV")]) }}
-    {{ segmented("eseries", "Preferred capacitor values", [("E12", "E12"), ("E24", "E24"), ("E96", "E96"), ("none", "None")]) }}
-    {{ segmented("toroids", "Toroid windings", [("best", "Best"), ("full", "Top three"), ("compact", "Compact"), ("none", "None")]) }}
+    {{ segmented("eseries", "Standard capacitor values", [("E12", "E12"), ("E24", "E24"), ("E96", "E96"), ("none", "None")], option="eseries") }}
     <div class="field field--wide checks">
-      {{ checkbox("svg_plot", "Response plot", "Drawn from the same samples as the response download.") }}
-      {{ checkbox("plot", "Text plot in the table", "The CLI's --plot chart and -3 dB table.") }}
-      {{ checkbox("raw", "Raw values", "Scientific notation in farads and henries; skips preferred values.") }}
+      {{ checkbox("allow_sub_pf", labels.allow_sub_pf, "Also choose standard values for capacitors below 1 pF. When off, no part is chosen below 1 pF and you choose one manually. Needs E12, E24, or E96.", option="allow_sub_pf") }}
+    </div>
+    {{ segmented("toroids", "Toroid windings (table detail)", [("best", "Best, detailed"), ("full", "Up to 3, detailed"), ("compact", "Best, one line"), ("none", "None")], option="toroid_detail", option_values=("full", "compact")) }}
+    <p class="field__help field--wide">JSON lists up to three cores and CSV the best, whatever is chosen here. None also leaves the toroid windings out of JSON, CSV, the build simulation, and the SPICE – chosen parts download.</p>
+    <div class="field field--wide checks">
+      {{ checkbox("svg_plot", "Response graph", "A graph of the magnitude response below the output, from the same data as the Response data downloads.") }}
+      {{ checkbox("plot", "Text plot in the table", "Adds a text chart of the ideal response and the −3, −10 and −20 dB frequencies to the table. Table format only.", option="plot") }}
+      {{ checkbox("raw", "Raw units (F, H)", "Unrounded values in farads and henries (scientific notation) instead of pF and µH. The table then leaves out the standard capacitor values.", option="raw") }}
     </div>
   </div>
 </fieldset>

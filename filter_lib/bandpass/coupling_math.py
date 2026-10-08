@@ -2,7 +2,43 @@
 
 import math
 
+from ..shared.formatting import format_inductance
 from ..shared.numeric import is_finite_real, positive_float_from_log, positive_geometric_mean
+
+# Advice for resonator (tank) capacitors that come out zero or negative. There are two
+# cases with different fixes:
+# - Coupling compensation alone, C_res * (1 - k_left - k_right), already goes negative.
+#   The coupling coefficients k depend only on the bandwidth and the g-values, so the sign
+#   does not depend on the resonator impedance; only a narrower band or fewer resonators
+#   (smaller k sums) helps.
+# - Only an end tank goes negative after also removing the end-coupling compensation.
+#   Relative to C_res that compensation is sqrt(Qe * Zr / Z0 - 1) / Qe, which grows with
+#   the resonator impedance Zr, so a lower resonator impedance or inductance helps (down
+#   to the end-coupling minimum, which has its own error message), as does a narrower band.
+COUPLING_NEGATIVE_TANK_ADVICE = (
+    "Reduce the bandwidth or the number of resonators; changing the resonator impedance or "
+    "inductance does not fix this."
+)
+END_NEGATIVE_TANK_ADVICE = "Lower the resonator impedance or inductance, or reduce the bandwidth."
+
+
+def negative_tank_message(capacitor_names: list[str], *, end_tanks_only: bool) -> str:
+    """User message naming resonator (tank) capacitors that would come out zero or negative.
+
+    ``end_tanks_only`` is true when coupling compensation left every tank positive and
+    only the end-coupling compensation drove an end tank (Cp1 or Cpn) negative.
+    """
+    noun = "capacitor" if len(capacitor_names) == 1 else "capacitors"
+    advice = END_NEGATIVE_TANK_ADVICE if end_tanks_only else COUPLING_NEGATIVE_TANK_ADVICE
+    return (
+        f"Cannot realize this design: resonator {noun} {', '.join(capacitor_names)} "
+        f"would be negative. {advice}"
+    )
+
+
+def tank_capacitor_names(indexes: list[int]) -> list[str]:
+    """Component-table names (Cp1, Cp2, ...) for zero-based tank indexes."""
+    return [f"Cp{index + 1}" for index in indexes]
 
 
 def _positive_finite(value: object, name: str) -> float:
@@ -72,10 +108,11 @@ def calculate_tank_capacitors(
         if index < n_resonators - 1:
             compensation += coupling[index]
         tank_caps.append(resonant_capacitance - compensation)
-    if not all(math.isfinite(value) and value > 0 for value in tank_caps):
-        raise ValueError(
-            "Bandwidth too wide to realize: derived tank capacitances must be positive and finite"
-        )
+    bad = [
+        index for index, value in enumerate(tank_caps) if not (math.isfinite(value) and value > 0)
+    ]
+    if bad:
+        raise ValueError(negative_tank_message(tank_capacitor_names(bad), end_tanks_only=False))
     return tank_caps
 
 
@@ -108,19 +145,30 @@ def require_end_coupling_resonator(
     )
     if resonator_inductance is not None:
         log_reactance = log_omega0 + math.log(resonator_inductance)
-        supplied = f"Resonator inductance {resonator_inductance:.3g} H"
-        minimum = f"{_format_from_log(log_minimum_reactance - log_omega0)} H"
+        supplied = f"Resonator inductance {format_inductance(resonator_inductance)}"
+        minimum = _format_inductance_from_log(log_minimum_reactance - log_omega0)
     else:
         log_reactance = math.log(resonator_impedance)
-        supplied = f"Resonator impedance {resonator_impedance:.3g} ohm"
-        minimum = f"{_format_from_log(log_minimum_reactance)} ohm"
+        supplied = f"Resonator impedance {resonator_impedance:.3g} Ω"
+        minimum = f"{_format_from_log(log_minimum_reactance)} Ω"
     if log_reactance > log_minimum_reactance:
         return
     raise ValueError(
-        f"{supplied} is too low to realize the input/output coupling to the {z0:.3g} ohm "
-        f"terminations at this bandwidth and order; it must exceed about {minimum} "
-        "(necessary, not sufficient: a wide enough bandwidth fails at any tank value)"
+        f"{supplied} is too low to couple the resonators to the {z0:.3g} Ω source and load "
+        f"at this bandwidth and number of resonators. Use more than about {minimum}; a very "
+        "wide bandwidth can fail even then."
     )
+
+
+def _format_inductance_from_log(log_value: float) -> str:
+    """Format ``exp(log_value)`` henries with a unit prefix, or in henries beyond binary64."""
+    try:
+        value = math.exp(log_value)
+    except OverflowError:
+        value = math.inf
+    if 0 < value < math.inf:
+        return format_inductance(value)
+    return f"{_format_from_log(log_value)} H"
 
 
 def _format_from_log(log_value: float) -> str:
@@ -177,8 +225,10 @@ def _calculate_end_coupling_from_log_omega(
     # Keep that roundoff on the physically infeasible Rp=Z0 boundary.
     if log_resistance_ratio <= 4 * math.ulp(1.0):
         raise ValueError(
-            "Fractional bandwidth too wide to realize input/output coupling at "
-            "this impedance; reduce bandwidth or order, or raise the resonator impedance"
+            "The bandwidth is too wide for the end capacitors to couple the resonators to "
+            "the source and load at this resonator impedance. Reduce the bandwidth or the "
+            "number of resonators, or raise the resonator impedance or inductance a little "
+            "(too high a value makes a resonator capacitor negative)."
         )
     if log_resistance_ratio < math.log(2.0):
         log_q = 0.5 * math.log(math.expm1(log_resistance_ratio))

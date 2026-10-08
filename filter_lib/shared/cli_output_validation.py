@@ -8,27 +8,55 @@ from .cli_aliases import (
     DEFAULT_Q_SAFETY,
     DEFAULT_RESONATORS,
 )
-from .cli_spice_validation import validate_spice_mode
 from .cli_validation_error import usage_error
+from .eseries import SUB_PF_CLI_FLAG
 
 
-def _enabled_build_options(args: Namespace) -> list[str]:
+def join_flags(flags: list[str], singular: str, plural: str) -> str:
+    """``"--a has"`` or ``"--a, --b have"``: a flag list with a verb that agrees with it."""
+    return f"{', '.join(flags)} {singular if len(flags) == 1 else plural}"
+
+
+def tolerance_analysis_options(args: Namespace) -> list[str]:
+    """Supplied build options that only the --sim-build tolerance analysis uses."""
     return [
         flag
         for value, flag in (
             (getattr(args, "build_capacitor_tolerance_pct", None), "--capacitor-tolerance"),
             (getattr(args, "build_inductor_tolerance_pct", None), "--inductor-tolerance"),
+            (getattr(args, "build_sample_count", None), "--sample-count"),
+            (getattr(args, "build_seed", None), "--seed"),
+            (getattr(args, "build_grid_points", None), "--analysis-points"),
+        )
+        if value is not None
+    ]
+
+
+def _circuit_build_options(args: Namespace) -> list[str]:
+    """Supplied build options that --sim-build and a SPICE deck both use."""
+    return [
+        flag
+        for value, flag in (
             (getattr(args, "build_inductor_q", None), "--inductor-q"),
             (getattr(args, "build_capacitor_q", None), "--capacitor-q"),
             (getattr(args, "build_source_resistance", None), "--source-resistance"),
             (getattr(args, "build_load_resistance", None), "--load-resistance"),
             (getattr(args, "build_reference_frequency", None), "--loss-reference-frequency"),
-            (getattr(args, "build_sample_count", None), "--sample-count"),
-            (getattr(args, "build_seed", None), "--seed"),
-            (getattr(args, "build_grid_points", None), "--analysis-points"),
             (True if getattr(args, "no_toroid_build", False) else None, "--no-toroid-build"),
         )
         if value is not None
+    ]
+
+
+def matching_options(args: Namespace) -> list[str]:
+    """Supplied options that only change which standard capacitor values are chosen."""
+    return [
+        flag
+        for enabled, flag in (
+            (bool(getattr(args, "_eseries_explicit", False)), "--eseries"),
+            (bool(getattr(args, "allow_sub_pf", False)), SUB_PF_CLI_FLAG),
+        )
+        if enabled
     ]
 
 
@@ -78,35 +106,42 @@ def _validate_primary_output_mode(args: Namespace) -> None:
     toroid_text_mode = bool(
         getattr(args, "toroid_compact", False) or getattr(args, "toroid_full", False)
     )
-    explicit_eseries = bool(getattr(args, "_eseries_explicit", False))
+    matching = matching_options(args)
     no_match = bool(getattr(args, "no_match", False))
     no_toroids = bool(getattr(args, "no_toroids", False))
-    if explicit_eseries and no_match:
-        usage_error(args, "--eseries cannot be combined with --no-match")
+    if matching and no_match:
+        usage_error(args, f"{', '.join(matching)} cannot be combined with --no-match")
     if getattr(args, "toroid_compact", False) and getattr(args, "toroid_full", False):
         usage_error(args, "use only one of --toroid-compact or --toroid-full")
     if no_toroids and toroid_text_mode:
-        usage_error(args, "--no-toroids cannot be combined with a toroid table-detail option")
+        usage_error(args, "--no-toroids cannot be combined with --toroid-compact or --toroid-full")
     if explain:
-        incompatible = _enabled_explain_design_options(args) + [
-            flag
-            for enabled, flag in (
-                (output_format != "table", f"--format {output_format}"),
-                (quiet, "--quiet"),
-                (raw, "--raw"),
-                (plot, "--plot"),
-                (bool(getattr(args, "plot_data", None)), "--plot-data"),
-                (sim_matched, "--sim-matched"),
-                (sim_build, "--sim-build"),
-                (no_match, "--no-match"),
-                (no_toroids, "--no-toroids"),
-                (toroid_text_mode, "--toroid-compact/--toroid-full"),
-                (explicit_eseries, "--eseries"),
-            )
-            if enabled
-        ]
+        incompatible = (
+            _enabled_explain_design_options(args)
+            + [
+                flag
+                for enabled, flag in (
+                    (output_format != "table", f"--format {output_format}"),
+                    (quiet, "--quiet"),
+                    (raw, "--raw"),
+                    (plot, "--plot"),
+                    (bool(getattr(args, "plot_data", None)), "--plot-data"),
+                    (sim_matched, "--sim-matched"),
+                    (sim_build, "--sim-build"),
+                    (no_match, "--no-match"),
+                    (no_toroids, "--no-toroids"),
+                    (toroid_text_mode, "--toroid-compact/--toroid-full"),
+                )
+                if enabled
+            ]
+            + matching
+        )
         if incompatible:
-            usage_error(args, f"--explain is standalone; remove {', '.join(incompatible)}")
+            usage_error(
+                args,
+                "--explain prints only a description of the filter type; "
+                f"remove {', '.join(incompatible)}",
+            )
     if output_format != "table":
         incompatible = [
             flag
@@ -130,12 +165,29 @@ def _validate_primary_output_mode(args: Namespace) -> None:
         usage_error(args, "--quiet and --sim-build cannot be used together")
     if quiet and toroid_text_mode:
         usage_error(args, "--toroid-compact/--toroid-full cannot be used with --quiet")
-    if quiet and explicit_eseries:
-        usage_error(args, "--eseries is not represented by --quiet")
-    if raw and explicit_eseries and not (sim_matched or sim_build):
-        usage_error(args, "--eseries is not represented by raw component output")
+    if quiet and matching:
+        usage_error(
+            args,
+            f"{join_flags(matching, 'has', 'have')} no effect with --quiet, which prints only "
+            f"calculated values; remove {', '.join(matching)}",
+        )
+    if raw and matching and not (sim_matched or sim_build):
+        usage_error(
+            args,
+            f"{join_flags(matching, 'has', 'have')} no effect with --raw, which skips "
+            f"standard-value matching; remove {', '.join(matching)}",
+        )
     if sim_matched and sim_build:
-        usage_error(args, "--sim-matched is deprecated; use --sim-build alone")
+        usage_error(
+            args,
+            "--sim-matched and --sim-build cannot be used together; --sim-matched is "
+            "deprecated, so use --sim-build alone",
+        )
+    if sim_matched and getattr(args, "allow_sub_pf", False):
+        usage_error(
+            args,
+            f"{SUB_PF_CLI_FLAG} cannot be used with the deprecated --sim-matched; use --sim-build",
+        )
 
 
 def _validate_plot_data_mode(args: Namespace) -> None:
@@ -151,17 +203,17 @@ def _validate_plot_data_mode(args: Namespace) -> None:
             (bool(getattr(args, "plot", False)), "--plot"),
             (bool(getattr(args, "sim_matched", False)), "--sim-matched"),
             (bool(getattr(args, "sim_build", False)), "--sim-build"),
-            (bool(getattr(args, "_eseries_explicit", False)), "--eseries"),
             (
                 bool(getattr(args, "toroid_compact", False) or getattr(args, "toroid_full", False)),
                 "--toroid-compact/--toroid-full",
             ),
         )
         if enabled
-    ]
+    ] + matching_options(args)
     if incompatible:
         usage_error(
-            args, f"--plot-data is a standalone output mode; remove {', '.join(incompatible)}"
+            args,
+            f"--plot-data prints only frequency-response data; remove {', '.join(incompatible)}",
         )
 
 
@@ -178,14 +230,23 @@ def _validate_build_mode(args: Namespace) -> None:
         usage_error(args, "--sim-build is supported only with table or JSON output")
     if (sim_matched or sim_build) and no_match:
         flag = "--sim-build" if sim_build else "--sim-matched"
-        usage_error(args, f"{flag} requires selected nominal capacitor values; remove --no-match")
-    explicit = _enabled_build_options(args)
-    if explicit and not sim_build and output_format != "spice":
-        verb = "requires" if len(explicit) == 1 else "require"
-        usage_error(args, f"{', '.join(explicit)} {verb} --sim-build or --format spice")
+        usage_error(args, f"{flag} uses standard E-series capacitor values; remove --no-match")
+    if not sim_build and output_format != "spice":
+        requirements = [
+            f"{join_flags(flags, 'requires', 'require')} {needed}"
+            for flags, needed in (
+                (tolerance_analysis_options(args), "--sim-build"),
+                (_circuit_build_options(args), "--sim-build or --format spice"),
+            )
+            if flags
+        ]
+        if requirements:
+            usage_error(args, "; ".join(requirements))
     if spice_realization is not None and output_format != "spice":
         usage_error(args, "--spice-realization requires --format spice")
     if output_format == "spice":
+        from .cli_spice_validation import validate_spice_mode
+
         validate_spice_mode(args)
 
     sample_count = getattr(args, "build_sample_count", None)
@@ -196,12 +257,15 @@ def _validate_build_mode(args: Namespace) -> None:
     )
     resonator_q = any(getattr(args, name, None) is not None for name in ("qu", "ql", "qc"))
     if component_q and resonator_q:
-        usage_error(
-            args, "use either --qu/--ql/--qc or --inductor-q/--capacitor-q, not both loss models"
-        )
+        usage_error(args, "use either --qu/--ql/--qc or --inductor-q/--capacitor-q, not both")
     has_loss_q = component_q or resonator_q
     if getattr(args, "build_reference_frequency", None) is not None and not has_loss_q:
-        usage_error(args, "--loss-reference-frequency requires a Q input")
+        q_options = (
+            "--inductor-q, --capacitor-q, --qu, --ql, or --qc"
+            if hasattr(args, "qu")
+            else "--inductor-q or --capacitor-q"
+        )
+        usage_error(args, f"--loss-reference-frequency needs a Q option: {q_options}")
 
 
 def validate_output_mode_args(args: Namespace) -> None:

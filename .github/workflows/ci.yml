@@ -107,7 +107,8 @@ jobs:
           set -e
           echo "$message"
           test "$status" -eq 1
-          test "$message" = "Error: The web UI needs the optional web dependencies; install with: uv sync --extra web"
+          expected='Error: The web UI needs the optional web dependencies. From a source checkout run: uv sync --extra web. For an installed package: pip install "rf-filter-calculator[web]".'
+          test "$message" = "$expected"
 
   package:
     name: Build and smoke distributions

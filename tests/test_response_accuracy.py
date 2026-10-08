@@ -331,7 +331,12 @@ def test_harmonic_response_exposes_actual_top_c_rejection_without_changing_gate(
     assert result["synthesis_validation"]["far_stopband_validated"] is False
     sample = result["harmonic_response"]["samples"][0]
     assert sample["transducer_gain_db"] == pytest.approx(-47.65952875, abs=1e-6)
-    assert "no rejection mask" in "\n".join(format_validation_scope_lines(result))
+    scope = "\n".join(format_validation_scope_lines(result))
+    assert (
+        "Top-C rejection can differ from the ideal Butterworth response and is not checked" in scope
+    )
+    # Equal terminations and lossless parts: the attenuation is exactly minus the gain.
+    assert "  Attenuation at 2×f₀: 47.66 dB; at 3×f₀: " in scope
     assert '"harmonic_response"' in format_json(result, include_toroids=False)
 
 
@@ -347,7 +352,12 @@ def test_cohn_estimate_is_compared_with_finite_q_center_loss(bw, loss, status):
     assert check["estimate_minus_circuit_db"] == pytest.approx(
         result["il_estimates"]["100"] - check["circuit_added_center_loss_db"]
     )
-    assert "small-loss approximation" in format_insertion_loss_line(result)
+    text = format_insertion_loss_line(result)
+    assert (
+        f"Cohn estimate {result['il_estimates']['100']:.2f} dB, "
+        f"circuit simulation {check['circuit_added_center_loss_db']:.2f} dB"
+    ) in text
+    assert ("(estimate off by more than 0.5 dB" in text) is (status != "agrees_at_center")
 
 
 @pytest.mark.parametrize(
@@ -461,7 +471,7 @@ def test_horizontal_bandpass_detail_samples_a_smaller_window_and_center():
         return magnitude_db(f, result["f0"], result["bw"], 3, "butterworth")
 
     plot = render_bandpass_plot_pair(sweep, result["f0"], result["bw"], response_fn=response)
-    assert "Passband Detail" in plot
+    assert "Ideal Response Detail" in plot
     assert len(sampled) == 2 * len(sweep)
     assert result["f0"] in sampled
     assert max(sampled) - min(sampled) == pytest.approx(2 * result["bw"], rel=1e-8)
@@ -470,7 +480,7 @@ def test_horizontal_bandpass_detail_samples_a_smaller_window_and_center():
 
 def test_sub_hertz_threshold_labels_remain_distinct_and_table_stays_rectangular():
     table = format_threshold_table({-3: [9999999.9995, 10000000.0005]}, "bandpass")
-    row = next(line for line in table.splitlines() if "-3 dB" in line)
+    row = next(line for line in table.splitlines() if line.startswith("│ -3 dB"))
     _, _, low, high, _ = row.split("│")
     assert low.strip() != high.strip()
     assert float(low.split()[0]) == pytest.approx(9999999.9995, abs=1e-8, rel=0)
@@ -494,10 +504,9 @@ def test_derived_user_qu_is_displayed_at_four_significant_digits():
 
     text = format_insertion_loss_line(result)
 
-    assert "@ Qu=100, " in text
-    assert "@ Qu=250, " in text
-    assert "@ Qu=132.4" in text
-    assert "\n  Qu=132.4: " in text
+    assert "\n  Qu=100:    Cohn estimate " in text
+    assert "\n  Qu=250:    Cohn estimate " in text
+    assert "\n  Qu=132.4:  Cohn estimate " in text
     assert "132.35" not in text
     assert set(result["il_estimates"]) == {"100", "250", "132.3529411764706"}
 
@@ -507,9 +516,8 @@ def test_user_qu_near_a_standard_example_keeps_a_distinct_label():
 
     text = format_insertion_loss_line(result)
 
-    assert "@ Qu=100, " in text
-    assert "@ Qu=100.00001" in text
-    assert "\n  Qu=100.00001: " in text
+    assert "\n  Qu=100:  " in text
+    assert "\n  Qu=100.00001:  " in text
 
 
 def test_user_qu_one_ulp_from_a_standard_example_uses_round_trip_labels():
@@ -518,8 +526,8 @@ def test_user_qu_one_ulp_from_a_standard_example_uses_round_trip_labels():
 
     text = format_insertion_loss_line(result)
 
-    assert "@ Qu=100, " in text
-    assert f"@ Qu={qu!r}" in text
+    assert "\n  Qu=100:  " in text
+    assert f"\n  Qu={qu!r}:  " in text
 
 
 @pytest.mark.parametrize(
@@ -529,5 +537,4 @@ def test_user_qu_one_ulp_from_a_standard_example_uses_round_trip_labels():
 def test_large_user_qu_keeps_compact_keys_and_integer_digits(qu, label):
     text = format_insertion_loss_line(_bp(bw=350e3, order=3, qu=qu))
 
-    assert f"@ Qu={label}" in text
-    assert f"\n  Qu={label}: " in text
+    assert f"\n  Qu={label}:  Cohn estimate " in text

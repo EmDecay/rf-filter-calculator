@@ -104,26 +104,23 @@ def _fmt_delta_pct(exact: float | None, matched: float | None) -> str:
 
 
 def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
-    """Render the exact-vs-matched comparison as table-output lines."""
+    """Render the ideal-vs-chosen-parts comparison as table-output lines."""
+    from .build_output_formatting import PASSBAND_NOTES, _format_measurement
+    from .display_helpers import SECTION_RULE
     from .formatting import format_frequency
 
+    inductors = "toroid windings" if summary.uses_toroid_candidates else "calculated inductances"
     lines = [
         "",
-        f"Nominal Build Simulation (legacy --sim-matched; {summary.series})",
-        "-" * 55,
-        "(Calculated ideal circuit versus selected nominal physical realization)",
+        f"Build Simulation ({summary.series}; --sim-matched is deprecated, use --sim-build)",
+        SECTION_RULE,
+        f"Ideal values compared with the chosen parts ({summary.series} capacitors, {inductors})",
+        PASSBAND_NOTES[summary.category],
     ]
     exact, matched = summary.exact, summary.matched
-    for name, item in (("Calculated", exact), ("Nominal", matched)):
-        if not item.measurement_converged:
-            lines.append(f"{name}: UNRESOLVED response measurement (refinement budget exhausted)")
-        if item.reference_peak_gain_db is not None:
-            lines.append(
-                f"{name} half-power reference: "
-                f"{format_fixed(item.reference_peak_gain_db, 3)} dB at "
-                f"{item.reference_peak_frequency_hz:.9g} Hz; "
-                f"{len(item.threshold_regions)} connected region(s)"
-            )
+    for name, item in (("Ideal values", exact), ("Chosen parts", matched)):
+        # Skip the landmark and gain lines; keep only the qualifying notes.
+        lines.extend(f"{name}: {note}" for note in _format_measurement(summary.category, item)[2:])
 
     has_required_edges = (
         matched.f_low is not None and matched.f_high is not None
@@ -134,21 +131,22 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
     )
     if not has_required_edges or matched.at_grid_edge:
         lines.append(
-            "Nominal build does not exhibit a clear passband on the simulated "
-            "grid; try a finer E-series (e.g. E96)."
+            "The chosen-parts response has no clear passband in the simulated frequency "
+            "range. Try a finer E-series (e.g. E96) or --no-toroid-build, or use --sim-build "
+            "to see the parts used."
         )
         return lines
 
     def row(label: str, e: float | None, m: float | None, fmt, delta: str) -> str:
         e_str = fmt(e) if e is not None else "n/a"
         m_str = fmt(m) if m is not None else "n/a"
-        return f"{label:<22}{e_str:>14}{m_str:>14}  {delta}"
+        return f"{label:<25}{e_str:>14}{m_str:>14}  {delta}"
 
-    lines.append(f"{'':<22}{'Calculated':>14}{'Nominal':>14}  {'Delta':<8}")
+    lines.append(f"{'':<25}{'Ideal values':>14}{'Chosen parts':>14}  {'Change':<8}")
     if summary.category == "bandpass":
         lines.append(
             row(
-                "Center f0:",
+                "Center:",
                 exact.f0,
                 matched.f0,
                 format_frequency,
@@ -157,7 +155,7 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
         )
         lines.append(
             row(
-                "-3 dB BW:",
+                "-3 dB bandwidth:",
                 exact.bw,
                 matched.bw,
                 format_frequency,
@@ -166,7 +164,7 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
         )
         lines.append(
             row(
-                "Lower edge:",
+                "Lower -3 dB edge:",
                 exact.f_low,
                 matched.f_low,
                 format_frequency,
@@ -175,7 +173,7 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
         )
         lines.append(
             row(
-                "Upper edge:",
+                "Upper -3 dB edge:",
                 exact.f_high,
                 matched.f_high,
                 format_frequency,
@@ -192,7 +190,7 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
     worst_delta_db = matched.worst_passband_db - exact.worst_passband_db
     lines.append(
         row(
-            "Worst passband dev:",
+            "Lowest gain in passband:",
             exact.worst_passband_db,
             matched.worst_passband_db,
             lambda v: f"{format_fixed(v, 2)} dB",

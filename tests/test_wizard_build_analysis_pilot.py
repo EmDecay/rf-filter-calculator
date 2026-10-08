@@ -11,6 +11,7 @@ from textual.widgets import Button, Checkbox, Input
 
 import filter_lib.shared.tolerance_screening as tolerance_screening
 import filter_lib.wizard.screens.results as results_module
+from filter_lib.shared.build_types import BuildConfig
 from filter_lib.wizard.app import FilterWizardApp
 from filter_lib.wizard.screens import OutputOptionsScreen, ResultsScreen
 from filter_lib.wizard.state import FilterState
@@ -28,51 +29,47 @@ def test_advanced_build_controls_are_keyboard_accessible() -> None:
             options = app.screen.query_one("#build-analysis-options")
             assert toggle.value is False
             assert options.display is False
-            assert app.screen.query_one("#build-source-resistance", Input).value == ""
-            assert app.screen.query_one("#build-load-resistance", Input).value == ""
-            assert app.screen.query_one("#build-capacitor-tolerance", Input).value == "5"
-            assert app.screen.query_one("#build-inductor-tolerance", Input).value == "10"
-            assert app.screen.query_one("#build-inductor-q", Input).value == ""
-            assert app.screen.query_one("#build-capacitor-q", Input).value == ""
-            assert app.screen.query_one("#build-resonator-q", Input).value == ""
-            assert app.screen.query_one("#build-resonator-q", Input).display is False
-            assert app.screen.query_one("#build-sample-count", Input).value == "0"
-            assert app.screen.query_one("#build-seed", Input).value == "0"
-            assert app.screen.query_one("#build-grid-points", Input).value == "601"
+            # Pre-filled with the CLI defaults (BuildConfig()), as on the web (D10).
+            defaults = BuildConfig()
+            expected = {
+                "#build-capacitor-tolerance": f"{defaults.capacitor_tolerance_pct:g}",
+                "#build-inductor-tolerance": f"{defaults.inductor_tolerance_pct:g}",
+                "#build-inductor-q": "",
+                "#build-capacitor-q": "",
+                "#build-reference-frequency": "",
+                "#build-source-resistance": "",
+                "#build-load-resistance": "",
+                "#build-sample-count": str(defaults.sample_count),
+                "#build-seed": str(defaults.seed),
+                "#build-grid-points": str(defaults.grid_points),
+            }
+            assert {
+                selector: app.screen.query_one(selector, Input).value for selector in expected
+            } == expected
             assert app.screen.query_one("#build-use-toroids", Checkbox).value is True
+            # Resonator Q is entered on the band-pass design screen, not here (D5).
+            assert not app.screen.query("#build-resonator-q")
 
             toggle.focus()
             await pilot.press("space")
             await pilot.pause()
-            source = app.screen.query_one("#build-source-resistance", Input)
+            first = app.screen.query_one("#build-capacitor-tolerance", Input)
             assert toggle.value is True
             assert options.display is True
-            assert source.has_focus
+            assert first.has_focus
 
             await pilot.press("enter")
-            assert app.screen.query_one("#build-load-resistance", Input).has_focus
+            assert app.screen.query_one("#build-inductor-tolerance", Input).has_focus
 
             app.screen.query_one("#build-capacitor-q", Input).focus()
             await pilot.press("enter")
-            assert app.screen.query_one("#build-sample-count", Input).has_focus
+            assert app.screen.query_one("#build-reference-frequency", Input).has_focus
 
-    asyncio.run(exercise())
-
-
-def test_complete_resonator_q_is_visible_only_for_bandpass() -> None:
-    async def exercise() -> None:
-        app = FilterWizardApp()
-        app.filter_state.category = "bandpass"
-        async with app.run_test(size=(120, 80)) as pilot:
-            await pilot.pause()
-            app.push_screen(OutputOptionsScreen())
-            await pilot.pause()
-
-            assert app.screen.query_one("#build-resonator-q", Input).display is True
-            assert app.screen.query_one("#build-resonator-q-label").display is True
-            app.screen.query_one("#build-capacitor-q", Input).focus()
+            app.screen.query_one("#build-grid-points", Input).focus()
             await pilot.press("enter")
-            assert app.screen.query_one("#build-resonator-q", Input).has_focus
+            assert app.screen.query_one("#build-use-toroids", Checkbox).has_focus
+            await pilot.press("enter")
+            assert app.screen.query_one("#results-btn").has_focus
 
     asyncio.run(exercise())
 
@@ -104,9 +101,9 @@ def test_realized_build_worker_completes_in_running_app() -> None:
             state = app.filter_state
             assert state.calculation_status == "success"
             assert state.build_analysis is not None
-            assert "Calculated exact values" in state.output_text
-            assert "Selected nominal build" in state.output_text
-            assert "Tolerance screening" in state.output_text
+            assert "Ideal values:" in state.output_text
+            assert "Chosen parts:" in state.output_text
+            assert "Tolerance cases:" in state.output_text
             assert app.screen.query_one("#export-btn", Button).disabled is False
 
     asyncio.run(exercise())
@@ -170,7 +167,7 @@ def _run_then_join_worker_threads(exercise, tracker: SimpleNamespace) -> None:
         loop.run_until_complete(loop.shutdown_default_executor())
     finally:
         loop.close()
-    assert [outcome.error for outcome in tracker.outcomes] == ["Calculation cancelled"]
+    assert [outcome.error for outcome in tracker.outcomes] == ["Calculation stopped"]
     assert [thread for thread in threading.enumerate() if thread not in threads_before] == []
 
 

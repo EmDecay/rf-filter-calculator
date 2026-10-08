@@ -1,5 +1,141 @@
 # Project Changelog
 
+## 2.3.0 — 2026-10-08 — Plain-Language Output and Aligned Interfaces
+
+### Added
+
+- **`--allow-sub-pf`** on `lowpass`, `highpass`, and `bandpass`, and the matching **Allow
+  capacitors below 1 pF** option in the wizard and web UI. It lets the calculator choose
+  standard values below 1 pF in the table, CSV, JSON, `--sim-build`, and the `nominal-build`
+  SPICE deck. Without it, the warning now says to choose the part manually or turn the option
+  on, instead of pointing to an "expert override" that no surface offered. It needs an E-series
+  and is refused with `--no-match`, `--quiet`, `--raw` without `--sim-build`, `--explain`,
+  `--plot-data`, `--spice-realization exact`, and `--sim-matched`.
+- Bandpass SPICE decks carry a `* names:` comment mapping SPICE element names to the table
+  names (`CT1=Cp1 … CK1=Cs12 … CIN=Ce_in COUT=Ce_out`).
+- `--frequency` and `--freq` are accepted by `lowpass`, `highpass`, and `bandpass` (before, LP/HP
+  had only `--freq` and band-pass only `--frequency`).
+- `--spice-realization` accepts `calculated` (= `exact`) and `chosen-parts` (= `nominal-build`),
+  the names the web UI uses. The deck and its comments are byte-identical to the old spellings.
+- One shared rule, `filter_lib.design.option_applicability`, decides which output and build
+  options apply to the chosen output. The wizard and the web UI disable an option that cannot
+  apply, with a one-line reason under it, instead of ignoring it (web) or refusing the
+  submission (wizard). The rule is tested against every combination the CLI accepts or refuses.
+- Wizard: band-pass *Specify the band by* Center and width or Band edges (`--fl`/`--fh`); Qu,
+  QL, and QC on the band-pass screen (`--qu`/`--ql`/`--qc`); **Frequency at which the Q values
+  apply** in the build simulation (`--loss-reference-frequency`); **Values only** as a Format
+  choice; and Toroid windings **Best, detailed** and **None** (`--no-toroids`).
+- Web: a notice "Inputs changed — select Design filter to update the result and downloads."
+  when the form no longer matches the result shown.
+
+### Changed
+
+- Help, error messages, table output, and wizard and web labels were rewritten in plain
+  language with one term per concept: "build simulation" (was realized-build analysis),
+  "ideal values" and "chosen parts" (were calculated exact values and selected nominal
+  build), "toroid winding suggestions" (were screened candidates), "tolerance cases" (were
+  tolerance corners), "response check" (was response validation), "Use:" / "Nearest single:"
+  (were Nearest Std / Parallel Std). Errors name fields in words instead of snake_case and no
+  longer pass through Python's own conversion messages.
+- Caveats print once where they apply: the toroid "Not checked" line appears once per group
+  of inductors in the build simulation, and the random-case and toroid limits only when used.
+  Nominal-build SPICE comments follow the same rules: each warning once with its parts
+  (`* warning: C1, C2: Below 1 pF …`), and the toroid limitation only when a toroid was used.
+  `--toroid-compact` adds a legend line for its percentage.
+- Bandpass design warnings print once: inside the table for table output (also in the web
+  page), on stderr for values-only, JSON, CSV, SPICE, and response-data output.
+- Bandpass human-readable text (build simulation, warnings, limits) uses the table part names
+  (Cp1, L1, Cs12, Ce_in, Ce_out) instead of the circuit names.
+- Bandpass values-only output (`-q`) lists the capacitors in table order (Ce_in first, then the
+  coupling capacitors, Ce_out last). This changes stdout order for scripts that parse it; CSV
+  and JSON order is unchanged.
+- SPICE comment labels changed: `* realization:` → `* values:` and `* substitution:` →
+  `* part used:`. The `key=value` pairs on those lines and every element line are unchanged.
+  Decks stay plain ASCII: readable symbols in comments are written as ASCII (`L1-L3`, `ohm`).
+- The bandpass calibration solver's four internal failure messages became one plain message;
+  for Chebyshev it advises a smaller ripple. The solver reason stays on `__cause__`.
+- Negative resonator-capacitor errors name the capacitors (for example `Cp2`) and give advice
+  that works for the case: a narrower band or fewer resonators when the coupling capacitors
+  empty a tank (the resonator impedance cannot change that), or a lower resonator impedance or
+  inductance, or a narrower band, when only the end tanks (`Cp1`, `Cpn`) go negative.
+- Bandpass plots are titled `Simulated Response, ideal parts (dB)` and `Simulated Response
+  Detail`: they simulate the calculated circuit with lossless, exact-value parts, and the
+  shape warning compares that with the ideal response shape. Low-pass and high-pass plot
+  titles are unchanged.
+- Python API: an explicit `BuildConfig.match_policy.allow_sub_pf=True` passed to
+  `filter_lib.design` is combined with `DesignRequest.allow_sub_pf` (either one allows sub-pF
+  parts) and now also applies to the table, CSV, and JSON choices.
+- The advice above 40% fractional bandwidth now suggests a high-pass filter followed by a
+  low-pass filter instead of a transmission-line design.
+- The CLI usage line names positional arguments `FILTER_TYPE`, `TOPOLOGY`, `FREQUENCY`, and
+  `COUPLING`.
+- **`-n` errors (scripts may notice):** every bad `-n` on all three subcommands now prints
+  `Error: Number of components must be from 2 to 9` (or `Number of resonators …`) and exits
+  with status 1. Before, band-pass `-n 1`/`-n 10` and any non-whole `-n` (`3.5`, `x`) were
+  argparse errors with a usage dump and exit status 2. The help shows `-n N`.
+- **`--fre` (scripts may notice):** because both `--frequency` and `--freq` now exist, the
+  abbreviation `--fre` is ambiguous and refused; use `--freq` or `--frequency`.
+- The wizard and web UI offer the same options with the same labels, defaults, and order. Both
+  default Toroid windings to **Best, detailed** (the CLI default; the wizard used Up to 3), put
+  Qu/QL/QC in the band-pass design section, list the high-pass topology as Pi then T (T stays
+  the default), use the 14.175 MHz / 350 kHz band-pass example, and pre-fill the build fields
+  with the CLI defaults (5 %, 10 %, 0 extra cases, seed 0, 601 points; a blank field takes the
+  default). The wizard's text plot is now off by default, as in the web and CLI.
+- Both UIs label the build toroid box **Simulate inductors as the suggested toroid windings**,
+  ticked by default (unticked = `--no-toroid-build`). The web form field is now `toroid_build`;
+  the 2.2.0 field `no_toroid_build=on` is still accepted.
+- Wizard: the build section no longer has a resonator Qu field (it moved to the band-pass
+  screen), and Output options lists Format, standard capacitor values, sub-pF, toroid windings,
+  text plot, raw units, response data file, and build simulation in the web's order; Enter
+  visits each control in that order without ticking it. The messages it gave on **Show
+  results** for raw units with an E-series, Values only with the text plot, and build fields
+  without the build box are gone, because those controls are now disabled with a reason.
+- Web downloads use the inputs of the result shown (a snapshot kept with the result), not the
+  form as it is now. A disabled control's visible value is used by each download that can show
+  it (Values only with None downloads JSON as `--format json --no-match`). The response data
+  downloads leave out Qu/QL/QC instead of refusing them, matching `--plot-data` without them
+  and the wizard's response data file; Components (CSV) and SPICE – calculated values still
+  refuse resonator Q the result used. The wizard's saved JSON and CSV files follow the same
+  mapping.
+- Web band-pass Chebyshev with an out-of-range resonator count (for example 10) now reports
+  `Number of resonators must be from 2 to 9` first, as the CLI does, instead of the odd-count
+  message.
+- The wizard shows the reason next to a disabled CSV export choice: the build simulation or
+  resonator Q in the result.
+- Wizard and web: disabled Qu/QL/QC now say "Resonator Q values are not used with Values only
+  or CSV output; choose Table or JSON to use them" instead of asking to remove values that
+  cannot be edited. A request that still sends them is refused with the earlier message.
+- Wizard and web: a nonzero **Random seed** with 0 **Extra random tolerance cases** is refused
+  ("Random seed requires a positive number of extra random tolerance cases"), as the CLI
+  refuses `--seed` without `--sample-count`.
+- Web: when options become unavailable, their reasons are also announced to screen readers.
+- SPICE decks turn any non-ASCII character in comment text into ASCII (accents dropped, other
+  symbols `?`) instead of refusing the export.
+
+No JSON key, JSON enum value, CSV column, flag, or choice value was removed or renamed (new
+spellings are additive aliases), and numeric results are unchanged.
+
+### Fixed
+
+- Saving from the wizard no longer stops the app when the folder it was started from has been
+  deleted; it shows a plain message instead. Other write failures (for example permission
+  denied or a full disk) now show the system's short reason instead of Python error text.
+- Wizard: Values only with the default E24 no longer fails on **Show results**; a blank build
+  tolerance, seed, or point count takes the CLI default instead of being refused; and unticking
+  the build box no longer leaves its hidden fields able to block the result.
+- Wizard: a build ticked but disabled (Values only or CSV) no longer runs with the result, so it
+  can no longer fail or delay it. The saved JSON that uses it is calculated when you save it
+  ("Preparing the JSON file…"); a failure saves no JSON, says why, and still saves the response
+  data file. Hidden build fields are no longer checked for the result or focused, and values
+  typed in the build fields are kept when the box is unticked.
+- Wizard: a disabled toroid-detail choice could still be selected with Space from the arrow-key
+  highlight; it now cannot.
+- Web: a download could differ from the result on screen when the form had been edited after
+  the result; downloads now always describe the result shown.
+- Web: an option that cannot apply (for example the text plot with JSON, or **Allow capacitors
+  below 1 pF** with Values only) was silently ignored; it is now disabled on the page and
+  refused in hand-made requests with the same reason.
+
 ## 2.2.0 — 2026-10-07 — Web UI and Shared Design Service
 
 Version 2.2.0 also ships every change in the 2.2.0 sections below, which were made after 2.1.0.

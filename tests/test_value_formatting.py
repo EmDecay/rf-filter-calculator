@@ -203,17 +203,23 @@ class TestComponentValue:
 
 
 class TestEseriesMatchLines:
-    def test_exact_standard_value_shows_only_the_nearest_part(self):
+    def test_exact_standard_value_shows_only_the_chosen_single_part(self):
         lines = format_eseries_match(100e-12, "E12", format_capacitance, "additive")
 
-        assert lines == ["  Nearest Std:  100.00 pF (0.0%)"]
+        assert lines == ["  Use:            100.00 pF (0.0%)"]
+
+    def test_single_part_chosen_when_no_pair_is_half_a_point_closer(self):
+        """237.41 pF: 240 pF is +1.09%; the best pair improves that by under 0.5 points."""
+        lines = format_eseries_match(237.41e-12, "E24", format_capacitance, "additive")
+
+        assert lines == ["  Use:            240.00 pF (+1.1%)"]
 
     def test_inductor_uses_harmonic_parallel_pair(self):
         lines = format_eseries_match(1.457e-6, "E24", format_inductance, "harmonic")
 
         assert lines == [
-            "  Nearest Std:  1.50 µH (+3.0%)",
-            "  Parallel Std: 2.20 µH || 4.30 µH (-0.1%)",
+            "  Use:            2.20 µH || 4.30 µH (-0.1%)",
+            "  Nearest single: 1.50 µH (+3.0%)",
         ]
 
     def test_parallel_pair_keeps_units_on_both_values(self):
@@ -221,20 +227,21 @@ class TestEseriesMatchLines:
         lines = format_eseries_match(2.9e-9, "E12", format_capacitance, "additive")
 
         assert lines == [
-            "  Nearest Std:  2.70 nF (-6.9%)",
-            "  Parallel Std: 680.00 pF || 2.20 nF (-0.7%)",
+            "  Use:            680.00 pF || 2.20 nF (-0.7%)",
+            "  Nearest single: 2.70 nF (-6.9%)",
         ]
 
-    def test_sub_pf_target_is_reference_only_and_requires_expert_action(self):
+    def test_sub_pf_target_chooses_no_part_and_shows_nearest_for_reference(self):
         lines = format_eseries_match(1e-15, "E12", format_capacitance, "additive")
 
         assert lines[:2] == [
-            "  Nearest Std (reference only): 1.00 fF (0.0%)",
-            "  Selection:                    EXPERT ACTION REQUIRED; no part selected",
+            "  Use:            none (below 1 pF; see warning)",
+            "  Nearest single: 1.00 fF (0.0%), for reference only",
         ]
-        assert len(lines) == 3
-        assert lines[2].startswith("  Warning: ")
-        assert "below the 1 pF" in lines[2]
+        assert lines[2:] == [
+            "  Warning: Below 1 pF no part is chosen automatically. Choose one manually, or",
+            '           turn on "Allow capacitors below 1 pF" (--allow-sub-pf).',
+        ]
 
     def test_non_positive_target_is_rejected(self):
         with pytest.raises(ValueError, match="positive and finite"):

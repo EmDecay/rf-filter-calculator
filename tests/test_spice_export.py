@@ -8,6 +8,7 @@ import pytest
 from filter_lib.shared.build_simulation import BuildConfig, realize_nominal_build
 from filter_lib.shared.netlist_builders import build_named_circuit
 from filter_lib.shared.spice_export import export_spice_deck
+from tests.cli_parity_helpers import cli_stdout
 
 
 def _netlist(deck: str) -> dict[str, tuple[str, str, float]]:
@@ -103,10 +104,10 @@ class TestExactSpiceDecks:
             deck
             == """* RF Filter Calculator generic AC deck
 * category: lowpass
-* realization: calculated_exact
+* values: calculated, lossless (exact)
 * printed trace: vm(2) is load-node voltage, not gain in dB
 * transducer gain: Gt=4*Rs/Rl*|V(2)/V(NSOURCE)|^2
-* limitations: ideal values omit layout, parasitics, SRF, temperature, and power behavior
+* limitations: ideal values; no layout, parasitic, SRF, temperature, or power effects
 * ports: input=1 output=2 ground=0 source=NSOURCE
 VINPUT NSOURCE 0 AC 1
 RSOURCE NSOURCE 1 50
@@ -255,12 +256,45 @@ class TestNominalSpiceDecks:
                 "0",
                 pytest.approx(1 / (2 * math.pi * 10e6 * capacitance * 200), rel=1e-11, abs=0),
             )
-        assert "e_series_parallel" in deck
+        assert "* part used: C1 E24 parallel pair calculated=" in deck
         assert "47e-12" not in deck  # values are canonical generic SPICE numbers
         assert "C1A 1 NLOSSC1A 4.7e-11" in deck
         assert "C1B 1 NLOSSC1B 2.7e-10" in deck
 
     def test_missing_toroid_candidate_fallback_is_visible_in_comments(self):
+        deck = self._fallback_toroid_deck()
+        assert "* part used: L1 calculated value (no suitable toroid) calculated=" in deck
+        assert (
+            "* warning: L1: No suitable toroid; the simulation uses the calculated value." in deck
+        )
+
+    def test_toroid_caveat_only_when_a_toroid_winding_was_used(self):
+        """Same rule as the table's build block; JSON keeps every limitation."""
+        from filter_lib.shared.nominal_realization import TOROID_LIMITATION
+
+        without = self._fallback_toroid_deck()
+        assert TOROID_LIMITATION not in without
+        assert "* limitation: Chosen parts are simulated at their nominal values" in without
+
+        with_toroid = export_spice_deck(
+            {
+                "filter_type": "butterworth",
+                "freq_hz": 10e6,
+                "impedance": 50.0,
+                "capacitors": [3.18309886184e-10, 3.18309886184e-10],
+                "inductors": [1.59154943092e-06],
+                "order": 3,
+                "topology": "pi",
+            },
+            "lowpass",
+            realization="nominal_build",
+        )
+        assert "core=T50-2" in with_toroid
+        assert f"* limitation: {TOROID_LIMITATION}" in with_toroid
+        assert with_toroid.count(TOROID_LIMITATION) == 1
+
+    @staticmethod
+    def _fallback_toroid_deck() -> str:
         result = {
             "filter_type": "butterworth",
             "freq_hz": 1e12,
@@ -270,9 +304,7 @@ class TestNominalSpiceDecks:
             "order": 1,
             "topology": "t",
         }
-        deck = export_spice_deck(result, "lowpass", realization="nominal_build")
-        assert "exact_fallback" in deck
-        assert "No verified integer-turn toroid candidate" in deck
+        return export_spice_deck(result, "lowpass", realization="nominal_build")
 
     def test_nominal_deck_is_deterministic(self):
         config = BuildConfig(inductor_q=100, capacitor_q=200)
@@ -320,3 +352,41 @@ class TestSpiceValidation:
         result[key] = value
         with pytest.raises(ValueError, match=message):
             export_spice_deck(result, category)
+
+
+class TestSpiceDeckIsAscii:
+    """Readable comment text uses symbols like an en dash or Ω; the deck must stay ASCII."""
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ("lp", "bw", "pi", "10MHz", "-n", "7", "--format", "spice", "--inductor-q", "100"),
+            ("bp", "bw", "top", "-f", "10MHz", "-b", "500kHz", "--format", "spice", "--qc", "500"),
+            ("lp", "bw", "pi", "5GHz", "-n", "3", "--format", "spice"),
+            ("bp", "bw", "top", "-f", "500MHz", "-b", "10MHz", "--format", "spice"),
+        ],
+    )
+    def test_cli_decks_contain_only_ascii(self, monkeypatch, capsys, argv):
+        deck = cli_stdout(monkeypatch, capsys, *argv)
+        assert deck.isascii()
+        # The comments that carry part ranges still read naturally in ASCII.
+        assert "–" not in deck and "Ω" not in deck
+
+    def test_unmapped_non_ascii_text_is_transliterated_not_refused(self, monkeypatch, capsys):
+        """New wording with any other symbol must never break the export."""
+        import filter_lib.shared.spice_export as spice_module
+
+        monkeypatch.setattr(
+            spice_module,
+            "grouped_part_warnings",
+            lambda _substitutions: ["Café part – 5 µH ≈ 2 Ω → check"],
+        )
+        deck = cli_stdout(
+            monkeypatch,
+            capsys,
+            *("lp", "bw", "pi", "10MHz", "--format", "spice"),
+            *("--spice-realization", "nominal-build"),
+        )
+
+        assert deck.isascii()
+        assert "* warning: Cafe part - 5 uH ? 2 ohm ? check" in deck

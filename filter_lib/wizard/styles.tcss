@@ -47,6 +47,11 @@ Screen {
     height: auto;
 }
 
+/* Groups inside a section (ripple, band fields, build fields) take only their height */
+.form-section Vertical {
+    height: auto;
+}
+
 .form-section-title {
     color: $primary;
     text-style: bold;
@@ -199,5 +204,23 @@ LoadingIndicator {
 .fbw-danger {
     color: $error;
     text-style: bold;
+    margin-left: 2;
+}
+
+/* One short explanation under an option */
+.field-help {
+    color: $muted;
+    margin-left: 2;
+}
+
+/* The label above a field or choice inside a form section, as on the web form */
+.field-label {
+    text-style: bold;
+    margin-top: 1;
+}
+
+/* Why a disabled control cannot apply (the shared applicability rule) */
+.option-reason {
+    color: $warning;
     margin-left: 2;
 }

@@ -190,7 +190,7 @@ class TestLadderOutputsCarryTheCalculatedValues:
         lines = _cli(*ladder["command"], "--no-match", "--no-toroids").splitlines()
 
         assert f"Cutoff Frequency:    {format_restated_frequency(ladder['frequency'])}" in lines
-        assert f"Impedance Z0:        {format_restated_value(ladder['impedance'])} Ohm" in lines
+        assert f"Impedance Z₀:        {format_restated_value(ladder['impedance'])} Ω" in lines
         assert f"Order:               {ladder['order']}" in lines
         ripple_lines = [line for line in lines if line.startswith("Ripple:")]
         expected_ripple = (
@@ -245,12 +245,23 @@ def test_csv_and_table_preferred_values_restate_the_json_selection(command, seri
                 _assert_engineering_text_matches(*text.split(" "), part)
             assert selected["value_farads"] == pytest.approx(sum(parts), rel=1e-12, abs=0)
             assert row["RecommendedStdErrorPct"] == format_fixed(selected["error_pct"], 1)
-        # The table prints the same nearest part and one-decimal error for this capacitor.
-        calculated = table.index(f"{row['Component']} Calculated: {row['Value']} {row['Unit']}")
-        nearest_line = table[calculated + 1]
+        # The table's "Use:" row restates the chosen option, and its single-part row (the
+        # "Use:" row itself when a single part is chosen) the same nearest part and error.
+        calculated = table.index(f"{row['Component']} calculated {row['Value']} {row['Unit']}")
+        use_line = table[calculated + 1]
+        if selected:
+            chosen_error = float(row["RecommendedStdErrorPct"])
+            chosen_sign = "+" if chosen_error > 0 else ""
+            assert use_line == (
+                f"  Use:            {row['RecommendedStdValues']} "
+                f"({chosen_sign}{row['RecommendedStdErrorPct']}%)"
+            )
+        else:
+            assert use_line.startswith("  Use:            none")
+        nearest_line = use_line if row["RecommendedStdKind"] == "single" else table[calculated + 2]
         assert f"{row['NearestStdValue']} {row['NearestStdUnit']}" in nearest_line
         error = float(row["NearestStdErrorPct"])
-        assert nearest_line.endswith(f"({'+' if error > 0 else ''}{row['NearestStdErrorPct']}%)")
+        assert f"({'+' if error > 0 else ''}{row['NearestStdErrorPct']}%)" in nearest_line
 
 
 _BANDPASS_DESIGNS = [
@@ -300,9 +311,20 @@ class TestBandpassOutputsCarryTheCalculatedValues:
         raw_table = _cli(*command, "--raw", "--no-match", "--no-toroids")
 
         assert sorted(row["Component"] for row in rows) == sorted(expected)
-        assert [line.split(":")[0] for line in quiet] == [row["Component"] for row in rows]
-        for row, quiet_line, raw_line in zip(rows, quiet, raw):
-            name = row["Component"]
+        # Values-only output follows the component table: tanks, inductors, then the
+        # coupling table from Ce_in through Ce_out. CSV keeps its own row order.
+        n = bandpass["result"]["n_resonators"]
+        assert [line.split(":")[0] for line in quiet] == (
+            [f"Cp{i}" for i in range(1, n + 1)]
+            + [f"L{i}" for i in range(1, n + 1)]
+            + ["Ce_in"]
+            + [f"Cs{i}{i + 1}" for i in range(1, n)]
+            + ["Ce_out"]
+        )
+        rows_by_name = {row["Component"]: row for row in rows}
+        for quiet_line, raw_line in zip(quiet, raw):
+            name = quiet_line.split(":")[0]
+            row = rows_by_name[name]
             _assert_engineering_text_matches(row["Value"], row["Unit"], expected[name])
             assert quiet_line == f"{name}: {row['Value']} {row['Unit']}"
             assert f"│ {quiet_line} " in table
@@ -317,24 +339,25 @@ class TestBandpassOutputsCarryTheCalculatedValues:
 
         for label, key in (
             ("Center Frequency f₀: ", "center_frequency_hz"),
-            ("Bandwidth BW:        ", "bandwidth_hz"),
+            ("-3 dB Bandwidth:     ", "bandwidth_hz"),
         ):
             assert f"{label}{format_restated_frequency(payload[key])}" in lines
         # Edges carry enough digits for their difference to restate the bandwidth.
         edge = {
             label: next(line for line in lines if line.startswith(label))
-            for label in ("Lower Cutoff fₗ:", "Upper Cutoff fₕ:")
+            for label in ("Lower -3 dB Edge fₗ:", "Upper -3 dB Edge fₕ:")
         }
-        for label, key in (("Lower Cutoff fₗ:", "f_low_hz"), ("Upper Cutoff fₕ:", "f_high_hz")):
+        for label, key in (
+            ("Lower -3 dB Edge fₗ:", "f_low_hz"),
+            ("Upper -3 dB Edge fₕ:", "f_high_hz"),
+        ):
             number, unit = edge[label].removeprefix(label).split()
             printed = float(number) * {"kHz": 1e3, "MHz": 1e6}[unit]
             assert abs(printed - payload[key]) <= 1e-4 * payload["bandwidth_hz"]
         assert f"Fractional BW:       {payload['fractional_bw'] * 100:.2f}%" in lines
         assert f"Resonators:          {payload['n_resonators']}" in lines
-        # Top-C end capacitors realize the printed external Q.
-        assert f"External Q (input):  {payload['external_q']['input']:.2f} (realized by Ce_in)" in (
-            lines
-        )
+        # Top-C end capacitors set the printed external Q.
+        assert f"External Q (input):  {payload['external_q']['input']:.2f} (set by Ce_in)" in lines
 
 
 def test_edge_specified_bandpass_reports_the_requested_edges_in_every_format():
@@ -348,9 +371,11 @@ def test_edge_specified_bandpass_reports_the_requested_edges_in_every_format():
     # Edges reconstructed from the geometric center reproduce the request to rounding.
     assert payload["f_low_hz"] == pytest.approx(7e6, rel=1e-14, abs=0)
     assert payload["f_high_hz"] == pytest.approx(7.3e6, rel=1e-14, abs=0)
-    assert "Lower Cutoff fₗ:     7 MHz" in table
-    assert "Upper Cutoff fₕ:     7.3 MHz" in table
-    assert quiet == [f"{row['Component']}: {row['Value']} {row['Unit']}" for row in rows]
+    assert "Lower -3 dB Edge fₗ: 7 MHz" in table
+    assert "Upper -3 dB Edge fₕ: 7.3 MHz" in table
+    assert sorted(quiet) == sorted(
+        f"{row['Component']}: {row['Value']} {row['Unit']}" for row in rows
+    )
     for row in rows:
         _assert_engineering_text_matches(row["Value"], row["Unit"], values[row["Component"]])
 

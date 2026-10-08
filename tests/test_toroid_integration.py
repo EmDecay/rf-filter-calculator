@@ -4,7 +4,7 @@ Reference designs (candidates hand-checked against A_L·N²):
 - LP Butterworth pi 10 MHz, n=5: L1 = L2 = 1.2876 µH -> T68-2 15 turns (-0.40%),
   T50-2 16 turns (-2.58%), T25-6 22 turns (+1.49%).
 - HP Butterworth T 14 MHz, n=5: L1 = L2 = 0.3513 µH -> only T68-2 8 turns (+3.84%).
-- BP Butterworth 14.175 MHz, 350 kHz, 3 resonators: L_resonant = 0.5615 µH ->
+- BP Butterworth 14.175 MHz, 350 kHz, 3 resonators: L1–L3 = 0.5615 µH ->
   only T68-2 10 turns (+1.52%).
 """
 
@@ -24,11 +24,17 @@ from filter_lib.highpass.display import display_results as hp_display
 from filter_lib.lowpass.calculations import calculate_butterworth as lp_calc
 from filter_lib.lowpass.display import display_results as lp_display
 
-SECTION_TITLE = "Screened Toroid Winding Candidates"
+SECTION_TITLE = "Toroid Winding Suggestions"
+SECTION_HEADING = f"{SECTION_TITLE} (iron-powder T-series)"
 LP_RANKED = ["T68-2", "T50-2", "T25-6"]
 NOT_ASSESSED_WARNING = (
-    "RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed."
+    "Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
 )
+INDUCTOR_NOTE = "Inductors: no standard values; wind to the calculated value."
+INDUCTOR_NOTE_WITH_POINTER = (
+    "Inductors: no standard values; wind to the calculated value (see Toroid Winding Suggestions)."
+)
+COMPACT_Q_LIMIT = "Q limit (wire DCR):"
 
 
 def _ladder_result(calc, freq_hz, topology):
@@ -99,10 +105,13 @@ def test_lp_table_shows_ranked_candidates_per_inductor(lp_result, capsys, kwargs
     assert "L1 target:" in out and "L2 target:" in out
     assert _candidate_cores(out) == expected
     if kwargs.get("toroid_compact"):
-        assert "ωL/Rdc≤" in out and "[RF Q/SRF/power not assessed]" in out
+        assert COMPACT_Q_LIMIT in out
     else:
-        assert "RF Q: not assessed; SRF/power: not assessed/not assessed" in out
-    assert "Inductors: wind to value (see toroid recommendations)" in out
+        assert "Q limit from wire DCR alone (ωL/DCR):" in out
+    # The not-checked caveat is stated once, in the section header, not per candidate.
+    assert out.count("Not checked:") == 1
+    assert "not assessed" not in out
+    assert INDUCTOR_NOTE_WITH_POINTER in out
 
 
 def test_hp_table_shows_single_qualified_candidate_even_in_full_mode(hp_result, capsys):
@@ -112,7 +121,7 @@ def test_hp_table_shows_single_qualified_candidate_even_in_full_mode(hp_result, 
     out = capsys.readouterr().out
 
     assert _candidate_cores(out) == ["T68-2", "T68-2"]
-    assert "Turns: 8 of AWG" in out
+    assert "8 turns of AWG" in out
 
 
 @pytest.mark.parametrize(
@@ -125,7 +134,7 @@ def test_bp_table_shows_one_shared_block_with_only_qualified_candidates(bp_resul
     bp_display(bp_result, output_format="table", show_plot=False, eseries=None, **kwargs)
     out = capsys.readouterr().out
 
-    assert out.count("L_resonant (applies to L1…L3) target:") == 1
+    assert out.count("L1–L3 (all equal) target:") == 1
     assert _candidate_cores(out) == ["T68-2"]
 
 
@@ -138,8 +147,7 @@ def test_no_toroids_omits_section_and_dangling_reference(lp_result, bp_result, c
     out = capsys.readouterr().out
 
     assert "Toroid" not in out
-    assert "see toroid recommendations" not in out
-    assert "Inductors: wind to value" in out
+    assert INDUCTOR_NOTE in out
 
 
 def test_display_api_include_toroids_false_overrides_detail_level(lp_result, capsys):
@@ -160,9 +168,12 @@ def test_quiet_table_omits_toroid_section(lp_result, capsys):
 def test_out_of_range_frequency_shows_empty_screen_message(capsys):
     lp_display(_ladder_result(lp_calc, 500e6, "pi"), output_format="table", show_match=False)
 
-    assert "No iron-powder winding candidate with primary-verified core data" in (
-        capsys.readouterr().out
-    )
+    out = capsys.readouterr().out
+
+    assert "No suitable core in the built-in list." in out
+    # The note does not point at a section that holds no suggestion.
+    assert INDUCTOR_NOTE in out
+    assert "(see Toroid Winding Suggestions)" not in out
 
 
 def test_lp_json_attaches_up_to_three_candidates_to_each_inductor(lp_result, capsys):
@@ -263,7 +274,7 @@ def test_cli_toroid_flags_select_table_detail(monkeypatch, capsys, arguments, ex
     out = capsys.readouterr().out
 
     assert _candidate_cores(out) == expected
-    assert ("ωL/Rdc≤" in out) is ("--toroid-compact" in arguments)
+    assert (COMPACT_Q_LIMIT in out) is ("--toroid-compact" in arguments)
 
 
 def test_cli_no_toroids_removes_candidates_from_every_format(monkeypatch, capsys):
@@ -285,9 +296,9 @@ def test_cli_table_section_states_every_not_assessed_quantity(monkeypatch, capsy
     out = capsys.readouterr().out
 
     assert out.count(NOT_ASSESSED_WARNING) == 1
-    section = out[out.index(SECTION_TITLE) :]
-    assert section.splitlines()[2] == NOT_ASSESSED_WARNING
-    for quantity in ("RF Q", "core loss", "SRF", "saturation", "thermal rise", "power handling"):
+    section = out[out.index(SECTION_HEADING) :]
+    assert section.splitlines()[3] == NOT_ASSESSED_WARNING
+    for quantity in ("RF Q", "core loss", "SRF", "saturation", "heating", "power handling"):
         assert quantity in section
 
 
@@ -304,3 +315,17 @@ def test_cli_json_and_csv_keep_the_not_assessed_warning_per_candidate(monkeypatc
     rows = list(csv.DictReader(io.StringIO(capsys.readouterr().out)))
     warnings = {row["ToroidWarnings"] for row in rows if row["ToroidCore"]}
     assert warnings == {NOT_ASSESSED_WARNING}
+
+
+def test_bp_inductor_note_drops_the_pointer_when_no_core_suits(capsys):
+    """At 500 MHz no listed core is rated, so the note must not point at an empty section."""
+    result = calculate_bandpass_filter(
+        f0=500e6, bw=25e6, z0=50.0, n_resonators=3, filter_type="butterworth", coupling="top"
+    )
+
+    bp_display(result, output_format="table", eseries=None)
+    out = capsys.readouterr().out
+
+    assert "No suitable core in the built-in list." in out
+    assert INDUCTOR_NOTE in out
+    assert "(see Toroid Winding Suggestions)" not in out

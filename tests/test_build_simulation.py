@@ -88,22 +88,31 @@ class TestBuildConfig:
     @pytest.mark.parametrize(
         "kwargs, message",
         [
-            ({"capacitor_tolerance_pct": -1}, "capacitor_tolerance_pct"),
-            ({"capacitor_tolerance_pct": True}, "capacitor_tolerance_pct"),
-            ({"inductor_tolerance_pct": 100}, "inductor_tolerance_pct"),
-            ({"inductor_q": 0}, "inductor_q"),
-            ({"inductor_q": "100"}, "inductor_q"),
-            ({"capacitor_q": float("inf")}, "capacitor_q"),
-            ({"resonator_q": 100, "inductor_q": 200}, "mutually exclusive"),
-            ({"source_resistance_ohm": 0}, "source_resistance_ohm"),
-            ({"load_resistance_ohm": float("nan")}, "load_resistance_ohm"),
-            ({"sample_count": -1}, "sample_count"),
-            ({"sample_count": 10_001}, "sample_count"),
-            ({"seed": True}, "seed"),
-            ({"grid_points": 20}, "grid_points"),
-            ({"reference_frequency_hz": 0}, "reference_frequency_hz"),
-            ({"eseries": "E7"}, "eseries"),
-            ({"eseries": 24}, "eseries"),
+            ({"capacitor_tolerance_pct": -1}, "^Capacitor tolerance must be at least 0%"),
+            ({"capacitor_tolerance_pct": True}, "^Capacitor tolerance must be at least 0%"),
+            ({"inductor_tolerance_pct": 100}, "^Inductor tolerance must be .* less than 100%$"),
+            ({"inductor_q": 0}, "^Inductor Q must be between"),
+            ({"inductor_q": "100"}, "^Inductor Q must be between"),
+            ({"capacitor_q": float("inf")}, "^Capacitor Q must be between"),
+            (
+                {"resonator_q": 100, "inductor_q": 200},
+                "^Use either resonator Q or inductor/capacitor Q, not both$",
+            ),
+            (
+                {"source_resistance_ohm": 0},
+                "^Simulation source resistance must be positive and finite$",
+            ),
+            (
+                {"load_resistance_ohm": float("nan")},
+                "^Simulation load resistance must be positive and finite$",
+            ),
+            ({"sample_count": -1}, "random tolerance cases must be a whole number from 0 to 10000"),
+            ({"sample_count": 10_001}, "random tolerance cases must be a whole number"),
+            ({"seed": True}, "^Random seed must be a whole number$"),
+            ({"grid_points": 20}, "^Frequency points must be a whole number from 51 to 5001$"),
+            ({"reference_frequency_hz": 0}, "^The frequency at which the Q values apply must be"),
+            ({"eseries": "E7"}, "^E-series must be E12, E24, or E96$"),
+            ({"eseries": 24}, "^E-series must be E12, E24, or E96$"),
             ({"use_toroid_candidates": 1}, "use_toroid_candidates must be boolean"),
             ({"match_policy": {}}, "match_policy must be a MatchPolicy"),
         ],
@@ -224,9 +233,9 @@ class TestNominalRealization:
             grid_points=51,
         )
 
-        with pytest.raises(ValueError, match="reference_frequency_hz requires.*Q"):
+        with pytest.raises(ValueError, match="Q values apply was given without any Q"):
             realize_nominal_build(_lp_result(), "lowpass", config)
-        with pytest.raises(ValueError, match="reference_frequency_hz requires.*Q"):
+        with pytest.raises(ValueError, match="Q values apply was given without any Q"):
             analyze_build(_lp_result(), "lowpass", config)
 
     def test_loss_reference_can_use_bandpass_synthesis_q_model(self):
@@ -273,8 +282,14 @@ class TestNominalRealization:
         assert substitution.method == "exact_fallback"
         assert substitution.status == "expert_override_required"
         assert substitution.nominal_value == target
-        assert any("automatic-selection floor" in warning for warning in substitution.warnings)
-        assert any("not a selected physical part" in warning for warning in realization.warnings)
+        assert any(
+            "Below 1 pF no part is chosen automatically" in warning
+            for warning in substitution.warnings
+        )
+        assert any(
+            "No standard part chosen; the simulation uses the calculated value." in warning
+            for warning in realization.warnings
+        )
 
     def test_verified_integer_turn_candidate_replaces_inductor(self):
         realization = realize_nominal_build(_lp_result(), "lowpass", BuildConfig())
@@ -311,7 +326,7 @@ class TestNominalRealization:
         assert all(item.method == "exact_fallback" for item in inductor_substitutions)
         assert all(item.status == "no_verified_candidate" for item in inductor_substitutions)
         assert any(
-            "No verified integer-turn toroid candidate" in warning
+            "No suitable toroid; the simulation uses the calculated value." in warning
             for warning in realization.warnings
         )
 
@@ -381,8 +396,8 @@ class TestNominalRealization:
     @pytest.mark.parametrize(
         "synthesis_q, config_q, limitation",
         [
-            ({"qu": 150}, {}, "complete resonator Q from synthesis"),
-            ({}, {"resonator_q": 150}, "supplied complete resonator Q"),
+            ({"qu": 150}, {}, "The resonator Qu from the design"),
+            ({}, {"resonator_q": 150}, "The resonator Q you gave"),
         ],
         ids=["synthesis-qu", "build-config-resonator-q"],
     )
@@ -440,7 +455,10 @@ class TestNominalRealization:
             for element in realization.circuit.elements
             if element.kind == "C" and not (element.logical_name or "").startswith("CT")
         )
-        assert any("only to CT elements" in item for item in realization.limitations)
+        assert (
+            "The capacitor Q applies only to the resonator capacitors (Cp1\u2013Cp3); "
+            "the coupling and end capacitors are modeled as lossless."
+        ) in realization.limitations
 
     @pytest.mark.parametrize(
         "synthesis_q, lossy_prefix",
@@ -464,7 +482,9 @@ class TestNominalRealization:
             else:
                 assert element.quality_factor is None, element.name
                 assert element.series_resistance_ohm == 0, element.name
-        assert not any("complete resonator Q" in item for item in realization.limitations)
+        assert not any(
+            "inductor and capacitor losses together" in item for item in realization.limitations
+        )
 
     def test_explicit_build_capacitor_q_applies_to_every_bandpass_capacitor(self):
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top")
@@ -526,7 +546,8 @@ class TestBuildAnalysis:
         assert analysis.load_resistance_ohm == 100
         assert analysis.gain_metric == "transducer_power_gain_db"
         assert any(
-            "does not imply unequal-termination synthesis" in item for item in analysis.limitations
+            "the different source and load resistances apply only to this simulation" in item
+            for item in analysis.limitations
         )
 
     def test_screening_case_order_and_seeded_samples_are_reproducible(self):
@@ -613,8 +634,8 @@ class TestBuildAnalysis:
         )
         limitations = " ".join(analysis.limitations).lower()
         for phrase in (
-            "not a guaranteed worst case",
-            "not a probability",
+            "do not guarantee the true worst case",
+            "not a production-yield estimate",
             "layout",
             "srf",
             "temperature",
@@ -665,26 +686,48 @@ class TestBuildAnalysis:
 
     def test_limitations_disclose_every_omitted_or_ambiguous_case_count(self):
         """Censored, unresolved, and disconnected cases each get their own counted notice."""
-        limitations = _analysis_limitations(("realization note",), 50.0, 50.0, 3, 2, 4)
+        limitations = _analysis_limitations(("realization note",), "bandpass", 50.0, 50.0, 3, 2, 4)
 
         assert limitations[0] == "realization note"
         assert (
-            "Edge/cutoff summaries omit 3 grid-boundary-censored screening cases; "
-            "inspect their case records before extending the sweep."
+            "3 tolerance cases are left out of the edge, center, and bandwidth figures because "
+            "a -3 dB edge fell outside the simulated frequency range; JSON output lists each case."
         ) in limitations
         assert (
-            "Metric summaries omit 2 unresolved screening cases; their response "
-            "measurements did not converge within the refinement budget."
+            "2 tolerance cases are left out of the figures because the measurement did not "
+            "converge."
         ) in limitations
         assert (
-            "4 screening cases have disconnected half-power regions; bandwidth describes "
-            "the selected local-peak region, not the outer envelope."
+            "In 4 tolerance cases the response is above -3 dB in separate frequency ranges; "
+            "their edges and bandwidth come from the range around the peak nearest the center."
         ) in limitations
-        assert not any("unequal-termination" in item for item in limitations)
+        assert not any(
+            "the different source and load resistances apply only to this simulation" in item
+            for item in limitations
+        )
+        # No advice to extend the sweep: no option does that.
+        assert not any("extend" in item for item in limitations)
 
-        clean = _analysis_limitations((), 25.0, 100.0, 0, 0, 0)
-        assert not any("screening cases" in item for item in clean)
-        assert any("does not imply unequal-termination synthesis" in item for item in clean)
+        clean = _analysis_limitations((), "bandpass", 25.0, 100.0, 0, 0, 0)
+        assert not any("tolerance cases are left out" in item for item in clean)
+        assert any(
+            "the different source and load resistances apply only to this simulation" in item
+            for item in clean
+        )
+
+    def test_ladder_limitations_name_the_cutoff_not_a_bandwidth(self):
+        """Low-pass and high-pass report a cutoff, so their notices never say bandwidth."""
+        limitations = _analysis_limitations((), "highpass", 50.0, 50.0, 1, 0, 2)
+
+        assert (
+            "1 tolerance case is left out of the cutoff figures because the -3 dB point fell "
+            "outside the simulated frequency range; JSON output lists each case."
+        ) in limitations
+        assert (
+            "In 2 tolerance cases the response is above -3 dB in separate frequency ranges; "
+            "their cutoff comes from the range that holds the peak."
+        ) in limitations
+        assert not any("bandwidth" in item for item in limitations)
 
     def test_lowpass_summaries_report_cutoff_without_bandpass_only_metrics(self):
         analysis = analyze_build(
@@ -713,7 +756,10 @@ class TestBuildAnalysis:
         assert cutoff.grid_censored_cases > 0
         assert cutoff.included_cases + cutoff.omitted_cases == len(analysis.cases)
         assert cutoff.maximum < 100e6
-        assert any("grid-boundary-censored" in item for item in analysis.limitations)
+        assert any(
+            "left out of the cutoff figures because the -3 dB point fell outside" in item
+            for item in analysis.limitations
+        )
 
     def test_one_sided_censored_bandpass_edge_is_excluded_from_its_summary(self):
         result = calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top")
@@ -757,8 +803,9 @@ class TestBuildAnalysis:
             "worst_passband_db",
         ]
         assert (
-            f"Edge/cutoff summaries omit {len(analysis.cases)} grid-boundary-censored "
-            "screening cases; inspect their case records before extending the sweep."
+            f"{len(analysis.cases)} tolerance cases are left out of the edge, center, and "
+            "bandwidth figures because a -3 dB edge fell outside the simulated frequency range; "
+            "JSON output lists each case."
         ) in analysis.limitations
 
     @pytest.mark.parametrize(
@@ -811,7 +858,7 @@ class TestBuildAnalysisCancellation:
             checks += 1
             return checks >= 4
 
-        with pytest.raises(BuildAnalysisCancelled, match="cancelled"):
+        with pytest.raises(BuildAnalysisCancelled, match="^Build simulation was cancelled$"):
             analyze_build(
                 _lp_result(), "lowpass", self.CONFIG, should_cancel=cancel_on_fourth_check
             )
@@ -909,22 +956,27 @@ class TestPhysicalInputLimits:
                 "lowpass",
                 "load_resistance_ohm",
                 50e6 * (1 + 1e-9),
-                "^Load resistance 5e\\+07 ohm is outside the supported range 5e-05 to 5e\\+07 ohm "
+                "^Simulation load resistance 5e\\+07 ohm is outside the supported range 5e-05 to 5e\\+07 ohm "
                 "\\(1e-06 to 1e\\+06 times the 50 ohm design impedance\\)$",
             ),
             (
                 "lowpass",
                 "source_resistance_ohm",
                 50e-6 * (1 - 1e-9),
-                "^Source resistance 5e-05 ohm is outside the supported range",
+                "^Simulation source resistance 5e-05 ohm is outside the supported range",
             ),
-            ("lowpass", "load_resistance_ohm", 1e300, "^Load resistance 1e\\+300 ohm is outside"),
+            (
+                "lowpass",
+                "load_resistance_ohm",
+                1e300,
+                "^Simulation load resistance 1e\\+300 ohm is outside",
+            ),
             # The range follows the design impedance: 1 ohm is inside for 50 ohm, not for 1 Mohm.
             (
                 "bandpass",
                 "source_resistance_ohm",
                 0.5,
-                "^Source resistance 0.5 ohm is outside the supported range 1 to 1e\\+12 ohm "
+                "^Simulation source resistance 0.5 ohm is outside the supported range 1 to 1e\\+12 ohm "
                 "\\(1e-06 to 1e\\+06 times the 1e\\+06 ohm design impedance\\)$",
             ),
         ],
@@ -954,12 +1006,19 @@ class TestPhysicalInputLimits:
             port,
         )
 
-    @pytest.mark.parametrize("name", ["inductor_q", "capacitor_q", "resonator_q"])
+    @pytest.mark.parametrize(
+        ("name", "label"),
+        [
+            ("inductor_q", "Inductor Q"),
+            ("capacitor_q", "Capacitor Q"),
+            ("resonator_q", "Resonator Q"),
+        ],
+    )
     @pytest.mark.parametrize(
         "value", [math.nextafter(0.01, 0.0), math.nextafter(1e9, math.inf), 1e-300, True]
     )
-    def test_quality_factors_outside_the_range_are_rejected(self, name, value):
-        with pytest.raises(ValueError, match=f"^{name} must be finite and in \\[0.01, 1e\\+09\\]$"):
+    def test_quality_factors_outside_the_range_are_rejected(self, name, label, value):
+        with pytest.raises(ValueError, match=f"^{label} must be between 0.01 and 1e9$"):
             BuildConfig(**{name: value})
 
     def test_gain_below_binary64_range_names_the_evaluation_inputs(self):
@@ -987,7 +1046,7 @@ class TestPhysicalInputLimits:
         assert message.startswith("The simulated transducer gain at ")
         assert "underflows binary64 (below about 4.9e-324, or -3233 dB)" in message
         assert message.endswith(
-            "Evaluation inputs: source resistance 50 ohm, load resistance 50 ohm, lowest "
+            "Simulation inputs: source resistance 50 \u03a9, load resistance 50 \u03a9, lowest "
             "inductor Q 1e-300; use less extreme component Q or port resistances"
         )
 

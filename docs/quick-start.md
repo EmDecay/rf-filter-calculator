@@ -4,11 +4,11 @@ There are three ways to design a filter. They share one engine, so the same sett
 
 - **Command line** — `uv run filter-calc <category> …`, best for scripts and repeatable designs.
 - **Interactive wizard** — `uv run filter-calc` with no arguments, a guided terminal form.
-- **Web UI** — `uv run filter-calc web`, a page in your browser on this computer (needs `uv sync --extra web` once).
+- **Web UI** — `uv run filter-calc web`, a page in your browser on this computer (needs the optional web dependencies: `uv sync --extra web` once).
 
 ## Command Line
 
-### Lowpass Filter (Pi/T Topology)
+### Low-Pass Filter (Pi/T Topology)
 
 ```bash
 # 5th-order Butterworth Pi at 10 MHz
@@ -18,7 +18,7 @@ uv run filter-calc lowpass butterworth pi 10MHz -n 5
 uv run filter-calc lp bw pi 10MHz -n 5
 ```
 
-### Highpass Filter (Pi/T Topology)
+### High-Pass Filter (Pi/T Topology)
 
 ```bash
 # 5th-order Chebyshev T at 14 MHz with 0.5 dB ripple
@@ -31,13 +31,13 @@ uv run filter-calc hp ch t 14MHz -r 0.5
 uv run filter-calc hp ch pi 14MHz -r 0.5
 ```
 
-### Bandpass Filter (Coupled Resonator)
+### Band-Pass Filter (Coupled Resonators)
 
 ```bash
 # 20m amateur band (14.0-14.35 MHz)
 uv run filter-calc bandpass butterworth top -f 14.175MHz -b 350kHz
 
-# Alternative: specify low/high cutoffs directly
+# Alternative: give the lower and upper -3 dB edges directly
 uv run filter-calc bp bw top --fl 14MHz --fh 14.35MHz
 ```
 
@@ -45,26 +45,27 @@ With `--fl` / `--fh`, the calculator uses the geometric center internally. Repor
 edges are reconstructed from that center and bandwidth and agree with the requested
 values to floating-point precision.
 
-Every bandpass result includes a per-design response status. Inspect warnings and
-`response_validation_status` before treating a design as build-ready.
+Every band-pass result includes a **Response Check** line (`response_validation_status` in
+JSON). Read it and any warnings before treating a design as ready to build.
 
-### Analyze a Realized Build
+### Simulate the Built Filter
 
 ```bash
-# Select nominal capacitor branches, screen toroids, apply component Q,
-# and run deterministic tolerance corners plus two repeatable sample cases.
+# Simulate the chosen parts (standard capacitor values and suggested toroid
+# windings) with part losses (Q), across the tolerance cases plus two extra
+# random tolerance cases.
 uv run filter-calc lp bw pi 10MHz --sim-build \
   --inductor-q 100 --capacitor-q 500 \
   --cap-tolerance 5 --ind-tolerance 10 \
   --samples 2 --seed 73 --format json
 
-# Export the same nominal-build circuit as a generic SPICE deck.
+# Export the same chosen parts as a generic SPICE deck.
 uv run filter-calc lp bw pi 10MHz --format spice \
   --spice-realization nominal-build
 ```
 
-Build analysis is a finite circuit simulation, not a measurement, guaranteed worst
-case, yield prediction, or substitute for a VNA check.
+The build simulation is a circuit simulation, not a measurement, a guaranteed worst case,
+a yield prediction, or a substitute for a VNA check.
 
 ## Interactive Wizard
 
@@ -72,7 +73,9 @@ case, yield prediction, or substitute for a VNA check.
 uv run filter-calc
 ```
 
-Running with no arguments starts the interactive wizard.
+Running with no arguments starts the interactive wizard: choose a filter, fill in its form,
+choose the output, and read the result. It offers the same options, labels, and defaults as the
+web UI. An option that cannot apply to the chosen output is disabled, with the reason under it.
 
 ## Web UI
 
@@ -82,27 +85,30 @@ uv run filter-calc web [--port <port>]
 ```
 
 Open the printed address (default `http://127.0.0.1:8765/`), pick a tab, and select
-**Design filter**. The result is the CLI's own text for the same settings, with an
-optional response plot and download buttons. See the
+**Design filter**. The result is the CLI's own text for the same settings, with an optional
+response graph and download buttons; downloads use the inputs of the result shown. See the
 [user guide](user-guide.md#web-ui) for how each field maps to a CLI flag.
 
 ## Common Options
 
 | Option | Description |
 |--------|-------------|
-| `-n` | Number of components (2-9) |
-| `-z` | System impedance (default: 50Ω) |
+| `-f`, `--frequency`, `--freq` | Cutoff or center frequency, as a flag instead of the positional argument |
+| `-n` | Number of components or resonators (2-9) |
+| `-z` | Source and load impedance (default: 50 Ω) |
 | `-r` | Chebyshev ripple in dB |
-| `--plot` | Show ASCII frequency response |
+| `--plot` | Add a text plot of the frequency response to the table |
 | `--format json` | Output as JSON |
-| `-e E96` | Use E96 preferred-value density for capacitor selection |
-| `--no-match` | Keep calculated capacitor values; do not select preferred values |
-| `--no-toroids` | Disable screened toroid candidates |
-| `--sim-build` | Compare calculated and realized circuits with tolerance screening |
-| `--format spice` | Export a generic exact or nominal-build SPICE deck |
+| `-e E96` | Choose capacitors from the E96 standard values (96 per decade) |
+| `--no-match` | Show only calculated capacitor values; do not choose standard values |
+| `--allow-sub-pf` | Also choose standard values for capacitors below 1 pF |
+| `--no-toroids` | Leave out the toroid winding suggestions |
+| `--sim-build` | Build simulation: the ideal values compared with the chosen parts, across tolerance cases |
+| `--format spice` | Export a generic SPICE deck (chosen parts by default, or `--spice-realization exact`, also spelled `calculated`) |
 
-E12/E24/E96 do not specify part tolerance. Enter capacitor and inductor tolerances
-separately when using build analysis.
+E12/E24/E96 set how many standard values there are per decade, not the part tolerance.
+Enter capacitor and inductor tolerances separately for the build simulation. In the wizard
+and web UI, **Allow capacitors below 1 pF** is the same as `--allow-sub-pf`.
 
 ## Filter Type Aliases
 

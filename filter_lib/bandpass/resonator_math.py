@@ -7,6 +7,10 @@ from ..shared.physical_input_limits import require_component_q
 from .numeric_validation import _is_positive_finite
 
 STANDARD_QU_VALUES: tuple[float, ...] = (100.0, 250.0)
+# Shared with the wizard, which checks the same rule before calculating.
+TANK_SETTING_CONFLICT_MESSAGE = (
+    "Set either the resonator impedance or the resonator inductance, not both"
+)
 
 
 def _resolve_resonator_components(
@@ -21,7 +25,7 @@ def _resolve_resonator_components(
     if not _is_positive_finite(z0):
         raise ValueError("z0 must be positive and finite")
     if resonator_impedance is not None and resonator_inductance is not None:
-        raise ValueError("resonator_impedance and resonator_inductance are mutually exclusive")
+        raise ValueError(TANK_SETTING_CONFLICT_MESSAGE)
     if resonator_impedance is not None and not _is_positive_finite(resonator_impedance):
         raise ValueError("resonator_impedance must be positive and finite")
     if resonator_inductance is not None and not _is_positive_finite(resonator_inductance):
@@ -70,7 +74,7 @@ def combine_resonator_q(
 ) -> float | None:
     """Resolve complete unloaded Q directly or from reciprocal component losses."""
     if qu is not None and (ql is not None or qc is not None):
-        raise ValueError("qu and separate ql/qc values are mutually exclusive")
+        raise ValueError("Give either Qu or QL/QC, not both")
     for name, value in (("Qu", qu), ("QL", ql), ("QC", qc)):
         if value is not None:
             require_component_q(value, name)

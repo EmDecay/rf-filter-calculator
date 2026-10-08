@@ -1,8 +1,9 @@
 """Wizard table output carries the screened toroid section at the chosen detail level.
 
-"full" mirrors the CLI's --toroid-full (up to three multi-line candidates);
-"compact" mirrors --toroid-compact (one line for the best candidate). JSON and
-CSV keep their own fixed candidate contracts regardless of the table choice.
+"best" is the CLI default (the best candidate, detailed); "full" mirrors the CLI's
+--toroid-full (up to three multi-line candidates); "compact" mirrors --toroid-compact
+(one line for the best candidate); "none" is --no-toroids. JSON and CSV keep their own
+fixed candidate contracts regardless of the table choice.
 """
 
 from __future__ import annotations
@@ -26,10 +27,13 @@ from filter_lib.wizard.filter_type_calculators import (
 from filter_lib.wizard.screens.output_options import OutputOptionsScreen
 from filter_lib.wizard.state import FilterState, ToroidDetail
 
-TOROID_HEADER = "Screened Toroid Winding Candidates (Iron-Powder T-Series)"
-ACCURACY_NOTE = "(Accuracy: A_L tolerance ±5% per spec; N rounding shown as %)"
+TOROID_HEADER = "Toroid Winding Suggestions (iron-powder T-series)"
+ACCURACY_NOTE = "L range: the same turns across the core's ±5% A_L tolerance."
 NOT_ASSESSED_NOTE = (
-    "RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed."
+    "Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
+)
+INDUCTOR_NOTE = (
+    "Inductors: no standard values; wind to the calculated value (see Toroid Winding Suggestions)."
 )
 # Ranked candidate rows in both detail levels start "  1. ", "  2. ", ...
 CANDIDATE_ROW = re.compile(r"^  \d\. ")
@@ -86,7 +90,7 @@ def test_lp_hp_full_detail_lists_up_to_three_candidates_per_inductor(category):
     assert TOROID_HEADER in output
     assert ACCURACY_NOTE in output
     assert output.count(NOT_ASSESSED_NOTE) == 1
-    assert "Inductors: wind to value (see toroid recommendations)" in output
+    assert INDUCTOR_NOTE in output
     for index in range(len(inductors)):
         assert f"L{index + 1} target:" in output
     assert len(_candidate_rows(lines)) == expected
@@ -108,7 +112,7 @@ def test_lp_hp_compact_detail_is_one_line_for_best_candidate(category):
     assert "     Wire: " not in output
     rows = _candidate_rows(lines)
     assert len(rows) == expected
-    assert all(row.startswith("  1. ") and " N=" in row and " AWG" in row for row in rows)
+    assert all(row.startswith("  1. ") and " turns AWG " in row for row in rows)
 
 
 @pytest.mark.parametrize(("toroid_detail", "top_n"), [("full", 3), ("compact", 1)])
@@ -123,20 +127,20 @@ def test_bandpass_table_includes_cli_toroid_block_at_selected_detail(
     block = format_toroid_block_lines(state.result, compact, top_n)[:-1]
     start = lines.index(block[1]) - 1
     assert lines[start : start + len(block)] == block
-    assert any("L_resonant (applies to L1…L3) target:" in line for line in block)
+    assert any("L1–L3 (all equal) target:" in line for line in block)
     expected = len(recommend_cores(state.result["L_resonant"], state.result["f0"], top_n=top_n))
     assert expected >= 1
     assert len(_candidate_rows(lines)) == expected
-    assert "Inductors: wind to value (see toroid recommendations)" in lines
+    assert INDUCTOR_NOTE in lines
 
 
 def test_bandpass_toroid_block_sits_between_eseries_section_and_plot():
     lines = calculate_bandpass(_bp_state(show_plot=True))
     output = "\n".join(lines)
 
-    eseries_at = output.index("E24 Preferred-Value Capacitor Selection")
+    eseries_at = output.index("E24 Standard Capacitor Values")
     toroid_at = output.index(TOROID_HEADER)
-    plot_at = output.index("Butterworth 3-pole Response")
+    plot_at = output.index("Simulated Response, ideal parts (dB): Butterworth, 3 resonators")
     assert eseries_at < toroid_at < plot_at
 
 
@@ -161,19 +165,18 @@ def test_toroid_detail_choice_flows_from_output_options_to_results():
             assert detail.pressed_button is not None
             assert detail.pressed_button.id == "toroid-full"
 
-            # Keyboard path: Enter from Additional Options lands on the toroid
-            # choice, arrow keys move within it, and space selects.
-            app.screen.query_one("#options-list").focus()
+            # Keyboard path: Enter from the sub-pF box lands on the toroid choice,
+            # arrow keys move within it, and space selects.
+            app.screen.query_one("#allow-sub-pf").focus()
             await pilot.press("enter")
             assert detail.has_focus
             await pilot.press("down", "space")
             await pilot.pause()
             assert detail.pressed_button.id == "toroid-compact"
             await pilot.press("enter")
-            assert app.screen.query_one("#export", RadioSet).has_focus
+            assert app.screen.query_one("#plot").has_focus
 
-            await pilot.press("enter")
-            assert app.screen.query_one("#results-btn").has_focus
+            app.screen.query_one("#results-btn").focus()
             await pilot.press("enter")
             await pilot.pause()
             await app.workers.wait_for_complete()

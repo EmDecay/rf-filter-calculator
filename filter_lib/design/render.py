@@ -12,7 +12,9 @@ from types import ModuleType
 from .design_result import DesignResult
 from .render_options import RenderOptions
 
-BUILD_TARGET_NOTE = "Synthesis target: requested response and calculated components above."
+BUILD_TARGET_NOTE = (
+    "Above: the ideal design. Below: a simulation of building it with the chosen parts."
+)
 
 
 def _formatters(category: str) -> ModuleType:
@@ -40,6 +42,7 @@ def _table_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
             include_toroids=options.include_toroids,
             toroid_compact=options.toroid_compact,
             toroid_full=options.toroid_full,
+            match_policy=outcome.match_policy,
         )
 
     from ..shared.lp_hp_display import CAPACITOR_MATCH, LpHpRenderOptions, render_results_lines
@@ -63,6 +66,7 @@ def _table_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
             toroid_full=options.toroid_full,
             match=CAPACITOR_MATCH,
             trailing_blank=False,
+            match_policy=outcome.match_policy,
         ),
     )
 
@@ -76,6 +80,8 @@ def render_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
     build_analysis = outcome.build_analysis
     if build_analysis is not None:
         options.validate_for_build()
+    if outcome.allow_sub_pf:
+        options.validate_for_sub_pf()
     display = _formatters(outcome.category)
     result = outcome.result
 
@@ -86,12 +92,16 @@ def render_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
                 eseries=options.eseries,
                 include_toroids=options.include_toroids,
                 build_analysis=build_analysis,
+                match_policy=outcome.match_policy,
             )
         ]
     if options.output_format == "csv":
         return [
             display.format_csv(
-                result, eseries=options.eseries, include_toroids=options.include_toroids
+                result,
+                eseries=options.eseries,
+                include_toroids=options.include_toroids,
+                match_policy=outcome.match_policy,
             )
         ]
     if options.output_format == "quiet":

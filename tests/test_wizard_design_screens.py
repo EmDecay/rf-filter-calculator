@@ -11,14 +11,24 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from textual.widgets import Button, Input, RadioSet, Static
+from textual.widgets import Button, Input, RadioButton, RadioSet, Static
 
+from filter_lib.bandpass.input_validation import fbw_impractical_warning, fbw_untested_warning
+from filter_lib.design import band_from_edges
+from filter_lib.design.option_applicability import LOSS_Q_DISABLED_MESSAGE
+from filter_lib.shared.cli_aliases import (
+    COMPONENT_COUNT_MESSAGE,
+    RIPPLE_RANGE_MESSAGE,
+    chebyshev_odd_count_message,
+)
 from filter_lib.wizard.bandpass_form import (
     BandpassFormError,
     BandpassFormValues,
+    edge_bandwidth_feedback,
     fractional_bandwidth_feedback,
     parse_bandpass_form,
 )
+from filter_lib.wizard.design_field_validation import CUTOFF_LABELS
 from filter_lib.wizard.filter_screen_navigation_mixin import FilterScreenNavigationMixin
 from filter_lib.wizard.screens.bandpass import BandpassScreen
 from filter_lib.wizard.screens.highpass import HighpassScreen
@@ -67,8 +77,7 @@ def _mount(monkeypatch, screen, widgets: dict[str, Mock]) -> SimpleNamespace:
 
 
 class _NavScreen(FilterScreenNavigationMixin):
-    RADIO_SET_FLOW = ["filter-type", "topology"]
-    FIRST_INPUT_ID = "frequency"
+    FOCUS_FLOW = ("filter-type", "topology", "frequency", "next-btn")
 
     def __init__(self, widgets: dict) -> None:
         self._widgets = widgets
@@ -79,54 +88,62 @@ class _NavScreen(FilterScreenNavigationMixin):
         return self._widgets[selector]
 
 
+def _nav_widgets(focus: str = "") -> dict[str, Mock]:
+    widgets = {
+        "#filter-type": _radio_set("a", has_focus=focus == "filter-type"),
+        "#topology": _radio_set("b", has_focus=focus == "topology"),
+        "#frequency": _input(),
+        "#next-btn": Mock(spec=Button),
+    }
+    for widget in widgets.values():
+        widget.disabled = False
+    return widgets
+
+
 class TestRadioSetEnterNavigation:
     def test_enter_on_first_radio_set_focuses_the_next_and_consumes_the_key(self):
-        first, second = _radio_set("a", has_focus=True), _radio_set("b")
-        screen = _NavScreen({"#filter-type": first, "#topology": second})
+        widgets = _nav_widgets("filter-type")
         event = _key("enter")
 
-        screen.on_key(event)
+        _NavScreen(widgets).on_key(event)
 
-        second.focus.assert_called_once_with()
+        widgets["#topology"].focus.assert_called_once_with()
         event.prevent_default.assert_called_once_with()
         event.stop.assert_called_once_with()
 
     def test_enter_on_last_radio_set_focuses_the_first_input(self):
-        frequency = _input()
-        screen = _NavScreen(
-            {
-                "#filter-type": _radio_set("a"),
-                "#topology": _radio_set("b", has_focus=True),
-                "#frequency": frequency,
-            }
-        )
+        widgets = _nav_widgets("topology")
 
-        screen.on_key(_key("enter"))
+        _NavScreen(widgets).on_key(_key("enter"))
 
-        frequency.focus.assert_called_once_with()
+        widgets["#frequency"].focus.assert_called_once_with()
 
-    def test_last_radio_set_without_a_first_input_still_consumes_enter(self):
-        screen = _NavScreen({"#topology": _radio_set("b", has_focus=True)})
-        screen.RADIO_SET_FLOW = ["topology"]
-        screen.FIRST_INPUT_ID = ""
-        event = _key("enter")
+    def test_disabled_controls_are_skipped(self):
+        widgets = _nav_widgets("topology")
+        widgets["#frequency"].disabled = True
 
-        screen.on_key(event)
+        _NavScreen(widgets).on_key(_key("enter"))
 
-        event.prevent_default.assert_called_once_with()
-        event.stop.assert_called_once_with()
+        widgets["#frequency"].focus.assert_not_called()
+        widgets["#next-btn"].focus.assert_called_once_with()
+
+    def test_submitting_an_input_in_the_flow_advances_and_others_are_ignored(self):
+        widgets = _nav_widgets()
+        screen = _NavScreen(widgets)
+
+        screen.on_input_submitted(Mock(input=Mock(id="frequency")))
+        screen.on_input_submitted(Mock(input=Mock(id="not-in-flow")))
+
+        widgets["#next-btn"].focus.assert_called_once_with()
 
     @pytest.mark.parametrize("key, focused", [("tab", True), ("enter", False)])
     def test_other_keys_or_unfocused_radio_sets_are_left_alone(self, key, focused):
-        second = _radio_set("b")
-        screen = _NavScreen(
-            {"#filter-type": _radio_set("a", has_focus=focused), "#topology": second}
-        )
+        widgets = _nav_widgets("filter-type" if focused else "")
         event = _key(key)
 
-        screen.on_key(event)
+        _NavScreen(widgets).on_key(event)
 
-        second.focus.assert_not_called()
+        widgets["#topology"].focus.assert_not_called()
         event.prevent_default.assert_not_called()
 
     def test_enter_before_widgets_are_mounted_is_ignored(self):
@@ -163,61 +180,67 @@ def _lp_hp_form(
         "#topology": _radio_set(topology),
         "#ripple-section": ripple_section,
         "#order-label": Mock(spec=Static),
+        "#frequency-label": Mock(spec=Static),
         "#next-btn": Mock(spec=Button),
     }
     return _mount(monkeypatch, screen_cls(), widgets)
 
 
 LP_HP_REJECTIONS = [
-    ({"frequency": "notafreq"}, "error", "Invalid frequency", "#frequency"),
+    ({"frequency": "notafreq"}, "error", "Invalid cutoff frequency", "#frequency"),
     ({"impedance": "abc"}, "error", "Invalid impedance", "#impedance"),
-    ({"impedance": "0"}, "error", "Invalid impedance", "#impedance"),
-    ({"order": "1"}, "error", "Invalid order: must be 2-9", "#order"),
-    ({"order": "10"}, "error", "Invalid order: must be 2-9", "#order"),
-    ({"order": "xyz"}, "error", "Invalid order", "#order"),
-    ({"filter_type": "chebyshev", "order": "4"}, "warning", "requires odd order", "#order"),
+    ({"impedance": "0"}, "error", "Impedance must be positive", "#impedance"),
+    ({"order": "1"}, "error", COMPONENT_COUNT_MESSAGE, "#order"),
+    ({"order": "10"}, "error", COMPONENT_COUNT_MESSAGE, "#order"),
+    ({"order": "xyz"}, "error", COMPONENT_COUNT_MESSAGE, "#order"),
     (
-        {"filter_type": "chebyshev", "ripple": "0"},
-        "error",
-        "Invalid ripple: must be positive",
-        "#ripple",
+        {"filter_type": "chebyshev", "order": "4"},
+        "warning",
+        chebyshev_odd_count_message("components"),
+        "#order",
     ),
-    ({"filter_type": "chebyshev", "ripple": "-0.1"}, "error", "must be positive", "#ripple"),
-    ({"filter_type": "chebyshev", "ripple": "nope"}, "error", "Invalid ripple", "#ripple"),
-    (
-        {"filter_type": "chebyshev", "ripple": "nan"},
-        "error",
-        "Invalid ripple: must be finite",
-        "#ripple",
-    ),
-    (
-        {"filter_type": "chebyshev", "ripple": "inf"},
-        "error",
-        "Invalid ripple: must be finite",
-        "#ripple",
-    ),
-    ({"filter_type": "chebyshev", "ripple": "3.1"}, "error", "must be <= 3.0 dB", "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "0"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "-0.1"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "nope"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "nan"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "inf"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "3.1"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
     # Hostile text: every field is rejected with a message on that field, never raised.
-    ({"frequency": "10XHz"}, "error", "Invalid frequency", "#frequency"),
-    ({"frequency": "-5MHz"}, "error", "Frequency must be positive", "#frequency"),
-    ({"frequency": "0"}, "error", "Frequency must be positive", "#frequency"),
-    ({"frequency": "nan"}, "error", "Frequency must be positive", "#frequency"),
-    ({"frequency": "inf"}, "error", "Frequency must be positive", "#frequency"),
-    ({"frequency": "1e400"}, "error", "Frequency must be positive and finite", "#frequency"),
-    ({"frequency": "1e-400"}, "error", "Frequency must be positive and finite", "#frequency"),
+    ({"frequency": "10XHz"}, "error", "Invalid cutoff frequency", "#frequency"),
+    ({"frequency": "-5MHz"}, "error", "Cutoff frequency must be positive", "#frequency"),
+    ({"frequency": "0"}, "error", "Cutoff frequency must be positive", "#frequency"),
+    ({"frequency": "nan"}, "error", "Cutoff frequency must be positive", "#frequency"),
+    ({"frequency": "inf"}, "error", "Cutoff frequency must be positive", "#frequency"),
+    (
+        {"frequency": "1e400"},
+        "error",
+        "Cutoff frequency must be positive and finite",
+        "#frequency",
+    ),
+    (
+        {"frequency": "1e-400"},
+        "error",
+        "Cutoff frequency must be positive and finite",
+        "#frequency",
+    ),
     ({"frequency": "1e999999999MHz"}, "error", "must be positive and finite", "#frequency"),
-    ({"frequency": "9" * 5000}, "error", "Frequency must be positive and finite", "#frequency"),
+    (
+        {"frequency": "9" * 5000},
+        "error",
+        "Cutoff frequency must be positive and finite",
+        "#frequency",
+    ),
     ({"impedance": "nan"}, "error", "Impedance must be positive", "#impedance"),
     ({"impedance": "-50"}, "error", "Impedance must be positive", "#impedance"),
     ({"impedance": "1e400"}, "error", "Impedance must be positive and finite", "#impedance"),
-    ({"order": ""}, "error", "Invalid order", "#order"),
-    ({"order": "3.5"}, "error", "Invalid order", "#order"),
-    ({"order": "0"}, "error", "Invalid order: must be 2-9", "#order"),
-    ({"order": "1e1"}, "error", "Invalid order", "#order"),
-    ({"order": "9" * 5000}, "error", "Invalid order", "#order"),
-    ({"filter_type": "chebyshev", "ripple": ""}, "error", "Invalid ripple", "#ripple"),
-    ({"filter_type": "chebyshev", "ripple": "3.0001"}, "error", "must be <= 3.0 dB", "#ripple"),
-    ({"filter_type": "chebyshev", "ripple": "1e400"}, "error", "must be finite", "#ripple"),
+    ({"order": ""}, "error", COMPONENT_COUNT_MESSAGE, "#order"),
+    ({"order": "3.5"}, "error", COMPONENT_COUNT_MESSAGE, "#order"),
+    ({"order": "0"}, "error", COMPONENT_COUNT_MESSAGE, "#order"),
+    ({"order": "1e1"}, "error", COMPONENT_COUNT_MESSAGE, "#order"),
+    ({"order": "9" * 5000}, "error", COMPONENT_COUNT_MESSAGE, "#order"),
+    ({"filter_type": "chebyshev", "ripple": ""}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "3.0001"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
+    ({"filter_type": "chebyshev", "ripple": "1e400"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
 ]
 
 
@@ -243,14 +266,22 @@ class TestLowpassHighpassForm:
     @pytest.mark.parametrize(
         "overrides, message, focus",
         [
-            ({"frequency": "10XHz"}, "Invalid frequency: 10XHz", "#frequency"),
             (
-                {"frequency": "-5MHz"},
-                "Invalid frequency: Frequency must be positive: -5MHz",
+                {"frequency": "10XHz"},
+                "Invalid cutoff frequency: 10XHz (use a number with an optional k, M, or G suffix, e.g. 14.2MHz)",
                 "#frequency",
             ),
-            ({"impedance": "abc"}, "Invalid impedance: abc", "#impedance"),
-            ({"impedance": "0"}, "Invalid impedance: Impedance must be positive: 0", "#impedance"),
+            (
+                {"frequency": "-5MHz"},
+                "Cutoff frequency must be positive: -5MHz",
+                "#frequency",
+            ),
+            (
+                {"impedance": "abc"},
+                "Invalid impedance: abc (use a number of ohms with an optional k or M suffix, e.g. 50 or 1k)",
+                "#impedance",
+            ),
+            ({"impedance": "0"}, "Impedance must be positive: 0", "#impedance"),
         ],
     )
     def test_parser_rejections_name_the_field_once(
@@ -349,22 +380,35 @@ class TestLowpassHighpassForm:
 
     @pytest.mark.parametrize("screen_cls", LP_HP_SCREENS)
     @pytest.mark.parametrize(
-        "handler, ripple_visible, focused",
+        "submitted, ripple_visible, focused",
+        # The web form's order: frequency, number of components, impedance.
         [
-            ("_on_frequency_submitted", False, "#impedance"),
-            ("_on_impedance_submitted", False, "#order"),
-            ("_on_order_submitted", True, "#ripple"),
-            ("_on_order_submitted", False, "#next-btn"),
-            ("_on_ripple_submitted", True, "#next-btn"),
+            ("ripple", True, "#frequency"),
+            ("frequency", False, "#order"),
+            ("order", False, "#impedance"),
+            ("impedance", False, "#next-btn"),
         ],
     )
     def test_submitting_a_field_advances_focus(
-        self, monkeypatch, screen_cls, handler, ripple_visible, focused
+        self, monkeypatch, screen_cls, submitted, ripple_visible, focused
     ):
         form = _lp_hp_form(monkeypatch, screen_cls)
         form.w["#ripple-section"].display = ripple_visible
 
-        getattr(form.screen, handler)(Mock())
+        form.screen.on_input_submitted(Mock(input=Mock(id=submitted)))
+
+        form.w[focused].focus.assert_called_once_with()
+
+    @pytest.mark.parametrize("screen_cls", LP_HP_SCREENS)
+    @pytest.mark.parametrize("ripple_visible, focused", [(True, "#ripple"), (False, "#frequency")])
+    def test_enter_on_topology_reaches_ripple_only_for_chebyshev(
+        self, monkeypatch, screen_cls, ripple_visible, focused
+    ):
+        form = _lp_hp_form(monkeypatch, screen_cls)
+        form.w["#ripple-section"].display = ripple_visible
+        form.w["#topology"].has_focus = True
+
+        form.screen.on_key(_key("enter"))
 
         form.w[focused].focus.assert_called_once_with()
 
@@ -372,9 +416,9 @@ class TestLowpassHighpassForm:
     @pytest.mark.parametrize(
         "pressed, ripple_visible, label",
         [
-            ("chebyshev", True, "Order (Chebyshev: odd only — 3, 5, 7, 9):"),
-            ("butterworth", False, "Order (2-9 components):"),
-            ("bessel", False, "Order (2-9 components):"),
+            ("chebyshev", True, "Number of components (Chebyshev: odd only — 3, 5, 7, 9):"),
+            ("butterworth", False, "Number of components (2-9):"),
+            ("bessel", False, "Number of components (2-9):"),
         ],
     )
     def test_response_type_toggles_ripple_and_order_hint(
@@ -387,6 +431,8 @@ class TestLowpassHighpassForm:
 
         assert form.w["#ripple-section"].display is ripple_visible
         form.w["#order-label"].update.assert_called_once_with(label)
+        form.w["#frequency-label"].update.assert_called_once_with(CUTOFF_LABELS[ripple_visible])
+        assert ("ripple-band edge" in CUTOFF_LABELS[ripple_visible]) is ripple_visible
         assert form.state.calculation_revision == revision + 1
 
 
@@ -461,43 +507,73 @@ class TestParseBandpassForm:
                 "bandwidth",
                 "error",
             ),
-            ({"impedance": "0"}, "Invalid impedance", "impedance", "error"),
+            ({"impedance": "0"}, "Impedance must be positive", "impedance", "error"),
             (
                 {"resonator_impedance": "75", "resonator_inductance": "1uH"},
-                "Choose only one advanced tank setting",
+                "Set either the resonator impedance or the resonator inductance, not both",
                 "resonator-inductance",
                 "error",
             ),
             (
                 {"resonator_impedance": "abc"},
-                "Invalid tank impedance",
+                "(?i)resonator impedance",
                 "resonator-impedance",
                 "error",
             ),
             (
                 {"resonator_inductance": "not-an-inductor"},
-                "Invalid tank inductance",
+                "(?i)resonator inductance",
                 "resonator-inductance",
                 "error",
             ),
-            ({"resonators": "1"}, "Invalid resonators: must be 2-9", "resonators", "error"),
-            ({"resonators": "xxx"}, "Invalid resonators", "resonators", "error"),
+            (
+                {"resonators": "1"},
+                "Number of resonators must be from 2 to 9",
+                "resonators",
+                "error",
+            ),
+            (
+                {"resonators": "xxx"},
+                "Number of resonators must be from 2 to 9",
+                "resonators",
+                "error",
+            ),
             (
                 {"filter_type": "chebyshev", "resonators": "4"},
-                "odd number of resonators",
+                "Chebyshev needs an odd number of resonators",
                 "resonators",
                 "warning",
             ),
-            ({"filter_type": "chebyshev", "ripple": "-0.1"}, "must be positive", "ripple", "error"),
-            ({"filter_type": "chebyshev", "ripple": "nan"}, "must be finite", "ripple", "error"),
-            ({"filter_type": "chebyshev", "ripple": "3.1"}, "must be <= 3.0 dB", "ripple", "error"),
+            (
+                {"filter_type": "chebyshev", "ripple": "-0.1"},
+                RIPPLE_RANGE_MESSAGE,
+                "ripple",
+                "error",
+            ),
+            (
+                {"filter_type": "chebyshev", "ripple": "nan"},
+                RIPPLE_RANGE_MESSAGE,
+                "ripple",
+                "error",
+            ),
+            (
+                {"filter_type": "chebyshev", "ripple": "3.1"},
+                RIPPLE_RANGE_MESSAGE,
+                "ripple",
+                "error",
+            ),
             # Hostile text: each field is reported as a form error on that field.
             ({"frequency": ""}, "Invalid center frequency", "frequency", "error"),
-            ({"frequency": "nan"}, "Invalid center frequency", "frequency", "error"),
-            ({"frequency": "-5MHz"}, "Invalid center frequency", "frequency", "error"),
-            ({"frequency": "1e400"}, "Invalid center frequency", "frequency", "error"),
-            ({"bandwidth": "0"}, "Invalid bandwidth", "bandwidth", "error"),
-            ({"bandwidth": "inf"}, "Invalid bandwidth", "bandwidth", "error"),
+            ({"frequency": "nan"}, "Center frequency must be positive", "frequency", "error"),
+            ({"frequency": "-5MHz"}, "Center frequency must be positive", "frequency", "error"),
+            (
+                {"frequency": "1e400"},
+                "Center frequency must be positive and finite",
+                "frequency",
+                "error",
+            ),
+            ({"bandwidth": "0"}, "Bandwidth must be positive", "bandwidth", "error"),
+            ({"bandwidth": "inf"}, "Bandwidth must be positive", "bandwidth", "error"),
             ({"bandwidth": "10XHz"}, "Invalid bandwidth", "bandwidth", "error"),
             (
                 {"frequency": "１０MHz", "bandwidth": "１０MHz"},
@@ -505,35 +581,62 @@ class TestParseBandpassForm:
                 "bandwidth",
                 "error",
             ),
-            ({"impedance": "nan"}, "Invalid impedance", "impedance", "error"),
-            ({"impedance": "1e400"}, "Invalid impedance", "impedance", "error"),
+            ({"impedance": "nan"}, "Impedance must be positive", "impedance", "error"),
+            ({"impedance": "1e400"}, "Impedance must be positive and finite", "impedance", "error"),
             (
                 {"resonator_impedance": "0"},
-                "Invalid tank impedance",
+                "(?i)resonator impedance",
                 "resonator-impedance",
                 "error",
             ),
             (
                 {"resonator_inductance": "-1uH"},
-                "Invalid tank inductance",
+                "(?i)resonator inductance",
                 "resonator-inductance",
                 "error",
             ),
             (
                 {"resonator_inductance": "1e400H"},
-                "Invalid tank inductance",
+                "(?i)resonator inductance",
                 "resonator-inductance",
                 "error",
             ),
-            ({"resonators": ""}, "Invalid resonators", "resonators", "error"),
-            ({"resonators": "3.5"}, "Invalid resonators", "resonators", "error"),
-            ({"resonators": "10"}, "Invalid resonators: must be 2-9", "resonators", "error"),
-            ({"resonators": "9" * 5000}, "Invalid resonators", "resonators", "error"),
-            ({"filter_type": "chebyshev", "ripple": ""}, "Invalid ripple", "ripple", "error"),
-            ({"filter_type": "chebyshev", "ripple": "0"}, "must be positive", "ripple", "error"),
+            (
+                {"resonators": ""},
+                "Number of resonators must be from 2 to 9",
+                "resonators",
+                "error",
+            ),
+            (
+                {"resonators": "3.5"},
+                "Number of resonators must be from 2 to 9",
+                "resonators",
+                "error",
+            ),
+            (
+                {"resonators": "10"},
+                "Number of resonators must be from 2 to 9",
+                "resonators",
+                "error",
+            ),
+            # The range comes before the Chebyshev odd-count rule, as in the CLI and web.
+            (
+                {"filter_type": "chebyshev", "resonators": "10"},
+                "Number of resonators must be from 2 to 9",
+                "resonators",
+                "error",
+            ),
+            (
+                {"resonators": "9" * 5000},
+                "Number of resonators must be from 2 to 9",
+                "resonators",
+                "error",
+            ),
+            ({"filter_type": "chebyshev", "ripple": ""}, RIPPLE_RANGE_MESSAGE, "ripple", "error"),
+            ({"filter_type": "chebyshev", "ripple": "0"}, RIPPLE_RANGE_MESSAGE, "ripple", "error"),
             (
                 {"filter_type": "chebyshev", "ripple": "3.0001"},
-                "must be <= 3.0 dB",
+                RIPPLE_RANGE_MESSAGE,
                 "ripple",
                 "error",
             ),
@@ -549,17 +652,29 @@ class TestParseBandpassForm:
     @pytest.mark.parametrize(
         "overrides, message",
         [
-            ({"frequency": "10XHz"}, "Invalid center frequency: 10XHz"),
-            ({"bandwidth": "10XHz"}, "Invalid bandwidth: 10XHz"),
-            ({"impedance": "abc"}, "Invalid impedance: abc"),
-            ({"resonator_impedance": "abc"}, "Invalid tank impedance: abc"),
+            (
+                {"frequency": "10XHz"},
+                "Invalid center frequency: 10XHz (use a number with an optional k, M, or G suffix, e.g. 14.2MHz)",
+            ),
+            (
+                {"bandwidth": "10XHz"},
+                "Invalid bandwidth: 10XHz (use a number with an optional k, M, or G suffix, e.g. 14.2MHz)",
+            ),
+            (
+                {"impedance": "abc"},
+                "Invalid impedance: abc (use a number of ohms with an optional k or M suffix, e.g. 50 or 1k)",
+            ),
+            (
+                {"resonator_impedance": "abc"},
+                "Invalid resonator impedance: abc (use a number of ohms with an optional k or M suffix, e.g. 50 or 1k)",
+            ),
             (
                 {"resonator_inductance": "not-an-inductor"},
-                "Invalid tank inductance: not-an-inductor",
+                "Invalid resonator inductance: not-an-inductor (use a number with H, mH, uH, or nH, e.g. 1.2uH)",
             ),
             (
                 {"frequency": "-5MHz"},
-                "Invalid center frequency: Frequency must be positive: -5MHz",
+                "Center frequency must be positive: -5MHz",
             ),
         ],
     )
@@ -570,6 +685,99 @@ class TestParseBandpassForm:
         assert str(caught.value) == message
 
 
+class TestParseBandEdgesAndResonatorQ:
+    """The web's band-edge entry (D4) and resonator Q on the design form (D5)."""
+
+    def test_edges_give_the_cli_center_and_width_and_are_kept(self):
+        design = parse_bandpass_form(
+            _bp_values(band_spec="edges", f_low="14MHz", f_high="14.35MHz")
+        )
+
+        assert (design.frequency_hz, design.bandwidth_hz) == band_from_edges(14e6, 14.35e6)
+        assert (design.requested_f_low_hz, design.requested_f_high_hz) == (14e6, 14.35e6)
+
+    def test_center_entry_ignores_the_hidden_edge_fields(self):
+        design = parse_bandpass_form(_bp_values(f_low="junk", f_high="junk"))
+
+        assert (design.requested_f_low_hz, design.requested_f_high_hz) == (None, None)
+
+    @pytest.mark.parametrize(
+        "overrides, message, field_id",
+        [
+            ({"f_low": "junk", "f_high": "14MHz"}, "Invalid lower cutoff frequency", "f-low"),
+            (
+                {"f_low": "14MHz", "f_high": "-1"},
+                "Upper cutoff frequency must be positive",
+                "f-high",
+            ),
+            (
+                {"f_low": "15MHz", "f_high": "14MHz"},
+                "Lower cutoff frequency must be below the upper cutoff frequency",
+                "f-high",
+            ),
+            (
+                {"f_low": "1MHz", "f_high": "10MHz"},
+                "Bandwidth must be less than center frequency",
+                "f-high",
+            ),
+        ],
+    )
+    def test_invalid_edges_name_their_field(self, overrides, message, field_id):
+        with pytest.raises(BandpassFormError, match=message) as caught:
+            parse_bandpass_form(_bp_values(band_spec="edges", **overrides))
+
+        assert caught.value.field_id == field_id
+
+    @pytest.mark.parametrize(
+        "overrides, expected",
+        [
+            ({"qu": "200"}, (200.0, None, None)),
+            ({"ql": "150", "qc": "900"}, (None, 150.0, 900.0)),
+            ({"qc": "1e9"}, (None, None, 1e9)),
+        ],
+    )
+    def test_resonator_q_values(self, overrides, expected):
+        design = parse_bandpass_form(_bp_values(**overrides))
+
+        assert (design.qu, design.ql, design.qc) == expected
+
+    @pytest.mark.parametrize(
+        "overrides, message, field_id",
+        [
+            ({"qu": "abc"}, "^Qu must be a number$", "qu"),
+            ({"qc": "x"}, "^QC must be a number$", "qc"),
+            # The shared calculator's mutual-exclusion message, on the field that conflicts.
+            ({"qu": "200", "ql": "150"}, "^Give either Qu or QL/QC, not both$", "ql"),
+            ({"qu": "200", "qc": "900"}, "^Give either Qu or QL/QC, not both$", "qc"),
+            ({"qu": "0"}, "^Qu must be between 0.01 and 1e9$", "qu"),
+            ({"ql": "nan"}, "^QL must be between 0.01 and 1e9$", "ql"),
+            ({"qc": "2e9"}, "^QC must be between 0.01 and 1e9$", "qc"),
+        ],
+    )
+    def test_invalid_resonator_q_names_its_field(self, overrides, message, field_id):
+        with pytest.raises(BandpassFormError, match=message) as caught:
+            parse_bandpass_form(_bp_values(**overrides))
+
+        assert caught.value.field_id == field_id
+
+    @pytest.mark.parametrize(
+        "f_low, f_high, expected",
+        [
+            ("14MHz", "14.35MHz", "within the 10%"),
+            ("14MHz", "13MHz", "Lower cutoff frequency must be below the upper cutoff frequency"),
+            ("1MHz", "10MHz", "Bandwidth must be less than center frequency"),
+            ("junk", "14MHz", None),
+        ],
+    )
+    def test_edge_feedback(self, f_low, f_high, expected):
+        feedback = edge_bandwidth_feedback(f_low, f_high)
+
+        if expected is None:
+            assert feedback is None
+        else:
+            assert expected in feedback[0]
+
+
 class TestFractionalBandwidthFeedback:
     @pytest.mark.parametrize(
         "frequency, bandwidth, percent, style, wording",
@@ -577,14 +785,20 @@ class TestFractionalBandwidthFeedback:
             (
                 "14.175MHz",
                 "350kHz",
-                "2.47%",
+                "2.5%",
                 "fbw-display",
-                "Within studied edge-calibration range",
+                "is within the 10% this design method was tested up to",
             ),
-            ("10MHz", "1MHz", "10.00%", "fbw-display", "Within studied edge-calibration range"),
-            ("10MHz", "2MHz", "20.00%", "fbw-warning", "Outside studied edge-calibration range"),
-            ("10MHz", "4MHz", "40.00%", "fbw-warning", "Outside studied edge-calibration range"),
-            ("10MHz", "4.01MHz", "40.10%", "fbw-danger", "consider a transmission-line design"),
+            (
+                "10MHz",
+                "1MHz",
+                "10.0%",
+                "fbw-display",
+                "is within the 10% this design method was tested up to",
+            ),
+            ("10MHz", "2MHz", "20.0%", "fbw-warning", fbw_untested_warning(0.2)),
+            ("10MHz", "4MHz", "40.0%", "fbw-warning", fbw_untested_warning(0.4)),
+            ("10MHz", "4.01MHz", "40.1%", "fbw-danger", fbw_impractical_warning(0.401)),
         ],
     )
     def test_threshold_bands_defer_final_validation(
@@ -593,10 +807,13 @@ class TestFractionalBandwidthFeedback:
         text, class_name = fractional_bandwidth_feedback(frequency, bandwidth)
 
         assert class_name == style
-        assert text.startswith(f"Fractional BW: {percent} · ")
+        assert text.startswith(f"Fractional bandwidth {percent} ")
         assert wording in text
-        assert text.endswith("final response validation runs after calculation.")
-        assert "validated" not in text.lower()
+        # The wording of the result's design warnings, not the retired method names.
+        for retired in ("transmission-line", "studied", "edge-calibration", "validated"):
+            assert retired not in text.lower()
+        if style == "fbw-danger":
+            assert "high-pass filter followed by a low-pass filter" in text
 
     @pytest.mark.parametrize(
         "frequency, bandwidth", [("junk", "1MHz"), ("10MHz", ""), ("0MHz", "1MHz")]
@@ -625,17 +842,19 @@ class TestFractionalBandwidthFeedback:
 
     @pytest.mark.parametrize(
         "frequency, bandwidth, percent",
-        [("1e-330GHz", "1e-331GHz", "9.90%"), ("1e290GHz", "1e-300Hz", "0.00%")],
+        [("1e-330GHz", "1e-331GHz", "9.9%"), ("1e290GHz", "1e-300Hz", "0.0%")],
     )
     def test_extreme_scales_below_center_still_show_a_finite_percentage(
         self, frequency, bandwidth, percent
     ):
         text, _style = fractional_bandwidth_feedback(frequency, bandwidth)
 
-        assert text.startswith(f"Fractional BW: {percent} · ")
+        assert text.startswith(f"Fractional bandwidth {percent} ")
 
 
-def _bp_form(monkeypatch, filter_type: str = "butterworth", **inputs: str) -> SimpleNamespace:
+def _bp_form(
+    monkeypatch, filter_type: str = "butterworth", band_spec: str = "center", **inputs: str
+) -> SimpleNamespace:
     """Band-pass screen stub; ``inputs`` use field names with ``_`` for ``-`` in widget ids."""
     values = {
         "frequency": "14.175MHz",
@@ -645,6 +864,11 @@ def _bp_form(monkeypatch, filter_type: str = "butterworth", **inputs: str) -> Si
         "ripple": "0.5",
         "resonator_impedance": "",
         "resonator_inductance": "",
+        "f_low": "",
+        "f_high": "",
+        "qu": "",
+        "ql": "",
+        "qc": "",
     }
     values.update(inputs)
     placeholders = {"frequency": "14.175MHz", "bandwidth": "350kHz"}
@@ -656,12 +880,19 @@ def _bp_form(monkeypatch, filter_type: str = "butterworth", **inputs: str) -> Si
         {
             "#filter-type": _radio_set(filter_type),
             "#coupling": _radio_set("top"),
+            "#band-spec": _radio_set(band_spec),
+            "#center": Mock(spec=RadioButton),
+            "#center-fields": Mock(display=band_spec == "center"),
+            "#edge-fields": Mock(display=band_spec == "edges"),
             "#ripple-section": Mock(display=filter_type == "chebyshev"),
             "#resonators-label": Mock(spec=Static),
             "#fbw-display": Mock(spec=Static),
+            "#reason-loss_q": Mock(spec=Static, display=False),
             "#next-btn": Mock(spec=Button),
         }
     )
+    for name in ("qu", "ql", "qc"):
+        widgets[f"#{name}"].disabled = False
     return _mount(monkeypatch, BandpassScreen(), widgets)
 
 
@@ -794,31 +1025,123 @@ class TestBandpassScreen:
         form.app.pop_screen.assert_called_once_with()
 
     @pytest.mark.parametrize(
-        "handler, ripple_visible, focused",
+        "submitted, band_spec, focused",
+        # The web form's order: band, number of resonators, impedance, resonator size, Q.
         [
-            ("_on_frequency_submitted", False, "#bandwidth"),
-            ("_on_bandwidth_submitted", False, "#impedance"),
-            ("_on_impedance_submitted", False, "#resonators"),
-            ("_on_resonators_submitted", True, "#ripple"),
-            ("_on_resonators_submitted", False, "#next-btn"),
-            ("_on_ripple_submitted", True, "#next-btn"),
-            ("_on_resonator_impedance_submitted", False, "#resonator-inductance"),
-            ("_on_resonator_inductance_submitted", False, "#next-btn"),
+            ("ripple", "center", "#band-spec"),
+            ("frequency", "center", "#bandwidth"),
+            ("bandwidth", "center", "#resonators"),
+            ("f-low", "edges", "#f-high"),
+            ("f-high", "edges", "#resonators"),
+            ("resonators", "center", "#impedance"),
+            ("impedance", "center", "#resonator-impedance"),
+            ("resonator-impedance", "center", "#resonator-inductance"),
+            ("resonator-inductance", "center", "#qu"),
+            ("qu", "center", "#ql"),
+            ("ql", "center", "#qc"),
+            ("qc", "center", "#next-btn"),
         ],
     )
-    def test_submitting_a_field_advances_focus(self, monkeypatch, handler, ripple_visible, focused):
-        form = _bp_form(monkeypatch)
-        form.w["#ripple-section"].display = ripple_visible
+    def test_submitting_a_field_advances_focus(self, monkeypatch, submitted, band_spec, focused):
+        form = _bp_form(monkeypatch, band_spec=band_spec)
 
-        getattr(form.screen, handler)(Mock())
+        form.screen.on_input_submitted(Mock(input=Mock(id=submitted)))
 
         form.w[focused].focus.assert_called_once_with()
+
+    @pytest.mark.parametrize("band_spec, focused", [("center", "#frequency"), ("edges", "#f-low")])
+    def test_enter_on_the_band_choice_reaches_its_first_field(
+        self, monkeypatch, band_spec, focused
+    ):
+        form = _bp_form(monkeypatch, band_spec=band_spec)
+        form.w["#band-spec"].has_focus = True
+
+        form.screen.on_key(_key("enter"))
+
+        form.w[focused].focus.assert_called_once_with()
+
+    def test_disabled_resonator_q_fields_are_skipped(self, monkeypatch):
+        form = _bp_form(monkeypatch)
+        form.app.filter_state.output_format = "csv"
+        form.screen._refresh_resonator_q()
+
+        form.screen.on_input_submitted(Mock(input=Mock(id="resonator-inductance")))
+
+        form.w["#next-btn"].focus.assert_called_once_with()
+
+    @pytest.mark.parametrize(
+        "output_format, disabled",
+        [("table", False), ("json", False), ("quiet", True), ("csv", True)],
+    )
+    def test_resonator_q_is_disabled_with_the_shared_reason_when_the_output_cannot_use_it(
+        self, monkeypatch, output_format, disabled
+    ):
+        """D5/D7: the format chosen on Output options decides; going back shows why."""
+        form = _bp_form(monkeypatch, qu="200")
+        form.app.filter_state.output_format = output_format
+
+        form.screen.on_screen_resume()
+
+        for name in ("qu", "ql", "qc"):
+            assert form.w[f"#{name}"].disabled is disabled
+        reason = form.w["#reason-loss_q"]
+        assert reason.display is disabled
+        reason.update.assert_called_once_with(LOSS_Q_DISABLED_MESSAGE if disabled else "")
+        # The value stays: a saved JSON file still uses it.
+        assert form.w["#qu"].value == "200"
+
+    @pytest.mark.parametrize("band_spec", ["center", "edges"])
+    def test_band_choice_shows_its_fields(self, monkeypatch, band_spec):
+        form = _bp_form(monkeypatch, f_low="14MHz", f_high="14.35MHz")
+        form.w["#band-spec"].pressed_button = Mock(id=band_spec)
+
+        form.screen._on_band_spec_changed(Mock(pressed=Mock(id=band_spec)))
+
+        assert form.w["#center-fields"].display is (band_spec == "center")
+        assert form.w["#edge-fields"].display is (band_spec == "edges")
+        expected = (
+            edge_bandwidth_feedback("14MHz", "14.35MHz")
+            if band_spec == "edges"
+            else fractional_bandwidth_feedback("14.175MHz", "350kHz")
+        )
+        form.w["#fbw-display"].update.assert_called_once_with(expected[0])
+
+    def test_band_edges_are_stored_with_the_center_and_width_they_give(self, monkeypatch):
+        form = _bp_form(monkeypatch, band_spec="edges", f_low="7MHz", f_high="")
+
+        form.screen._validate_and_continue()
+
+        assert [type(screen) for screen in form.pushed] == [OutputOptionsScreen]
+        state = form.state
+        center, width = band_from_edges(7e6, 14.35e6)  # blank upper edge = 14.35MHz
+        assert (state.frequency_hz, state.bandwidth_hz) == (center, width)
+        assert (state.requested_f_low_hz, state.requested_f_high_hz) == (7e6, 14.35e6)
+        request = state.to_design_request(include_build=False)
+        assert (request.requested_f_low_hz, request.requested_f_high_hz) == (7e6, 14.35e6)
+
+    def test_center_entry_clears_edges_from_an_earlier_pass(self, monkeypatch):
+        form = _bp_form(monkeypatch)
+        form.state.requested_f_low_hz, form.state.requested_f_high_hz = 7e6, 8e6
+
+        form.screen._validate_and_continue()
+
+        assert (form.state.requested_f_low_hz, form.state.requested_f_high_hz) == (None, None)
+
+    def test_resonator_q_is_stored_and_reaches_the_design_request(self, monkeypatch):
+        form = _bp_form(monkeypatch, ql="150", qc="900")
+        form.state.qu = 50.0  # stale value from an earlier pass
+
+        form.screen._validate_and_continue()
+
+        assert (form.state.qu, form.state.ql, form.state.qc) == (None, 150.0, 900.0)
+        request = form.state.to_design_request(include_build=False)
+        assert (request.qu, request.ql, request.qc) == (None, 150.0, 900.0)
 
     @pytest.mark.parametrize(
         "pressed, ripple_visible, label",
         [
-            ("chebyshev", True, "Resonators (Chebyshev: odd only — 3, 5, 7, 9):"),
-            ("bessel", False, "Resonators (2-9):"),
+            ("chebyshev", True, "Number of resonators (Chebyshev: odd only — 3, 5, 7, 9):"),
+            ("bessel", False, "Number of resonators (2-9):"),
         ],
     )
     def test_response_type_toggles_ripple_and_resonator_hint(

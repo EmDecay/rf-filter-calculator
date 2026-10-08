@@ -11,9 +11,12 @@ def loss_q_not_shown_message(names: list[str]) -> str:
 
     Shared by every surface; each passes the names its users typed (CLI flags, form labels).
     """
+    listed = ", ".join(names)
+    verb = "has" if len(names) == 1 else "have"
     return (
-        f"Loss-Q input {', '.join(names)} is not represented by this output mode; "
-        "use table, JSON, or nominal-build SPICE"
+        f"{listed} {verb} no effect on this output. Resonator Q values are used only in "
+        "table and JSON output and in the chosen-parts (nominal-build) SPICE deck; remove "
+        f"{listed} or change the output"
     )
 
 
@@ -47,4 +50,6 @@ def validate_bandpass_output_args(args: Namespace) -> None:
         or bool(getattr(args, "plot_data", None))
         or output_format != "json"
     ):
-        usage_error(args, "--q-safety is a compatibility-only JSON field; use --format json")
+        usage_error(
+            args, "--q-safety only changes q_min in JSON output; add --format json or remove it"
+        )

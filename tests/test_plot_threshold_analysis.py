@@ -15,7 +15,7 @@ import pytest
 from filter_lib import cli
 from filter_lib.highpass.transfer import butterworth_response as hp_butterworth_response
 from filter_lib.lowpass.transfer import butterworth_response as lp_butterworth_response
-from filter_lib.shared.plot_ascii_renderers import _format_freq_compact
+from filter_lib.shared.plot_ascii_renderers import _format_freq_with_unit
 from filter_lib.shared.plot_threshold_analysis import (
     ThresholdRegion,
     _find_3db_frequency,
@@ -355,27 +355,28 @@ class TestFormatThresholdTable:
 
         assert table.split("\n") == [
             "",
-            "dB Threshold Summary",
+            "Frequencies at -3 / -10 / -20 dB",
             "┌────────┬──────────────┐",
             "│ Level  │  Frequency   │",
             "├────────┼──────────────┤",
-            "│ -3 dB  │    ↓ 10M     │",
+            "│ -3 dB  │    10 MHz    │",
             "│ -10 dB │     N/A      │",
-            "│ -20 dB │    ↓ 25M     │",
+            "│ -20 dB │    25 MHz    │",
             "└────────┴──────────────┘",
         ]
 
-    def test_highpass_table_sorts_levels_descending_with_rising_arrows(self):
+    def test_highpass_table_sorts_levels_descending(self):
         table = format_threshold_table(
             {-10: [5e6], -3.5: [1.234e6], 1: [9e6], -3: [10e6], 0: [12e6]}, "highpass"
         )
 
+        assert table.split("\n")[1] == "Frequencies at 1 / 0 / -3 / -3.5 / -10 dB"
         assert table.split("\n")[5:10] == [
-            "│ +1 dB  │     ↑ 9M     │",
-            "│ +0 dB  │    ↑ 12M     │",
-            "│ -3 dB  │    ↑ 10M     │",
-            "│-3.5 dB │   ↑ 1.23M    │",
-            "│ -10 dB │     ↑ 5M     │",
+            "│ +1 dB  │    9 MHz     │",
+            "│ +0 dB  │    12 MHz    │",
+            "│ -3 dB  │    10 MHz    │",
+            "│-3.5 dB │   1.23 MHz   │",
+            "│ -10 dB │    5 MHz     │",
         ]
 
     def test_bandpass_table_has_low_and_high_columns(self):
@@ -383,19 +384,19 @@ class TestFormatThresholdTable:
 
         assert table.split("\n") == [
             "",
-            "dB Threshold Summary",
+            "Frequencies at -3 / -10 dB",
             "┌────────┬──────────────┬──────────────┐",
-            "│ Level  │    f_low     │    f_high    │",
+            "│ Level  │    Lower     │    Upper     │",
             "├────────┼──────────────┼──────────────┤",
-            "│ -3 dB  │     9.5M     │    10.5M     │",
-            "│ -10 dB │     N/A      │     11M      │",
+            "│ -3 dB  │   9.5 MHz    │   10.5 MHz   │",
+            "│ -10 dB │     N/A      │    11 MHz    │",
             "└────────┴──────────────┴──────────────┘",
         ]
 
     def test_empty_thresholds_render_header_and_frame_only(self):
         assert format_threshold_table({}, "lowpass").split("\n") == [
             "",
-            "dB Threshold Summary",
+            "Frequencies at dB levels",
             "┌────────┬──────────────┐",
             "│ Level  │  Frequency   │",
             "├────────┼──────────────┤",
@@ -450,9 +451,8 @@ class TestLadderPlotLabelsAreTheResponseCrossings:
         response = factory("chebyshev", FC, 9, 0.01)
         falling = category == "lowpass"
         low, high = (FC, 100 * FC) if falling else (FC / 100, FC)
-        arrow = "↓" if falling else "↑"
         expected = {
-            level: _format_freq_compact(self._exact_crossing(response, low, high, level, falling))
+            level: _format_freq_with_unit(self._exact_crossing(response, low, high, level, falling))
             for level in (-3, -10, -20)
         }
         state = FilterState(
@@ -467,11 +467,9 @@ class TestLadderPlotLabelsAreTheResponseCrossings:
         )
 
         for text in self._cli_and_wizard_text(monkeypatch, capsys, state):
-            assert self._threshold_labels(text) == {
-                level: f"{arrow} {label}" for level, label in expected.items()
-            }
+            assert self._threshold_labels(text) == expected
             # The -3 dB marker under the plot names the same frequency as the table.
-            markers = re.findall(r"▲(\S+)\(-3dB\)", text)
+            markers = re.findall(r"▲ -3 dB at (\S+ \S+)", text)
             assert markers and set(markers) == {expected[-3]}
 
     def test_crossing_that_rounds_to_a_thousand_rolls_over_to_the_next_prefix(
@@ -488,5 +486,5 @@ class TestLadderPlotLabelsAreTheResponseCrossings:
         )
 
         for text in self._cli_and_wizard_text(monkeypatch, capsys, state):
-            assert self._threshold_labels(text)[-3] == "↓ 1G"
+            assert self._threshold_labels(text)[-3] == "1 GHz"
             assert "e+" not in text

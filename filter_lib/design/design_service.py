@@ -109,6 +109,25 @@ def synthesize(request: DesignRequest) -> dict:
     return _synthesize_ladder(request)
 
 
+def apply_sub_pf_policy(config: BuildConfig | None, allow_sub_pf: bool) -> BuildConfig | None:
+    """Return ``config`` with sub-pF selection allowed if it or ``allow_sub_pf`` allows it.
+
+    The two switches are combined, never overwritten: an explicit opt-in in
+    ``config.match_policy`` is kept even when the request's switch is off, and the
+    request's switch turns it on otherwise. Other policy fields in ``config`` are kept.
+    ``None`` stays ``None`` unless the switch is on, which needs a config to carry it.
+    """
+    if config is None:
+        if not allow_sub_pf:
+            return None
+        from ..shared.build_types import BuildConfig
+
+        config = BuildConfig()
+    if config.match_policy.allow_sub_pf or not allow_sub_pf:
+        return config
+    return replace(config, match_policy=replace(config.match_policy, allow_sub_pf=True))
+
+
 def with_build_analysis(
     outcome: DesignResult,
     config: BuildConfig,
@@ -119,12 +138,19 @@ def with_build_analysis(
     The CLI uses this to keep its historical order (synthesis, design warnings, then
     build-option parsing and analysis); other surfaces set ``DesignRequest.build``.
     ``should_cancel`` is polled by the analysis, which raises
-    ``BuildAnalysisCancelled`` when the check reports true.
+    ``BuildAnalysisCancelled`` when the check reports true. Sub-pF selection is
+    allowed when either the outcome or ``config`` allows it, and the returned outcome
+    carries that combined switch so the table picks the same capacitors as the build.
     """
     from ..shared.build_simulation import analyze_build
 
+    config = apply_sub_pf_policy(config, outcome.allow_sub_pf)
     analysis = analyze_build(outcome.result, outcome.category, config, should_cancel=should_cancel)
-    return replace(outcome, build_analysis=analysis)
+    return replace(
+        outcome,
+        build_analysis=analysis,
+        allow_sub_pf=config.match_policy.allow_sub_pf,
+    )
 
 
 def design(request: DesignRequest, should_cancel: Callable[[], bool] | None = None) -> DesignResult:
@@ -134,6 +160,8 @@ def design(request: DesignRequest, should_cancel: Callable[[], bool] | None = No
         category=request.category,
         result=result,
         warnings=tuple(result.get("warnings", ())),
+        allow_sub_pf=request.allow_sub_pf
+        or (request.build is not None and request.build.match_policy.allow_sub_pf),
     )
     if request.build is None:
         return outcome

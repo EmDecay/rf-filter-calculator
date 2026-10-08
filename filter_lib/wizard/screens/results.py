@@ -9,8 +9,42 @@ from textual.widgets import Button, Footer, RadioButton, RadioSet, Static
 from textual.worker import Worker, get_current_worker
 
 from ..calculation_handler import calculate_and_format
-from ..export_formatting import prepare_export_payloads
-from ..state import CalculationOutcome, FilterState
+from ..export_formatting import export_folder, prepare_export_payloads
+from ..radio_button_helpers import EnabledRadioSet
+from ..state import (
+    CSV_DOCUMENT,
+    INTERNAL_NO_BUILD_MESSAGE,
+    INTERNAL_NO_RESULT_MESSAGE,
+    CalculationOutcome,
+    FilterState,
+)
+
+NOTHING_TO_EXPORT_MESSAGE = (
+    "Nothing to export yet. Wait for the result, or fix the error and try again."
+)
+EXPORT_FOLDER_FALLBACK = "Files are saved in the current folder."
+# A saved JSON that uses a build or resonator Q the result shown did not is calculated
+# on Save, in the background; these are the notices around that.
+PREPARING_JSON_MESSAGE = "Preparing the JSON file…"
+JSON_NOT_SAVED_PREFIX = "JSON file not saved: "
+
+
+def export_folder_text() -> str:
+    """Name the folder exports go to, without letting a lookup failure hide the results.
+
+    The folder lookup fails when the working folder was deleted after the wizard
+    started; the results must still display, so fall back to a generic line.
+    """
+    try:
+        return f"Files are saved in: {export_folder()}"
+    except ValueError:
+        return EXPORT_FOLDER_FALLBACK
+
+
+def save_failure_message(filepath: str, error: OSError) -> str:
+    """Describe a failed write in plain words, without Python's ``[Errno N]`` prefix."""
+    reason = error.strerror or str(error) or "the file could not be written"
+    return f"Could not save {filepath}: {reason}. Check that the folder exists and is writable."
 
 
 class ResultsScreen(Screen):
@@ -27,9 +61,12 @@ class ResultsScreen(Screen):
         self._active_worker: Worker | None = None
         self._calculation_revision: int | None = None
         self._accept_worker_events = False
+        # The background calculation of a saved JSON's own design (see _save_export).
+        self._json_worker: Worker | None = None
+        self._json_revision: int | None = None
 
     def compose(self) -> ComposeResult:
-        yield Static("Filter Results", classes="header")
+        yield Static("Results", classes="header")
         yield Static("Enter: select · ↑/↓: choose · Esc: back · Q: quit", classes="nav-hint")
         with Container(classes="content"):
             with VerticalScroll(classes="results-container"):
@@ -37,17 +74,20 @@ class ResultsScreen(Screen):
 
             # Export section (hidden by default)
             with Vertical(id="export-section", classes="form-section"):
-                yield Static("Export Format", classes="form-section-title")
-                with RadioSet(id="export-format"):
-                    yield RadioButton("Text (raw output)", value=True, id="export-txt")
-                    yield RadioButton("JSON", id="export-json")
-                    yield RadioButton("CSV", id="export-csv")
+                yield Static("Save as", classes="form-section-title")
+                with EnabledRadioSet(id="export-format"):
+                    yield RadioButton("Text (as shown)", value=True, id="export-txt")
+                    yield RadioButton("JSON (full design)", id="export-json")
+                    yield RadioButton("CSV (components)", id="export-csv")
+                # Why CSV is disabled for this result (the build simulation or resonator Q).
+                yield Static("", id="export-csv-reason", classes="option-reason")
+                yield Static(export_folder_text(), id="export-folder")
                 with Horizontal(classes="button-row"):
                     yield Button("Save", id="save-btn", variant="primary")
                     yield Button("Cancel", id="cancel-export-btn")
 
             with Horizontal(classes="button-row"):
-                yield Button("Design Another", id="another-btn", variant="primary")
+                yield Button("Design another", id="another-btn", variant="primary")
                 yield Button("Export", id="export-btn", disabled=True)
                 yield Button("Quit", id="quit-btn")
 
@@ -85,25 +125,29 @@ class ResultsScreen(Screen):
         rather than finishing a long analysis after its screen is gone.
         """
         self._accept_worker_events = False
-        if self._active_worker is not None:
-            self._active_worker.cancel()
+        for worker in (self._active_worker, self._json_worker):
+            if worker is not None:
+                worker.cancel()
         if self._calculation_revision is not None:
             self.app.filter_state.cancel_calculation(self._calculation_revision)
 
     def _preselect_export_format(self) -> None:
-        """Pre-select the valid component export format for the current result."""
+        """Pre-select the result's own format and disable CSV, with why, when it cannot apply."""
         state: FilterState = self.app.filter_state
-        build_enabled = state.build_analysis_enabled or state.build_analysis is not None
+        csv_refusal = state.document_refusal(CSV_DOCUMENT)
         target_id = {"json": "export-json", "csv": "export-csv"}.get(
-            state.output_format, "export-txt"
+            state.shown_format, "export-txt"
         )
-        if build_enabled and target_id == "export-csv":
+        if csv_refusal and target_id == "export-csv":
             target_id = "export-txt"
         try:
             radio_set = self.query_one("#export-format", RadioSet)
             for button in radio_set.query(RadioButton):
-                button.disabled = build_enabled and button.id == "export-csv"
+                button.disabled = bool(csv_refusal) and button.id == "export-csv"
                 button.value = button.id == target_id
+            reason = self.query_one("#export-csv-reason", Static)
+            reason.update(csv_refusal or "")
+            reason.display = bool(csv_refusal)
         except (AttributeError, LookupError):
             # Widget not mounted yet — safe to skip; default radio value stands.
             pass
@@ -113,8 +157,8 @@ class ResultsScreen(Screen):
 
         Runs in the worker thread. Textual cannot interrupt a thread, so the
         calculation polls this worker's cancellation flag, which is set when the
-        screen unmounts (Esc, Design Another) or the app exits; a long realized-build
-        analysis then stops within one circuit measurement.
+        screen unmounts (Esc, Design another) or the app exits; a long build
+        simulation then stops within one circuit measurement.
         """
         worker = get_current_worker()
         return calculate_and_format(snapshot, should_cancel=lambda: worker.is_cancelled)
@@ -145,21 +189,24 @@ class ResultsScreen(Screen):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
+        if event.worker is self._json_worker and event.worker is not None:
+            self._on_json_worker_changed(event)
+            return
         if not self._is_current_worker_event(event):
             return
 
         if event.state.name == "SUCCESS":
             outcome = event.worker.result
             if not isinstance(outcome, CalculationOutcome):
-                self._show_calculation_error("Calculation returned an invalid outcome")
+                self._show_calculation_error(INTERNAL_NO_RESULT_MESSAGE)
                 return
             if not outcome.succeeded:
-                self._show_calculation_error(outcome.error or "Calculation returned no result")
+                self._show_calculation_error(outcome.error or INTERNAL_NO_RESULT_MESSAGE)
                 return
 
             state: FilterState = self.app.filter_state
-            if state.build_analysis_enabled and outcome.build_analysis is None:
-                self._show_calculation_error("Calculation returned no realized-build analysis")
+            if state.runs_build and outcome.build_analysis is None:
+                self._show_calculation_error(INTERNAL_NO_BUILD_MESSAGE)
                 return
             if not state.publish_success(
                 self._calculation_revision,
@@ -225,7 +272,9 @@ class ResultsScreen(Screen):
 
         The component file format comes from this screen's radio selection;
         a second ``…-response.{ext}`` file is written when the user picked a
-        plot-data export format on the Output Options screen.
+        plot-data export format on the Output Options screen. A JSON file that uses a
+        build or resonator Q the result shown did not is calculated first, in the
+        background, as the web does when its JSON is downloaded.
         """
         state: FilterState = self.app.filter_state
         if not self._guard_current_result(state):
@@ -234,13 +283,22 @@ class ResultsScreen(Screen):
 
         radio_set = self.query_one("#export-format", RadioSet)
         format_id = radio_set.pressed_button.id if radio_set.pressed_button else "export-txt"
+        own_design = state.json_needs_own_design() and state.json_design is None
+        if format_id == "export-json" and own_design:
+            self._prepare_json_then_save(state)
+            return
+        self._write_export(state, format_id)
 
+    def _write_export(
+        self, state: FilterState, format_id: str, *, include_component: bool = True
+    ) -> None:
+        """Format the requested files, then write each one and say which were saved."""
         # Generate every requested payload before opening any file. A stale or
         # malformed result therefore cannot leave a partial/error-text export.
         try:
-            files = prepare_export_payloads(state, format_id)
+            files = prepare_export_payloads(state, format_id, include_component=include_component)
         except (KeyError, TypeError, ValueError) as e:
-            self.notify(f"Cannot export current result: {e}", severity="error")
+            self.notify(f"Cannot export: {e}", severity="error")
             self._hide_export_options()
             return
 
@@ -251,12 +309,68 @@ class ResultsScreen(Screen):
                     f.write(file_content)
                 saved.append(filepath)
             except OSError as e:
-                self.notify(f"Error saving {filepath}: {e}", severity="error")
+                self.notify(save_failure_message(filepath, e), severity="error")
 
         if saved:
             self.notify(f"Saved to {' and '.join(saved)}", severity="information")
 
         self._hide_export_options()
+
+    # -- A saved JSON with its own design ---------------------------------------------
+
+    def _prepare_json_then_save(self, state: FilterState) -> None:
+        """Calculate the saved JSON's own design in a worker, then save the files."""
+        if self._json_worker is not None and self._json_worker.is_running:
+            self.notify(PREPARING_JSON_MESSAGE)
+            return
+        self._hide_export_options()
+        try:
+            # Cheap: builds and checks the request; the design itself runs in the worker.
+            request = state.json_design_request()
+        except ValueError as error:
+            self._json_not_saved(state, str(error))
+            return
+        self.notify(PREPARING_JSON_MESSAGE)
+        self._json_revision = state.calculation_revision
+        # Its own group, so it never cancels (or is cancelled by) the result's worker.
+        self._json_worker = self.run_worker(
+            partial(self._calculate_json_design, request),
+            group="json-design",
+            thread=True,
+            exit_on_error=False,
+        )
+
+    def _calculate_json_design(self, request):
+        """Run in the worker thread; stops when the screen goes away (see on_unmount)."""
+        from filter_lib.design import design
+
+        worker = get_current_worker()
+        return design(request, should_cancel=lambda: worker.is_cancelled)
+
+    def _on_json_worker_changed(self, event: Worker.StateChanged) -> None:
+        """Save the JSON once its design is ready, or say why it was not saved."""
+        if not self._accept_worker_events:
+            return
+        if event.state.name not in ("SUCCESS", "ERROR"):
+            return
+        state: FilterState = self.app.filter_state
+        # The files belong to the result the Save was for; nothing else is written.
+        if state.calculation_revision != self._json_revision:
+            return
+        if not self._guard_current_result(state):
+            return
+        if event.state.name == "SUCCESS":
+            state.json_design = event.worker.result
+            self._write_export(state, "export-json")
+        else:
+            error = event.worker.error
+            self._json_not_saved(state, str(error).strip() or type(error).__name__)
+
+    def _json_not_saved(self, state: FilterState, message: str) -> None:
+        """Report why the JSON was not saved; the response data file is still saved."""
+        self.notify(f"{JSON_NOT_SAVED_PREFIX}{message}", severity="error")
+        if state.export_format in ("json", "csv"):
+            self._write_export(state, "export-json", include_component=False)
 
     def _has_current_result(self, state: FilterState | None = None) -> bool:
         """Return whether the rendered text and state are the same success."""
@@ -267,7 +381,7 @@ class ResultsScreen(Screen):
         """Notify and reject missing, failed, pending, or stale output."""
         if self._has_current_result(state):
             return True
-        self.notify("No current successful calculation is available to export", severity="warning")
+        self.notify(NOTHING_TO_EXPORT_MESSAGE, severity="warning")
         return False
 
     def _design_another(self) -> None:

@@ -5,12 +5,16 @@ Orchestrates output formatting, topology diagrams, and E-series matching.
 it and the wizard shows it, so the two cannot drift apart.
 """
 
+import textwrap
 from typing import Any
 
+from ..shared.display_helpers import eseries_section_lines
+from ..shared.eseries import MatchPolicy
 from ..shared.formatting import (
     band_edge_digits,
     format_capacitance,
     format_fixed,
+    format_frequency,
     format_inductance,
     format_restated_frequency,
     format_restated_value,
@@ -21,9 +25,19 @@ from ..shared.plotting import (
     render_bandpass_plot_pair,
 )
 from ..shared.response_export import export_response_csv, export_response_json, response_meta
-from ..shared.toroid_display import format_winding_candidate_section
+from ..shared.toroid_display import (
+    format_winding_candidate_section,
+    has_winding_suggestion,
+    inductor_note_line,
+)
 from .diagrams import format_top_c_diagram
-from .formatters import format_csv, format_eseries_match, format_json, format_quiet
+from .formatters import (
+    coupling_capacitor_rows,
+    format_csv,
+    format_eseries_match,
+    format_json,
+    format_quiet,
+)
 from .transfer import netlist_frequency_sweep
 
 # Type alias for filter result dict
@@ -34,9 +48,15 @@ BandpassResult = dict[str, Any]
 # compresses the samples to terminal width.
 PLOT_POINTS = 601
 
+# Warning lines wrap at the width the build-simulation bullets use.
+WARNING_WRAP_WIDTH = 96
+
+# Status from response_verification.validate_netlist_shape: "validated" means both
+# -3 dB edges, the passband shape, Chebyshev ripple, and the points just outside the
+# passband are within the tool's limits, in one -3 dB region, at up to 10% FBW.
 _VALIDATION_STATUS_TEXT = {
-    "validated": "Passed synthesized-response checks",
-    "outside_validated_envelope": "Outside validated envelope; see warnings",
+    "validated": "Passed (simulated circuit matches the requested response)",
+    "outside_validated_envelope": "Not confirmed; see warnings below",
 }
 
 
@@ -139,6 +159,7 @@ def format_table_lines(
     include_toroids: bool = True,
     toroid_compact: bool = False,
     toroid_full: bool = False,
+    match_policy: MatchPolicy | None = None,
 ) -> list[str]:
     """Render the bandpass table output as lines, for the CLI and the wizard.
 
@@ -150,17 +171,27 @@ def format_table_lines(
         include_toroids: Append the shared-inductance winding candidates
         toroid_compact: One line per winding candidate
         toroid_full: Up to three candidates instead of the best one
+        match_policy: E-series match policy (None selects the default policy)
     """
     lines = format_header_lines(result)
 
     if result["warnings"]:
         lines.append("\nWarnings:")
-        lines.extend(f"  ⚠ {w}" for w in result["warnings"])
+        for warning in result["warnings"]:
+            lines.extend(
+                textwrap.wrap(
+                    warning,
+                    width=WARNING_WRAP_WIDTH,
+                    initial_indent="  ⚠ ",
+                    subsequent_indent="    ",
+                    break_on_hyphens=False,
+                )
+            )
 
     lines.extend(format_q_model_lines(result))
-    il_line = format_insertion_loss_line(result)
-    if il_line:
-        lines.append(il_line)
+    il_text = format_insertion_loss_line(result)
+    if il_text:
+        lines.append(il_text)
     lines.extend(format_validation_scope_lines(result))
 
     lines.extend(["\nTopology:", format_top_c_diagram(result["n_resonators"])])
@@ -168,7 +199,7 @@ def format_table_lines(
     lines.extend(_external_q_lines(result))
 
     if eseries and not raw:
-        lines.extend(format_eseries_lines(result, eseries))
+        lines.extend(format_eseries_lines(result, eseries, match_policy))
 
     if include_toroids:
         lines.extend(format_toroid_block_lines(result, toroid_compact, 3 if toroid_full else 1))
@@ -188,48 +219,61 @@ def format_header_lines(result: BandpassResult) -> list[str]:
     """
     edge_digits = band_edge_digits(result["f_high"], result["bw"])
     lines = [
-        f"\n{result['filter_type'].title()} Coupled Resonator Bandpass Filter",
+        f"\n{result['filter_type'].title()} Coupled-Resonator Band-Pass Filter",
         "=" * 50,
         f"Center Frequency f₀: {format_restated_frequency(result['f0'])}",
-        f"Lower Cutoff fₗ:     {format_restated_frequency(result['f_low'], edge_digits)}",
-        f"Upper Cutoff fₕ:     {format_restated_frequency(result['f_high'], edge_digits)}",
-        f"Bandwidth BW:        {format_restated_frequency(result['bw'])}",
+        f"Lower -3 dB Edge fₗ: {format_restated_frequency(result['f_low'], edge_digits)}",
+        f"Upper -3 dB Edge fₕ: {format_restated_frequency(result['f_high'], edge_digits)}",
+        f"-3 dB Bandwidth:     {format_restated_frequency(result['bw'])}",
         f"Fractional BW:       {result['fbw'] * 100:.2f}%",
         f"Impedance Z₀:        {format_restated_value(result['z0'])} Ω",
     ]
     if result["ripple_db"] is not None:
         lines.append(f"Ripple:              {result['ripple_db']} dB")
     lines.append(f"Resonators:          {result['n_resonators']}")
-    lines.append("Coupling:            Top-C (Series)")
+    lines.append("Coupling:            Top-C (series capacitors)")
     status_text = _VALIDATION_STATUS_TEXT.get(result.get("response_validation_status"))
     if status_text:
-        lines.append(f"Response validation: {status_text}")
+        lines.append(f"Response Check:      {status_text}")
     lines.append("=" * 50)
     return lines
 
 
 def format_insertion_loss_line(result: BandpassResult) -> str:
-    """One-line Cohn insertion-loss summary, e.g.
+    """Loss added at f₀ by resonator losses, Cohn estimate beside the circuit result, e.g.
 
-    ``Est. insertion loss (Cohn): 1.8 dB @ Qu=100, 0.7 dB @ Qu=250``
+    ``Added loss at f₀ for resonator Qu (inductor and capacitor losses together):``
+    ``  Qu=100:  Cohn estimate 3.46 dB, circuit simulation 3.46 dB``
 
-    Returns an empty string when the result carries no il_estimates
-    (backward compatibility with older result dicts).
+    The circuit value is the center-frequency gain of the exact circuit, lossless minus
+    with one series loss per resonator inductor for that Qu. Returns an empty string
+    when the result carries no il_estimates (older result dicts).
     """
     il_estimates = result.get("il_estimates")
     if not il_estimates:
         return ""
     labels = _qu_labels(il_estimates)
-    parts = [f"{il:.1f} dB @ Qu={labels[qu]}" for qu, il in il_estimates.items()]
-    line = f"Est. insertion loss (Cohn): {', '.join(parts)}"
-    validation = result.get("loss_estimate_validation")
-    if validation:
-        line += "\nCohn is a small-loss approximation; center-frequency circuit comparison:"
-        for key, check in validation["comparisons"].items():
+    width = max(len(label) for label in labels.values()) + len("Qu=:")
+    validation = result.get("loss_estimate_validation") or {}
+    comparisons = validation.get("comparisons", {})
+    tolerance = validation.get("comparison_tolerance_db")
+    lines = ["Added loss at f₀ for resonator Qu (inductor and capacitor losses together):"]
+    for key, estimate in il_estimates.items():
+        row = f"  {f'Qu={labels[key]}:':<{width}}  Cohn estimate {format_fixed(estimate, 2)} dB"
+        check = comparisons.get(key)
+        if check is not None:
             loss = check.get("circuit_added_center_loss_db")
-            detail = f"{loss:.2f} dB added loss" if loss is not None else "unavailable"
-            line += f"\n  Qu={labels[key]}: {detail}; {check['status'].replace('_', ' ')}"
-    return line
+            if loss is None:
+                row += ", circuit simulation not available (outside numeric range)"
+            else:
+                row += f", circuit simulation {format_fixed(loss, 2)} dB"
+                if check.get("status") == "poor_approximation_at_center":
+                    row += (
+                        f"\n  {'':<{width}}  (estimate off by more than {tolerance:g} dB; "
+                        "use the simulated value)"
+                    )
+        lines.append(row)
+    return "\n".join(lines)
 
 
 def _qu_label(value: float, extra_digits: int = 0) -> str:
@@ -261,28 +305,35 @@ def _qu_labels(qu_keys) -> dict[str, str]:
 
 
 def format_validation_scope_lines(result: BandpassResult) -> list[str]:
-    """Explain the validation envelope and actual circuit harmonic samples."""
+    """Say what the response check covers, then the attenuation at 2×f₀ and 3×f₀.
+
+    The harmonic samples are the transducer gain of the exact lossless circuit between
+    equal source and load impedance, so the attenuation is exactly minus that gain.
+    """
     if "harmonic_response" not in result:
         return []
     lines = [
-        "Validation covers requested edges, passband shape and near-stopband samples.",
-        "Top-C far-stopband rejection can differ from the ideal prototype; no rejection mask is applied.",
+        "Response check covers the -3 dB edges, passband shape, and points just outside the "
+        "passband.",
+        f"Farther out, Top-C rejection can differ from the ideal "
+        f"{result['filter_type'].title()} response and is not checked.",
     ]
+    parts = []
     for sample in result["harmonic_response"]["samples"]:
         gain = sample["transducer_gain_db"]
-        value = f"{gain:.2f} dB" if gain is not None else "outside numeric range"
-        lines.append(
-            f"  Exact lossless circuit at {sample['multiple']} x f0: Gt {value} (informational)"
-        )
+        value = f"{format_fixed(-gain, 2)} dB" if gain is not None else "too large to compute"
+        parts.append(f"{sample['multiple']}×f₀: {value}")
+    if parts:
+        lines.append(f"  Attenuation at {'; at '.join(parts)} (ideal lossless parts)")
     return lines
 
 
 def format_q_model_lines(result: BandpassResult) -> list[str]:
-    """Describe the authoritative complete-resonator Q interpretation."""
+    """A blank separator, plus the resonator Qu the user gave and what it came from."""
     q_model = result.get("q_model", {})
     resonator_qu = q_model.get("resonator_qu")
     if resonator_qu is None:
-        return ["", "Loss examples use complete-resonator unloaded Q (not inductor Q alone)."]
+        return [""]
 
     # Reuse the insertion-loss label so a widened Qu reads the same on both lines.
     il_labels = _qu_labels(result.get("il_estimates") or {})
@@ -290,15 +341,13 @@ def format_q_model_lines(result: BandpassResult) -> list[str]:
         (label for key, label in il_labels.items() if float(key) == resonator_qu),
         _qu_label(resonator_qu),
     )
-    lines = ["", f"Loss-model complete-resonator unloaded Q: {qu_text}"]
     component_parts = []
     if q_model.get("inductor_ql") is not None:
         component_parts.append(f"QL={_qu_label(q_model['inductor_ql'])}")
     if q_model.get("capacitor_qc") is not None:
         component_parts.append(f"QC={_qu_label(q_model['capacitor_qc'])}")
-    if component_parts:
-        lines.append(f"  Derived from {' and '.join(component_parts)} at f₀")
-    return lines
+    source = f" (from {' and '.join(component_parts)} at f₀)" if component_parts else ""
+    return ["", f"Your Qu: {qu_text}{source}"]
 
 
 def format_toroid_block_lines(
@@ -309,7 +358,7 @@ def format_toroid_block_lines(
     Every resonator uses the same inductance, so one block labelled for
     L1…Ln replaces per-inductor repetition.
     """
-    label = f"L_resonant (applies to L1…L{result['n_resonators']})"
+    label = f"L1–L{result['n_resonators']} (all equal)"
     return format_winding_candidate_section(
         [(label, result["L_resonant"])], result["f0"], compact, top_n
     )
@@ -337,54 +386,42 @@ def _component_table_lines(result: BandpassResult, raw: bool, mention_toroids: b
             ind_str = f"L{i + 1}: {format_inductance(result['L_resonant'])}"
         lines.append(f"│ {cap_str:<22} │ {ind_str:<22} │")
     lines.append(f"└{rule}┴{rule}┘")
-    note = " (see toroid recommendations)" if mention_toroids else ""
-    lines.append(f"Inductors: wind to value{note}")
+    lines.append(
+        inductor_note_line(
+            mention_toroids and has_winding_suggestion([result["L_resonant"]], result["f0"])
+        )
+    )
 
     lines += [f"\n┌{rule}┐", f"│{'Coupling Capacitors':^24}│", f"├{rule}┤"]
-    for label, value in _coupling_cap_rows(result):
+    for label, value in coupling_capacitor_rows(result):
         cs_str = f"{label}: {value:.6e} F" if raw else f"{label}: {format_capacitance(value)}"
         lines.append(f"│ {cs_str:<22} │")
     lines.append(f"└{rule}┘")
     return lines
 
 
-def _coupling_cap_rows(result: BandpassResult) -> list[tuple[str, float]]:
-    """Coupling capacitor rows: end caps (when present) then inter-resonator caps."""
-    rows: list[tuple[str, float]] = []
-    if result.get("c_end_in") is not None:
-        rows.append(("Ce_in", result["c_end_in"]))
-    rows.extend((f"Cs{i + 1}{i + 2}", cs) for i, cs in enumerate(result["c_coupling"]))
-    if result.get("c_end_out") is not None:
-        rows.append(("Ce_out", result["c_end_out"]))
-    return rows
-
-
 def _external_q_lines(result: BandpassResult) -> list[str]:
-    """External Q at each port, naming the end capacitor that realizes it."""
-    realized_in = " (realized by Ce_in)" if result.get("c_end_in") is not None else ""
-    realized_out = " (realized by Ce_out)" if result.get("c_end_out") is not None else ""
+    """External Q at each port, naming the end capacitor that sets it."""
+    realized_in = " (set by Ce_in)" if result.get("c_end_in") is not None else ""
+    realized_out = " (set by Ce_out)" if result.get("c_end_out") is not None else ""
     return [
         f"\nExternal Q (input):  {result['qe_in']:.2f}{realized_in}",
         f"External Q (output): {result['qe_out']:.2f}{realized_out}",
     ]
 
 
-def format_eseries_lines(result: BandpassResult, eseries: str) -> list[str]:
-    """Preferred-value selection for every tank and coupling capacitor.
+def format_eseries_lines(
+    result: BandpassResult, eseries: str, policy: MatchPolicy | None = None
+) -> list[str]:
+    """Standard-value choice for every tank and coupling capacitor.
 
     Inductors are wound to value, so they get no standard-value matching.
     """
-    lines = [
-        f"\n{eseries} Preferred-Value Capacitor Selection",
-        "─" * 45,
-        "(Series density is not part tolerance; policy selects at most one realization; "
-        "expert action may be required)",
-        "",
-    ]
+    lines = eseries_section_lines(eseries, policy=policy)
     rows = [(f"Cp{i + 1}", c_tank) for i, c_tank in enumerate(result["c_tank"])]
-    for label, value in rows + _coupling_cap_rows(result):
-        lines.append(f"{label} Calculated: {format_capacitance(value)}")
-        lines.extend(format_eseries_match(value, eseries, format_capacitance))
+    for label, value in rows + coupling_capacitor_rows(result):
+        lines.append(f"{label} calculated {format_capacitance(value)}")
+        lines.extend(format_eseries_match(value, eseries, format_capacitance, policy))
     return lines
 
 
@@ -400,7 +437,12 @@ def _frequency_response_lines(result: BandpassResult) -> list[str]:
     # need a numeric ripple, so fall back to the 0.5 dB display default.
     ripple = result.get("ripple_db") or 0.5
     sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
-    title = f"{result['filter_type'].title()} {result['n_resonators']}-pole Response"
+    # "Simulated" because this is the circuit, not the ideal response shape that the
+    # shape warning compares it with; "ideal parts" because the parts are lossless and exact.
+    title = (
+        f"Simulated Response, ideal parts (dB): {result['filter_type'].title()}, "
+        f"{result['n_resonators']} resonators"
+    )
     response_fn = make_bp_netlist_response_db(result)
     plot = render_bandpass_plot_pair(
         sweep,
@@ -411,6 +453,7 @@ def _frequency_response_lines(result: BandpassResult) -> list[str]:
         title=title,
         ripple_db=ripple,
         response_fn=response_fn,
+        detail_title="Simulated Response Detail",
     )
     return [f"\n{plot}", format_bandpass_thresholds(result, sweep, response_fn)]
 
@@ -431,7 +474,7 @@ def format_bandpass_thresholds(result: BandpassResult, sweep, response_fn) -> st
     freqs, dbs = list(refined.frequencies), list(refined.response_db)
     lines = []
     if not refined.converged:
-        lines.append("Threshold measurements unresolved: refinement budget exhausted.")
+        lines.append("The frequencies below did not converge; treat them as approximate.")
     thresholds = find_db_thresholds(
         freqs,
         dbs,
@@ -442,8 +485,11 @@ def format_bandpass_thresholds(result: BandpassResult, sweep, response_fn) -> st
         frequency_tolerance_hz=result["bw"] * 1e-7,
     )
     lines.append(
-        f"Threshold reference: local peak {format_fixed(refined.reference_db, 3)} dB at "
-        f"{refined.reference_frequency:.9g} Hz; {len(refined.regions)} connected -3 dB region(s)."
+        "Levels below are relative to the peak nearest the center "
+        f"({format_fixed(refined.reference_db, 3)} dB at "
+        f"{format_frequency(refined.reference_frequency)})."
     )
+    if len(refined.regions) > 1:
+        lines.append(f"The response is above -3 dB in {len(refined.regions)} separate ranges.")
     lines.append(format_threshold_table(thresholds, filter_type="bandpass"))
     return "\n".join(lines)

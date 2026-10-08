@@ -27,10 +27,21 @@ PORT_RESISTANCE_RATIO_LIMIT = 1e6
 _RATIO_SLACK = 1e-12
 
 
+def _plain_number(value: float) -> str:
+    """Format a range bound as typed in help text: ``1e9`` rather than ``1e+09``."""
+    return f"{value:g}".replace("e+0", "e").replace("e+", "e")
+
+
 def require_component_q(value: object, name: str) -> int | float:
-    """Return a component or resonator Q inside the accepted range, else raise ValueError."""
+    """Return a component or resonator Q inside the accepted range, else raise ValueError.
+
+    ``name`` is the label users see on every surface, e.g. ``"Inductor Q"`` or ``"Qu"``.
+    """
     if not is_finite_real(value) or not MIN_COMPONENT_Q <= value <= MAX_COMPONENT_Q:
-        raise ValueError(f"{name} must be finite and in [{MIN_COMPONENT_Q:g}, {MAX_COMPONENT_Q:g}]")
+        raise ValueError(
+            f"{name} must be between {_plain_number(MIN_COMPONENT_Q)} and "
+            f"{_plain_number(MAX_COMPONENT_Q)}"
+        )
     return value
 
 

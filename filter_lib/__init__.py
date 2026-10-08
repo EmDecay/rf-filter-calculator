@@ -2,4 +2,4 @@
 
 # Authoritative project version. Setuptools reads this literal when building
 # distribution metadata, and the CLI uses it as the source-checkout fallback.
-__version__ = "2.2.0"
+__version__ = "2.3.0"

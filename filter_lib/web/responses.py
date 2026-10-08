@@ -28,7 +28,11 @@ def is_htmx(request: Request) -> bool:
 
 
 async def form_fields(request: Request) -> FormData:
-    """Return the submitted text fields; file parts are ignored."""
+    """Return the submitted text fields; file parts are ignored.
+
+    A repeated name keeps its last value: the form's hidden ``toroid_build=off`` is
+    replaced by the box's ``on`` when the box is ticked.
+    """
     form = await request.form()
     return {name: value for name, value in form.items() if isinstance(value, str)}
 
@@ -67,7 +71,7 @@ def failure_status(exc: Exception) -> int | None:
 
 def failure_message(exc: Exception) -> str:
     if isinstance(exc, BuildAnalysisCancelled):
-        return "Calculation cancelled"
+        return "Calculation stopped"
     return str(exc).strip() or type(exc).__name__
 
 

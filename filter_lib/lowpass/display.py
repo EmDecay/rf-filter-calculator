@@ -5,6 +5,7 @@ supplies the lowpass-specific configuration (labels, topology-to-component
 mapping, diagram builders, and response functions).
 """
 
+from ..shared.eseries import MatchPolicy
 from ..shared.lp_hp_display import (
     CAPACITOR_MATCH,
     DiagramConfig,
@@ -22,7 +23,7 @@ from .transfer import frequency_response, generate_frequency_points
 # "primary" component there; T leads with series inductors instead. The diagram
 # tuples list (odd-position, even-position) component keys in that order.
 LOWPASS_DISPLAY_CONFIG = LpHpDisplayConfig(
-    category="Low Pass",
+    category="Low-Pass",
     plot_filter_type="lowpass",
     default_topology="pi",
     primary_for_topology={"pi": "capacitors", "t": "inductors"},
@@ -42,6 +43,7 @@ def format_json(
     include_toroids: bool = True,
     matched_sim: dict | None = None,
     build_analysis=None,
+    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format results as JSON."""
     return format_json_for_config(
@@ -51,6 +53,7 @@ def format_json(
         include_toroids,
         matched_sim,
         build_analysis,
+        match_policy,
     )
 
 
@@ -58,9 +61,12 @@ def format_csv(
     result: dict,
     eseries: str | None = None,
     include_toroids: bool = True,
+    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format results as CSV."""
-    return format_csv_for_config(result, LOWPASS_DISPLAY_CONFIG, eseries, include_toroids)
+    return format_csv_for_config(
+        result, LOWPASS_DISPLAY_CONFIG, eseries, include_toroids, match_policy
+    )
 
 
 def format_quiet(result: dict, raw: bool = False) -> str:

@@ -10,7 +10,10 @@ import pytest
 from filter_lib.cli import web_cmd
 from filter_lib.web.settings import DEFAULT_HOST, DEFAULT_PORT
 
-INSTALL_HINT = "The web UI needs the optional web dependencies; install with: uv sync --extra web"
+INSTALL_HINT = (
+    "The web UI needs the optional web dependencies. From a source checkout run: "
+    'uv sync --extra web. For an installed package: pip install "rf-filter-calculator[web]".'
+)
 
 
 def _parse(*argv: str) -> argparse.Namespace:
@@ -59,7 +62,7 @@ def test_run_hands_the_app_to_uvicorn(served, capsys):
 def test_non_loopback_bind_warns(served, capsys):
     web_cmd.run(_parse("--host", "0.0.0.0"))
 
-    assert "exposes the calculator to other machines" in capsys.readouterr().err
+    assert "lets other machines reach the calculator. It has no login" in capsys.readouterr().err
 
 
 def test_ipv6_loopback_url_is_bracketed(served, capsys):

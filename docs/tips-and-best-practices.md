@@ -56,14 +56,16 @@ Get the most out of RF Filter Calculator.
 
 ### Parallel Combinations
 
-E-series density is not component tolerance. The calculator selects a single capacitor when
-it is within 1% of target and selects a parallel pair only when it improves absolute error
-by at least 0.5 percentage points. Below 1 pF it withholds automatic selection. Inductors
-are not E-series matched; a screened toroid candidate is an option, not a suitability claim.
+The E-series sets how many standard values there are per decade, not the component
+tolerance. Each capacitor gets one choice: a single part when it is within 1% of the target,
+otherwise two in parallel when the pair is at least 0.5 percentage points closer. Below 1 pF
+no part is chosen automatically; add `--allow-sub-pf` (**Allow capacitors below 1 pF** in the
+wizard and web UI) to have those chosen too. Inductors are not E-series matched; a toroid
+winding suggestion is an option, not a suitability claim.
 
-Example: Need 196.73 pF
-- Single E24: 200 pF (+1.7% error)
-- Parallel: 47 pF || 150 pF (+0.1% error)
+Example: Need 196.73 pF (`uv run filter-calc lp bw pi 10MHz -n 5`)
+- `Use:` 47 pF || 150 pF (+0.1% error)
+- `Nearest single:` 200 pF (+1.7% error)
 
 ---
 
@@ -79,9 +81,9 @@ Example: Need 196.73 pF
 - More precise control
 - Calculator computes geometric center
 
-### Coupling Topology
+### Coupling
 
-**Top-coupled (series)** is the only supported coupling: series capacitors couple adjacent resonators, and series end-coupling capacitors (Ce_in/Ce_out) realize the external Q at the ports. (Shunt-coupled topology was removed in v2.0.0 — netlist simulation showed it cannot realize the designed passband.)
+**Top-C (series capacitors)** is the only supported coupling: series capacitors couple adjacent resonators, and series end-coupling capacitors (Ce_in/Ce_out) set the external Q at the ports. (Shunt-coupled topology was removed in v2.0.0 — netlist simulation showed it cannot realize the designed passband.)
 
 ### Resonator Count
 
@@ -95,10 +97,11 @@ Example: Need 196.73 pF
 The historical Q-safety field is only a compatibility heuristic; it does not determine
 stability or select parts. For a real loss model:
 
-- use `--qu` for complete bandpass resonator Q, or `--ql` and `--qc` for separate
-  inductor and tank-capacitor Q;
-- use `--inductor-q` / `--capacitor-q` in build analysis for explicit component loss;
-- remember that Q is converted to constant series resistance at one reference frequency;
+- use `--qu` for the resonator Qu (inductor and capacitor losses together), or `--ql` and
+  `--qc` for separate inductor and resonator-capacitor Q;
+- use `--inductor-q` / `--capacitor-q` with the build simulation for part losses (Q);
+- remember that each Q becomes a fixed series resistance at one frequency (the frequency at
+  which the Q values apply);
 - verify insertion loss and bandwidth on a VNA after construction.
 
 ---
@@ -115,8 +118,8 @@ stability or select parts. For a real loss model:
 ### Inductors
 
 - Air-core for highest Q at RF
-- Choose core material from manufacturer frequency/loss data; the built-in automatic
-  screen currently covers only primary-sourced T25-6, T50-2, and T68-2 iron-powder cores
+- Choose core material from manufacturer frequency/loss data; the built-in toroid winding
+  suggestions currently cover only primary-sourced T25-6, T50-2, and T68-2 iron-powder cores
 - Consider using adjustable cores for tuning
 - Minimize lead length
 
@@ -169,7 +172,7 @@ uv run filter-calc lp bw pi 10MHz --format csv > bom.csv
 
 ### SPICE
 
-Best for reviewing the exact or selected nominal circuit in another simulator. The deck
+Best for reviewing the calculated values or the chosen parts in another simulator. The deck
 does not include layout, package parasitics, measured core loss, SRF, or nonlinear power
 behavior unless you add suitable models.
 
@@ -186,7 +189,7 @@ behavior unless you add suitable models.
 4. Compare Butterworth vs Chebyshev at same order
 5. Use `--plot` to visualize response
 6. Run `--sim-build --format json` with actual tolerances and Q assumptions
-7. Export nominal-build SPICE if useful, then build and measure the hardware
+7. Export the chosen-parts SPICE deck if useful, then build and measure the hardware
 
 ### Documentation
 

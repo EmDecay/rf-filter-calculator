@@ -10,7 +10,7 @@ from filter_lib.shared.toroid_core_data import get_core
 from filter_lib.shared.toroid_selection import find_core_candidates, recommend_cores
 
 NOT_ASSESSED_WARNING = (
-    "RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed."
+    "Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
 )
 
 

@@ -1,217 +1,317 @@
-"""Output options screen for configuring display format."""
+"""Output options screen: the web form's Output and Build simulation sections.
+
+Fields, labels, defaults, and order follow the web form. A control the shared rule
+(``filter_lib.design.option_applicability``) says cannot apply to the chosen output is
+disabled live, with the rule's one-line reason under it; the result then leaves it out,
+as the CLI does without the flag. Its visible value is kept for the saved files that can
+use it (see ``FilterState``). Build fields the result does not use (the build unticked or
+disabled) are not checked here; a saved JSON that uses them reports any problem.
+"""
+
+from __future__ import annotations
 
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import (
-    Button,
-    Checkbox,
-    Footer,
-    Input,
-    RadioButton,
-    RadioSet,
-    SelectionList,
-    Static,
-)
-from textual.widgets.selection_list import Selection
+from textual.widgets import Button, Checkbox, Footer, Input, RadioButton, RadioSet, Static
 
+from ...design.option_applicability import (
+    ALLOW_SUB_PF,
+    BUILD,
+    ESERIES,
+    LOSS_Q,
+    RAW_UNITS,
+    TEXT_PLOT,
+    TOROID_BUILD,
+    TOROID_DETAIL,
+)
+from ...shared.cli_aliases import DEFAULT_ESERIES
+from ...shared.eseries import SUB_PF_OPTION_LABEL
 from ..build_options import (
+    BUILD_FIELDS,
     BUILD_INPUT_FLOW,
+    BUILD_OPTION_HELP,
+    BUILD_OPTION_LABEL,
+    BUILD_OPTION_PREFIX,
+    TOROID_BUILD_HELP,
+    TOROID_BUILD_LABEL,
     BuildOptionError,
     BuildOptionValues,
     apply_build_config,
-    build_option_issue,
-    has_custom_build_controls,
-    output_option_issue,
+    build_field_values,
     parse_build_config,
 )
-from ..radio_button_helpers import get_selected_radio
+from ..radio_button_helpers import EnabledRadioSet, get_selected_radio
 from ..state import FilterState
+
+# (value, label) per choice, in the web form's order.
+FORMAT_CHOICES = (
+    ("table", "Table - formatted for reading"),
+    ("quiet", "Values only - calculated values, no table"),
+    ("json", "JSON - machine readable"),
+    ("csv", "CSV - spreadsheet compatible"),
+)
+ESERIES_CHOICES = (
+    ("E12", "E12 - 12 standard values per decade"),
+    ("E24", "E24 - 24 standard values per decade (default)"),
+    ("E96", "E96 - 96 standard values per decade"),
+    ("none", "None - show calculated values only"),
+)
+TOROID_CHOICES = (
+    ("best", "Best, detailed - the best core with wire length, DCR, and size (default)"),
+    ("full", "Up to 3, detailed - up to three cores, each with wire length, DCR, and size"),
+    ("compact", "Best, one line - turns, AWG, and inductance"),
+    ("none", "None - no toroid windings in any output"),
+)
+RESPONSE_CHOICES = (
+    ("no-export", None, "None"),
+    ("export-json", "json", "JSON - also saved when you export the results"),
+    ("export-csv", "csv", "CSV - also saved when you export the results"),
+)
+SUB_PF_HELP = (
+    "Also choose standard values for capacitors below 1 pF. When off, no part is chosen "
+    "below 1 pF and you choose one manually. Needs E12, E24, or E96."
+)
+TOROID_HELP = (
+    "JSON lists up to three cores and CSV the best, whatever is chosen here. None also "
+    "leaves the toroid windings out of JSON, CSV, and the build simulation."
+)
+TEXT_PLOT_LABEL = "Text plot in the table"
+TEXT_PLOT_HELP = (
+    "Adds a text chart of the ideal response and the −3, −10 and −20 dB frequencies to "
+    "the table. Table format only."
+)
+RAW_UNITS_LABEL = "Raw units (F, H)"
+RAW_UNITS_HELP = (
+    "Unrounded values in farads and henries (scientific notation) instead of pF and µH. "
+    "The table then leaves out the standard capacitor values."
+)
+
+# The widgets each option disables; the toroid detail disables only its two choices.
+OPTION_WIDGETS = {
+    ESERIES: ("#eseries",),
+    ALLOW_SUB_PF: ("#allow-sub-pf",),
+    TOROID_DETAIL: ("#toroid-full", "#toroid-compact"),
+    TEXT_PLOT: ("#plot",),
+    RAW_UNITS: ("#raw",),
+    BUILD: ("#build-analysis-enabled",),
+    TOROID_BUILD: ("#build-use-toroids",),
+}
+# Enter moves through the controls in the web form's order, skipping any that are
+# disabled or hidden (the build fields show only while the build applies).
+FOCUS_FLOW = (
+    "#format",
+    "#eseries",
+    "#allow-sub-pf",
+    "#toroid-detail",
+    "#plot",
+    "#raw",
+    "#export",
+    "#build-analysis-enabled",
+    *(f"#{input_id}" for input_id in BUILD_INPUT_FLOW),
+    "#build-use-toroids",
+    "#results-btn",
+)
+BUILD_SECTION = frozenset(
+    {*(f"#{input_id}" for input_id in BUILD_INPUT_FLOW), "#build-use-toroids"}
+)
+ENTER_ADVANCES = frozenset(FOCUS_FLOW) - BUILD_SECTION - {"#results-btn"} | {"#build-use-toroids"}
+
+
+def reason_id(option: str) -> str:
+    """The id of the Static that shows why ``option`` is disabled."""
+    return f"#reason-{option}"
+
+
+def _reason(option: str) -> Static:
+    static = Static("", id=reason_id(option)[1:], classes="option-reason")
+    static.display = False
+    return static
+
+
+def _radio_set(set_id: str, choices, selected: str, prefix: str = "") -> RadioSet:
+    return EnabledRadioSet(
+        *(
+            RadioButton(label, value=value == selected, id=f"{prefix}{value}")
+            for value, label in choices
+        ),
+        id=set_id,
+    )
 
 
 class OutputOptionsScreen(Screen):
-    """Configure output, with resonator-only loss controls limited to band-pass."""
+    """Configure the output and the optional build simulation."""
 
     BINDINGS = [
         ("escape", "back", "Back"),
     ]
 
     def compose(self) -> ComposeResult:
-        yield Static("Output Options", classes="header")
-        yield Static("Enter: next · ↑/↓: choose · Esc: back", classes="nav-hint")
+        state: FilterState = self.app.filter_state
+        values = build_field_values(state)
+        yield Static("Output options", classes="header")
+        yield Static("Enter: next · ↑/↓: choose · Space: tick · Esc: back", classes="nav-hint")
         with VerticalScroll(classes="content"):
             with Vertical(classes="form-section"):
-                yield Static("Component Matching", classes="form-section-title")
-                with RadioSet(id="eseries"):
-                    yield RadioButton(
-                        "E24 - 24 preferred values per decade (default)", value=True, id="E24"
-                    )
-                    yield RadioButton("E12 - 12 preferred values per decade", id="E12")
-                    yield RadioButton("E96 - 96 preferred values per decade", id="E96")
-                    yield RadioButton("None - Calculated values only", id="none")
+                yield Static("Output", classes="form-section-title")
+                yield Static("Format", classes="field-label")
+                yield _radio_set("format", FORMAT_CHOICES, state.shown_format)
+                yield _reason(LOSS_Q)
+
+                yield Static("Standard capacitor values", classes="field-label")
+                yield _radio_set("eseries", ESERIES_CHOICES, state.eseries)
+                yield _reason(ESERIES)
+                yield Checkbox(SUB_PF_OPTION_LABEL, state.allow_sub_pf, id="allow-sub-pf")
+                yield Static(SUB_PF_HELP, classes="field-help")
+                yield _reason(ALLOW_SUB_PF)
+
+                yield Static("Toroid windings (table detail)", classes="field-label")
+                yield _radio_set("toroid-detail", TOROID_CHOICES, state.toroid_detail, "toroid-")
+                yield Static(TOROID_HELP, classes="field-help")
+                yield _reason(TOROID_DETAIL)
+
+                yield Checkbox(TEXT_PLOT_LABEL, state.show_plot, id="plot")
+                yield Static(TEXT_PLOT_HELP, classes="field-help")
+                yield _reason(TEXT_PLOT)
+                yield Checkbox(RAW_UNITS_LABEL, state.raw_units, id="raw")
+                yield Static(RAW_UNITS_HELP, classes="field-help")
+                yield _reason(RAW_UNITS)
 
             with Vertical(classes="form-section"):
-                yield Static("Output Format", classes="form-section-title")
-                with RadioSet(id="format"):
-                    yield RadioButton("Table - Pretty display", value=True, id="table")
-                    yield RadioButton("JSON - Machine readable", id="json")
-                    yield RadioButton("CSV - Spreadsheet compatible", id="csv")
-
-            # SelectionList rather than individual Checkboxes so arrow keys
-            # walk the multi-select options the same way they walk the
-            # RadioSets above — one consistent keyboard model per screen.
-            with Vertical(classes="form-section"):
-                yield Static("Additional Options", classes="form-section-title")
-                yield SelectionList[str](
-                    Selection("Raw units (Farads/Henries instead of pF/µH)", "raw", False),
-                    Selection("Quiet mode (minimal output)", "quiet", False),
-                    Selection("Show frequency response plot", "plot", True),
-                    id="options-list",
+                yield Static("Response data file", classes="form-section-title")
+                yield EnabledRadioSet(
+                    *(
+                        RadioButton(label, value=value == state.export_format, id=button_id)
+                        for button_id, value, label in RESPONSE_CHOICES
+                    ),
+                    id="export",
                 )
 
             with Vertical(classes="form-section"):
-                yield Static("Toroid Winding Detail (table output)", classes="form-section-title")
-                with RadioSet(id="toroid-detail"):
-                    yield RadioButton(
-                        "Full - up to three cores with wire length, DCR, and size (default)",
-                        value=True,
-                        id="toroid-full",
-                    )
-                    yield RadioButton(
-                        "Compact - one line for the best core (turns, AWG, actual L)",
-                        id="toroid-compact",
-                    )
-
-            with Vertical(classes="form-section"):
-                yield Static("Export Plot Data", classes="form-section-title")
-                with RadioSet(id="export"):
-                    yield RadioButton("No export", value=True, id="no-export")
-                    yield RadioButton(
-                        "JSON file - frequency response saved alongside results on Save",
-                        id="export-json",
-                    )
-                    yield RadioButton(
-                        "CSV file - frequency response saved alongside results on Save",
-                        id="export-csv",
-                    )
-
-            with Vertical(classes="form-section"):
-                yield Static("Realized-Build Analysis (optional)", classes="form-section-title")
+                yield Static("Build simulation (optional)", classes="form-section-title")
                 yield Checkbox(
-                    "Analyze nominal parts and bounded tolerances (simulation, not a measurement)",
-                    id="build-analysis-enabled",
+                    BUILD_OPTION_LABEL, state.build_analysis_enabled, id="build-analysis-enabled"
                 )
+                yield Static(BUILD_OPTION_HELP, classes="field-help")
+                yield _reason(BUILD)
                 with Vertical(id="build-analysis-options"):
-                    yield Static(
-                        "Evaluation loads affect simulated transducer gain only; synthesis "
-                        "remains at the equal source/load impedance selected earlier."
-                    )
-                    yield Static("Evaluation source resistance (blank = synthesized impedance):")
-                    yield Input(id="build-source-resistance")
-                    yield Static("Evaluation load resistance (blank = synthesized impedance):")
-                    yield Input(id="build-load-resistance")
-                    yield Static("Capacitor tolerance bound (%):")
-                    yield Input(value="5", id="build-capacitor-tolerance")
-                    yield Static("Inductor tolerance bound (%):")
-                    yield Input(value="10", id="build-inductor-tolerance")
-                    yield Static("Inductor Q at design frequency (optional):")
-                    yield Input(id="build-inductor-q")
-                    yield Static("Capacitor Q at design frequency (optional):")
-                    yield Input(id="build-capacitor-q")
-                    yield Static(
-                        "Complete resonator Q (optional; do not combine with L/C Q):",
-                        id="build-resonator-q-label",
-                    )
-                    yield Input(id="build-resonator-q")
-                    yield Static("Additional seeded screening samples (0-10000):")
-                    yield Input(value="0", id="build-sample-count")
-                    yield Static("Screening seed (integer):")
-                    yield Input(value="0", id="build-seed")
-                    yield Static("Initial analysis points (51-5001; automatic refinement):")
-                    yield Input(value="601", id="build-grid-points")
+                    for build_field in BUILD_FIELDS:
+                        yield Static(build_field.label, classes="field-label")
+                        yield Input(values[build_field.input_id], id=build_field.input_id)
+                        yield Static(build_field.help, classes="field-help")
                     yield Checkbox(
-                        "Use screened integer-turn toroid candidates when available",
-                        value=True,
+                        TOROID_BUILD_LABEL,
+                        state.build_use_toroid_candidates,
                         id="build-use-toroids",
                     )
+                    yield Static(TOROID_BUILD_HELP, classes="field-help")
+                    yield _reason(TOROID_BUILD)
 
             with Horizontal(classes="button-row"):
-                yield Button("Show Results", id="results-btn", variant="primary")
+                yield Button("Show results", id="results-btn", variant="primary")
                 yield Button("Back", id="back-btn")
 
         yield Footer()
 
     def on_mount(self) -> None:
-        """Focus on E-series selection when screen mounts."""
-        self.query_one("#eseries", RadioSet).focus()
-        self.query_one("#build-analysis-options").display = False
-        show_resonator_q = self.app.filter_state.category == "bandpass"
-        self.query_one("#build-resonator-q-label").display = show_resonator_q
-        resonator_q = self.query_one("#build-resonator-q", Input)
-        resonator_q.display = show_resonator_q
-        resonator_q.value = resonator_q.value if show_resonator_q else ""
+        """Apply the shared rule to the initial choices and focus the first control."""
+        for radio_set in self.query(RadioSet):
+            # Start the arrow-key highlight on the chosen button, not the first one
+            # (Textual highlights the first; the choices here come from the state).
+            if radio_set.pressed_index >= 0 and hasattr(radio_set, "_selected"):
+                radio_set._selected = radio_set.pressed_index
+        self._refresh_options()
+        self.query_one("#format", RadioSet).focus()
 
-    @on(Checkbox.Changed, "#build-analysis-enabled")
-    def _on_build_analysis_changed(self, event: Checkbox.Changed) -> None:
-        """Reveal advanced controls only after the user opts in."""
-        self.query_one("#build-analysis-options").display = event.value
-        if event.value:
-            self.query_one("#build-source-resistance", Input).focus()
+    # -- Live applicability -------------------------------------------------------
+
+    def _store_choices(self, state: FilterState) -> None:
+        """Copy the visible output choices into ``state`` (build fields are parsed later)."""
+        output_format = get_selected_radio(self, "format") or "table"
+        state.output_format = output_format
+        state.quiet = output_format == "quiet"
+        state.eseries = get_selected_radio(self, "eseries") or DEFAULT_ESERIES
+        state.allow_sub_pf = self.query_one("#allow-sub-pf", Checkbox).value
+        toroid = get_selected_radio(self, "toroid-detail").removeprefix("toroid-")
+        state.toroid_detail = toroid if toroid in ("full", "compact", "none") else "best"
+        state.show_plot = self.query_one("#plot", Checkbox).value
+        state.raw_units = self.query_one("#raw", Checkbox).value
+        # None (not a string) means "no response-data file".
+        export = get_selected_radio(self, "export")
+        state.export_format = {"export-json": "json", "export-csv": "csv"}.get(export)
+        state.build_analysis_enabled = self.query_one("#build-analysis-enabled", Checkbox).value
+        state.build_use_toroid_candidates = self.query_one("#build-use-toroids", Checkbox).value
+
+    def _show_reason(self, selector: str, reason: str | None) -> None:
+        static = self.query_one(selector, Static)
+        static.update(reason or "")
+        static.display = reason is not None
+
+    def _refresh_options(self) -> None:
+        """Disable each control the shared rule says cannot apply, and say why."""
+        state: FilterState = self.app.filter_state
+        self._store_choices(state)
+        reasons = state.option_reasons()
+        for option, selectors in OPTION_WIDGETS.items():
+            for selector in selectors:
+                self.query_one(selector).disabled = option in reasons
+            self._show_reason(reason_id(option), reasons.get(option))
+        # Resonator Q is entered on the band-pass screen; say here when it is left out.
+        self._show_reason(reason_id(LOSS_Q), reasons.get(LOSS_Q) if state.has_resonator_q else None)
+        # As on the web, the build fields show only while the build applies.
+        self.query_one("#build-analysis-options").display = (
+            state.build_analysis_enabled and BUILD not in reasons
+        )
+
+    @on(RadioSet.Changed)
+    @on(Checkbox.Changed)
+    def _on_choice_changed(self, event) -> None:
+        """Re-apply the rule after any choice; reveal the build fields when ticked."""
+        self._refresh_options()
+        control = getattr(event, "checkbox", None)
+        if control is not None and control.id == "build-analysis-enabled" and event.value:
+            if self.query_one("#build-analysis-options").display:
+                self.query_one(f"#{BUILD_INPUT_FLOW[0]}", Input).focus()
+
+    # -- Keyboard flow --------------------------------------------------------------
+
+    def _available(self, selector: str) -> bool:
+        if self.query_one(selector).disabled is True:
+            return False
+        if selector in BUILD_SECTION:
+            return bool(self.query_one("#build-analysis-options").display)
+        return True
+
+    def _focus_after(self, selector: str) -> None:
+        """Focus the next control in the web form's order that can take focus."""
+        for candidate in FOCUS_FLOW[FOCUS_FLOW.index(selector) + 1 :]:
+            if self._available(candidate):
+                self.query_one(candidate).focus()
+                return
 
     @on(Input.Submitted)
     def _on_build_input_submitted(self, event: Input.Submitted) -> None:
-        """Advance through the optional controls without trapping keyboard users."""
-        input_id = event.input.id
-        if input_id not in BUILD_INPUT_FLOW:
-            return
-        flow = BUILD_INPUT_FLOW
-        if self.app.filter_state.category != "bandpass":
-            flow = tuple(item for item in flow if item != "build-resonator-q")
-        index = flow.index(input_id)
-        if index + 1 < len(flow):
-            self.query_one(f"#{flow[index + 1]}", Input).focus()
-        else:
-            self.query_one("#build-use-toroids", Checkbox).focus()
+        """Advance through the build fields without trapping keyboard users."""
+        if event.input.id in BUILD_INPUT_FLOW:
+            self._focus_after(f"#{event.input.id}")
 
     def on_key(self, event) -> None:
-        """Handle Enter key to advance from RadioSet and SelectionList.
+        """Enter on a choice or box advances to the next control; Space still ticks."""
+        if event.key != "enter":
+            return
+        try:
+            for selector in ENTER_ADVANCES:
+                if self.query_one(selector).has_focus is True:
+                    self._focus_after(selector)
+                    event.prevent_default()
+                    event.stop()
+                    return
+        except (AttributeError, LookupError):
+            # Widget not yet mounted during init; safe to ignore
+            pass
 
-        Hand-rolled Enter chain instead of FilterScreenNavigationMixin: the
-        mixin only walks RadioSets, and this screen has a SelectionList in
-        the middle of the flow.
-        """
-        if event.key == "enter":
-            try:
-                eseries_set = self.query_one("#eseries", RadioSet)
-                format_set = self.query_one("#format", RadioSet)
-                options_list = self.query_one("#options-list", SelectionList)
-                toroid_set = self.query_one("#toroid-detail", RadioSet)
-                export_set = self.query_one("#export", RadioSet)
-
-                if eseries_set.has_focus:
-                    format_set.focus()
-                    event.prevent_default()
-                    event.stop()
-                elif format_set.has_focus:
-                    options_list.focus()
-                    event.prevent_default()
-                    event.stop()
-                elif options_list.has_focus:
-                    toroid_set.focus()
-                    event.prevent_default()
-                    event.stop()
-                elif toroid_set.has_focus:
-                    export_set.focus()
-                    event.prevent_default()
-                    event.stop()
-                elif export_set.has_focus:
-                    self.query_one("#results-btn", Button).focus()
-                    event.prevent_default()
-                    event.stop()
-            except (AttributeError, LookupError):
-                # Widget not yet mounted during init; safe to ignore
-                pass
+    # -- Buttons ------------------------------------------------------------------
 
     def action_back(self) -> None:
         """Go back to filter input screen."""
@@ -225,111 +325,62 @@ class OutputOptionsScreen(Screen):
             self.app.pop_screen()
 
     def _show_results(self) -> None:
-        """Save options and navigate to results screen."""
+        """Save the choices and open the results.
+
+        Nothing here refuses a combination of choices: the shared rule has already
+        disabled what cannot apply. Only the build fields' own values can be refused,
+        and only when the result uses the build (its fields are then on screen).
+        """
         state: FilterState = self.app.filter_state
         state.invalidate_calculation()
+        self._store_choices(state)
 
-        # The literal id "none" (as opposed to an empty selection) means the
-        # user explicitly disabled E-series matching; empty falls back to E24.
-        eseries = get_selected_radio(self, "eseries")
-        eseries = eseries or "E24"
-        output_format = get_selected_radio(self, "format") or "table"
-
-        options_list = self.query_one("#options-list", SelectionList)
-        selected = options_list.selected
-        raw = "raw" in selected
-        quiet = "quiet" in selected
-        show_plot = "plot" in selected
-        build_enabled = self.query_one("#build-analysis-enabled", Checkbox).value
-
-        issue = output_option_issue(
-            output_format=output_format,
-            raw=raw,
-            quiet=quiet,
-            show_plot=show_plot,
-            eseries=eseries,
-            build_enabled=build_enabled,
-        )
-        if issue is not None:
-            self.notify(issue.message, severity="error")
-            self.query_one(issue.focus_selector).focus()
-            return
-
-        issue = build_option_issue(
-            enabled=build_enabled,
-            output_format=output_format,
-            quiet=quiet,
-            eseries=eseries,
-        )
-        if issue is not None:
-            self.notify(issue.message, severity="error")
-            self.query_one(issue.focus_selector).focus()
-            return
-
-        build_config = self._parse_build_config(eseries if eseries != "none" else "E24")
-        if build_config is None:
-            return
-        issue = build_option_issue(
-            enabled=build_enabled,
-            output_format=output_format,
-            quiet=quiet,
-            eseries=eseries,
-            has_custom_controls=has_custom_build_controls(build_config),
-        )
-        if issue is not None:
-            self.notify(issue.message, severity="error")
-            self.query_one(issue.focus_selector).focus()
-            return
-
-        state.eseries = eseries
-        state.output_format = output_format
-        state.raw_units = raw
-        state.quiet = quiet
-        state.show_plot = show_plot
-        toroid_choice = get_selected_radio(self, "toroid-detail")
-        state.toroid_detail = "compact" if toroid_choice == "toroid-compact" else "full"
-        apply_build_config(state, build_enabled, build_config)
-
-        # None (not a string) signals "no response-data export"; the results
-        # screen checks this when deciding whether to write a second file.
-        export = get_selected_radio(self, "export")
-        if export == "export-json":
-            state.export_format = "json"
-        elif export == "export-csv":
-            state.export_format = "csv"
+        values = self._build_values()
+        state.build_field_text = {
+            input_id: self.query_one(f"#{input_id}", Input).value for input_id in BUILD_INPUT_FLOW
+        }
+        # The series here only validates; each output picks its own.
+        eseries = DEFAULT_ESERIES if state.eseries == "none" else state.eseries
+        try:
+            build_config = parse_build_config(
+                eseries,
+                values,
+                design_impedance=state.impedance,
+                resonator_q_supplied=state.has_resonator_q,
+            )
+        except BuildOptionError as error:
+            if state.runs_build:
+                self.notify(f"{BUILD_OPTION_PREFIX}{error}", severity="error")
+                if error.field_id is not None:
+                    self.query_one(f"#{error.field_id}", Input).focus()
+                return
+            # Not used by the result: a saved JSON that uses the build reports it.
+            state.build_input_error = f"{BUILD_OPTION_PREFIX}{error}"
+            state.build_use_toroid_candidates = values.use_toroid_candidates
         else:
-            state.export_format = None
+            state.build_input_error = None
+            apply_build_config(state, state.build_analysis_enabled, build_config)
 
         from .results import ResultsScreen
 
         self.app.push_screen(ResultsScreen())
 
-    def _parse_build_config(self, eseries: str):
-        """Parse every build control and validate it through ``BuildConfig``."""
+    def _build_values(self) -> BuildOptionValues:
+        """The build fields as typed, in form order."""
 
-        def text(selector: str) -> str:
-            return self.query_one(selector, Input).value.strip()
+        def text(input_id: str) -> str:
+            return self.query_one(f"#{input_id}", Input).value.strip()
 
-        try:
-            return parse_build_config(
-                eseries,
-                BuildOptionValues(
-                    source_resistance=text("#build-source-resistance"),
-                    load_resistance=text("#build-load-resistance"),
-                    capacitor_tolerance=text("#build-capacitor-tolerance"),
-                    inductor_tolerance=text("#build-inductor-tolerance"),
-                    inductor_q=text("#build-inductor-q"),
-                    capacitor_q=text("#build-capacitor-q"),
-                    resonator_q=text("#build-resonator-q"),
-                    sample_count=text("#build-sample-count"),
-                    seed=text("#build-seed"),
-                    grid_points=text("#build-grid-points"),
-                    use_toroid_candidates=self.query_one("#build-use-toroids", Checkbox).value,
-                ),
-                design_impedance=self.app.filter_state.impedance,
-            )
-        except BuildOptionError as error:
-            self.notify(f"Invalid realized-build setting: {error}", severity="error")
-            if error.field_id is not None:
-                self.query_one(f"#{error.field_id}", Input).focus()
-            return None
+        return BuildOptionValues(
+            capacitor_tolerance=text("build-capacitor-tolerance"),
+            inductor_tolerance=text("build-inductor-tolerance"),
+            inductor_q=text("build-inductor-q"),
+            capacitor_q=text("build-capacitor-q"),
+            reference_frequency=text("build-reference-frequency"),
+            source_resistance=text("build-source-resistance"),
+            load_resistance=text("build-load-resistance"),
+            sample_count=text("build-sample-count"),
+            seed=text("build-seed"),
+            grid_points=text("build-grid-points"),
+            use_toroid_candidates=self.query_one("#build-use-toroids", Checkbox).value,
+        )

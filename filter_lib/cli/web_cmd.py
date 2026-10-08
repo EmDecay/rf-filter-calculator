@@ -9,7 +9,10 @@ from argparse import ArgumentParser, Namespace
 
 from ..web.settings import DEFAULT_HOST, DEFAULT_PORT, WebSettings
 
-INSTALL_HINT = "The web UI needs the optional web dependencies; install with: uv sync --extra web"
+INSTALL_HINT = (
+    "The web UI needs the optional web dependencies. From a source checkout run: "
+    'uv sync --extra web. For an installed package: pip install "rf-filter-calculator[web]".'
+)
 
 
 def setup_parser(parser: ArgumentParser) -> None:
@@ -48,8 +51,8 @@ def run(args: Namespace) -> None:
     settings = WebSettings(host=args.host, port=args.port)
     if not settings.is_loopback:
         print(
-            f"Warning: binding to {args.host} exposes the calculator to other machines; "
-            "it has no authentication and is meant for local use",
+            f"Warning: binding to {args.host} lets other machines reach the calculator. "
+            "It has no login and is meant for local use.",
             file=sys.stderr,
         )
     host = f"[{args.host}]" if ":" in args.host else args.host

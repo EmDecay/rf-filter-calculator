@@ -23,6 +23,9 @@ from tests.web_helpers import HTMX, pool_threads, web_client  # noqa: E402
 
 LP = {"filter_type": "butterworth", "topology": "pi", "frequency": "10MHz"}
 BUILD = {**LP, "sim_build": "on"}
+TIMEOUT_MESSAGE = (
+    "Calculation stopped after 0.2 s. Try fewer extra random tolerance cases or frequency points."
+)
 
 
 def _wait_until(condition, timeout: float = 5.0) -> bool:
@@ -58,7 +61,7 @@ def test_timeout_returns_503_and_cancels_the_analysis(cancellable_analysis):
         response = client.post("/api/design/lowpass", data=BUILD)
 
         assert response.status_code == 503
-        assert response.json() == {"error": "Calculation cancelled after 0.2 s"}
+        assert response.json() == {"error": TIMEOUT_MESSAGE}
         assert cancellable_analysis["cancelled"].wait(5)
 
     assert _wait_until(lambda: len(pool_threads()) == baseline)
@@ -69,7 +72,7 @@ def test_timeout_in_the_design_view_is_an_html_notice(cancellable_analysis):
         response = client.post("/design/lowpass", data=BUILD, headers=HTMX)
 
     assert response.status_code == 503
-    assert "Calculation cancelled after 0.2 s" in response.text
+    assert TIMEOUT_MESSAGE in response.text
     assert 'role="alert"' in response.text
 
 
@@ -83,8 +86,8 @@ def test_a_cancelled_analysis_is_reported_as_unavailable(monkeypatch):
         api = client.post("/api/design/lowpass", data=BUILD)
 
     assert page.status_code == api.status_code == 503
-    assert "Calculation cancelled" in page.text
-    assert api.json() == {"error": "Calculation cancelled"}
+    assert "Calculation stopped" in page.text
+    assert api.json() == {"error": "Calculation stopped"}
 
 
 def test_shutdown_cancels_running_work_and_joins_the_pool():

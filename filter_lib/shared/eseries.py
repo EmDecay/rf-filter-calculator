@@ -123,6 +123,20 @@ class MatchPolicy:
 
 DEFAULT_MATCH_POLICY = MatchPolicy()
 
+# The one switch that sets ``MatchPolicy.allow_sub_pf`` on every surface: the CLI flag
+# and the wizard/web option label. The sub-pF warning names both so it reads correctly
+# wherever it is shown (table, CSV, JSON, build simulation, SPICE comments).
+SUB_PF_CLI_FLAG = "--allow-sub-pf"
+SUB_PF_OPTION_LABEL = "Allow capacitors below 1 pF"
+
+
+def sub_pf_warning(floor_pf: float) -> str:
+    """Warning for a capacitor target below the automatic-selection floor."""
+    return (
+        f"Below {floor_pf:g} pF no part is chosen automatically. Choose one manually, "
+        f'or turn on "{SUB_PF_OPTION_LABEL}" ({SUB_PF_CLI_FLAG}).'
+    )
+
 
 @dataclass
 class ESeriesMatch:
@@ -153,7 +167,7 @@ class ESeriesMatch:
 
     @property
     def selected_value(self) -> float | None:
-        """Realized value selected by policy, or ``None`` when expert input is required."""
+        """Realized value selected by policy, or ``None`` when no part is chosen automatically."""
         if self.recommended_kind == "parallel":
             return self.parallel_value
         if self.recommended_kind == "single":
@@ -498,10 +512,7 @@ def match_component(
         recommended_kind = "none"
         status = "expert_override_required"
         reason = "target_below_automatic_capacitance_floor"
-        warnings.append(
-            f"Target is below the {floor_pf:g} pF automatic-selection floor; "
-            "enable the expert override to select sub-pF parts."
-        )
+        warnings.append(sub_pf_warning(floor_pf))
     elif abs(single_err) <= active_policy.prefer_single_within_pct:
         recommended_kind = "single"
         status = "recommended"

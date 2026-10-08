@@ -19,10 +19,18 @@ import pytest
 from textual.widgets import Button, RadioButton, RadioSet, Static
 
 import filter_lib.wizard.screens.results as results_module
+from filter_lib.design.option_applicability import LOSS_Q_NOT_SHOWN_MESSAGE
+from filter_lib.wizard.export_formatting import EXPORT_FOLDER_MISSING_MESSAGE
 from filter_lib.wizard.filter_type_calculators import calculate_highpass, calculate_lowpass
 from filter_lib.wizard.screens.results import ResultsScreen
 from filter_lib.wizard.screens.welcome import WelcomeScreen
-from filter_lib.wizard.state import CalculationOutcome, FilterState
+from filter_lib.wizard.state import (
+    CSV_WITH_BUILD_MESSAGE,
+    INTERNAL_NO_BUILD_MESSAGE,
+    INTERNAL_NO_RESULT_MESSAGE,
+    CalculationOutcome,
+    FilterState,
+)
 
 
 def _results_screen(monkeypatch, state: FilterState, **widgets) -> SimpleNamespace:
@@ -132,14 +140,14 @@ class TestWorkerPublication:
             (
                 {},
                 CalculationOutcome(status="success", output_text="  ", result={"ok": 1}),
-                "Calculation returned no result",
+                INTERNAL_NO_RESULT_MESSAGE,
             ),
             (
                 {"build_analysis_enabled": True},
                 CalculationOutcome(status="success", output_text="table only", result={"ok": 1}),
-                "Calculation returned no realized-build analysis",
+                INTERNAL_NO_BUILD_MESSAGE,
             ),
-            ({}, "table text instead of an outcome", "Calculation returned an invalid outcome"),
+            ({}, "table text instead of an outcome", INTERNAL_NO_RESULT_MESSAGE),
         ],
     )
     def test_unusable_outcome_is_published_as_a_failure(
@@ -227,18 +235,29 @@ class TestWorkerPublication:
 
 class TestExportPreselection:
     @pytest.mark.parametrize(
-        "state_kwargs, selected, csv_disabled",
+        "state_kwargs, selected, csv_reason",
         [
-            ({"output_format": "table", "export_format": "csv"}, "export-txt", False),
-            ({"output_format": "json"}, "export-json", False),
-            ({"output_format": "csv", "export_format": "json"}, "export-csv", False),
-            ({"output_format": "json", "build_analysis_enabled": True}, "export-json", True),
-            # CSV cannot carry a build analysis, so the text export is preselected instead.
-            ({"output_format": "csv", "build_analysis_enabled": True}, "export-txt", True),
+            ({"output_format": "table", "export_format": "csv"}, "export-txt", None),
+            ({"output_format": "json"}, "export-json", None),
+            ({"output_format": "csv", "export_format": "json"}, "export-csv", None),
+            ({"output_format": "quiet"}, "export-txt", None),
+            (
+                {"output_format": "json", "build_analysis_enabled": True},
+                "export-json",
+                CSV_WITH_BUILD_MESSAGE,
+            ),
+            # The build cannot apply to CSV output, so it is left out and CSV stays open.
+            ({"output_format": "csv", "build_analysis_enabled": True}, "export-csv", None),
+            # Resonator Q shown in the table cannot go into a CSV (the CLI refuses it too).
+            (
+                {"category": "bandpass", "output_format": "table", "qu": 200.0},
+                "export-txt",
+                LOSS_Q_NOT_SHOWN_MESSAGE,
+            ),
         ],
     )
     def test_component_format_follows_output_not_response_sidecar(
-        self, monkeypatch, state_kwargs, selected, csv_disabled
+        self, monkeypatch, state_kwargs, selected, csv_reason
     ):
         buttons = [
             Mock(spec=RadioButton, id=button_id, value=False, disabled=False)
@@ -246,14 +265,23 @@ class TestExportPreselection:
         ]
         radio_set = Mock(spec=RadioSet)
         radio_set.query.return_value = buttons
-        view = _results_screen(monkeypatch, FilterState(**state_kwargs), export_format=radio_set)
+        reason = Mock(spec=Static)
+        view = _results_screen(
+            monkeypatch,
+            FilterState(**state_kwargs),
+            export_format=radio_set,
+            export_csv_reason=reason,
+        )
 
         view.screen._preselect_export_format()
 
         assert [button.id for button in buttons if button.value] == [selected]
         assert [button.id for button in buttons if button.disabled] == (
-            ["export-csv"] if csv_disabled else []
+            ["export-csv"] if csv_reason else []
         )
+        # D8: the disabled CSV choice says why.
+        reason.update.assert_called_once_with(csv_reason or "")
+        assert reason.display is (csv_reason is not None)
 
     def test_preselection_is_a_no_op_before_the_format_selector_mounts(self, monkeypatch):
         state = FilterState(output_format="json")
@@ -300,7 +328,8 @@ class TestNavigationAndExportSection:
 
         assert view.w["#export-section"].display is False
         view.screen.notify.assert_called_once_with(
-            "No current successful calculation is available to export", severity="warning"
+            "Nothing to export yet. Wait for the result, or fix the error and try again.",
+            severity="warning",
         )
 
     def test_design_another_resets_state_and_restarts_at_welcome(self, monkeypatch):
@@ -397,7 +426,8 @@ class TestSaving:
 
         assert list(tmp_path.iterdir()) == []
         view.screen.notify.assert_called_once_with(
-            "No current successful calculation is available to export", severity="warning"
+            "Nothing to export yet. Wait for the result, or fix the error and try again.",
+            severity="warning",
         )
         assert view.w["#export-section"].display is False
 
@@ -409,8 +439,7 @@ class TestSaving:
 
         assert list(tmp_path.iterdir()) == []
         view.screen.notify.assert_called_once_with(
-            "Cannot export current result: realized-build analysis is not supported in "
-            "component CSV",
+            "Cannot export: CSV cannot include the build simulation. Save as Text or JSON.",
             severity="error",
         )
 
@@ -434,8 +463,7 @@ class TestSaving:
 
         assert list(tmp_path.iterdir()) == []
         view.screen.notify.assert_called_once_with(
-            "Cannot export current result: Requested frequency span must remain positive "
-            "and finite",
+            "Cannot export: Requested frequency span must remain positive and finite",
             severity="error",
         )
         assert view.w["#export-section"].display is False
@@ -449,8 +477,45 @@ class TestSaving:
         view.screen._save_export()
 
         [(args, kwargs)] = view.screen.notify.call_args_list
-        assert args[0].startswith("Error saving ") and args[0].endswith(": disk full")
+        assert args[0].startswith("Could not save ")
+        assert args[0].endswith(": disk full. Check that the folder exists and is writable.")
         assert kwargs == {"severity": "error"}
+
+    @pytest.mark.parametrize(
+        "error, reason",
+        [
+            (PermissionError(13, "Permission denied", "/x/lowpass.txt"), "Permission denied"),
+            (OSError(28, "No space left on device"), "No space left on device"),
+        ],
+    )
+    def test_write_failure_shows_the_plain_reason_not_python_error_text(
+        self, monkeypatch, tmp_path, error, reason
+    ):
+        view = _saving_screen(monkeypatch, tmp_path, _lowpass_success(), "export-txt")
+        monkeypatch.setattr(results_module, "open", Mock(side_effect=error), raising=False)
+
+        view.screen._save_export()
+
+        [(args, kwargs)] = view.screen.notify.call_args_list
+        assert f": {reason}. Check that the folder exists and is writable." in args[0]
+        assert "Errno" not in args[0]
+        assert kwargs == {"severity": "error"}
+
+    def test_deleted_start_folder_reports_a_plain_message_and_writes_nothing(
+        self, monkeypatch, tmp_path
+    ):
+        gone = tmp_path / "gone"
+        gone.mkdir()
+        view = _saving_screen(monkeypatch, gone, _lowpass_success(), "export-txt")
+        gone.rmdir()
+
+        view.screen._save_export()
+
+        assert list(tmp_path.iterdir()) == []
+        view.screen.notify.assert_called_once_with(
+            f"Cannot export: {EXPORT_FOLDER_MISSING_MESSAGE}", severity="error"
+        )
+        assert view.w["#export-section"].display is False
 
     def test_files_are_written_as_utf8_without_newline_translation(self, monkeypatch, tmp_path):
         state = _lowpass_success(output_text="Ω 1 µH ───")
@@ -482,3 +547,44 @@ class TestResponseSidecar:
             f"Saved to {tmp_path / component.name} and {tmp_path / response.name}",
             severity="information",
         )
+
+
+class TestJsonWithItsOwnDesign:
+    """The saved JSON's own design runs on Save, in a worker of its own."""
+
+    def _state(self) -> FilterState:
+        # CSV shown with the build ticked: the saved JSON needs a design of its own.
+        return _lowpass_success(
+            output_format="csv", build_analysis_enabled=True, build_grid_points=51
+        )
+
+    def test_save_starts_one_background_worker_and_says_so(self, monkeypatch, tmp_path):
+        state = self._state()
+        view = _saving_screen(monkeypatch, tmp_path, state, "export-json")
+        worker = Mock(is_running=True)
+        view.screen.run_worker = Mock(return_value=worker)  # type: ignore[assignment]
+
+        view.screen._save_export()
+        view.screen._save_export()
+
+        view.screen.run_worker.assert_called_once()
+        kwargs = view.screen.run_worker.call_args.kwargs
+        assert kwargs["group"] == "json-design" and kwargs["thread"] is True
+        assert [c.args[0] for c in view.screen.notify.call_args_list] == [
+            results_module.PREPARING_JSON_MESSAGE,
+            results_module.PREPARING_JSON_MESSAGE,
+        ]
+        assert list(tmp_path.iterdir()) == []
+
+    def test_a_late_design_for_an_older_result_writes_nothing(self, monkeypatch, tmp_path):
+        state = self._state()
+        view = _saving_screen(monkeypatch, tmp_path, state, "export-json")
+        worker = Mock(is_running=False)
+        view.screen._json_worker = worker
+        view.screen._json_revision = state.calculation_revision - 1
+        view.screen._accept_worker_events = True
+
+        view.screen.on_worker_state_changed(_worker_event(worker, "SUCCESS", result=Mock()))
+
+        assert state.json_design is None
+        assert list(tmp_path.iterdir()) == []

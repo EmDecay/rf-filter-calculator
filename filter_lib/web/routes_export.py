@@ -2,8 +2,8 @@
 
 Each body is byte-identical to the CLI's stdout for the same design: JSON and CSV
 end with the newline ``print`` adds, a SPICE deck carries its own final newline, and
-response data matches ``--plot-data``. Only the JSON document carries a realized-build
-analysis; the other downloads describe the synthesized design.
+response data matches ``--plot-data``. Only the JSON document carries the build
+simulation; the other downloads describe the calculated design.
 """
 
 from __future__ import annotations
@@ -14,6 +14,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
 from ..design import design, export_response_data, export_spice, render_lines
+from ..design.option_applicability import LOSS_Q, RESPONSE_DOCUMENTS, document_reason
+from ..design.render_options import needs_eseries_message
+from .download_inputs import download_fields
 from .form_parsing import DesignForm, parse_design_form
 from .responses import form_fields, runner
 
@@ -34,11 +37,15 @@ EXPORT_KINDS = {
     "response-json": ExportKind("json", "application/json"),
     "response-csv": ExportKind("csv", "text/csv; charset=utf-8"),
 }
-# Downloads that cannot show the resonator-loss model, as in the CLI.
-LOSS_Q_HIDDEN = frozenset({"csv", "spice-exact", "response-json", "response-csv"})
+# Downloads whose document cannot show the resonator-loss model (the shared rule).
+_LOSS_Q_UNUSED = frozenset(kind for kind in EXPORT_KINDS if document_reason(kind, LOSS_Q))
+# Response data is the ideal response, which Qu/QL/QC never change; the wizard's
+# response file and these downloads therefore leave them out instead of refusing.
+LOSS_Q_DROPPED = _LOSS_Q_UNUSED & RESPONSE_DOCUMENTS
+# The others refuse them, as in the CLI.
+LOSS_Q_HIDDEN = _LOSS_Q_UNUSED - RESPONSE_DOCUMENTS
 NOMINAL_SPICE_NEEDS_ESERIES = (
-    "Nominal-build SPICE requires selected capacitor values; choose an E-series "
-    "or download the exact deck"
+    needs_eseries_message('"SPICE – chosen parts"') + '; or download "SPICE – calculated values"'
 )
 
 
@@ -59,11 +66,16 @@ async def export(request: Request, category: str, kind: str) -> Response:
     """Return one export document as a download named ``<category>-<kind>.<ext>``."""
     if kind not in EXPORT_KINDS:
         raise ValueError(f"Unknown export: {kind}")
-    submitted = parse_design_form(category, await form_fields(request))
+    # The inputs of the result shown, with the visible values of controls it could not use.
+    submitted = parse_design_form(category, download_fields(await form_fields(request), kind))
     if kind == "spice-nominal" and submitted.options.eseries is None:
         raise ValueError(NOMINAL_SPICE_NEEDS_ESERIES)
     if kind in LOSS_Q_HIDDEN:
         submitted.request.reject_loss_q()
+    if kind in LOSS_Q_DROPPED:
+        submitted = replace(
+            submitted, request=replace(submitted.request, qu=None, ql=None, qc=None)
+        )
 
     body = await runner(request).run(
         lambda should_cancel: _document(kind, submitted, should_cancel)

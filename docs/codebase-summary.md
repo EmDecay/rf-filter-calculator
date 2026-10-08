@@ -1,7 +1,7 @@
 # Codebase Summary
 
-**Last updated:** October 7, 2026
-**Version:** 2.2.0
+**Last updated:** October 8, 2026
+**Version:** 2.3.0
 
 RF Filter Calculator is a Python 3.10+ command-line, Textual TUI, and local web application for
 synthesizing lowpass, highpass, and coupled-resonator bandpass LC filters. The current
@@ -46,20 +46,31 @@ filter_lib/
 `filter_lib/design/` is the orchestration every surface calls; see
 [system-architecture.md](system-architecture.md#shared-design-service) for why.
 
-- `design_request.py` — `DesignRequest` and the cross-field rules every surface enforces
-- `design_service.py` — `design()`, `synthesize()`, `with_build_analysis()`
+- `design_request.py` — `DesignRequest` (including `allow_sub_pf`) and the cross-field rules
+  every surface enforces
+- `design_service.py` — `design()`, `synthesize()`, `with_build_analysis()`, and
+  `apply_sub_pf_policy` (combines the request and `BuildConfig` sub-pF switches)
 - `render_options.py`, `render.py` — `RenderOptions` and `render_lines` for table, quiet,
-  JSON, and CSV
+  JSON, and CSV; shared surface messages such as `BUILD_NEEDS_ESERIES_MESSAGE`
 - `export.py` — `export_spice`, `export_response_data`, and `response_series`
+- `option_applicability.py` — the one rule for which output and build options apply to a set of
+  choices (`inapplicable_options`, `option_reason`, `require_applicable`) and which a
+  download or saved file uses (`document_options`, `DOCUMENT_FORMATS`, `document_reason`,
+  `RESPONSE_DOCUMENTS`), with the reasons the wizard and web show next to a disabled control
+- `q_reference_frequency.py` — label, help, and parser for the build simulation's
+  "Frequency at which the Q values apply", shared by the wizard and web
 
 The CLI maps its flags in `cli/design_output_args.py`; the wizard maps `FilterState` in
-`FilterState.to_design_request` and `to_render_options`.
+`FilterState.to_design_request` and `to_render_options` (`wizard/state_design_inputs.py`).
 
 ### Web UI
 
 - `app.py` — app factory, lifespan-owned calculation pool, error handlers, headers
 - `form_parsing.py`, `build_form_parsing.py`, `form_values.py` — form fields to request,
-  options, and build configuration
+  options, and build configuration; refuses an option the shared rule disables
+- `option_states.py` — the shared applicability rule tabulated for the page's script
+- `download_inputs.py` — `download_fields`: the result's snapshot plus each disabled
+  control's visible value that applies to the download
 - `execution.py` — bounded pool with timeout and cancellation
 - `request_guard.py` — same-origin and Host check applied to every request
 - `routes_pages.py`, `routes_design.py`, `routes_export.py` — page, design, and download
@@ -95,33 +106,36 @@ lowpass prototype; transformed HP/BP phase is not claimed without external verif
 
 ## Physical-part realization
 
-`shared/eseries.py` supports E12, E24, and E96 capacitor preferred values. The series name
-describes density, not tolerance. Default policy selects one part within 1%, otherwise a
-parallel pair only when it improves absolute error by at least 0.5 percentage points. A
-target below 1 pF reports expert action instead of silently selecting a part.
+`shared/eseries.py` supports E12, E24, and E96 standard capacitor values. The series name
+gives values per decade, not tolerance. Each capacitor gets one choice: a single part within
+1%, otherwise a parallel pair only when it is at least 0.5 percentage points closer. Below
+1 pF no part is chosen unless `DesignRequest.allow_sub_pf` (`--allow-sub-pf`, wizard/web
+**Allow capacitors below 1 pF**) is set; the warning names that option.
 
-Inductors are not E-series matched. The optional toroid screen uses only primary-sourced
+Inductors are not E-series matched. Toroid winding suggestions use only primary-sourced
 T25-6, T50-2, and T68-2 entries. Other vendored legacy records remain inspectable but are
-not eligible for automatic recommendation. The screen checks frequency guidance,
-integer-turn error, `A_L` tolerance, and winding capacity; it does not assess RF Q, SRF,
-core loss, saturation, thermal rise, or power.
+not eligible for automatic suggestion. Selection checks frequency guidance, whole-turn
+error within the `A_L` tolerance, and winding capacity; it does not check RF Q, SRF, core
+loss, saturation, heating, or power.
 
-## Realized-build analysis
+## Build simulation
 
-`--sim-build` creates a named nominal circuit from selected capacitors, screened integer
-turn windings where available, and explicit exact-value fallbacks. Optional inputs add:
+`--sim-build` (user-facing name: build simulation) creates a named circuit from the chosen
+parts: standard capacitors, whole-turn toroid windings where available, and explicit
+exact-value fallbacks ("calculated value used"). Optional inputs add:
 
-- independently specified source and load resistances;
-- capacitor and inductor tolerance bounds;
-- inductor/capacitor Q at an explicit loss-reference frequency;
-- deterministic corners;
-- repeatable seeded bounded samples;
-- selectable initial analysis-grid size, with bounded automatic measurement refinement.
+- separate simulation source and load resistances;
+- capacitor and inductor tolerances;
+- inductor/capacitor Q at the frequency where the Q values apply;
+- fixed tolerance cases (all low, all high, each part low and high alone);
+- repeatable extra random tolerance cases;
+- the initial number of frequency points, with bounded automatic measurement refinement.
 
 The AC nodal solver reports transducer power gain and uses scale-normalized log-polar
 admittances. LP/HP output reports a category-appropriate cutoff; BP reports lower and
-upper edges, center, and bandwidth. Screening results are engineering cases, not yield,
-probability, guaranteed worst case, or measured performance.
+upper edges, center, and bandwidth. Tolerance cases show spread; they are not yield,
+probability, guaranteed worst case, or measured performance. Bandpass text uses the table
+part names via `circuit_display_names.py`; SPICE and JSON keep `CT1`/`LT1`/`CK1`/`CIN`/`COUT`.
 
 Response accuracy owners are [build_response.py](../filter_lib/shared/build_response.py),
 [response_refinement.py](../filter_lib/shared/response_refinement.py), and
@@ -130,24 +144,25 @@ Response accuracy owners are [build_response.py](../filter_lib/shared/build_resp
 selection and model-comparison limits; [accuracy tests](../tests/test_response_accuracy.py)
 provide independent circuit evidence.
 
-`--sim-matched` is retained as a deprecated compatibility alias for the simpler nominal
-comparison. New integrations should use `--sim-build`.
+`--sim-matched` is retained as a deprecated compatibility alias for the simpler
+ideal-versus-chosen-parts comparison. New integrations should use `--sim-build`.
 
 ## Output surfaces
 
 | Surface | Notes |
 |---|---|
-| Table | Human-oriented circuit, values, policy decisions, warnings, plots, optional build block |
+| Table | Human-oriented circuit, values, standard-value choices, warnings, plots, optional build-simulation block |
 | JSON | Strict finite JSON with explicit requested/calculated/nominal/simulated semantics |
-| CSV | Quoted rectangular component rows; best eligible toroid only |
-| SPICE | Generic exact or nominal-build passive deck from the shared named circuit |
+| CSV | Quoted rectangular component rows; best toroid suggestion only |
+| SPICE | Generic deck (`exact` calculated values or `nominal-build` chosen parts) from the shared named circuit; BP decks add a `* names:` map |
 | Plot data | Shared JSON/CSV response schema; analytic LP/HP, nodal BP |
 | Wizard save | Component export plus independent optional response-data sidecar |
-| Web UI | The CLI's text in the page, optional SVG plot, and downloads byte-identical to the CLI |
+| Web UI | The CLI's text in the page, optional SVG response graph, and downloads byte-identical to the CLI |
 
-Unsupported option/output combinations are rejected rather than silently ignored.
-Examples include E-series flags with raw/quiet/plot-data/exact-SPICE output and toroid
-detail flags outside table mode.
+Unsupported option/output combinations are rejected by the CLI rather than silently ignored.
+Examples include E-series flags (and `--allow-sub-pf`) with raw/quiet/plot-data/exact-SPICE
+output and toroid detail flags outside table mode. The wizard and web disable the matching
+controls, with the reason, from `design/option_applicability.py`.
 
 ## Important shared modules
 
@@ -158,8 +173,11 @@ detail flags outside table mode.
 - `formatting.py` — finite SI/scientific rendering
 - `strict_json.py` — non-finite-tree rejection and JSON serialization
 - `display_common.py`, `lp_hp_display.py` — common table/JSON/CSV presentation
-- `toroid_display.py` — toroid candidate text/JSON/CSV; the table section shared by CLI
-  and wizard
+- `display_helpers.py` — shared `SECTION_RULE`, E-series section heading/note, and `Use:` rows
+- `toroid_display.py` — toroid winding suggestion text/JSON/CSV; the table section shared by
+  CLI and wizard
+- `circuit_display_names.py` — maps bandpass circuit names to table names (CT1→Cp1, CK1→Cs12,
+  CIN→Ce_in) for readable text and the SPICE `* names:` comment
 - `response_export.py` — standalone response schema
 
 ### Mathematics and circuits
@@ -186,13 +204,14 @@ detail flags outside table mode.
 The wizard uses independent Textual screens:
 
 ```text
-Welcome → Lowpass/Highpass/Bandpass form → Output Options → Results
+Welcome → Lowpass/Highpass/Bandpass form → Output options → Results
 ```
 
-`FilterState` is the single state owner. Calculation workers publish through revisioned
-outcomes so an older/cancelled worker cannot replace a newer result. Results are not
-exportable while pending or after failure. Component format selection and response-data
-sidecar selection are separate.
+`FilterState` is the single state owner and holds each control's visible value;
+`state_design_inputs.py` (`DesignInputsMixin`) decides from the shared rule what the result and
+each saved file use. Calculation workers publish through revisioned outcomes so an
+older/cancelled worker cannot replace a newer result. Results are not exportable while pending
+or after failure. Component format selection and response-data sidecar selection are separate.
 
 ## Package and repository files
 
@@ -211,7 +230,7 @@ sidecar selection are separate.
 - Ideal responses omit layout, package parasitics, transmission-line effects, and
   component self-resonance.
 - Q-based loss uses a stated-frequency constant series-resistance model.
-- Toroid results are screened winding candidates, not RF/power suitability claims.
+- Toroid results are winding suggestions, not RF/power suitability claims.
 - Generic SPICE decks need simulator- and component-model-specific refinement for final
   hardware prediction.
 - A VNA measurement of the assembled filter remains the acceptance test.

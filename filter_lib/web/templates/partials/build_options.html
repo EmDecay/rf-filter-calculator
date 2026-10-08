@@ -1,20 +1,20 @@
 {%- from "partials/fields.html" import checkbox, text_field with context -%}
 <fieldset class="group build">
-  <legend class="group__title">Realized build</legend>
-  {{ checkbox("sim_build", "Analyze the realized build", "Selected parts, finite Q, and tolerance corners. Needs table or JSON output and an E-series. Also sets the nominal SPICE deck's loss and ports.") }}
+  <legend class="group__title">Build simulation (optional)</legend>
+  {{ checkbox("sim_build", "Simulate the built filter", "Simulates the filter with the parts you would actually fit: standard capacitor values, the suggested toroid windings, optional part Q, and component tolerances. Choose Table or JSON format and E12, E24, or E96 first. The “SPICE – chosen parts” download then also uses the Q and source/load values below.", option="build") }}
   <div class="build__fields fields">
-    {{ text_field("build_capacitor_tolerance_pct", "Capacitor tolerance (%)", placeholder="5") }}
-    {{ text_field("build_inductor_tolerance_pct", "Inductor tolerance (%)", placeholder="10") }}
-    {{ text_field("build_inductor_q", "Inductor Q", help="Ladder loss model.") }}
-    {{ text_field("build_capacitor_q", "Capacitor Q") }}
-    {{ text_field("build_reference_frequency", "Q reference frequency", help="Blank: the design frequency.", wide=true) }}
-    {{ text_field("build_source_resistance", "Source resistance (Ω)", help="Blank: the design impedance.") }}
-    {{ text_field("build_load_resistance", "Load resistance (Ω)") }}
-    {{ text_field("build_sample_count", "Screening samples", placeholder="0", inputmode="numeric") }}
-    {{ text_field("build_seed", "Seed", placeholder="0", inputmode="numeric") }}
-    {{ text_field("build_grid_points", "Analysis points", placeholder="601", inputmode="numeric", wide=true) }}
+    {{ text_field("build_capacitor_tolerance_pct", "Capacitor tolerance (±%)", help="Blank = 5.") }}
+    {{ text_field("build_inductor_tolerance_pct", "Inductor tolerance (±%)", help="Blank = 10.") }}
+    {{ text_field("build_inductor_q", "Inductor Q", help="Q of each inductor; blank = lossless. For band-pass, enter Q here or in the Resonator Qu, QL, and QC fields, not both.") }}
+    {{ text_field("build_capacitor_q", "Capacitor Q", help="Q of each capacitor; blank = lossless.") }}
+    {{ text_field("build_reference_frequency", labels.q_frequency, help="Blank = the cutoff frequency (low-pass, high-pass) or the center frequency (band-pass).", wide=true) }}
+    {{ text_field("build_source_resistance", "Simulation source resistance (Ω)", help="Used only to simulate; component values are still designed for the impedance you entered. Blank = that impedance.") }}
+    {{ text_field("build_load_resistance", "Simulation load resistance (Ω)", help="Blank = the impedance you entered.") }}
+    {{ text_field("build_sample_count", "Extra random tolerance cases", help="Random part values within tolerance, added to the fixed tolerance cases. 0 to 10000; blank = 0.", inputmode="numeric") }}
+    {{ text_field("build_seed", "Random seed", help="The same seed repeats the same random cases. Blank = 0.", inputmode="numeric") }}
+    {{ text_field("build_grid_points", "Frequency points", help="Points in the simulated frequency sweep, 51 to 5001; refined automatically between points. Blank = 601.", inputmode="numeric", wide=true) }}
     <div class="field field--wide">
-      {{ checkbox("no_toroid_build", "Keep calculated inductance", "Do not substitute screened integer-turn toroids.") }}
+      {{ checkbox("toroid_build", "Simulate inductors as the suggested toroid windings", "Uses the inductance of each suggested whole-turn toroid winding. Untick to simulate each inductor at its calculated value.", option="toroid_build", default_on=true) }}
     </div>
   </div>
 </fieldset>

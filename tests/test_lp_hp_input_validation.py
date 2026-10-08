@@ -23,7 +23,7 @@ _CHEBYSHEV = ["lowpass-chebyshev", "highpass-chebyshev"]
 
 _CUTOFF_ERROR = "Cutoff frequency must be positive and finite"
 _IMPEDANCE_ERROR = "Impedance must be positive and finite"
-_ORDER_ERROR = "between 2 and 9"
+_ORDER_ERROR = "^Number of components must be from 2 to 9$"
 _TOPOLOGY_ERROR = "Topology must be 'pi' or 't'"
 
 
@@ -76,7 +76,9 @@ def test_topology_must_be_pi_or_t(topology):
 @pytest.mark.parametrize("order", [2, 4, 6, 8])
 @pytest.mark.parametrize("name", _CHEBYSHEV)
 def test_chebyshev_even_order_is_rejected_for_equal_terminations(name, order):
-    with pytest.raises(ValueError, match="requires odd order"):
+    with pytest.raises(
+        ValueError, match=r"^Chebyshev needs an odd number of components \(3, 5, 7, or 9\)"
+    ):
         _calculate(name, order=order)
 
 
@@ -86,7 +88,7 @@ def test_chebyshev_even_order_is_rejected_for_equal_terminations(name, order):
 )
 @pytest.mark.parametrize("name", _CHEBYSHEV)
 def test_chebyshev_ripple_outside_zero_to_three_db_is_rejected(name, ripple):
-    with pytest.raises(ValueError, match=r"positive, finite, and at most 3\.0 dB"):
+    with pytest.raises(ValueError, match=r"^Ripple must be greater than 0 and at most 3\.0 dB$"):
         _calculate(name, ripple=ripple)
 
 

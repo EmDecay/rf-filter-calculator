@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import re
 
 import pytest
 
@@ -192,32 +193,42 @@ def test_design_result_defaults_to_no_warnings_or_analysis():
 @pytest.mark.parametrize(
     "factory, message",
     [
-        (lambda: _ladder("lowpass", "chebyshev", ripple_db=0.0), "Ripple must be positive"),
-        (lambda: _ladder("highpass", "chebyshev", ripple_db=-1.0), "Ripple must be positive"),
-        (lambda: _ladder("lowpass", "chebyshev", ripple_db=None), "Ripple must be positive"),
+        (
+            lambda: _ladder("lowpass", "chebyshev", ripple_db=0.0),
+            "Ripple must be greater than 0 and at most 3.0 dB",
+        ),
+        (
+            lambda: _ladder("highpass", "chebyshev", ripple_db=-1.0),
+            "Ripple must be greater than 0 and at most 3.0 dB",
+        ),
+        (
+            lambda: _ladder("lowpass", "chebyshev", ripple_db=None),
+            "Ripple must be greater than 0 and at most 3.0 dB",
+        ),
         (
             lambda: _ladder("lowpass", "chebyshev", ripple_db=3.5),
-            "Ripple must be at most 3.0 dB",
+            "Ripple must be greater than 0 and at most 3.0 dB",
         ),
         (
             lambda: _ladder("lowpass", "chebyshev", ripple_db=math.inf),
-            "Ripple must be at most 3.0 dB",
+            "Ripple must be greater than 0 and at most 3.0 dB",
         ),
         (
             lambda: _bandpass("chebyshev", ripple_db=3.01),
-            "Ripple must be at most 3.0 dB",
+            "Ripple must be greater than 0 and at most 3.0 dB",
         ),
         (
             lambda: _bandpass("chebyshev", order=4),
-            "Chebyshev requires odd resonator count",
+            "Chebyshev needs an odd number of resonators (3, 5, 7, or 9) for equal source and "
+            "load impedance",
         ),
         (
             lambda: _bandpass("chebyshev", ripple_db=0.0),
-            "Ripple must be positive and finite",
+            "Ripple must be greater than 0 and at most 3.0 dB",
         ),
         (
             lambda: _bandpass("chebyshev", ripple_db=math.nan),
-            "Ripple must be positive and finite",
+            "Ripple must be greater than 0 and at most 3.0 dB",
         ),
         (lambda: _bandpass(bandwidth_hz=None), "Bandwidth is required"),
         (lambda: _bandpass(q_safety=0.0), "Q safety factor must be positive"),
@@ -229,7 +240,7 @@ def test_design_result_defaults_to_no_warnings_or_analysis():
     ],
 )
 def test_request_validation_messages(factory, message):
-    with pytest.raises(ValueError, match=f"^{message}$"):
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         factory()
 
 
@@ -285,11 +296,11 @@ def test_nan_ladder_ripple_reaches_the_calculator_check_like_the_cli(monkeypatch
         ("1", 2.0, "Lower cutoff frequency must be positive and finite"),
         (1.0, math.inf, "Upper cutoff frequency must be positive and finite"),
         (True, 2.0, "Lower cutoff frequency must be positive and finite"),
-        (2.0, 1.0, "Lower frequency must be less than upper"),
+        (2.0, 1.0, "Lower cutoff frequency must be below the upper cutoff frequency"),
     ],
 )
 def test_band_edges_are_validated_before_use(low, high, message):
-    with pytest.raises(ValueError, match=f"^{message}$"):
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         band_from_edges(low, high)
 
 

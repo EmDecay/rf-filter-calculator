@@ -120,11 +120,11 @@ class TestTopCDiagram:
 
 
 def test_header_and_component_table_printers_emit_formatted_text(highpass_result, capsys):
-    print_header(highpass_result, topology="T", filter_category="High Pass")
+    print_header(highpass_result, topology="T", filter_category="High-Pass")
     print_component_table(highpass_result, raw=True, primary_component="capacitors")
 
     expected = (
-        format_header(highpass_result, "T", "High Pass")
+        format_header(highpass_result, "T", "High-Pass")
         + "\n"
         + format_component_table(highpass_result, True, "capacitors")
         + "\n"
@@ -146,10 +146,10 @@ def test_header_restates_the_typed_cutoff_and_impedance(
 ):
     result = {**lowpass_result, "freq_hz": freq_hz, "impedance": impedance}
 
-    lines = format_header(result, "PI", "Low Pass").splitlines()
+    lines = format_header(result, "Pi", "Low-Pass").splitlines()
 
     assert f"Cutoff Frequency:    {frequency_text}" in lines
-    assert f"Impedance Z0:        {impedance_text} Ohm" in lines
+    assert f"Impedance Z₀:        {impedance_text} Ω" in lines
 
 
 class TestQuietOutput:
@@ -269,18 +269,18 @@ class TestNegativeZeroErrorText:
         single = format_eseries_match(35.71e-12, "E96", format_capacitance, "additive")
         parallel = format_eseries_match(184.91e-12, "E96", format_capacitance, "additive")
 
-        assert single == ["  Nearest Std:  35.70 pF (0.0%)"]
+        assert single == ["  Use:            35.70 pF (0.0%)"]
         # 54.9 + 130 and 30.9 + 154 are both exactly 184.9 pF; the tie goes to the more
         # balanced pair.
-        assert parallel[1] == "  Parallel Std: 54.90 pF || 130.00 pF (0.0%)"
+        assert parallel[0] == "  Use:            54.90 pF || 130.00 pF (0.0%)"
 
     def test_table_positive_error_that_rounds_to_zero_is_also_unsigned(self):
         # 35.69 pF -> E96 35.7 pF is +0.028 %; a sign is shown only on a nonzero rendering.
         assert format_eseries_match(35.69e-12, "E96", format_capacitance, "additive") == [
-            "  Nearest Std:  35.70 pF (0.0%)"
+            "  Use:            35.70 pF (0.0%)"
         ]
-        assert format_eseries_match(318.31e-12, "E24", format_capacitance, "additive")[0] == (
-            "  Nearest Std:  330.00 pF (+3.7%)"
+        assert format_eseries_match(318.31e-12, "E24", format_capacitance, "additive")[1] == (
+            "  Nearest single: 330.00 pF (+3.7%)"
         )
 
 
@@ -317,7 +317,7 @@ class TestDisplayResultsRouting:
         out = capsys.readouterr().out
 
         assert "│ C1: 1.000000e-10 F     │ L1: 1.000000e-06 H     │" in out.splitlines()
-        assert "Preferred-Value Capacitor Selection" not in out
+        assert "Standard Capacitor Values" not in out
 
 
 class TestJsonResultComponentValues:
@@ -387,3 +387,16 @@ class TestQuietResultLines:
     def test_formatted_mode_prints_engineering_units(self):
         output = format_quiet_result({"capacitors": [1e-12], "inductors": [1e-6]}, raw=False)
         assert output == "C1: 1.00 pF\nL1: 1.00 µH"
+
+
+class TestChebyshevCutoffNote:
+    @pytest.mark.parametrize(
+        ("ripple_db", "shown"),
+        [(1.0, "the 1 dB ripple"), (0.5, "the 0.5 dB ripple"), (None, "the ripple")],
+    )
+    def test_ripple_is_printed_as_typed(self, ripple_db, shown):
+        """``-r 1`` arrives as 1.0 and must read "1 dB", not "1.0 dB"."""
+        from filter_lib.shared.lp_hp_display import chebyshev_cutoff_note_lines
+
+        first = chebyshev_cutoff_note_lines(ripple_db)[0]
+        assert first.endswith(f"where loss equals {shown}.")

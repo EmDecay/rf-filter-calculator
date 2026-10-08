@@ -1,26 +1,28 @@
-{%- from "partials/fields.html" import segmented, text_field with context -%}
+{%- from "partials/fields.html" import reason, segmented, text_field with context -%}
 <fieldset class="group">
   <legend class="group__title">Passband</legend>
   <div class="fields">
     {{ segmented("band_spec", "Specify the band by", [("center", "Center and width"), ("edges", "Band edges")]) }}
     {{ text_field("frequency", "Center frequency", band="center") }}
-    {{ text_field("bandwidth", "Bandwidth (−3 dB)", band="center") }}
+    {{ text_field("bandwidth", "Bandwidth (−3 dB)", help="Must be less than the center frequency.", band="center") }}
     {{ text_field("f_low", "Lower edge (−3 dB)", band="edges") }}
     {{ text_field("f_high", "Upper edge (−3 dB)", band="edges") }}
-    <p class="field__help field--wide">Units: Hz, kHz, MHz, GHz. The bandwidth must be less than the center frequency.</p>
-    {{ text_field("resonators", "Resonators", help="2 to 9; odd for Chebyshev.", inputmode="numeric") }}
-    {{ text_field("impedance", "Impedance (Ω)", help="Equal source and load.") }}
+    <p class="field__help field--wide">Units: Hz, kHz, MHz, GHz.</p>
+    {{ text_field("resonators", "Number of resonators", help="2 to 9; odd (3, 5, 7, 9) for Chebyshev.", inputmode="numeric") }}
+    {{ text_field("impedance", "Impedance (Ω)", help="Equal source and load impedance; k and M allowed (e.g. 1k).") }}
   </div>
 </fieldset>
 
 <details class="group group--optional"{% if values.get("resonator_impedance") or values.get("resonator_inductance") or values.get("qu") or values.get("ql") or values.get("qc") %} open{% endif %}>
-  <summary class="group__summary">Tank and resonator loss <span class="group__hint">optional</span></summary>
+  <summary class="group__summary">Resonators and losses <span class="group__hint">optional</span></summary>
   <div class="fields">
-    {{ text_field("resonator_impedance", "Tank impedance (Ω)", help="sqrt(L/C); leave blank for the default.") }}
-    {{ text_field("resonator_inductance", "Tank inductance", help="For example 1.2uH; use one tank setting.") }}
-    {{ text_field("qu", "Resonator Qu", help="Complete resonator unloaded Q.") }}
-    {{ text_field("ql", "Inductor QL") }}
-    {{ text_field("qc", "Capacitor QC") }}
-    <p class="field__help field--wide">QL and QC combine as 1/Qu = 1/QL + 1/QC; every Q is 0.01 to 1e9.</p>
+    <p class="field__help field--wide">Each resonator is an L–C tank. Set its impedance or its inductance, not both.</p>
+    {{ text_field("resonator_impedance", "Resonator impedance (Ω)", help="sqrt(L/C). Blank = the impedance above.") }}
+    {{ text_field("resonator_inductance", "Resonator inductance", help="Inductance of every resonator, e.g. 1.2uH.") }}
+    {{ text_field("qu", "Resonator Qu", help="Unloaded Q of each resonator, inductor and capacitor losses together. Adds a loss estimate and is used by the build simulation and the SPICE – chosen parts download.", wide=true, option="loss_q") }}
+    {{ text_field("ql", "Inductor QL", option="loss_q") }}
+    {{ text_field("qc", "Capacitor QC", option="loss_q") }}
+    <p class="field__help field--wide">Or enter QL and QC instead of Qu; they combine as 1/Qu = 1/QL + 1/QC. QC applies to the resonator capacitors only. Each Q is 0.01 to 1e9.</p>
+    <div class="field--wide">{{ reason("loss_q") }}</div>
   </div>
 </details>

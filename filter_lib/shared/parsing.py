@@ -11,20 +11,26 @@ resistance"``), so its error message names the option the user supplied.
 import math
 from decimal import Decimal, InvalidOperation
 
+# Format hints appended to "Invalid ..." errors, one per parser.
+FREQUENCY_FORMAT_HINT = "use a number with an optional k, M, or G suffix, e.g. 14.2MHz"
+IMPEDANCE_FORMAT_HINT = "use a number of ohms with an optional k or M suffix, e.g. 50 or 1k"
+INDUCTANCE_FORMAT_HINT = "use a number with H, mH, uH, or nH, e.g. 1.2uH"
+
 
 def _parse_scaled_positive(
-    number_text: str, multiplier: float, *, label: str, original: str
+    number_text: str, multiplier: float, *, label: str, original: str, hint: str
 ) -> float:
     """Scale in decimal space before materializing a binary64 result.
 
     Parsing the numeric token directly as ``float`` can underflow or overflow
     before a compensating unit suffix is applied (for example ``1e-325GHz``).
     Decimal scaling preserves any final result that binary64 can represent.
+    ``hint`` says what a valid input looks like when the text is not a number.
     """
     try:
         scaled = Decimal(number_text) * Decimal(str(multiplier))
     except (InvalidOperation, ValueError) as error:
-        raise ValueError(f"Invalid {label.lower()}: {original}") from error
+        raise ValueError(f"Invalid {label.lower()}: {original} ({hint})") from error
     except ArithmeticError as error:
         # Any other decimal signal is an exponent beyond the decimal context (Overflow).
         raise ValueError(f"{label} must be positive and finite: {original}") from error
@@ -71,9 +77,13 @@ def parse_frequency(freq_str: str, label: str = "Frequency") -> float:
     for suffix, mult in suffixes:
         if freq_str_lower.endswith(suffix):
             num_part = freq_str[: -len(suffix)].strip()
-            return _parse_scaled_positive(num_part, mult, label=label, original=freq_str)
+            return _parse_scaled_positive(
+                num_part, mult, label=label, original=freq_str, hint=FREQUENCY_FORMAT_HINT
+            )
 
-    return _parse_scaled_positive(freq_str, 1.0, label=label, original=freq_str)
+    return _parse_scaled_positive(
+        freq_str, 1.0, label=label, original=freq_str, hint=FREQUENCY_FORMAT_HINT
+    )
 
 
 def parse_impedance(z_str: str, label: str = "Impedance") -> float:
@@ -109,9 +119,12 @@ def parse_impedance(z_str: str, label: str = "Impedance") -> float:
                 mult,
                 label=label,
                 original=z_str,
+                hint=IMPEDANCE_FORMAT_HINT,
             )
 
-    return _parse_scaled_positive(z_str, 1.0, label=label, original=z_str)
+    return _parse_scaled_positive(
+        z_str, 1.0, label=label, original=z_str, hint=IMPEDANCE_FORMAT_HINT
+    )
 
 
 def parse_inductance(inductance_str: str, label: str = "Inductance") -> float:
@@ -136,6 +149,9 @@ def parse_inductance(inductance_str: str, label: str = "Inductance") -> float:
                 multiplier,
                 label=label,
                 original=original,
+                hint=INDUCTANCE_FORMAT_HINT,
             )
     else:
-        return _parse_scaled_positive(normalized, 1.0, label=label, original=original)
+        return _parse_scaled_positive(
+            normalized, 1.0, label=label, original=original, hint=INDUCTANCE_FORMAT_HINT
+        )

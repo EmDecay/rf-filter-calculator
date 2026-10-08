@@ -58,9 +58,9 @@ def test_bandpass_command_and_alias_produce_identical_designs(monkeypatch, capsy
         "L1",
         "L2",
         "L3",
+        "Ce_in",
         "Cs12",
         "Cs23",
-        "Ce_in",
         "Ce_out",
     ]
 
@@ -115,7 +115,7 @@ def test_invalid_design_value_exits_1_with_clean_error(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert exc_info.value.code == 1
     assert captured.out == ""
-    assert captured.err == "Error: Components must be 2-9\n"
+    assert captured.err == "Error: Number of components must be from 2 to 9\n"
 
 
 def test_closed_stdout_pipe_exits_1_without_traceback(monkeypatch, capsys):

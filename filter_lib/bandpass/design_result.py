@@ -10,6 +10,7 @@ from .design_constants import (
 )
 from .input_validation import _get_fbw_warnings
 from .resonator_math import STANDARD_QU_VALUES, calculate_min_q, estimate_insertion_loss
+from .top_c_calibration import TopCCalibrationError
 
 
 def _finalize_validation(validation: dict[str, Any], iterations: int) -> None:
@@ -29,24 +30,33 @@ def _finalize_validation(validation: dict[str, Any], iterations: int) -> None:
         }
     )
     if not validation["edge_validated"]:
-        raise ValueError(
+        raise TopCCalibrationError(
             "Top-C calibration failed independent verification of both requested -3 dB edges"
         )
 
 
-def _validation_warnings(fbw: float, validation: dict[str, Any]) -> list[str]:
+def _validation_warnings(fbw: float, validation: dict[str, Any], filter_type: str) -> list[str]:
     """Return design-range and independently measured response warnings."""
     warnings = _get_fbw_warnings(fbw)
     if not validation["shape_validated"]:
+        # The shape check covers the passband, Chebyshev ripple, and the near-stopband
+        # samples, so the text must not blame the passband alone.
+        checked = (
+            "passband shape, ripple, or the points just outside the passband differ"
+            if filter_type == "chebyshev"
+            else "passband shape or the points just outside the passband differ"
+        )
         warnings.append(
-            "Calibrated edges pass, but the simulated passband shape is outside "
-            "the validated prototype-error envelope; verify before building"
+            f"The -3 dB edges match your request, but the simulated {checked} from the ideal "
+            f"{filter_type.title()} response shape by more than this tool's limits. Check the "
+            "response plot before building."
         )
     if validation["connected_region_count"] != 1:
         warnings.append(
-            "Simulated response has disconnected -3 dB regions; only the "
-            "center-connected skirt pair is calibrated, and the overall outer "
-            "envelope is not validated"
+            "The simulated response crosses -3 dB more than twice, so it is above -3 dB in "
+            "separate ranges (for example, a ripple dip inside the band). Only the edges of "
+            "the range around the center were matched to your request. Check the response "
+            "plot before building."
         )
     return warnings
 
