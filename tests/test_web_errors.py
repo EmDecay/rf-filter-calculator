@@ -11,7 +11,13 @@ import pytest
 
 pytest.importorskip("fastapi")
 
-from tests.cli_parity_helpers import cli_error_message, cli_stderr  # noqa: E402
+from filter_lib.design.render_options import BUILD_NEEDS_ESERIES_MESSAGE  # noqa: E402
+from filter_lib.shared.build_types import (  # noqa: E402
+    RESONATOR_AND_COMPONENT_Q_MESSAGE,
+    SEED_NEEDS_SAMPLES_MESSAGE,
+)
+from filter_lib.shared.cli_aliases import RIPPLE_RANGE_MESSAGE  # noqa: E402
+from tests.cli_parity_helpers import cli_error_message, cli_stderr, cli_stdout  # noqa: E402
 from tests.web_helpers import BASE_URL, HTMX, web_client  # noqa: E402
 
 LP = {"filter_type": "butterworth", "topology": "pi", "frequency": "10MHz"}
@@ -55,6 +61,13 @@ CLI_MATCHED_CASES = [
         "bandpass",
         {**BP, "filter_type": "chebyshev", "resonators": "4"},
         ("bp", "ch", "top", "-f", "14MHz", "-b", "500kHz", "-n", "4"),
+    ),
+    # The range is reported before the Chebyshev odd-count rule, as the CLI does.
+    (
+        "even-chebyshev-bandpass-out-of-range",
+        "bandpass",
+        {**BP, "filter_type": "chebyshev", "resonators": "10"},
+        ("bp", "ch", "top", "-f", "14MHz", "-b", "500kHz", "-n", "10"),
     ),
     (
         "bandwidth-too-wide",
@@ -127,20 +140,23 @@ def test_design_view_shows_the_cli_message(monkeypatch, capsys, client, category
     [
         (
             {**LP, "sim_build": "on", "eseries": "none"},
-            "Realized-build analysis requires an E-series",
+            BUILD_NEEDS_ESERIES_MESSAGE,
         ),
         (
             {**BP, "sim_build": "on", "qu": "200", "build_inductor_q": "100"},
-            "Use either resonator Q (Qu, QL, QC) or component Q (inductor, capacitor), "
-            "not both loss models",
+            RESONATOR_AND_COMPONENT_Q_MESSAGE,
         ),
         ({**BP, "bandwidth": ""}, "Bandwidth is required"),
-        ({**LP, "frequency": " "}, "Frequency is required"),
-        ({**LP, "components": "three"}, "Components must be a whole number"),
-        ({**LP, "filter_type": "chebyshev", "ripple": "lots"}, "Ripple must be a number"),
+        ({**LP, "frequency": " "}, "Cutoff frequency is required"),
+        ({**LP, "components": "three"}, "Number of components must be a whole number"),
+        ({**LP, "filter_type": "chebyshev", "ripple": "lots"}, RIPPLE_RANGE_MESSAGE),
         ({**LP, "output_format": "spice"}, "Output format must be one of: table, quiet, json, csv"),
         ({**LP, "topology": "x"}, "Topology must be one of: pi, t"),
-        ({**LP, "sim_build": "on", "build_seed": "1.5"}, "Seed must be a whole number"),
+        ({**LP, "sim_build": "on", "build_seed": "1.5"}, "Random seed must be a whole number"),
+        (
+            {**LP, "sim_build": "on", "build_seed": "5", "build_sample_count": "0"},
+            SEED_NEEDS_SAMPLES_MESSAGE,
+        ),
     ],
     ids=[
         "build-without-eseries",
@@ -152,6 +168,7 @@ def test_design_view_shows_the_cli_message(monkeypatch, capsys, client, category
         "unknown-format",
         "unknown-topology",
         "non-integer-seed",
+        "seed-without-random-cases",
     ],
 )
 def test_web_only_rules_are_reported_as_bad_requests(client, form, message):
@@ -196,7 +213,10 @@ def test_nominal_spice_needs_an_eseries(client):
     response = client.post("/export/lowpass/spice-nominal", data={**LP, "eseries": "none"})
 
     assert response.status_code == 400
-    assert response.json()["error"].startswith("Nominal-build SPICE requires selected capacitor")
+    assert response.json()["error"] == (
+        '"SPICE – chosen parts" needs an E-series (E12, E24, or E96) to choose standard '
+        'capacitor values; or download "SPICE – calculated values"'
+    )
 
 
 def test_failed_submission_without_javascript_keeps_the_inputs(client):
@@ -244,8 +264,8 @@ def test_unexpected_failures_are_not_reported_as_input_errors(monkeypatch):
 @pytest.mark.parametrize(
     "output_format, message",
     [
-        ("csv", "Realized-build analysis is supported only with table or JSON component output"),
-        ("quiet", "Realized-build analysis cannot be combined with quiet output"),
+        ("csv", "Build simulation needs table or JSON output"),
+        ("quiet", "Build simulation cannot be used with values-only output"),
     ],
 )
 def test_design_view_rejects_a_build_its_output_cannot_show(client, output_format, message):
@@ -279,8 +299,8 @@ def test_hidden_ripple_is_ignored_for_non_chebyshev_types(client):
 
 
 LOSS_Q_MESSAGE = (
-    "Loss-Q input {} is not represented by this output mode; "
-    "use table, JSON, or nominal-build SPICE"
+    "{0} {1} no effect on this output. Resonator Q values are used only in table and JSON "
+    "output and in the chosen-parts (nominal-build) SPICE deck; remove {0} or change the output"
 )
 
 
@@ -291,16 +311,14 @@ def test_design_view_refuses_loss_q_its_output_cannot_show(client, output_format
     response = client.post("/design/bandpass", data=form, headers=HTMX)
 
     assert response.status_code == 400
-    assert LOSS_Q_MESSAGE.format("Qu, QL") in response.text
+    assert LOSS_Q_MESSAGE.format("Qu, QL", "have") in response.text
 
 
-@pytest.mark.parametrize("kind", ["csv", "spice-exact", "response-json", "response-csv"])
+@pytest.mark.parametrize("kind", ["csv", "spice-exact"])
 def test_downloads_refuse_loss_q_they_cannot_show(monkeypatch, capsys, client, kind):
     flags = {
         "csv": ("--format", "csv"),
         "spice-exact": ("--format", "spice", "--spice-realization", "exact"),
-        "response-json": ("--plot-data", "json"),
-        "response-csv": ("--plot-data", "csv"),
     }[kind]
     cli_err = cli_stderr(
         monkeypatch, capsys, "bp", "bw", "top", "-f", "14MHz", "-b", "500kHz", "--qc", "900", *flags
@@ -309,9 +327,35 @@ def test_downloads_refuse_loss_q_they_cannot_show(monkeypatch, capsys, client, k
     response = client.post(f"/export/bandpass/{kind}", data={**BP, "qc": "900"})
 
     assert response.status_code == 400
-    assert response.json() == {"error": LOSS_Q_MESSAGE.format("QC")}
+    assert response.json() == {"error": LOSS_Q_MESSAGE.format("QC", "has")}
     # The CLI refuses the same combination, naming its flag instead of the form label.
-    assert LOSS_Q_MESSAGE.format("--qc") in cli_err
+    assert LOSS_Q_MESSAGE.format("--qc", "has") in cli_err
+
+
+@pytest.mark.parametrize("data_format", ["json", "csv"])
+def test_response_downloads_leave_out_loss_q_like_the_wizard(
+    monkeypatch, capsys, client, data_format
+):
+    # Qu/QL/QC never change the ideal response, so the download equals the CLI's
+    # --plot-data output for the same design without them.
+    cli_out = cli_stdout(
+        monkeypatch,
+        capsys,
+        "bp",
+        "bw",
+        "top",
+        "-f",
+        "14MHz",
+        "-b",
+        "500kHz",
+        "--plot-data",
+        data_format,
+    )
+
+    response = client.post(f"/export/bandpass/response-{data_format}", data={**BP, "qu": "200"})
+
+    assert response.status_code == 200
+    assert response.text == cli_out
 
 
 @pytest.mark.parametrize(
@@ -328,3 +372,73 @@ def test_outputs_that_show_the_loss_model_accept_loss_q(client, path, extra):
     response = client.post(path, data={**BP, "qu": "200", **extra}, headers=HTMX)
 
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "form, message",
+    [
+        (
+            {**LP, "sim_build": "on", "build_capacitor_tolerance_pct": "100"},
+            "Capacitor tolerance must be at least 0% and less than 100%",
+        ),
+        (
+            {**LP, "sim_build": "on", "build_inductor_q": "0"},
+            "Inductor Q must be between 0.01 and 1e9",
+        ),
+        (
+            {**LP, "sim_build": "on", "build_sample_count": "10001"},
+            "The number of extra random tolerance cases must be a whole number from 0 to 10000",
+        ),
+        (
+            {**LP, "sim_build": "on", "build_grid_points": "50"},
+            "Frequency points must be a whole number from 51 to 5001",
+        ),
+        (
+            {**LP, "sim_build": "on", "build_reference_frequency": "abc"},
+            "Invalid frequency at which the Q values apply: abc (use a number with an optional "
+            "k, M, or G suffix, e.g. 14.2MHz)",
+        ),
+        (
+            {**BP, "resonator_impedance": "75", "resonator_inductance": "1uH"},
+            "Set either the resonator impedance or the resonator inductance, not both",
+        ),
+        ({**BP, "qu": "100", "ql": "200"}, "Give either Qu or QL/QC, not both"),
+        ({**BP, "qu": "0"}, "Qu must be between 0.01 and 1e9"),
+    ],
+    ids=[
+        "capacitor-tolerance",
+        "inductor-q",
+        "random-cases",
+        "frequency-points",
+        "q-frequency",
+        "two-tank-settings",
+        "qu-and-ql",
+        "qu-range",
+    ],
+)
+def test_field_rules_name_the_field_in_plain_words(client, form, message):
+    """No internal field name (``capacitor_tolerance_pct``) or interval notation is shown."""
+    category = "bandpass" if "bandwidth" in form else "lowpass"
+
+    response = client.post(f"/api/design/{category}", data=form)
+
+    assert (response.status_code, response.json()) == (400, {"error": message})
+    assert "_" not in message
+
+
+def test_loss_q_download_rules_come_from_the_shared_rule():
+    """Refused for CSV and the calculated-values deck; left out of response data."""
+    from filter_lib.web.routes_export import LOSS_Q_DROPPED, LOSS_Q_HIDDEN
+
+    assert LOSS_Q_HIDDEN == {"csv", "spice-exact"}
+    assert LOSS_Q_DROPPED == {"response-json", "response-csv"}
+
+
+def test_a_json_download_refuses_a_seed_without_random_cases(client):
+    """The visible build reaches the JSON download, with the CLI's --seed rule."""
+    form = {**LP, "output_format": "csv", "visible.sim_build": "on", "build_seed": "4"}
+
+    response = client.post("/export/lowpass/json", data=form)
+
+    assert response.status_code == 400
+    assert response.json() == {"error": SEED_NEEDS_SAMPLES_MESSAGE}

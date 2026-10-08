@@ -1,5 +1,5 @@
 {%- from "partials/fields.html" import segmented, text_field with context -%}
-<nav class="tabs" aria-label="Filter category">
+<nav class="tabs" aria-label="Filter">
   {% for name in categories %}
   <a class="tab" href="/?category={{ name }}"
      hx-get="/form/{{ name }}" hx-target="#design-form-slot" hx-push-url="/?category={{ name }}"
@@ -9,11 +9,11 @@
 
 <form id="design-form" class="design-form" method="post" action="/design/{{ category }}"
       hx-post="/design/{{ category }}" hx-target="#result" hx-indicator="#design-form"
-      hx-disabled-elt="find .btn--primary">
+      hx-disabled-elt="find .btn--primary" data-option-states="{{ option_states }}">
   <fieldset class="group">
-    <legend class="group__title">Response</legend>
+    <legend class="group__title">{% if category == "bandpass" %}Response and coupling{% else %}Response and topology{% endif %}</legend>
     <div class="fields">
-      {{ segmented("filter_type", "Filter type", [("butterworth", "Butterworth"), ("chebyshev", "Chebyshev"), ("bessel", "Bessel")]) }}
+      {{ segmented("filter_type", "Response", [("butterworth", "Butterworth"), ("chebyshev", "Chebyshev"), ("bessel", "Bessel")]) }}
       {% if category == "bandpass" %}
       <div class="field field--wide">
         <span class="field__label">Coupling</span>
@@ -21,7 +21,7 @@
         <input type="hidden" name="coupling" value="top">
       </div>
       {% else %}
-      {{ segmented("topology", "Topology", [("pi", "Pi · shunt first"), ("t", "T · series first")]) }}
+      {{ segmented("topology", "Topology", [("pi", "Pi (shunt first)"), ("t", "T (series first)")]) }}
       {% endif %}
       {{ text_field("ripple", "Passband ripple (dB)", help="Chebyshev only; above 0 and at most 3 dB.", show_for="chebyshev") }}
     </div>
@@ -33,15 +33,18 @@
   <fieldset class="group">
     <legend class="group__title">Frequency and size</legend>
     <div class="fields">
-      {{ text_field("frequency", "Cutoff frequency", help="Units: Hz, kHz, MHz, GHz (10MHz, 10M, 10e6).", wide=true) }}
-      {{ text_field("components", "Components", help="2 to 9.", inputmode="numeric") }}
-      {{ text_field("impedance", "Impedance (Ω)", help="Source and load; k and M allowed.") }}
+      {{ text_field("frequency", "Cutoff frequency", help="The −3 dB point for Butterworth and Bessel; the edge of the ripple band for Chebyshev. Units: Hz, kHz, MHz, GHz (10MHz, 10M, 10e6).", wide=true) }}
+      {{ text_field("components", "Number of components", help="2 to 9; odd (3, 5, 7, 9) for Chebyshev.", inputmode="numeric") }}
+      {{ text_field("impedance", "Impedance (Ω)", help="Equal source and load impedance; k and M allowed (e.g. 1k).") }}
     </div>
   </fieldset>
   {% endif %}
 
   {% include "partials/output_options.html" %}
   {% include "partials/build_options.html" %}
+
+  {#- app.js announces here why options became unavailable; empty without JavaScript. #}
+  <p class="visually-hidden" id="option-status" role="status" aria-live="polite" data-option-status></p>
 
   <div class="submit-bar">
     <button class="btn btn--primary" type="submit">

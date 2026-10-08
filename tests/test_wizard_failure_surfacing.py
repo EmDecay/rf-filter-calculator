@@ -73,7 +73,9 @@ def _state(category: str, **overrides) -> FilterState:
         (
             "bandpass",
             {"bandwidth_hz": 9.99e6, "order": 9},
-            "Bandwidth too wide to realize: derived tank capacitances must be positive and finite",
+            "Cannot realize this design: resonator capacitors Cp1, Cp2, Cp3, Cp4, Cp5, Cp6, Cp7, "
+            "Cp8, Cp9 would be negative. Reduce the bandwidth or the number of resonators; "
+            "changing the resonator impedance or inductance does not fix this.",
         ),
         # A subnormal bandwidth is rejected before synthesis with a message naming the
         # bandwidth and its limit; with build analysis enabled it is still an outcome.
@@ -86,7 +88,7 @@ def _state(category: str, **overrides) -> FilterState:
                 "build_grid_points": 51,
             },
             "Bandwidth 4.94e-324 Hz is too narrow relative to the 1e+07 Hz center frequency "
-            "to synthesize at double precision; use a fractional bandwidth of at least "
+            "to calculate reliably; use a fractional bandwidth of at least "
             "3.6e-12 (a bandwidth of at least 3.6e-05 Hz)",
         ),
     ],
@@ -197,7 +199,10 @@ def test_calculator_that_stores_no_result_is_an_error_outcome(monkeypatch):
 
     outcome = calculate_and_format(_state("highpass"))
 
-    assert (outcome.status, outcome.error) == ("error", "Calculation returned no usable result")
+    assert (outcome.status, outcome.error) == (
+        "error",
+        "Internal error: the calculation returned no result. Please report this.",
+    )
     assert outcome.output_text == ""
 
 
@@ -256,5 +261,44 @@ def test_worker_exception_is_rendered_without_exiting_the_app(monkeypatch) -> No
             )
             assert app.filter_state.calculation_status == "error"
             assert app.screen.query_one("#export-btn", Button).disabled is True
+
+    asyncio.run(exercise())
+
+
+def test_results_display_when_the_working_folder_was_deleted(monkeypatch) -> None:
+    """``os.getcwd()`` raises once the start folder is gone; the results must still show."""
+    from types import SimpleNamespace
+
+    import filter_lib.wizard.export_formatting as export_module
+    import filter_lib.wizard.screens.results as results_module
+
+    def deleted_folder() -> str:
+        raise FileNotFoundError(2, "No such file or directory")
+
+    monkeypatch.setattr(
+        export_module, "os", SimpleNamespace(getcwd=deleted_folder, path=export_module.os.path)
+    )
+    assert results_module.export_folder_text() == results_module.EXPORT_FOLDER_FALLBACK
+
+    async def exercise() -> None:
+        app = FilterWizardApp()
+        app.filter_state = _state("lowpass")
+        async with app.run_test(size=(120, 45)) as pilot:
+            await pilot.pause()
+            app.push_screen(ResultsScreen())
+            await pilot.pause()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+            screen = app.screen
+            assert isinstance(screen, ResultsScreen)
+            assert app.filter_state.calculation_status == "success"
+            assert "Butterworth Pi Low-Pass Filter" in str(
+                screen.query_one("#results-text", Static).render()
+            )
+            assert str(screen.query_one("#export-folder", Static).render()) == (
+                "Files are saved in the current folder."
+            )
+            assert screen.query_one("#export-btn", Button).disabled is False
 
     asyncio.run(exercise())

@@ -1,30 +1,24 @@
-"""Cross-option validation specific to SPICE export."""
+"""Cross-option validation specific to SPICE export.
+
+``--sim-build`` and ``--sim-matched`` never reach this check: both are rejected with
+``--format spice`` earlier, because they need table or JSON output.
+"""
 
 from argparse import Namespace
 
+from .cli_output_validation import join_flags, matching_options, tolerance_analysis_options
 from .cli_validation_error import usage_error
 
 
 def validate_spice_mode(args: Namespace) -> None:
     """Reject controls that the selected SPICE realization cannot honor."""
-    if getattr(args, "sim_matched", False) or getattr(args, "sim_build", False):
-        usage_error(args, "--format spice is a standalone output mode")
-    unused = [
-        flag
-        for value, flag in (
-            (getattr(args, "build_capacitor_tolerance_pct", None), "--capacitor-tolerance"),
-            (getattr(args, "build_inductor_tolerance_pct", None), "--inductor-tolerance"),
-            (getattr(args, "build_sample_count", None), "--sample-count"),
-            (getattr(args, "build_seed", None), "--seed"),
-            (getattr(args, "build_grid_points", None), "--analysis-points"),
-        )
-        if value is not None
-    ]
+    unused = tolerance_analysis_options(args)
     if unused:
-        verb = "affects" if len(unused) == 1 else "affect"
         usage_error(
             args,
-            f"{', '.join(unused)} {verb} tolerance analysis, not a SPICE deck; use --sim-build",
+            f"{join_flags(unused, 'applies', 'apply')} only to --sim-build, not to a SPICE "
+            f"deck; remove {'it' if len(unused) == 1 else 'them'} or use --sim-build instead "
+            "of --format spice",
         )
     realization = getattr(args, "spice_realization", None) or "nominal-build"
     if realization == "exact":
@@ -38,15 +32,20 @@ def validate_spice_mode(args: Namespace) -> None:
                     "--loss-reference-frequency",
                 ),
                 (bool(getattr(args, "no_toroid_build", False)), "--no-toroid-build"),
-                (bool(getattr(args, "_eseries_explicit", False)), "--eseries"),
             )
             if enabled
-        ]
+        ] + matching_options(args)
         if exact_unused:
-            usage_error(args, f"{', '.join(exact_unused)} cannot affect an exact lossless deck")
+            usage_error(
+                args,
+                f"{join_flags(exact_unused, 'has', 'have')} no effect on an exact SPICE deck, "
+                "which uses the calculated values without losses; remove "
+                f"{'it' if len(exact_unused) == 1 else 'them'} or use --spice-realization "
+                "nominal-build",
+            )
     elif getattr(args, "no_match", False):
         usage_error(
             args,
-            "nominal-build SPICE requires selected capacitor values; remove --no-match "
-            "or use --spice-realization exact",
+            "a nominal-build SPICE deck uses standard E-series capacitor values; remove "
+            "--no-match or use --spice-realization exact",
         )

@@ -16,7 +16,7 @@ from filter_lib.shared.physical_input_limits import (
     require_port_resistance,
 )
 
-Q_MESSAGE = r"^inductor_q must be finite and in \[0\.01, 1e\+09\]$"
+Q_MESSAGE = r"^Inductor Q must be between 0\.01 and 1e9$"
 
 
 def test_ranges_are_the_documented_values():
@@ -26,7 +26,7 @@ def test_ranges_are_the_documented_values():
 class TestComponentQ:
     @pytest.mark.parametrize("value", [0.01, 1e9, 1, 150.0])
     def test_values_inside_the_inclusive_range_are_returned(self, value):
-        assert require_component_q(value, "inductor_q") == value
+        assert require_component_q(value, "Inductor Q") == value
 
     @pytest.mark.parametrize(
         "value",
@@ -57,7 +57,7 @@ class TestComponentQ:
     )
     def test_everything_else_is_a_value_error_naming_the_input(self, value):
         with pytest.raises(ValueError, match=Q_MESSAGE):
-            require_component_q(value, "inductor_q")
+            require_component_q(value, "Inductor Q")
 
 
 class TestPortResistance:

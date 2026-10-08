@@ -12,7 +12,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - **Speed**: Real-time component value generation
 - **Accessibility**: Simple CLI, an interactive wizard for learning, and a local web UI for point-and-click design
 - **Flexibility**: Multiple filter types, topologies, and response types
-- **Practicality**: E-series component matching to real-world available values
+- **Practicality**: standard E-series capacitor values that can actually be bought
 
 ### Target Users
 - RF Engineers (professional)
@@ -21,20 +21,21 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 2.2.0 (local web UI on a shared design service)
+**Version**: 2.3.0 (plain-language output and aligned CLI, wizard, and web UI)
 - More than 4,500 collected tests, with a 90% CI coverage floor
 - Full CLI, interactive TUI, and local web UI with advanced plotting
 - Complete documentation
 - Python 3.10+ compatible
 - Automated CI with GitHub Actions
 - Code quality enforced via ruff linting
-- Bandpass external Q realized by series end-coupling capacitors; shunt-C coupling removed
-- Bandpass Top-C synthesis calibrated and independently verified per design; 128-cell maintained acceptance matrix
+- Bandpass external Q set by series end-coupling capacitors; shunt-C coupling removed
+- Bandpass Top-C design calibrated to the requested −3 dB edges, with a per-design response check; 128-cell maintained acceptance matrix
 - Chebyshev g-values computed by formula for arbitrary ripple; capacitors-only E-series matching
 - Graph enhancements (GH-7): dB threshold tables + zoomed plots
-- Automatic toroid screen restricted to primary-sourced T25-6, T50-2, and T68-2; RF Q, SRF, core loss, thermal rise, saturation, and power are explicitly not assessed
-- Nominal-build analysis with selected parts or explicit exact fallbacks, finite-Q loss, unequal-port transducer gain, deterministic corners, and optional seeded screening
-- Generic exact and nominal-build SPICE export; strict JSON and rectangular quoted CSV
+- Automatic toroid winding suggestions restricted to primary-sourced T25-6, T50-2, and T68-2; RF Q, SRF, core loss, heating, saturation, and power are explicitly not checked
+- Build simulation with the chosen parts (or the calculated value where no part was chosen), part losses (Q), separate simulation source/load resistance, fixed tolerance cases, and optional repeatable extra random cases
+- Generic SPICE export (calculated values or chosen parts); strict JSON and rectangular quoted CSV
+- Plain-language help, errors, output, wizard, and web text, with one shared message per rule
 - Comprehensive coverage: CLI subcommands, wizard screen units, real Textual pilot flows,
   worker revision/lifecycle behavior, and input-validation error paths
 - Filter-type alias canonicalization & Chebyshev odd-order constraint enforcement
@@ -76,8 +77,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - **Acceptance Criteria**:
   - ✓ Normalized g-values per Matthaei/Young/Jones standard
   - ✓ Coupling capacitor values calculated correctly
-  - ✓ Per-design checks for requested/outer skirts, connected passband, center, bandwidth, ripple, passband shape, and near-stopband samples; far-stopband diagnostics are informational
-  - ✓ Maintained 128-cell matrix: 106 validated, 17 explicit `outside_validated_envelope`, 5 rejected as known-unrealizable
+  - ✓ Per-design response check of the requested and outer −3 dB edges, separate −3 dB ranges, center, bandwidth, ripple, passband shape, and points just outside the passband; attenuation farther out is informational
+  - ✓ Maintained 128-cell matrix: 106 pass (`validated`), 17 not confirmed (`outside_validated_envelope`), 5 rejected as known-unrealizable
 
 #### 1.2 Response Type Support
 
@@ -99,21 +100,21 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Better pulse response than Butterworth
 - The flat-delay property applies to the lowpass prototype; HP/BP transformations require external phase/group-delay verification
 
-#### 1.3 Component Matching
+#### 1.3 Standard Capacitor Values
 
 **FR-1.3.1: E-Series Matching (Capacitors Only)**
 - **Scope**: Capacitor values matched to E-series standards; inductors shown as raw calculated values
-- **E12 Series**: 12 preferred values per decade
-- **E24 Series**: 24 preferred values per decade (default)
-- **E96 Series**: 96 preferred values per decade
+- **E12 Series**: 12 standard values per decade
+- **E24 Series**: 24 standard values per decade (default)
+- **E96 Series**: 96 standard values per decade
 - **Tolerance**: independent build input; an E-series name is not a tolerance declaration
 - **Matching Strategies**:
   - Single value: selected when within 1% of target
   - Parallel combination: selected only when it improves absolute error by at least 0.5 percentage points
-  - Below 1 pF: automatic selection withheld pending expert override
+  - Below 1 pF: no part chosen automatically unless `--allow-sub-pf` (wizard/web: **Allow capacitors below 1 pF**) is on; otherwise the user is told to choose one manually
 - **Acceptance Criteria**:
-  - ✓ Exactly one selected realization, or an explicit expert-action status
-  - ✓ Policy and selection reason exported in table, JSON, and CSV
+  - ✓ Exactly one choice per capacitor, or an explicit "none (below 1 pF)" status
+  - ✓ Selection rule and reason exported in table, JSON, and CSV; `--allow-sub-pf` reaches table, CSV, JSON, build simulation, and chosen-parts SPICE alike
   - ✓ All three E-series selections work correctly
   - ✓ Inductors always shown as raw values (no matching)
 
@@ -122,7 +123,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 **FR-1.4.1: Table Format (Default)**
 - ASCII circuit topology diagram
 - Component values in pF/µH/nH format
-- E-series recommendations with error percentages
+- Standard capacitor values with error percentages
 - Optional frequency response plot
 
 **FR-1.4.2: JSON Format**
@@ -135,8 +136,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - One component per line
 - Unit column for clarity
 
-**FR-1.4.4: Quiet Mode**
-- Minimal output (components only)
+**FR-1.4.4: Values Only (`-q`)**
+- Only the component values, one per line
 - Suitable for scripting
 
 #### 1.5 Frequency Response Visualization
@@ -153,8 +154,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 
 **FR-1.5.2: Threshold Detection & Summary Tables**
 - Automatic detection of -3, -10, -20 dB crossing frequencies
-- Direction indicators: ↓ (Lowpass falling), ↑ (Highpass rising)
-- Dual-column tables for Bandpass (f_low / f_high)
+- One `Frequency` column for Lowpass and Highpass
+- `Lower` / `Upper` columns for Bandpass
 - "N/A" for thresholds not reached within sweep range
 
 **FR-1.5.3: Data Export**
@@ -165,9 +166,9 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 
 **FR-1.6.1: Guided Design Mode**
 - No command-line arguments triggers interactive TUI wizard
-- Screen-based navigation: Welcome → Parameters → Output Options → Results
+- Screen-based navigation: Welcome → Parameters → Output options → Results
 - Arrow keys, Tab, Enter for navigation
-- Default values shown as input field placeholders
+- Fields start at the CLI defaults; a blank frequency field uses the example its label names
 - Validation at each step with error messages
 - Escape key to navigate back, Ctrl+C to exit
 
@@ -175,23 +176,27 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Filter type selection screen (lowpass/highpass/bandpass)
 - Category-specific parameter screens with conditional UI
 - Chebyshev ripple field appears only when needed
+- Band-pass: center and width or lower/upper −3 dB band edges; optional resonator size and
+  resonator Q (Qu, or QL and QC) in "Resonators and losses"
 - VerticalScroll support for small terminals (<25 lines)
 
-**FR-1.6.3: Output Options**
-- E-series selection menu (E12/E24/E96/None)
-- Output format selection (table/json/csv) and independent response-data export
-- Toroid winding detail for table output: Full (default; up to three screened cores with wire, DCR, and size) or Compact (one line for the best core)
-- Advanced realized-build controls for tolerances, Q/loss, evaluation ports, screening count/seed, initial grid size, and toroid use; refined measurements expose convergence and connected-region semantics
-- Export frequency response data option
-- Toggleable flags: raw units, quiet mode
+**FR-1.6.3: Output options**
+- Same options, labels, defaults, and order as the web form
+- Format: Table, Values only, JSON, or CSV
+- Standard capacitor values (E12/E24/E96/None) and the **Allow capacitors below 1 pF** checkbox
+- Toroid windings (table detail): Best, detailed (default), Up to 3, detailed, Best, one line, or None (`--no-toroids`)
+- Text plot in the table (off by default) and raw units
+- Response data file option (leaves out resonator Q)
+- Optional build simulation controls for tolerances, part Q, the frequency at which the Q values apply, simulation source/load resistance, extra random tolerance cases and seed, frequency points, and toroid use (ticked by default); fields pre-filled with the CLI defaults; refined measurements report convergence and separate −3 dB ranges
+- Options that cannot apply to the chosen format are disabled with a one-line reason from the shared rule (`filter_lib.design.option_applicability`); saved files use each disabled option's visible value where it applies
 - Async calculation with loading indicator
 
 **FR-1.6.4: Parameter Defaults**
 - Impedance: 50Ω (standard RF)
 - Ripple: 0.5 dB (Chebyshev)
-- E-series: E24 (preferred-value density; not tolerance)
+- E-series: E24 (values per decade; not tolerance)
 - Components/Resonators: 3 (user configurable)
-- Placeholders show defaults in input fields
+- Build simulation: CLI defaults pre-filled (5 % / 10 % tolerance, 0 extra cases, seed 0, 601 points)
 
 #### 1.7 Web UI (optional `web` extra)
 
@@ -199,14 +204,16 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - `filter-calc web` serves the UI on `127.0.0.1:8765` by default; `--host` and `--port` change it
 - A tab per category with form fields that mirror the CLI flags and use the CLI's parsers,
   defaults, and error messages
-- The result panel shows the CLI's text output; an optional SVG plot uses the response-data samples
-- Downloads (JSON, CSV, exact and nominal-build SPICE, response JSON/CSV) are byte-identical to
+- The result panel shows the CLI's text output; an optional SVG response graph uses the response-data samples
+- Downloads (Design JSON, Components CSV, SPICE – calculated values, SPICE – chosen parts, response data JSON/CSV) are byte-identical to
   CLI output; `POST /api/design/<category>` returns the `--format json` document
+- Same options, labels, defaults, and order as the wizard; options that cannot apply are disabled with a reason, and the server refuses them in hand-made requests
+- Downloads use the inputs of the result shown (plus visible values of disabled controls where they apply); a notice appears when the form has changed since
 
 **FR-1.7.2: Safe Local Defaults**
 - Loopback bind by default, with a warning for any other address
 - Only the page's own origin may submit work; requests must be addressed to this server
-- Calculations are bounded (two workers, 60 s timeout that cancels build analysis)
+- Calculations are bounded (two workers, 60 s timeout that stops the build simulation)
 - Without the extra, `filter-calc web` exits 1 with an install hint
 
 ---
@@ -318,7 +325,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 **TC-3.2.1: Practical Component Ranges**
 - The numerical APIs accept positive finite values when the derived circuit remains representable
 - Practicality is not inferred from numeric representability; package parasitics, SRF, voltage/current rating, layout, and available parts must be checked separately
-- Automatic preferred-value selection is intentionally withheld below 1 pF
+- Below 1 pF no standard value is chosen automatically unless `--allow-sub-pf` is given
 
 **TC-3.2.2: Frequency Range**
 - No arbitrary numeric 100 Hz–10 GHz gate is imposed
@@ -370,11 +377,12 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 #### 4.2 Display Design
 
 **DD-4.2.1: Capacitor and Winding Guidance**
-- E-series preferred-value selection applies to capacitors in every topology
+- Standard capacitor values apply to capacitors in every topology
 - Inductors remain calculated winding targets rather than E-series substitutions
-- Screened toroid candidates may provide integer-turn construction options when exact
-  primary-source eligibility and frequency/tolerance gates are met
-- Displays distinguish calculated, selected, exact-fallback, and expert-action states
+- Toroid winding suggestions may provide whole-turn construction options when exact
+  primary-source eligibility and frequency/tolerance checks are met
+- Displays distinguish calculated values, chosen parts, calculated values used in place of a
+  part, and capacitors below 1 pF that must be chosen manually
 
 **DD-4.2.2: ASCII Plots vs Graphical**
 - ASCII plots in terminal (no external dependencies)
@@ -386,7 +394,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 
 **DD-4.3.1: Textual TUI Wizard as Default**
 - `uv run filter-calc` (no args) triggers interactive Textual TUI wizard
-- Screen-based navigation: Welcome → Parameters → Output Options → Results
+- Screen-based navigation: Welcome → Parameters → Output options → Results
 - CLI command args also available for scripting
 - Rationale: Rich terminal UI lowers learning curve, provides guided experience, professional appearance
 - Expert users can use CLI directly with command arguments
@@ -557,6 +565,7 @@ Status: ✓ Measured ~200ms on reference machine
 | 2.0.0 | Jun 11-12 2026 | Accuracy remediation: bandpass series end-coupling (shunt-C removed); netlist-simulated bandpass plots; formula-based Chebyshev g-values for arbitrary ripple; capacitors-only E-series matching; unified --plot-data export schema; coordinated breaking CLI cleanup; 1046→1227 tests |
 | 2.1.0 | Jul 19 2026 | Per-design calibrated bandpass validation; deterministic preferred-value policy; primary-sourced toroid screening; realized-build loss/tolerance analysis; generic SPICE; strict machine output; numeric/API hardening; wizard/export lifecycle fixes; Python 3.10–3.13 packaging and CI gates |
 | 2.2.0 | Oct 7 2026 | Local web UI (`filter-calc web`, optional `web` extra) with CLI-identical output and an SVG response plot; one shared design service for CLI, wizard, and web; accuracy and stability fixes made after 2.1.0 |
+| 2.3.0 | Oct 8 2026 | Plain-language help, errors, output, wizard, and web text; `--allow-sub-pf` on CLI, wizard, and web; wizard and web aligned (same options, labels, defaults; inapplicable options disabled with a reason; downloads use the result's inputs); `--frequency`/`--freq` everywhere, `--spice-realization` aliases, one `-n` error; no JSON key, CSV column, flag, or choice value removed; numbers unchanged |
 
 ---
 

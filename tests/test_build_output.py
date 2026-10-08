@@ -88,10 +88,15 @@ def test_unresolved_and_disconnected_measurements_remain_explicit_in_text_and_js
         center_in_selected_region=True,
         measurement_converged=False,
     )
-    text = _format_measurement("bandpass", measurement)
+    lines = _format_measurement("bandpass", measurement)
     payload = _measurement_payload(measurement, "bandpass")
-    assert "UNRESOLVED" in text and "2 disconnected regions, selected region 2" in text
-    assert "half-power reference -2.000 dB at 10 Hz" in text
+    assert "did not converge; values approximate" in lines
+    assert (
+        "above -3 dB in 2 separate ranges; edges taken from the range around the peak "
+        "nearest the center"
+    ) in lines
+    # The reference peak (-2 dB) differs from the overall peak (-1 dB), so it is named.
+    assert "-3 dB measured from the -2.00 dB peak at 10 Hz" in lines
     assert payload["measurement_converged"] is False
     assert payload["selected_region_index"] == 1
     assert payload["half_power_regions"][0] == {"f_low_hz": 5, "f_high_hz": 6}
@@ -103,19 +108,19 @@ def test_unresolved_and_disconnected_measurements_remain_explicit_in_text_and_js
         (
             "bandpass",
             CircuitMeasurement(9e6, None, -60, True),
-            "no complete -3 dB passband on the simulation grid",
+            "no complete -3 dB passband within the simulated frequency range",
             ("f_high_hz", "f0_hz", "bandwidth_hz"),
         ),
         (
             "lowpass",
             CircuitMeasurement(None, None, -60, True),
-            "no -3 dB cutoff on the simulation grid",
+            "no -3 dB cutoff within the simulated frequency range",
             ("cutoff_hz", "f0_hz", "bandwidth_hz"),
         ),
         (
             "highpass",
             CircuitMeasurement(None, None, -60, True),
-            "no -3 dB cutoff on the simulation grid",
+            "no -3 dB cutoff within the simulated frequency range",
             ("cutoff_hz", "f0_hz", "bandwidth_hz"),
         ),
     ],
@@ -123,11 +128,12 @@ def test_unresolved_and_disconnected_measurements_remain_explicit_in_text_and_js
 def test_missing_skirt_is_reported_instead_of_invented(
     category, measurement, text_claim, missing_keys
 ):
-    text = _format_measurement(category, measurement)
+    lines = _format_measurement(category, measurement)
     payload = _measurement_payload(measurement, category)
 
-    assert text.startswith(text_claim)
-    assert "skirt outside simulation window" in text
+    assert lines[0] == text_claim
+    # The missing landmark already says the range was exceeded; it is not repeated.
+    assert sum("simulated frequency range" in line for line in lines) == 1
     assert payload["edge_at_simulation_grid_boundary"] is True
     assert all(payload[key] is None for key in missing_keys)
 
@@ -178,8 +184,8 @@ def test_toroid_substitutions_report_winding_wire_in_text_and_json():
         assert substitution.wire_awg == best.mechanical.awg
         assert substitution.wire_length_mm == best.mechanical.wire_length_mm
         assert (
-            f"on {substitution.core_name}, {substitution.turns} turns of "
-            f"AWG {substitution.wire_awg} ({substitution.wire_length_mm:.0f} mm)"
+            f"{substitution.turns} turns of AWG {substitution.wire_awg} on "
+            f"{substitution.core_name} ({substitution.wire_length_mm:.0f} mm wire)"
         ) in text
         payload = payloads[substitution.logical_name]
         assert payload["wire_awg"] == substitution.wire_awg
@@ -216,12 +222,15 @@ def test_text_block_states_metric_and_model_limits_without_measurement_claim():
 
     text = "\n".join(format_build_analysis_block(analysis))
 
-    assert "simulation, not a measurement" in text
-    assert "Rs=25 ohm, Rl=100 ohm" in text
-    assert "Calculated exact values" in text
-    assert "Selected nominal build" in text
-    assert "not guaranteed worst case or probability" in text
-    assert "does not imply unequal-termination synthesis" in text
+    assert "Build Simulation (chosen parts; simulated, not measured)" in text
+    assert "Simulated with a 25 \u03a9 source and a 100 \u03a9 load" in text
+    assert "Ideal values:" in text
+    assert "Chosen parts:" in text
+    assert "The tolerance cases do not guarantee the true worst case." in text
+    # Bullets wrap, so compare the limitation with whitespace folded.
+    assert "the different source and load resistances apply only to this simulation" in " ".join(
+        text.split()
+    )
 
 
 def test_nonfinite_measurement_cannot_enter_machine_output():
@@ -268,8 +277,8 @@ def test_metric_outputs_expose_included_omitted_and_grid_censored_counts():
 
     text = "\n".join(format_build_analysis_block(analysis))
     assert (
-        f"cases included {cutoff.included_cases}, omitted {cutoff.omitted_cases} "
-        f"({cutoff.grid_censored_cases} grid-boundary-censored)"
+        f"{cutoff.included_cases} of {len(analysis.cases)} cases; "
+        f"{cutoff.grid_censored_cases} outside the simulated frequency range"
     ) in text
 
 
@@ -288,10 +297,99 @@ def test_unresolved_case_counts_are_disclosed_in_text_and_json():
     summary_lines = [
         line
         for line in format_build_analysis_block(unresolved)
-        if line.startswith("  ") and "cases included" in line
+        if line.startswith("  ") and " cases; " in line
     ]
     payload = build_analysis_fields(result, unresolved)["tolerance_analysis"]
 
     assert len(summary_lines) == len(analysis.metric_summaries) == 3
-    assert all(line.endswith("(2 unresolved)") for line in summary_lines)
+    assert all(line.endswith("; 2 did not converge") for line in summary_lines)
     assert [item["unresolved_cases"] for item in payload["metric_summaries"]] == [2, 2, 2]
+
+
+def _bandpass_analysis(**config):
+    result = calculate_bandpass_filter(10e6, 0.5e6, 50.0, 3, "butterworth", "top")
+    return result, analyze_build(result, "bandpass", BuildConfig(grid_points=51, **config))
+
+
+def test_bandpass_block_uses_component_table_names():
+    _result, analysis = _bandpass_analysis()
+
+    text = "\n".join(format_build_analysis_block(analysis))
+
+    for name in ("Cp1", "L1", "Cs12", "Cs23", "Ce_in", "Ce_out"):
+        assert f"  {name}:" in text
+    for circuit_name in ("CT1", "LT1", "CK1", "CIN", "COUT"):
+        assert circuit_name not in text
+
+
+def test_repeated_inductor_caveat_prints_once_but_json_keeps_every_entry():
+    result, analysis = _bandpass_analysis()
+
+    lines = format_build_analysis_block(analysis)
+    warnings = build_analysis_fields(result, analysis)["nominal_build"]["warnings"]
+
+    caveat = "Not checked: RF Q, core loss, SRF, saturation, heating, power handling."
+    folded = " ".join(" ".join(lines).split())
+    assert folded.count(caveat) == 1
+    assert f"- L1–L3: {caveat} Measure before use." in folded
+    assert [item for item in warnings if caveat in item] == [
+        f"L{index}: {caveat} Measure before use." for index in (1, 2, 3)
+    ]
+
+
+def test_caveats_print_only_for_features_the_run_used():
+    from filter_lib.shared.build_analysis import RANDOM_CASES_LIMITATION
+    from filter_lib.shared.nominal_realization import TOROID_LIMITATION
+
+    result = _lowpass_result()
+    plain = analyze_build(
+        result, "lowpass", BuildConfig(grid_points=51, use_toroid_candidates=False)
+    )
+    sampled = analyze_build(result, "lowpass", BuildConfig(grid_points=51, sample_count=2, seed=4))
+
+    plain_text = " ".join(" ".join(format_build_analysis_block(plain)).split())
+    sampled_text = " ".join(" ".join(format_build_analysis_block(sampled)).split())
+
+    # No toroid and no random cases: neither caveat nor the unused seed is printed ...
+    assert TOROID_LIMITATION not in plain_text
+    assert RANDOM_CASES_LIMITATION not in plain_text
+    assert "seed" not in plain_text
+    # ... while JSON keeps both entries in the same list.
+    plain_limits = build_analysis_fields(result, plain)["tolerance_analysis"]["limitations"]
+    assert {TOROID_LIMITATION, RANDOM_CASES_LIMITATION} <= set(plain_limits)
+    assert TOROID_LIMITATION in sampled_text
+    assert RANDOM_CASES_LIMITATION in sampled_text
+    assert "and 2 extra random tolerance cases (seed 4)." in sampled_text
+
+
+def test_chosen_parts_row_says_when_calculated_values_were_used():
+    analysis = analyze_build(
+        _lowpass_result(), "lowpass", BuildConfig(grid_points=51, use_toroid_candidates=False)
+    )
+
+    lines = format_build_analysis_block(analysis)
+
+    chosen = lines.index(next(line for line in lines if line.startswith("Chosen parts:")))
+    assert lines[chosen + 2] == " " * 15 + "calculated value used for 1 of 3 parts (see Parts used)"
+    assert "  L1: 1.59 µH, calculated value used (toroid windings off)" in lines
+
+
+def test_block_states_part_losses_and_metric_labels_not_json_keys():
+    lossless = analyze_build(
+        _lowpass_result(), "lowpass", BuildConfig(grid_points=51, use_toroid_candidates=False)
+    )
+    lossy = analyze_build(
+        _lowpass_result(),
+        "lowpass",
+        BuildConfig(grid_points=51, inductor_q=120, capacitor_q=900, use_toroid_candidates=False),
+    )
+
+    lossless_text = "\n".join(format_build_analysis_block(lossless))
+    lossy_text = "\n".join(format_build_analysis_block(lossy))
+
+    assert "Part losses (Q): none; all parts are lossless." in lossless_text
+    assert "Part losses (Q at 10 MHz): inductors 120, capacitors 900." in lossy_text
+    for label in ("  Peak gain:", "  Lowest gain in passband:", "  -3 dB cutoff:"):
+        assert label in lossless_text
+    for key in ("peak_transducer_gain_db", "worst_passband_db", "cutoff_hz", "ohm"):
+        assert key not in lossless_text

@@ -18,7 +18,7 @@ import textwrap
 import venv
 from pathlib import Path
 
-EXPECTED_VERSION = "2.2.0"
+EXPECTED_VERSION = "2.3.0"
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -154,7 +154,7 @@ def _probe_cli(filter_calc: Path, *, cwd: Path, env: dict[str, str]) -> None:
     assert bandpass["response_validation_status"] == "validated"
 
     spice_deck = _run([*lowpass_command, "--format", "spice"], cwd=cwd, env=env).stdout
-    assert "* realization: nominal_build" in spice_deck
+    assert "* values: chosen parts (nominal-build)" in spice_deck
     assert re.search(r"(?im)^\.ac\s", spice_deck)
     assert re.search(r"(?im)^\.end\s*$", spice_deck)
     assert not re.search(r"(?i)(?<![a-z])(?:nan|[+-]?inf(?:inity)?)(?![a-z])", spice_deck)
@@ -167,7 +167,8 @@ def _probe_web_without_extra(filter_calc: Path, *, cwd: Path, env: dict[str, str
     )
     assert result.returncode == 1, (result.returncode, result.stdout, result.stderr)
     assert result.stderr.strip() == (
-        "Error: The web UI needs the optional web dependencies; install with: uv sync --extra web"
+        "Error: The web UI needs the optional web dependencies. From a source checkout run: "
+        'uv sync --extra web. For an installed package: pip install "rf-filter-calculator[web]".'
     ), result.stderr
 
 

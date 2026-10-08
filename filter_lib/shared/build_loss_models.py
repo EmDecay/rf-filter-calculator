@@ -6,6 +6,7 @@ import math
 from dataclasses import replace
 
 from .build_types import BuildConfig
+from .circuit_display_names import display_component_name, format_name_list
 from .circuit_model import CircuitElement
 from .numeric import is_finite_real
 
@@ -71,8 +72,8 @@ def _loss_quality_factors(
         if category != "bandpass":
             raise ValueError("resonator_q is supported only for bandpass build analysis")
         limitations.append(
-            "The supplied complete resonator Q is represented by one equivalent "
-            "inductor series-loss channel per resonator."
+            "The resonator Q you gave (inductor and capacitor losses together) is modeled as "
+            "one series resistance in each resonator inductor; the capacitors are lossless."
         )
         return config.resonator_q, None, False, tuple(limitations)
     if config.inductor_q is not None or config.capacitor_q is not None:
@@ -85,16 +86,21 @@ def _loss_quality_factors(
     qc = q_model.get("capacitor_qc")
     if ql is not None or qc is not None:
         if qc is not None:
+            tank_capacitors = format_name_list(
+                display_component_name(f"CT{index}")
+                for index in range(1, len(result.get("c_tank") or ()) + 1)
+            )
             limitations.append(
-                "The synthesis capacitor Q describes resonator tank capacitors and is "
-                "applied only to CT elements; coupling and end capacitors remain lossless."
+                f"The capacitor Q applies only to the resonator capacitors ({tank_capacitors}); "
+                "the coupling and end capacitors are modeled as lossless."
             )
         return ql, qc, True, tuple(limitations)
     resonator_qu = q_model.get("resonator_qu")
     if resonator_qu is not None:
         limitations.append(
-            "The complete resonator Q from synthesis is represented by one "
-            "equivalent inductor series-loss channel per resonator."
+            "The resonator Qu from the design (inductor and capacitor losses together) is "
+            "modeled as one series resistance in each resonator inductor; the capacitors "
+            "are lossless."
         )
         return resonator_qu, None, False, tuple(limitations)
     return None, None, False, ()

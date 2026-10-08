@@ -9,37 +9,42 @@ import math
 
 from textual.validation import ValidationResult, Validator
 
-from ..bandpass.numeric_validation import MAX_CHEBYSHEV_RIPPLE_DB
+from ..shared.cli_aliases import MAX_RIPPLE_DB, RIPPLE_RANGE_MESSAGE
+
+# Field labels shared by the design screens. Those keyed by ``is_chebyshev`` follow the
+# response choice: the Chebyshev cutoff is the edge of the ripple band, not the -3 dB
+# point, and Chebyshev needs an odd number of components or resonators.
+CUTOFF_LABELS = {
+    False: "Cutoff frequency, the -3 dB point (e.g. 14.2MHz, 7100kHz; blank = 10MHz):",
+    True: "Cutoff frequency, the ripple-band edge (e.g. 14.2MHz, 7100kHz; blank = 10MHz):",
+}
+COUNT_LABELS = {
+    False: "Number of components (2-9):",
+    True: "Number of components (Chebyshev: odd only — 3, 5, 7, 9):",
+}
+RESONATOR_COUNT_LABELS = {
+    False: "Number of resonators (2-9):",
+    True: "Number of resonators (Chebyshev: odd only — 3, 5, 7, 9):",
+}
+RIPPLE_LABEL = f"Passband ripple, dB (above 0, up to {MAX_RIPPLE_DB:g}):"
 
 
 def parse_ripple_db(text: str) -> float:
     """Parse a Chebyshev ripple entry under the shared ``0 < ripple <= 3.0 dB`` contract.
 
     Raises:
-        ValueError: With the text shown after ``Invalid ripple:``, including the
-            ``float()`` message for unparseable input.
+        ValueError: With the shared ripple-range message (the CLI's and web's text) for
+            any entry outside the range, including text that is not a number.
     """
     if not isinstance(text, str):
         raise ValueError("must be supplied as text")
-    ripple = float(text)
-    if not math.isfinite(ripple):
-        raise ValueError("must be finite")
-    if ripple <= 0:
-        raise ValueError("must be positive")
-    if ripple > MAX_CHEBYSHEV_RIPPLE_DB:
-        raise ValueError(f"must be <= {MAX_CHEBYSHEV_RIPPLE_DB} dB")
+    try:
+        ripple = float(text)
+    except ValueError:
+        raise ValueError(RIPPLE_RANGE_MESSAGE) from None
+    if not math.isfinite(ripple) or not 0 < ripple <= MAX_RIPPLE_DB:
+        raise ValueError(RIPPLE_RANGE_MESSAGE)
     return ripple
-
-
-def parser_error_detail(error: ValueError, quantity: str) -> str:
-    """Return a shared-parser rejection without its own ``Invalid <quantity>: `` lead-in.
-
-    ``parse_frequency``, ``parse_impedance``, and ``parse_inductance`` already open
-    unparseable-text errors with that phrase. Wizard messages name the form field
-    themselves, so keeping it would read ``Invalid bandwidth: Invalid frequency: 10XHz``.
-    Other parser messages (``Frequency must be positive: -5MHz``) are returned unchanged.
-    """
-    return str(error).removeprefix(f"Invalid {quantity}: ")
 
 
 class RippleValidator(Validator):

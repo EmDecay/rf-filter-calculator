@@ -15,7 +15,7 @@ from .toroid_wire import MechanicalFit, fit_wire
 
 # Stated once per table section and once per JSON/CSV candidate.
 NOT_ASSESSED_WARNING = (
-    "RF Q, core loss, SRF, saturation, thermal rise, and power handling are not assessed."
+    "Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
 )
 
 

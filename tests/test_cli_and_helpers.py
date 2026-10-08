@@ -182,10 +182,10 @@ class TestValidateFilterArgs:
             (-10e6, 50, 5, "Frequency must be positive"),
             (0.0, 50, 5, "Frequency must be positive"),
             (10e6, 0, 5, "Impedance must be positive"),
-            (10e6, 50, 1, "Components must be 2-9"),
-            (10e6, 50, 10, "Components must be 2-9"),
-            (10e6, 50, True, "Components must be 2-9"),
-            (10e6, 50, 3.0, "Components must be 2-9"),
+            (10e6, 50, 1, "Number of components must be from 2 to 9"),
+            (10e6, 50, 10, "Number of components must be from 2 to 9"),
+            (10e6, 50, True, "Number of components must be from 2 to 9"),
+            (10e6, 50, 3.0, "Number of components must be from 2 to 9"),
         ],
     )
     def test_rejects_out_of_range_values(self, frequency, impedance, components, message):
@@ -344,7 +344,7 @@ class TestDesignArgumentUsageErrors:
 
     def test_bandpass_missing_coupling(self, capsys):
         err = _usage_error("bandpass", capsys, coupling_pos=None)
-        assert "error: coupling topology required: top" in err
+        assert "error: coupling required: top is the only supported type" in err
 
     @pytest.mark.parametrize(
         ("category", "overrides", "label"),
@@ -376,14 +376,14 @@ class TestRippleHandling:
     @pytest.mark.parametrize(
         ("category", "ripple", "message"),
         [
-            ("lowpass", 3.01, "Ripple must be at most 3.0 dB"),
-            ("highpass", 3.01, "Ripple must be at most 3.0 dB"),
-            ("bandpass", 3.5, "Ripple must be at most 3.0 dB"),
-            ("lowpass", -0.1, "Ripple must be positive"),
-            ("highpass", -0.5, "Ripple must be positive"),
-            ("bandpass", -0.5, "Ripple must be positive and finite"),
-            ("lowpass", float("nan"), "ripple_db must be positive, finite"),
-            ("bandpass", float("nan"), "Ripple must be positive and finite"),
+            ("lowpass", 3.01, "Ripple must be greater than 0 and at most 3.0 dB"),
+            ("highpass", 3.01, "Ripple must be greater than 0 and at most 3.0 dB"),
+            ("bandpass", 3.5, "Ripple must be greater than 0 and at most 3.0 dB"),
+            ("lowpass", -0.1, "Ripple must be greater than 0 and at most 3.0 dB"),
+            ("highpass", -0.5, "Ripple must be greater than 0 and at most 3.0 dB"),
+            ("bandpass", -0.5, "Ripple must be greater than 0 and at most 3.0 dB"),
+            ("lowpass", float("nan"), "Ripple must be greater than 0 and at most 3.0 dB"),
+            ("bandpass", float("nan"), "Ripple must be greater than 0 and at most 3.0 dB"),
         ],
     )
     def test_ripple_outside_supported_range_is_rejected(self, category, ripple, message):
@@ -398,7 +398,7 @@ class TestRippleHandling:
         captured = capsys.readouterr()
 
         assert captured.out == baseline
-        assert captured.err == "Warning: ripple is only used by Chebyshev; ignoring\n"
+        assert captured.err == "Warning: -r/--ripple applies only to Chebyshev and was ignored\n"
 
     @pytest.mark.parametrize("category", _CATEGORIES)
     def test_chebyshev_ripple_is_used_without_warning(self, category, capsys):
@@ -418,10 +418,10 @@ class TestBandpassInputs:
         [
             (
                 {"f_low": "14MHz", "f_high": "14.35MHz"},
-                "use (-f + -b) OR (--fl + --fh), not both",
+                "give either -f and -b, or --fl and --fh, not both",
             ),
-            ({"f_low": "13MHz"}, "use (-f + -b) OR (--fl + --fh), not both"),
-            ({"f_high": "15MHz"}, "use (-f + -b) OR (--fl + --fh), not both"),
+            ({"f_low": "13MHz"}, "give either -f and -b, or --fl and --fh, not both"),
+            ({"f_high": "15MHz"}, "give either -f and -b, or --fl and --fh, not both"),
             (
                 {"frequency": None, "bandwidth": None},
                 "frequency required: (-f + -b) or (--fl + --fh)",
@@ -444,7 +444,9 @@ class TestBandpassInputs:
 
     @pytest.mark.parametrize(("f_low", "f_high"), [("15MHz", "14MHz"), ("14MHz", "14MHz")])
     def test_edge_frequencies_must_be_increasing(self, f_low, f_high):
-        with pytest.raises(ValueError, match="Lower frequency must be less than upper"):
+        with pytest.raises(
+            ValueError, match="Lower cutoff frequency must be below the upper cutoff frequency"
+        ):
             _run("bandpass", frequency=None, bandwidth=None, f_low=f_low, f_high=f_high)
 
     @pytest.mark.parametrize("q_safety", [0.0, -1.5])
@@ -453,7 +455,7 @@ class TestBandpassInputs:
             _run("bandpass", q_safety=q_safety)
 
     def test_chebyshev_requires_odd_resonator_count(self):
-        with pytest.raises(ValueError, match="Chebyshev requires odd resonator count"):
+        with pytest.raises(ValueError, match="Chebyshev needs an odd number of resonators"):
             _run("bandpass", filter_type="chebyshev", resonators=4)
 
     def test_wide_fractional_bandwidth_warns_on_stderr(self, capsys):
@@ -462,25 +464,59 @@ class TestBandpassInputs:
 
         assert captured.out.startswith("Cp1: ")
         assert captured.err.startswith(
-            "Warning: FBW 14.1% exceeds the studied edge-calibration range (<=10%) for Top-C"
+            "Warning: Fractional bandwidth 14.1% is above the 10% this design method was "
+            "tested up to."
         )
+
+    def test_table_prints_design_warnings_once_inside_the_table(self, capsys):
+        _run("bandpass", bandwidth="2MHz", quiet=False)
+        captured = capsys.readouterr()
+
+        assert captured.err == ""
+        assert captured.out.count("Fractional bandwidth 14.1% is above the 10%") == 1
+        assert "\nWarnings:\n  ⚠ Fractional bandwidth 14.1%" in captured.out
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"format": "json"},
+            {"format": "csv"},
+            {"format": "spice", "spice_realization": "exact"},
+            {"plot_data": "csv"},
+        ],
+        ids=["json", "csv", "spice", "plot-data"],
+    )
+    def test_other_outputs_keep_design_warnings_on_stderr(self, overrides, capsys):
+        _run("bandpass", bandwidth="2MHz", quiet=False, **overrides)
+        err = capsys.readouterr().err
+
+        assert err.count("Warning: Fractional bandwidth 14.1% is above the 10%") == 1
 
     def test_table_reports_cohn_insertion_loss_at_standard_qu(self, capsys):
         _run("bandpass", quiet=False)
         out = capsys.readouterr().out
 
-        assert "Est. insertion loss (Cohn): 7.0 dB @ Qu=100, 2.8 dB @ Qu=250" in out
-        assert "Loss examples use complete-resonator unloaded Q (not inductor Q alone)." in out
+        assert (
+            "Added loss at f₀ for resonator Qu (inductor and capacitor losses together):\n"
+            "  Qu=100:  Cohn estimate 7.04 dB, circuit simulation 6.87 dB\n"
+            "  Qu=250:  Cohn estimate 2.82 dB, circuit simulation 2.81 dB\n"
+        ) in out
+        assert "Your Qu:" not in out
         assert "Minimum usable Q" not in out
         assert "Q safety factor" not in out
 
     def test_user_qu_adds_a_third_estimate(self, capsys):
         _run("bandpass", quiet=False, qu=150.0)
-        assert "2.8 dB @ Qu=250, 4.7 dB @ Qu=150" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "\nYour Qu: 150\n" in out
+        assert (
+            "  Qu=250:  Cohn estimate 2.82 dB, circuit simulation 2.81 dB\n"
+            "  Qu=150:  Cohn estimate 4.70 dB, circuit simulation 4.64 dB\n"
+        ) in out
 
     @pytest.mark.parametrize("qu", [0.0, -5.0, float("inf"), float("nan"), 0.009, 1.1e9])
     def test_invalid_qu_is_rejected(self, qu):
-        with pytest.raises(ValueError, match=r"^Qu must be finite and in \[0.01, 1e\+09\]$"):
+        with pytest.raises(ValueError, match=r"^Qu must be between 0.01 and 1e9$"):
             _run("bandpass", qu=qu)
 
     def test_json_carries_standard_il_estimates(self, capsys):
@@ -506,7 +542,7 @@ class TestOutputModeConflicts:
             ({"quiet": True, "plot": True}, "--quiet and --plot cannot be used together"),
             (
                 {"plot": True, "plot_data": "json"},
-                "--plot-data is a standalone output mode; remove --plot",
+                "--plot-data prints only frequency-response data; remove --plot",
             ),
         ],
     )
@@ -538,7 +574,7 @@ class TestOutputModes:
         out = capsys.readouterr().out
 
         assert expected_line in out.splitlines()
-        assert "Preferred-Value" not in out
+        assert "Standard Capacitor Values" not in out
 
     @pytest.mark.parametrize(
         ("category", "nearest_e96"),
@@ -558,7 +594,7 @@ class TestOutputModes:
     @pytest.mark.parametrize("category", _CATEGORIES)
     def test_no_match_removes_preferred_values_from_every_format(self, category, capsys):
         _run(category, quiet=False, format="table")
-        assert "Preferred-Value" not in capsys.readouterr().out
+        assert "Standard Capacitor Values" not in capsys.readouterr().out
 
         _run(category, quiet=False, format="json")
         components = json.loads(capsys.readouterr().out)["components"]
@@ -599,6 +635,6 @@ class TestOutputModes:
         _run(category, quiet=False, plot=True)
         out = capsys.readouterr().out
 
-        assert out.index("Component Values") < out.index("Frequency Response (dB)")
-        assert "Passband Detail (0 to -6 dB)" in out
-        assert "dB Threshold Summary" in out
+        assert out.index("Component Values") < out.index("Ideal Frequency Response (dB)")
+        assert "Ideal Response Detail (0 to -6 dB)" in out
+        assert "Frequencies at -3 / -10 / -20 dB" in out

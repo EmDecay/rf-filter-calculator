@@ -1,7 +1,7 @@
 # Testing Guide
 
 **Last updated:** October 7, 2026
-**Applies to:** RF Filter Calculator 2.2.0
+**Applies to:** RF Filter Calculator 2.3.0
 
 ## Quality gates
 
@@ -103,12 +103,16 @@ measured field of `synthesis_validation`.
 
 ### Physical realization
 
-- E12/E24/E96 preferred-value search and deterministic selection policy, including the
+- E12/E24/E96 standard-value search and deterministic selection rule, including the
   exact 10:1 pair limit, the balanced tie-break, and correctly rounded part and pair values
-- one-part preference, material two-part improvement threshold, and sub-1 pF expert action
+- one-part preference, material two-part improvement threshold, and the sub-1 pF rule
+- `--allow-sub-pf`: parser wiring, default off, table/CSV/JSON/build/SPICE agreement with the
+  option on and off, every rejection, and the design-layer rule
+  ([test_sub_pf_selection.py](../tests/test_sub_pf_selection.py))
 - toroid primary-source eligibility, frequency guidance, integer-turn error, winding
   capacity, deterministic ranking, and empty-candidate behavior
-- truthful fallbacks when a nominal part or screened winding is unavailable
+- truthful fallbacks ("calculated value used") when a standard part or toroid winding is
+  unavailable
 
 ### Circuit and build analysis
 
@@ -122,9 +126,12 @@ measured field of `synthesis_validation`.
   ([test_physical_input_limits.py](../tests/test_physical_input_limits.py))
 - category-aware LP/HP cutoff and BP center/bandwidth measurements
 - Q-derived series loss at an explicit reference frequency
-- deterministic tolerance corners and repeatable seeded bounded samples
+- fixed tolerance cases and repeatable seeded extra random cases
 - build-output truthfulness: actual physical elements, fallback disclosure, loss model,
-  generated case counts, and limits
+  generated case counts, and limits printed once and only where they apply (JSON keeps every
+  entry)
+- bandpass circuit-name mapping to table names and the SPICE `* names:` comment
+  ([test_circuit_display_names.py](../tests/test_circuit_display_names.py))
 
 ### Output contracts
 
@@ -169,9 +176,13 @@ Numerical comparisons are simulations, not measured hardware or an external-SPIC
   ([test_wizard_design_screen_journeys.py](../tests/test_wizard_design_screen_journeys.py)).
   These prove widget ids, default selections, and focus chains that the direct-handler tests
   stub out.
-- wizard tables, component exports, response sidecars, and realized-build JSON equal the CLI
+- wizard tables, component exports, response sidecars, and build-simulation JSON equal the CLI
   output for the same design, with every field moved off its default so a dropped or
   swapped field fails ([test_wizard_cli_parity.py](../tests/test_wizard_cli_parity.py))
+- wizard labels, choice order, and defaults equal the web form's
+  ([test_wizard_web_alignment.py](../tests/test_wizard_web_alignment.py)); disabled controls
+  show the shared reason in mounted journeys
+  ([test_wizard_output_option_journeys.py](../tests/test_wizard_output_option_journeys.py))
 - designs the forms accept but the math cannot realize become visible error outcomes
   ([test_wizard_failure_surfacing.py](../tests/test_wizard_failure_surfacing.py))
 - calculation revisioning: stale, cancelled, or popped-screen workers cannot publish
@@ -188,12 +199,20 @@ Numerical comparisons are simulations, not measured hardware or an external-SPIC
   ([test_web_equivalence.py](../tests/test_web_equivalence.py))
 - invalid web input returns 400 with the CLI's message, escaped in HTML
   ([test_web_errors.py](../tests/test_web_errors.py))
-- timeouts return 503, cancel build analysis, queue excess requests, and leave no pool
+- timeouts return 503, stop the build simulation, queue excess requests, and leave no pool
   threads; exports write no files ([test_web_execution.py](../tests/test_web_execution.py))
 - cross-site submissions and foreign `Host` names are refused before any work runs
   ([test_web_request_guard.py](../tests/test_web_request_guard.py))
 - the SVG plot draws exactly the response-data samples
   ([test_web_svg_plot.py](../tests/test_web_svg_plot.py))
+- **Allow capacitors below 1 pF** parsing, its shared message on every route, and table, JSON,
+  CSV, and chosen-parts SPICE byte-identical to `--allow-sub-pf`
+  ([test_web_sub_pf_option.py](../tests/test_web_sub_pf_option.py))
+- the shared applicability rule accepts exactly the option combinations the CLI accepts
+  ([test_design_option_applicability.py](../tests/test_design_option_applicability.py)); the
+  page disables the same controls, downloads post the result's own inputs, and visible values
+  of disabled controls reach only the downloads that can use them, byte-identical to the CLI
+  ([test_web_option_alignment.py](../tests/test_web_option_alignment.py))
 - pages, form parsing, `filter-calc web`, and importing the CLI without FastAPI
   (`test_web_pages.py`, `test_web_form_parsing.py`, `test_web_cmd.py`,
   `test_web_optional_import.py`)

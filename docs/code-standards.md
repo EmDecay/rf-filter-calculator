@@ -118,22 +118,29 @@ and approximation comparisons are informational. Measurement changes need indepe
 references, convergence evidence, and explicit unresolved/region semantics; see
 [accuracy regressions](../tests/test_response_accuracy.py).
 
-Named circuits are the common physical contract for build analysis and SPICE. A selected
-parallel capacitor remains two branches. An unavailable or policy-refused nominal part is an
-explicit exact fallback with warnings, never a fabricated physical part.
+Named circuits are the common physical contract for the build simulation and SPICE. A chosen
+parallel capacitor remains two branches. A part that is unavailable or refused by the selection
+rule is an explicit exact fallback with warnings (shown as "calculated value used"), never a
+fabricated physical part. Bandpass SPICE element names (`CT1`, `LT1`, `CK1`, `CIN`, `COUT`) stay
+as they are; human-readable text maps them to the table names with
+`shared/circuit_display_names.py::display_component_name`, and decks carry a `* names:` comment.
 
 ## E-Series Policy
 
-E12/E24/E96 names describe preferred-value density, not tolerance. Automatic preferred-value
-selection applies to capacitors only:
+E12/E24/E96 names describe how many standard values there are per decade, not tolerance.
+Automatic standard-value selection applies to capacitors only:
 
 - keep a single part when absolute error is at most 1%;
 - select a two-part parallel combination only when it improves absolute error by at least
   0.5 percentage points;
-- below 1 pF, require explicit expert action rather than silently selecting a sub-pF value.
+- below 1 pF, choose nothing unless `DesignRequest.allow_sub_pf` is set (CLI `--allow-sub-pf`,
+  wizard/web **Allow capacitors below 1 pF**); the warning names that option.
 
-Table, JSON, CSV, wizard, web UI, nominal realization, and SPICE must agree on the selected
-policy result. Inductors remain calculated/wound values or screened integer-turn toroid candidates.
+Surfaces set `allow_sub_pf` on `DesignRequest` only; `design()` copies it to the result and
+applies it to every `MatchPolicy`. A Python caller's explicit `BuildConfig.match_policy`
+opt-in is combined with it (either one allows sub-pF parts), never overwritten. Table, JSON, CSV, wizard, web UI, nominal realization, and SPICE must
+agree on the selected result. Inductors remain calculated/wound values or toroid winding
+suggestions.
 
 ## Toroid Data and Claims
 
@@ -141,18 +148,20 @@ Automatic screening uses only exact parts marked primary-source verified in
 `toroid_core_data.json`. Legacy records remain inspectable but are not auto-selected. Preserve
 source IDs and field provenance whenever data changes.
 
-A candidate screen may evaluate material-frequency guidance, integer turns, nominal error,
-published winding capacity, wire length, and DC resistance. It must not be labeled as a
-prediction of RF Q, SRF, core loss, saturation, thermal rise, or power handling.
+Toroid selection may evaluate material-frequency guidance, whole turns, nominal error,
+published winding capacity, wire length, and DC resistance. Output calls the result a
+"suggestion" and must not present it as a prediction of RF Q, SRF, core loss, saturation,
+heating, or power handling (`toroid_selection.NOT_ASSESSED_WARNING`).
 
-## Build Analysis and SPICE
+## Build Simulation and SPICE
 
-`BuildConfig`, nominal realization, and tolerance screening are public contracts:
+`BuildConfig`, nominal realization, and tolerance screening are public contracts (shown to users
+as the build simulation, the chosen parts, and the tolerance cases):
 
-- selected nominal parts and exact fallbacks remain auditable;
+- chosen parts and exact fallbacks remain auditable;
 - Q is converted to constant series resistance at a stated reference frequency;
 - a custom loss reference without an effective Q is rejected;
-- deterministic corners and seeded bounded samples are not measurements, probabilities,
+- fixed tolerance cases and seeded extra random cases are not measurements, probabilities,
   yields, or guaranteed worst cases;
 - all reported gain is transducer power gain with explicit source/load ports.
 
@@ -160,12 +169,49 @@ Generic SPICE export has two realizations: `exact` and `nominal_build` (the CLI 
 printed `vm(load)` trace is load voltage, not gain in dB; deck comments state the transducer
 gain expression.
 
+## User-Facing Text
+
+Help, errors, output, wizard, and web text use one plain term per concept: build simulation,
+ideal values, chosen parts, parts used, calculated value used, tolerance cases, extra random
+tolerance cases, toroid winding suggestions, response check, part losses (Q), resonator Qu,
+simulation source/load resistance, frequency points, values only, and standard capacitor
+values. Do not reintroduce "realized", "nominal build", "screened candidate", "expert
+override", "tolerance corners", or "validated envelope" in human-readable text. JSON keys,
+JSON enum values, CSV columns, flag names, and choice values (`nominal-build`, `exact`) are
+machine contracts and keep their names. A plainer CLI spelling is an additive alias resolved at
+parse time (`--spice-realization calculated`/`chosen-parts` via
+`shared/cli_aliases.py::SPICE_REALIZATION_ALIASES`), so validation and output only ever see the
+canonical value.
+
+A rule enforced on more than one surface has one message constant or helper; import it instead
+of restating the text. Examples: `design/render_options.py` (`BUILD_NEEDS_ESERIES_MESSAGE`,
+`BUILD_NEEDS_TABLE_OR_JSON_MESSAGE`, `BUILD_NOT_WITH_VALUES_ONLY_MESSAGE`,
+`SUB_PF_NEEDS_ESERIES_MESSAGE`, `shows_design_warnings`), `shared/eseries.py`
+(`SUB_PF_OPTION_LABEL`, `SUB_PF_CLI_FLAG`, `sub_pf_warning`), `shared/cli_aliases.py`
+(`RIPPLE_RANGE_MESSAGE`, `COMPONENT_COUNT_MESSAGE`, `chebyshev_odd_count_message`),
+`bandpass/input_validation.py` (`RESONATOR_COUNT_MESSAGE`, `BANDWIDTH_NOT_BELOW_CENTER`,
+`fbw_untested_warning`, `fbw_impractical_warning`), `bandpass/resonator_math.py`
+(`TANK_SETTING_CONFLICT_MESSAGE`), `shared/build_types.py`
+(`RESONATOR_AND_COMPONENT_Q_MESSAGE`), `shared/cli_helpers.py`
+(`SIM_MATCHED_DEPRECATION_WARNING`), `shared/cli_argument_parsers.py` (`require_count`, used
+with the count messages by all three subcommands and the web), `design/option_applicability.py`
+(the disabled-control reasons, such as `TEXT_PLOT_NEEDS_TABLE_MESSAGE` and
+`LOSS_Q_NOT_SHOWN_MESSAGE`), `design/q_reference_frequency.py` (`Q_FREQUENCY_LABEL`,
+`Q_FREQUENCY_HELP`), and `wizard/state_design_inputs.py` (`CSV_WITH_BUILD_MESSAGE`). Error text
+names fields in words, never as snake_case.
+
+Whether a wizard or web control applies to the chosen output is decided only by
+`design/option_applicability.py`, which restates the CLI's accept/refuse rules and is tested
+against them. Extend that rule for a new option or combination; do not add a check, a disabled
+state, or a reason text in one interface.
+Caveats print once where they apply; JSON and CSV keep every warning entry.
+
 ## Machine-Readable Output
 
 - JSON must pass strict serialization with no `NaN`/`Infinity` extension values.
 - CSV must be rectangular and use the `csv` module for fields that can contain delimiters.
 - Response exports require positive finite frequency values and finite real dB values.
-- Requested synthesis targets, calculated response, selected nominal build, tolerance cases,
+- Requested synthesis targets, calculated response, chosen parts, tolerance cases,
   effective loss, and limitations stay in separate fields.
 - When explicit bandpass edges are supplied, `requested_parameters` and build `target` retain
   those parsed values and record `frequency_specification = edge_frequencies`.
@@ -175,7 +221,7 @@ gain expression.
 The wizard uses independent Textual `Screen` classes and `push_screen`/`pop_screen`:
 
 ```text
-Welcome → LP/HP/BP form → Output Options → Results
+Welcome → LP/HP/BP form → Output options → Results
 ```
 
 `FilterWizardApp.filter_state` owns the one `FilterState` instance. Screens access
@@ -185,7 +231,10 @@ Welcome → LP/HP/BP form → Output Options → Results
 Current responsibilities:
 
 - `bandpass_form.py`: BP form parsing and focus/error mapping.
-- `build_options.py`: wizard/engine build-control mapping and compatibility checks.
+- `build_options.py`: build-field labels, help, parsing, and `BuildConfig` mapping.
+- `state_design_inputs.py`: which controls apply (from the shared rule), and the
+  `DesignRequest`/`RenderOptions` for the result and for each saved file
+  (`document_options`).
 - `filter_type_calculators.py`: builds the `DesignRequest` from state and renders through
   `filter_lib.design`.
 - `calculation_handler.py`: detached calculation, optional build analysis through
@@ -198,12 +247,13 @@ Every design mutation invalidates prior output. A Results worker calculates from
 snapshot and may publish only to the same pending revision. Unmount cancels the worker and
 invalidates its result; long work must poll a cancellation check, because a thread worker
 cannot be interrupted from outside (see `design(..., should_cancel=...)`, which forwards the
-check to the build analysis). Export is enabled only after a complete successful outcome; build
-analysis must be present when requested.
+check to the build analysis). Export is enabled only after a complete successful outcome; the
+build simulation must be present when requested.
 
-The wizard allows raw table rows with an E-series only when realized-build analysis consumes
-that series for nominal selection. Quiet mode remains incompatible with hidden build/match
-results. A plot is rendered inside Results; it is not an extra screen.
+Output options never refuses a combination on submit: controls that cannot apply are disabled
+with the shared rule's reason, and the result treats them as unset (the CLI without that flag).
+`FilterState` keeps their visible values for the saved files that can use them. A plot is
+rendered inside Results; it is not an extra screen.
 
 ## File Boundaries
 

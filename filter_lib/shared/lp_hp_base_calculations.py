@@ -14,6 +14,7 @@ import math
 from collections.abc import Callable
 
 from .chebyshev_g_calculator import calculate_chebyshev_g_values
+from .cli_aliases import COMPONENT_COUNT_MESSAGE, RIPPLE_RANGE_MESSAGE, chebyshev_odd_count_message
 from .constants import BESSEL_G_VALUES
 from .numeric import is_finite_real
 
@@ -35,7 +36,7 @@ def _validate_lp_hp_inputs(cutoff_hz: float, impedance: float, num_components: i
         or not isinstance(num_components, int)
         or not 2 <= num_components <= 9
     ):
-        raise ValueError("Number of components must be between 2 and 9")
+        raise ValueError(COMPONENT_COUNT_MESSAGE)
 
 
 def _component_kind(position_1based: int, topology: str, is_lowpass: bool) -> str:
@@ -141,16 +142,13 @@ def _calculate_chebyshev_base(
     _validate_topology(topology)
     _validate_lp_hp_inputs(cutoff_hz, impedance, num_components)
     if not is_finite_real(ripple_db) or ripple_db <= 0 or ripple_db > 3.0:
-        raise ValueError("ripple_db must be positive, finite, and at most 3.0 dB for Chebyshev")
+        raise ValueError(RIPPLE_RANGE_MESSAGE)
     n = num_components
     # Even-order Chebyshev designs cannot meet equal source/load terminations
     # (ripple does not return to 0 dB at DC for LP / at infinity for HP),
     # which this library assumes. Match bandpass behavior by restricting to odd.
     if n % 2 == 0:
-        raise ValueError(
-            "Chebyshev LP/HP requires odd order for equal source/load terminations "
-            "(use 3, 5, 7, or 9)"
-        )
+        raise ValueError(chebyshev_odd_count_message("components"))
     # Get g-values from shared calculator
     g = calculate_chebyshev_g_values(n, ripple_db)
 

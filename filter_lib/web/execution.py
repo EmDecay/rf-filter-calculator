@@ -2,7 +2,7 @@
 
 Every calculation runs on a small dedicated thread pool. A request waits at most
 ``calculation_timeout_s``; on expiry its cancellation flag is set and the request
-fails with ``CalculationTimeout``. Only the realized-build analysis polls that flag,
+fails with ``CalculationTimeout``. Only the build simulation polls that flag,
 so a synthesis already in progress finishes in the background (input limits bound
 its run time) and its result is discarded. Shutdown cancels queued work, flags
 running work, and joins the pool threads so none outlive the app.
@@ -62,7 +62,8 @@ class CalculationRunner:
                 if isinstance(stop, asyncio.CancelledError):
                     raise
                 raise CalculationTimeout(
-                    f"Calculation cancelled after {self.timeout_s:g} s"
+                    f"Calculation stopped after {self.timeout_s:g} s. "
+                    "Try fewer extra random tolerance cases or frequency points."
                 ) from None
         finally:
             with self._lock:

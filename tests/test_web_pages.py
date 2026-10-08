@@ -7,6 +7,7 @@ import pytest
 pytest.importorskip("fastapi")
 
 from filter_lib import __version__  # noqa: E402
+from filter_lib.bandpass.input_validation import fbw_untested_warning  # noqa: E402
 from filter_lib.shared.cli_aliases import DEFAULT_COMPONENTS, DEFAULT_RESONATORS  # noqa: E402
 from tests.web_helpers import HTMX, output_text, web_client  # noqa: E402
 
@@ -63,19 +64,34 @@ def test_full_page_fallback_shows_the_result_and_keeps_inputs(client):
 
     assert response.status_code == 200
     assert "<!doctype html>" in response.text
-    assert "Bessel T High Pass Filter" in output_text(response.text)
+    assert "Bessel T High-Pass Filter" in output_text(response.text)
     assert 'value="21MHz"' in response.text
     assert 'value="t" checked' in response.text
     assert 'formaction="/export/highpass/json"' in response.text
 
 
-def test_bandpass_warnings_are_listed_above_the_output(client):
-    form = {"filter_type": "butterworth", "frequency": "14MHz", "bandwidth": "4MHz"}
+WIDE_BP = {"filter_type": "butterworth", "frequency": "14MHz", "bandwidth": "4MHz"}
+
+
+def test_table_output_shows_bandpass_warnings_once_inside_the_table(client):
+    """The table lists the design warnings itself, so no separate notice repeats them."""
+    fragment = client.post("/design/bandpass", data=WIDE_BP, headers=HTMX).text
+    warning = fbw_untested_warning(4 / 14)
+
+    assert "Design warnings" not in fragment
+    assert 'class="notice notice--warning"' not in fragment
+    assert " ".join(output_text(fragment).split()).count(warning) == 1
+
+
+@pytest.mark.parametrize("output_format", ["quiet", "json", "csv"])
+def test_other_outputs_list_bandpass_warnings_above_the_output(client, output_format):
+    form = {**WIDE_BP, "output_format": output_format}
 
     fragment = client.post("/design/bandpass", data=form, headers=HTMX).text
 
     assert "Design warnings" in fragment
     assert fragment.index("Design warnings") < fragment.index('id="output-text"')
+    assert fragment.count(f"<li>{fbw_untested_warning(4 / 14)}</li>") == 1
 
 
 def test_health_check(client):

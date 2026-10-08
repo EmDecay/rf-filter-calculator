@@ -101,7 +101,7 @@ def test_build_fields_follow_make_build_config():
         "build_sample_count": "4",
         "build_seed": "9",
         "build_grid_points": "201",
-        "no_toroid_build": "on",
+        "toroid_build": "off",
     }
 
     config = parse_design_form("lowpass", form).request.build

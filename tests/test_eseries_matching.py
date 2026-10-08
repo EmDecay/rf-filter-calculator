@@ -568,7 +568,10 @@ class TestRecommendationPolicy:
         assert match.selected_components is None
         assert match.best_value == target  # exact target, never a disallowed part
         assert match.parallel is None
-        assert "below the 1 pF automatic-selection floor" in " ".join(match.warnings)
+        assert match.warnings == (
+            "Below 1 pF no part is chosen automatically. Choose one manually, or turn on "
+            '"Allow capacitors below 1 pF" (--allow-sub-pf).',
+        )
 
     def test_capacitance_floor_applies_only_to_additive_matching(self):
         match = match_component(0.62 * PF, "E24", parallel_mode="harmonic")

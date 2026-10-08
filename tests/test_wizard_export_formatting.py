@@ -137,10 +137,12 @@ class TestComponentExports:
             "Cs23",
         ]
 
-    def test_csv_refuses_to_drop_a_realized_build_analysis(self):
+    def test_csv_refuses_to_drop_a_build_simulation(self):
         state = FilterState(category="lowpass", result={"ok": True}, build_analysis_enabled=True)
 
-        with pytest.raises(ValueError, match="not supported in component CSV"):
+        with pytest.raises(
+            ValueError, match="^CSV cannot include the build simulation. Save as Text or JSON.$"
+        ):
             format_component_csv(state)
 
     def test_json_export_reuses_the_worker_build_analysis(self, monkeypatch):
@@ -243,3 +245,30 @@ class TestPrepareExportPayloads:
         assert len(files) == 1
         assert files[0][0].endswith(".json")
         assert json.loads(files[0][1])["filter_type"] == "butterworth"
+
+
+class TestResonatorQDocuments:
+    """Resonator Q shown in the result cannot go into a CSV (CLI rule); response data
+    leaves it out, as the web's response downloads do."""
+
+    def test_response_sidecar_is_written_without_resonator_q(self):
+        from filter_lib.design.option_applicability import LOSS_Q_NOT_SHOWN_MESSAGE
+
+        state = _calculated_state("bandpass", qu=200.0, export_format="json")
+        plain = _calculated_state("bandpass", export_format="json")
+
+        files = prepare_export_payloads(state, "export-json")
+
+        assert [os.path.splitext(path)[1] for path, _ in files] == [".json", ".json"]
+        assert files[1][1] == format_response_export(plain, "json")
+        with pytest.raises(ValueError) as caught:
+            format_component_csv(state)
+        assert str(caught.value) == LOSS_Q_NOT_SHOWN_MESSAGE
+
+    def test_a_disabled_resonator_q_never_blocks_the_csv_or_sidecar(self):
+        state = _calculated_state("bandpass", qu=200.0, output_format="csv", export_format="csv")
+
+        files = prepare_export_payloads(state, "export-csv")
+
+        assert state.document_refusal("csv") is None
+        assert len(files) == 2

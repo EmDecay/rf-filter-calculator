@@ -619,12 +619,16 @@ class TestLowpassHighpassAcceptance:
 
 _MATRIX_FBWS = (0.01, 0.02, 0.05, 0.10)
 _MATRIX_RIPPLES = (0.1, 0.5, 1.0, 3.0)
+# Each rejected cell maps to (user message pattern, solver reason chained as __cause__).
+_END_COUPLING_TOO_WIDE = "bandwidth is too wide for the end capacitors"
+_NEGATIVE_TANK = "Cannot realize this design: resonator capacitor Cp2 would be negative"
+_EDGES_NOT_PLACED = "^Could not place both -3 dB edges where requested .* Try a smaller ripple"
 _UNSUPPORTED_MATRIX_CELLS = {
-    ("bessel", 8, 0.10, None): "too wide to realize",
-    ("bessel", 9, 0.10, None): "too wide to realize",
-    ("chebyshev", 5, 0.02, 3.0): "Top-C calibration",
-    ("chebyshev", 7, 0.01, 3.0): "Top-C calibration",
-    ("chebyshev", 9, 0.02, 3.0): "Top-C calibration",
+    ("bessel", 8, 0.10, None): (_END_COUPLING_TOO_WIDE, None),
+    ("bessel", 9, 0.10, None): (_NEGATIVE_TANK, None),
+    ("chebyshev", 5, 0.02, 3.0): (_EDGES_NOT_PLACED, "Top-C calibration"),
+    ("chebyshev", 7, 0.01, 3.0): (_EDGES_NOT_PLACED, "Top-C calibration"),
+    ("chebyshev", 9, 0.02, 3.0): (_EDGES_NOT_PLACED, "Top-C calibration"),
 }
 _STOPBAND_SAMPLE_ERROR_LIMIT_DB = 8.0
 
@@ -764,8 +768,12 @@ class TestBandpassTopCAcceptance:
         kwargs = {} if ripple_db is None else {"ripple_db": ripple_db}
         cell = (filter_type, order, fbw, ripple_db)
         if cell in _UNSUPPORTED_MATRIX_CELLS:
-            with pytest.raises(ValueError, match=_UNSUPPORTED_MATRIX_CELLS[cell]):
+            message, solver_reason = _UNSUPPORTED_MATRIX_CELLS[cell]
+            with pytest.raises(ValueError, match=message) as excinfo:
                 calculate_bandpass_filter(f0, f0 * fbw, 50, order, filter_type, "top", **kwargs)
+            if solver_reason is not None:
+                # Users see one plain message; the solver's reason stays on the chain.
+                assert solver_reason in str(excinfo.value.__cause__)
             return
 
         result = calculate_bandpass_filter(f0, f0 * fbw, 50, order, filter_type, "top", **kwargs)
@@ -847,7 +855,7 @@ class TestBandpassTopCAcceptance:
             assert validation["outer_skirt_edge_validated"] is False
             assert result["response_validation_status"] == "outside_validated_envelope"
             assert any(
-                "overall outer envelope is not validated" in warning
+                "Only the edges of the range around the center were matched" in warning
                 for warning in result["warnings"]
             )
 
@@ -881,7 +889,7 @@ class TestBandpassTopCAcceptance:
 
     def test_infeasible_end_coupling_raises(self):
         """High-order Bessel at wide FBW needs Rp <= Z0: no real series-C exists."""
-        with pytest.raises(ValueError, match="too wide to realize"):
+        with pytest.raises(ValueError, match="too wide for the end capacitors|would be negative"):
             calculate_bandpass_filter(10e6, 1.5e6, 50, 7, "bessel", "top")
 
 

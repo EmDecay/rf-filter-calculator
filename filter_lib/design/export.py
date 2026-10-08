@@ -66,10 +66,16 @@ def export_response_data(outcome: DesignResult, fmt: str) -> str:
 def export_spice(outcome: DesignResult, realization: str, config: BuildConfig | None) -> str:
     """Return the SPICE deck for ``realization`` (``exact`` or ``nominal_build``).
 
-    The deck ends with its own newline, so callers write it unchanged.
+    The deck ends with its own newline, so callers write it unchanged. Sub-pF selection
+    is allowed when either the outcome or ``config`` allows it, so the chosen-parts deck
+    picks the same capacitors as the other outputs.
     """
     from ..shared.spice_export import export_spice_deck
+    from .design_service import apply_sub_pf_policy
 
     return export_spice_deck(
-        outcome.result, outcome.category, realization=realization, config=config
+        outcome.result,
+        outcome.category,
+        realization=realization,
+        config=apply_sub_pf_policy(config, outcome.allow_sub_pf),
     )

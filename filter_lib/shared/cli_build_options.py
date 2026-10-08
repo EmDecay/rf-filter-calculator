@@ -1,17 +1,34 @@
-"""CLI definitions and conversion for realized-build analysis."""
+"""CLI definitions and conversion for the build simulation (--sim-build) and SPICE."""
 
-from argparse import ArgumentParser, Namespace
+from argparse import Action, ArgumentParser, Namespace
+from typing import Any
 
-from .cli_aliases import DEFAULT_ESERIES
+from .cli_aliases import DEFAULT_ESERIES, SPICE_REALIZATION_CHOICES, resolve_spice_realization
+
+
+class _StoreSpiceRealization(Action):
+    """Store the canonical ``--spice-realization`` value so an alias behaves identically."""
+
+    def __call__(
+        self,
+        parser: ArgumentParser,
+        namespace: Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, option_string
+        setattr(namespace, self.dest, resolve_spice_realization(values))
 
 
 def add_build_analysis_args(parser: ArgumentParser) -> None:
-    """Add realized-build analysis and SPICE realization controls."""
+    """Add build simulation and SPICE realization controls."""
     parser.add_argument(
         "--sim-build",
         action="store_true",
-        help="Analyze selected nominal parts, finite component Q, deterministic "
-        "tolerance corners, and optional seeded screening samples",
+        help="Build simulation: simulate the filter with the chosen parts (standard "
+        "capacitor values and suggested toroid windings) at nominal values and across "
+        "tolerance cases (all parts low, all high, each part alone low and high). Add part "
+        "losses (Q) with the Q options. Table or JSON output only",
     )
     parser.add_argument(
         "--capacitor-tolerance",
@@ -20,7 +37,7 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=float,
         default=None,
         metavar="PCT",
-        help="Capacitor tolerance bound for --sim-build (default: 5)",
+        help="Capacitor tolerance in ± percent for --sim-build, 0 to under 100 (default: 5)",
     )
     parser.add_argument(
         "--inductor-tolerance",
@@ -29,7 +46,7 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=float,
         default=None,
         metavar="PCT",
-        help="Inductor tolerance bound for --sim-build (default: 10)",
+        help="Inductor tolerance in ± percent for --sim-build, 0 to under 100 (default: 10)",
     )
     parser.add_argument(
         "--inductor-q",
@@ -37,7 +54,8 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=float,
         default=None,
         metavar="Q",
-        help="Inductor Q at the loss-reference frequency (0.01 to 1e9)",
+        help="Inductor Q for --sim-build and nominal-build SPICE, 0.01 to 1e9, at "
+        "--loss-reference-frequency. Omit for lossless inductors",
     )
     parser.add_argument(
         "--capacitor-q",
@@ -45,31 +63,30 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=float,
         default=None,
         metavar="Q",
-        help="Capacitor Q at the loss-reference frequency (0.01 to 1e9)",
+        help="Capacitor Q for --sim-build and nominal-build SPICE, 0.01 to 1e9, at "
+        "--loss-reference-frequency. Omit for lossless capacitors",
     )
     parser.add_argument(
         "--source-resistance",
         dest="build_source_resistance",
         default=None,
         metavar="OHMS",
-        help="Evaluation source resistance, 1e-6 to 1e6 times the design impedance; "
-        "does not change equal-termination synthesis",
+        help=_port_help("source"),
     )
     parser.add_argument(
         "--load-resistance",
         dest="build_load_resistance",
         default=None,
         metavar="OHMS",
-        help="Evaluation load resistance, 1e-6 to 1e6 times the design impedance; "
-        "does not change equal-termination synthesis",
+        help=_port_help("load"),
     )
     parser.add_argument(
         "--loss-reference-frequency",
         dest="build_reference_frequency",
         default=None,
         metavar="FREQ",
-        help="Frequency where supplied Q values are converted to series loss "
-        "(default: design frequency)",
+        help="Frequency at which the Q values apply; each part's loss is a fixed series "
+        "resistance set from its Q there (default: cutoff or center frequency)",
     )
     parser.add_argument(
         "--sample-count",
@@ -78,14 +95,17 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=int,
         default=None,
         metavar="N",
-        help="Additional repeatable uniform-bounds screening cases (default: 0)",
+        help="Number of extra random tolerance cases for --sim-build, 0 to 10000; each part "
+        "is drawn uniformly within its tolerance (default: 0)",
     )
     parser.add_argument(
         "--seed",
         dest="build_seed",
         type=int,
         default=None,
-        help="Seed for --sample-count; screening is not a probability/yield model",
+        metavar="SEED",
+        help="Random seed for --sample-count; the same seed repeats the same cases. The "
+        "cases show spread, not a production-yield estimate (default: 0)",
     )
     parser.add_argument(
         "--analysis-points",
@@ -93,20 +113,32 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         type=int,
         default=None,
         metavar="N",
-        help="Initial frequency-grid points for --sim-build; measurements refine automatically (default: 601)",
+        help="Frequency points in the --sim-build sweep, 51 to 5001; measurements are "
+        "refined between points automatically (default: 601)",
     )
     parser.add_argument(
         "--no-toroid-build",
         action="store_true",
-        help="Keep calculated inductance as an explicit nominal fallback instead "
-        "of using screened integer-turn candidates",
+        help="In --sim-build and nominal-build SPICE, use the calculated inductances "
+        "instead of the inductance of the suggested whole-turn toroid windings",
     )
     parser.add_argument(
         "--spice-realization",
-        choices=["exact", "nominal-build"],
+        choices=SPICE_REALIZATION_CHOICES,
         default=None,
-        help="With --format spice, export calculated values or selected nominal parts "
+        action=_StoreSpiceRealization,
+        help="Values in the --format spice deck: nominal-build (or chosen-parts) uses the "
+        "chosen parts (standard capacitor values and suggested toroid windings) with any Q "
+        "losses; exact (or calculated) uses the calculated values without losses "
         "(default: nominal-build)",
+    )
+
+
+def _port_help(port: str) -> str:
+    return (
+        f"Simulation {port} resistance in ohms for --sim-build and SPICE; component values "
+        "are still designed for equal -z source and load impedance. Allowed: 1e-6 to 1e6 "
+        "times -z (default: same as -z)"
     )
 
 
@@ -133,12 +165,12 @@ def make_build_config(args: Namespace):
         inductor_q=getattr(args, "build_inductor_q", None),
         capacitor_q=getattr(args, "build_capacitor_q", None),
         source_resistance_ohm=(
-            parse_impedance(str(source_arg), label="Source resistance")
+            parse_impedance(str(source_arg), label="Simulation source resistance")
             if source_arg is not None
             else None
         ),
         load_resistance_ohm=(
-            parse_impedance(str(load_arg), label="Load resistance")
+            parse_impedance(str(load_arg), label="Simulation load resistance")
             if load_arg is not None
             else None
         ),

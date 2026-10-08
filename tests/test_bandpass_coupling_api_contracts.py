@@ -75,7 +75,7 @@ def test_tank_capacitors_require_matching_coupling_count() -> None:
 
 
 def test_tank_capacitors_reject_nonpositive_derived_capacitance() -> None:
-    with pytest.raises(ValueError, match="derived tank capacitances"):
+    with pytest.raises(ValueError, match="resonator capacitors Cp1, Cp2 would be negative"):
         calculate_tank_capacitors(2, 100e-12, [100e-12])
 
 

@@ -264,11 +264,29 @@ def test_decimal_context_overflow_is_a_clear_value_error(parser, text, label):
     [
         (parse_frequency, "Bandwidth", "0", "Bandwidth must be positive: 0"),
         (parse_frequency, "Bandwidth", "-1MHz", "Bandwidth must be positive: -1MHz"),
-        (parse_frequency, "Bandwidth", "10XHz", "Invalid bandwidth: 10XHz"),
+        (
+            parse_frequency,
+            "Bandwidth",
+            "10XHz",
+            "Invalid bandwidth: 10XHz (use a number with an optional k, M, or G suffix, "
+            "e.g. 14.2MHz)",
+        ),
         (parse_frequency, "Bandwidth", "1e400", "Bandwidth must be positive and finite: 1e400"),
         (parse_frequency, "Bandwidth", None, "Bandwidth must be supplied as text"),
         (parse_impedance, "Load resistance", "0", "Load resistance must be positive: 0"),
-        (parse_impedance, "Load resistance", "abc", "Invalid load resistance: abc"),
+        (
+            parse_impedance,
+            "Load resistance",
+            "abc",
+            "Invalid load resistance: abc (use a number of ohms with an optional k or M "
+            "suffix, e.g. 50 or 1k)",
+        ),
+        (
+            parse_inductance,
+            "Resonator inductance",
+            "abc",
+            "Invalid resonator inductance: abc (use a number with H, mH, uH, or nH, e.g. 1.2uH)",
+        ),
         (
             parse_inductance,
             "Resonator inductance",

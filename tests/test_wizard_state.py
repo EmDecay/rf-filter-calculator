@@ -24,17 +24,20 @@ class TestFilterState:
         assert state.ripple_db == 0.5
         assert state.eseries == "E24"
         assert state.output_format == "table"
-        assert state.show_plot is True
+        assert state.show_plot is False
         assert state.export_format is None
         assert state.raw_units is False
         assert state.quiet is False
-        assert state.toroid_detail == "full"
+        assert state.toroid_detail == "best"
         assert state.build_analysis_enabled is False
-        assert state.build_capacitor_tolerance_pct == 5.0
-        assert state.build_inductor_tolerance_pct == 10.0
+        defaults = BuildConfig()
+        assert state.build_capacitor_tolerance_pct == defaults.capacitor_tolerance_pct
+        assert state.build_inductor_tolerance_pct == defaults.inductor_tolerance_pct
         assert state.build_inductor_q is None
         assert state.build_capacitor_q is None
-        assert state.build_resonator_q is None
+        assert state.build_reference_frequency_hz is None
+        assert (state.qu, state.ql, state.qc) == (None, None, None)
+        assert (state.requested_f_low_hz, state.requested_f_high_hz) == (None, None)
         assert state.build_source_resistance_ohm is None
         assert state.build_load_resistance_ohm is None
         assert state.build_sample_count == 0
@@ -149,7 +152,10 @@ class TestFilterState:
 
         assert not published
         assert state.calculation_status == "error"
-        assert state.calculation_error == "Calculation returned no usable result"
+        assert (
+            state.calculation_error
+            == "Internal error: the calculation returned no result. Please report this."
+        )
         assert not state.is_exportable
 
     def test_new_success_can_replace_a_previous_failure(self):
@@ -195,11 +201,55 @@ class TestFilterState:
         assert config.grid_points == 301
         assert config.use_toroid_candidates is False
 
-    def test_build_config_carries_the_complete_resonator_q(self):
-        config = FilterState(eseries="E12", build_resonator_q=150.0).make_build_config()
+    def test_build_config_carries_the_q_reference_frequency(self):
+        config = FilterState(eseries="E12", build_reference_frequency_hz=7e6).make_build_config()
 
-        assert (config.eseries, config.resonator_q) == ("E12", 150.0)
-        assert (config.inductor_q, config.capacitor_q) == (None, None)
+        assert (config.eseries, config.reference_frequency_hz) == ("E12", 7e6)
+        assert config.resonator_q is None
+
+    @pytest.mark.parametrize(
+        "toroid_detail, ticked, expected",
+        [("best", True, True), ("best", False, False), ("none", True, False)],
+    )
+    def test_toroid_none_also_leaves_the_windings_out_of_the_build(
+        self, toroid_detail, ticked, expected
+    ):
+        state = FilterState(toroid_detail=toroid_detail, build_use_toroid_candidates=ticked)
+
+        assert state.make_build_config().use_toroid_candidates is expected
+
+    def test_resonator_q_reaches_only_a_bandpass_request_whose_output_shows_it(self):
+        state = FilterState(
+            category="bandpass", frequency_hz=14.175e6, bandwidth_hz=350e3, qu=200.0
+        )
+        assert state.to_design_request(include_build=False).qu == 200.0
+
+        state.output_format = "csv"
+        assert state.to_design_request(include_build=False).qu is None
+        assert state.json_design_request().qu == 200.0
+
+    @pytest.mark.parametrize(
+        "detail, compact, full, include",
+        [
+            ("best", False, False, True),
+            ("full", False, True, True),
+            ("compact", True, False, True),
+            ("none", False, False, False),
+        ],
+    )
+    def test_toroid_choices_map_to_the_cli_flags(self, detail, compact, full, include):
+        options = FilterState(toroid_detail=detail).to_render_options()
+
+        assert (options.toroid_compact, options.toroid_full, options.include_toroids) == (
+            compact,
+            full,
+            include,
+        )
+
+    def test_a_detail_the_output_cannot_show_falls_back_to_the_cli_default(self):
+        options = FilterState(toroid_detail="full", output_format="json").to_render_options()
+
+        assert (options.toroid_compact, options.toroid_full) == (False, False)
 
     def test_build_analysis_is_required_for_exportable_build_success(self):
         state = FilterState(build_analysis_enabled=True)

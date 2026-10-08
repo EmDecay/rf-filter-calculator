@@ -1,28 +1,37 @@
-"""Navigation mixin for wizard screens with consistent Enter key handling."""
+"""Navigation mixin for the design screens: Enter moves through the form in order."""
 
 from textual.widgets import Input, RadioSet
 
 
 class FilterScreenNavigationMixin:
-    """Mixin providing Enter key navigation between RadioSets and first Input.
+    """Enter advances through ``FOCUS_FLOW``, the screen's controls in form order.
 
-    Enter inside a RadioSet has no useful default mid-form, so the LP/HP/BP
-    screens repurpose it as "accept selection and advance", letting keyboard
-    users flow top-to-bottom through the form with Enter alone (Inputs then
-    chain onward via their own Submitted handlers).
+    Enter inside a RadioSet has no useful default mid-form, so the LP/HP/BP screens
+    repurpose it as "accept selection and advance"; Enter in an Input (its Submitted
+    message) advances too. Controls the screen currently hides or disables are skipped
+    (``_is_shown``), so keyboard users flow top to bottom with Enter alone.
 
-    Screens using this mixin should define:
-        RADIO_SET_FLOW: list[str] - Widget IDs for RadioSets to navigate through
-        FIRST_INPUT_ID: str - Widget ID of the first Input field after RadioSets
+    Screens using this mixin define ``FOCUS_FLOW``: widget ids of RadioSets and Inputs
+    in form order, ending with the Next button's id.
 
     Example:
         class LowpassScreen(FilterScreenNavigationMixin, Screen):
-            RADIO_SET_FLOW = ["filter-type", "topology"]
-            FIRST_INPUT_ID = "frequency"
+            FOCUS_FLOW = ("filter-type", "topology", "ripple", "frequency", "next-btn")
     """
 
-    RADIO_SET_FLOW: list[str] = []
-    FIRST_INPUT_ID: str = ""
+    FOCUS_FLOW: tuple[str, ...] = ()
+
+    def _is_shown(self, widget_id: str) -> bool:
+        """Whether ``widget_id`` can take focus now; screens hide fields per choice."""
+        return self.query_one(f"#{widget_id}").disabled is not True
+
+    def _focus_after(self, widget_id: str) -> None:
+        """Focus the first control after ``widget_id`` that is shown."""
+        flow = self.FOCUS_FLOW
+        for candidate in flow[flow.index(widget_id) + 1 :]:
+            if self._is_shown(candidate):
+                self.query_one(f"#{candidate}").focus()
+                return
 
     def on_key(self, event) -> None:
         """Handle Enter key to advance from RadioSet selections."""
@@ -30,15 +39,10 @@ class FilterScreenNavigationMixin:
             return
 
         try:
-            for i, radio_id in enumerate(self.RADIO_SET_FLOW):
-                radio_set = self.query_one(f"#{radio_id}", RadioSet)
-                if radio_set.has_focus:
-                    # Last RadioSet hands focus to the first Input field.
-                    if i < len(self.RADIO_SET_FLOW) - 1:
-                        next_radio = self.query_one(f"#{self.RADIO_SET_FLOW[i + 1]}", RadioSet)
-                        next_radio.focus()
-                    elif self.FIRST_INPUT_ID:
-                        self.query_one(f"#{self.FIRST_INPUT_ID}", Input).focus()
+            for widget_id in self.FOCUS_FLOW:
+                widget = self.query_one(f"#{widget_id}")
+                if isinstance(widget, RadioSet) and widget.has_focus:
+                    self._focus_after(widget_id)
                     # Swallow the key so the RadioSet doesn't also act on it.
                     event.prevent_default()
                     event.stop()
@@ -48,3 +52,8 @@ class FilterScreenNavigationMixin:
             # screen that mis-declares an ID); ignoring beats crashing the app
             # on a keystroke.
             pass
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Enter in a field advances to the next shown control."""
+        if event.input.id in self.FOCUS_FLOW:
+            self._focus_after(event.input.id)

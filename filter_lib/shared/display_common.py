@@ -9,7 +9,7 @@ from io import StringIO
 from typing import Any
 
 from .display_helpers import format_component_value, split_value_unit
-from .eseries import match_component
+from .eseries import MatchPolicy, match_component
 from .formatting import (
     format_capacitance,
     format_fixed,
@@ -18,7 +18,12 @@ from .formatting import (
     format_restated_value,
 )
 from .strict_json import dumps_strict, validate_finite_tree
-from .toroid_display import CSV_TOROID_HEADER, build_json_recommendations, csv_columns_for_best
+from .toroid_display import (
+    CSV_TOROID_HEADER,
+    build_json_recommendations,
+    csv_columns_for_best,
+    inductor_note_line,
+)
 from .toroid_selection import recommend_cores
 
 ESERIES_CSV_HEADER = [
@@ -38,7 +43,13 @@ ESERIES_CSV_HEADER = [
 ]
 
 
-def build_standard_match(value: float, eseries: str, unit_key: str, parallel_mode: str) -> dict:
+def build_standard_match(
+    value: float,
+    eseries: str,
+    unit_key: str,
+    parallel_mode: str,
+    policy: MatchPolicy | None = None,
+) -> dict:
     """Build JSON-serializable E-series match data for one component.
 
     Args:
@@ -48,12 +59,13 @@ def build_standard_match(value: float, eseries: str, unit_key: str, parallel_mod
         parallel_mode: How parallel pairs combine — 'additive' for
             capacitors (C1 + C2), 'harmonic' for inductors (reciprocal sum).
             Must match the component physics or the pair value is wrong.
+        policy: Match policy (None selects the default policy)
 
     Returns:
         Dict with 'series' and 'nearest' keys; 'parallel' only when a
         two-component pair beats the single nearest value.
     """
-    match = match_component(value, eseries, parallel_mode=parallel_mode)
+    match = match_component(value, eseries, parallel_mode=parallel_mode, policy=policy)
 
     standard: dict = {
         "series": eseries,
@@ -98,6 +110,7 @@ def _json_component(
     eseries: str | None,
     parallel_mode: str,
     toroid_freq_hz: float | None = None,
+    match_policy: MatchPolicy | None = None,
 ) -> dict:
     """Build one component object for JSON export.
 
@@ -106,17 +119,25 @@ def _json_component(
     """
     component = {"name": name, unit_key: value}
     # E-series matching applies to capacitors only: inductors are hand-wound
-    # to the exact value (see toroid recommendations), not bought off a
+    # to the exact value (see toroid winding suggestions), not bought off a
     # standard-value chart.
     if eseries and unit_key == "value_farads":
-        component["standard_match"] = build_standard_match(value, eseries, unit_key, parallel_mode)
+        component["standard_match"] = build_standard_match(
+            value, eseries, unit_key, parallel_mode, match_policy
+        )
     if toroid_freq_hz is not None and unit_key == "value_henries":
         recs = recommend_cores(value, toroid_freq_hz)
         component["toroid_recommendations"] = build_json_recommendations(recs)
     return component
 
 
-def csv_match_fields(value: float, formatter, eseries: str | None, parallel_mode: str) -> list[str]:
+def csv_match_fields(
+    value: float,
+    formatter,
+    eseries: str | None,
+    parallel_mode: str,
+    policy: MatchPolicy | None = None,
+) -> list[str]:
     """Build the E-series recommendation-policy CSV columns for one component.
 
     Length and order must stay in sync with the eseries header block in
@@ -125,7 +146,7 @@ def csv_match_fields(value: float, formatter, eseries: str | None, parallel_mode
     if not eseries:
         return []
 
-    match = match_component(value, eseries, parallel_mode=parallel_mode)
+    match = match_component(value, eseries, parallel_mode=parallel_mode, policy=policy)
     nearest_fmt = formatter(match.single_value)
     nearest_val, nearest_unit = split_value_unit(nearest_fmt)
 
@@ -171,6 +192,7 @@ def format_json_result(
     include_toroids: bool = True,
     matched_sim: dict[str, Any] | None = None,
     build_analysis=None,
+    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format filter results as JSON.
 
@@ -182,6 +204,7 @@ def format_json_result(
         include_toroids: If False, skip toroid recommendations entirely
         matched_sim: Optional deprecated matched-value compatibility payload
         build_analysis: Optional realized-build analysis result
+        match_policy: E-series match policy (None selects the default policy)
 
     Returns:
         JSON string with filter data.
@@ -189,7 +212,9 @@ def format_json_result(
     freq_for_toroids = toroid_freq_hz if include_toroids else None
 
     cap_list = [
-        _json_component(f"C{i + 1}", v, "value_farads", eseries, "additive")
+        _json_component(
+            f"C{i + 1}", v, "value_farads", eseries, "additive", match_policy=match_policy
+        )
         for i, v in enumerate(result["capacitors"])
     ]
     ind_list = [
@@ -231,6 +256,7 @@ def format_csv_result(
     eseries: str | None = None,
     toroid_freq_hz: float | None = None,
     include_toroids: bool = True,
+    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format filter results as CSV.
 
@@ -240,6 +266,7 @@ def format_csv_result(
         eseries: E-series for standard matching (None to disable)
         toroid_freq_hz: Design frequency in Hz for toroid best-match columns (None disables)
         include_toroids: If False, skip toroid columns entirely (backward-compat CSV)
+        match_policy: E-series match policy (None selects the default policy)
 
     Returns:
         CSV rows separated by LF, without a final line terminator; the CLI's
@@ -280,7 +307,7 @@ def format_csv_result(
             # inductor-only; the other component type gets empty cells so
             # every row keeps the header's column count.
             if prefix == "C":
-                row.extend(csv_match_fields(v, formatter, eseries, parallel_mode))
+                row.extend(csv_match_fields(v, formatter, eseries, parallel_mode, match_policy))
             elif eseries:
                 row.extend([""] * len(ESERIES_CSV_HEADER))
             if emit_toroids:
@@ -329,7 +356,7 @@ def format_header(result: dict, topology: str, filter_category: str) -> str:
     Args:
         result: Filter result dictionary
         topology: Topology description (e.g., 'Pi', 'T')
-        filter_category: Filter category (e.g., 'Low Pass', 'High Pass')
+        filter_category: Filter category (e.g., 'Low-Pass', 'High-Pass')
 
     Returns:
         Multi-line header string (title, cutoff, impedance, order). The cutoff and
@@ -340,7 +367,7 @@ def format_header(result: dict, topology: str, filter_category: str) -> str:
     lines.append(f"\n{title}")
     lines.append("=" * 50)
     lines.append(f"Cutoff Frequency:    {format_restated_frequency(result['freq_hz'])}")
-    lines.append(f"Impedance Z0:        {format_restated_value(result['impedance'])} Ohm")
+    lines.append(f"Impedance Z₀:        {format_restated_value(result['impedance'])} Ω")
     if result.get("ripple") is not None:
         lines.append(f"Ripple:              {result['ripple']} dB")
     lines.append(f"Order:               {result['order']}")
@@ -366,7 +393,7 @@ def format_component_table(
         raw: If True, show raw SI values in scientific notation
         primary_component: Which component type in left column ('capacitors' or 'inductors')
         mention_toroids: If True, the inductor footnote points at the toroid
-            recommendations section (suppressed under --no-toroids)
+            winding suggestions (pass False when that section is off or empty)
 
     Returns:
         Multi-line table string.
@@ -421,8 +448,7 @@ def format_component_table(
 
     lines.append(f"\u2514{horiz}\u2534{horiz}\u2518")
     if result["inductors"]:
-        note = " (see toroid recommendations)" if mention_toroids else ""
-        lines.append(f"Inductors: wind to value{note}")
+        lines.append(inductor_note_line(mention_toroids))
     return "\n".join(lines)
 
 

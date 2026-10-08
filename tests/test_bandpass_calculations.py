@@ -21,6 +21,7 @@ from filter_lib.bandpass.calculations import (
     combine_resonator_q,
     estimate_insertion_loss,
 )
+from filter_lib.bandpass.top_c_calibration import TopCCalibrationError
 from filter_lib.bandpass.transfer import (
     chebyshev_3db_deviation,
     frequency_from_deviation,
@@ -158,7 +159,10 @@ class TestResonatorComponents:
             assert inductance == choice["resonator_inductance"]
 
     def test_resonator_choice_inputs_are_mutually_exclusive(self):
-        with pytest.raises(ValueError, match="mutually exclusive"):
+        with pytest.raises(
+            ValueError,
+            match="^Set either the resonator impedance or the resonator inductance, not both$",
+        ):
             calculate_resonator_components(
                 10e6,
                 50,
@@ -255,14 +259,85 @@ class TestSynthesisRealizabilityLimits:
         "bw, choice, message",
         [
             # 90% FBW: coupling capacitors alone exceed the tank capacitance.
-            (9e6, {}, "derived tank capacitances must be positive"),
+            (9e6, {}, "resonator capacitor Cp2 would be negative"),
             # A 440 Ω tank at 10% FBW: end-coupling compensation empties both end tanks.
-            (1e6, {"resonator_impedance": 440}, "tank capacitors Cp1, Cp3 would be negative"),
+            (1e6, {"resonator_impedance": 440}, "resonator capacitors Cp1, Cp3 would be negative"),
         ],
     )
     def test_negative_tank_capacitance_is_rejected(self, bw, choice, message):
         with pytest.raises(ValueError, match=message):
             calculate_bandpass_filter(10e6, bw, 50, 3, "butterworth", "top", **choice)
+
+    COUPLING_ADVICE = "Reduce the bandwidth or the number of resonators"
+    END_TANK_ADVICE = "Lower the resonator impedance or inductance, or reduce the bandwidth."
+
+    @staticmethod
+    def _error(**overrides) -> str:
+        arguments = {
+            "f0": 10e6,
+            "bw": 1e6,
+            "z0": 50,
+            "n_resonators": 9,
+            "filter_type": "bessel",
+            "coupling": "top",
+        }
+        arguments.update(overrides)
+        with pytest.raises(ValueError) as raised:
+            calculate_bandpass_filter(**arguments)
+        return str(raised.value)
+
+    @pytest.mark.parametrize("resonator_impedance", [None, 70.0, 100.0, 300.0])
+    def test_coupling_negative_tank_advice_does_not_depend_on_impedance(self, resonator_impedance):
+        """Coupling compensation alone empties Cp2: the impedance cannot fix it, so the
+        message must not suggest changing it (that advice used to loop with the
+        "impedance too low" error)."""
+        message = self._error(resonator_impedance=resonator_impedance)
+        assert "resonator capacitor Cp2 would be negative" in message
+        assert self.COUPLING_ADVICE in message
+        assert "Lower the resonator impedance" not in message
+
+    @pytest.mark.parametrize("advice", ["fewer resonators", "narrower bandwidth"])
+    def test_following_coupling_negative_tank_advice_reaches_a_valid_design(self, advice):
+        n_resonators, bw = 9, 1e6
+        for _step in range(8):
+            try:
+                result = calculate_bandpass_filter(10e6, bw, 50, n_resonators, "bessel", "top")
+            except ValueError as error:
+                assert "Reduce the bandwidth or the number of resonators" in str(error)
+                if advice == "fewer resonators":
+                    n_resonators -= 1
+                else:
+                    bw /= 2
+                continue
+            assert all(value > 0 for value in result["c_tank"])
+            assert result["synthesis_validation"]["lower_edge_error_rel"] == pytest.approx(
+                0, abs=1e-3
+            )
+            break
+        else:
+            pytest.fail(f"following '{advice}' never produced a design")
+
+    @pytest.mark.parametrize(
+        "fix",
+        [
+            {"resonator_impedance": 300.0},
+            {"resonator_inductance": 4.7e-6},
+            {"resonator_impedance": 1000.0, "bw": 300e3},
+        ],
+        ids=["lower-impedance", "lower-inductance", "narrower-bandwidth"],
+    )
+    def test_following_end_tank_advice_reaches_a_valid_design(self, fix):
+        """End-coupling compensation empties only the end tanks of a 1000 Ω design; the
+        printed advice (lower impedance or inductance, or narrower band) fixes it."""
+        message = self._error(n_resonators=3, filter_type="butterworth", resonator_impedance=1000.0)
+        assert "resonator capacitors Cp1, Cp3 would be negative" in message
+        assert message.endswith(self.END_TANK_ADVICE)
+
+        arguments = {"bw": 1e6, **fix}
+        result = calculate_bandpass_filter(
+            10e6, arguments.pop("bw"), 50, 3, "butterworth", "top", **arguments
+        )
+        assert all(value > 0 for value in result["c_tank"])
 
     def test_tank_impedance_just_inside_realizable_limit_still_calibrates(self):
         """Near the end-tank limit a forward calibration step is infeasible; the result
@@ -281,9 +356,8 @@ class TestSynthesisRealizabilityLimits:
     # verification grid steps 4 * FBW / 2000 in ln(f), so twice that spacing needs
     # FBW >= 3.55e-12, stated rounded up as 3.6e-12 (3.6e-05 Hz).
     NARROW_BANDWIDTH_LIMIT = (
-        "is too narrow relative to the 1e+07 Hz center frequency to synthesize at double "
-        "precision; use a fractional bandwidth of at least 3.6e-12 (a bandwidth of at "
-        "least 3.6e-05 Hz)"
+        "is too narrow relative to the 1e+07 Hz center frequency to calculate reliably; use "
+        "a fractional bandwidth of at least 3.6e-12 (a bandwidth of at least 3.6e-05 Hz)"
     )
 
     @pytest.mark.parametrize(
@@ -311,24 +385,21 @@ class TestSynthesisRealizabilityLimits:
         [
             (
                 {"resonator_impedance": 1e-300},
-                "Resonator impedance 1e-300 ohm is too low to realize the input/output "
-                "coupling to the 50 ohm terminations at this bandwidth and order; it must "
-                "exceed about 2.5 ohm "
-                "(necessary, not sufficient: a wide enough bandwidth fails at any tank value)",
+                "Resonator impedance 1e-300 Ω is too low to couple the resonators to the 50 Ω "
+                "source and load at this bandwidth and number of resonators. Use more than "
+                "about 2.5 Ω; a very wide bandwidth can fail even then.",
             ),
             (
                 {"resonator_impedance": 2.4},
-                "Resonator impedance 2.4 ohm is too low to realize the input/output "
-                "coupling to the 50 ohm terminations at this bandwidth and order; it must "
-                "exceed about 2.5 ohm "
-                "(necessary, not sufficient: a wide enough bandwidth fails at any tank value)",
+                "Resonator impedance 2.4 Ω is too low to couple the resonators to the 50 Ω "
+                "source and load at this bandwidth and number of resonators. Use more than "
+                "about 2.5 Ω; a very wide bandwidth can fail even then.",
             ),
             (
                 {"resonator_inductance": 1e-300},
-                "Resonator inductance 1e-300 H is too low to realize the input/output "
-                "coupling to the 50 ohm terminations at this bandwidth and order; it must "
-                "exceed about 3.98e-08 H "
-                "(necessary, not sufficient: a wide enough bandwidth fails at any tank value)",
+                "Resonator inductance 1.00e-300 H is too low to couple the resonators to the "
+                "50 Ω source and load at this bandwidth and number of resonators. Use more "
+                "than about 39.79 nH; a very wide bandwidth can fail even then.",
             ),
         ],
         ids=["tiny-impedance", "impedance-below-limit", "tiny-inductance"],
@@ -409,7 +480,7 @@ class TestInsertionLossAndQModel:
 
     @pytest.mark.parametrize("qu", [0.0, 0.00999, 1.01e9])
     def test_invalid_qu_in_calculate_rejected(self, qu):
-        with pytest.raises(ValueError, match=r"^Qu must be finite and in \[0.01, 1e\+09\]$"):
+        with pytest.raises(ValueError, match=r"^Qu must be between 0.01 and 1e9$"):
             calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=qu)
 
     @pytest.mark.parametrize(
@@ -452,11 +523,11 @@ class TestInsertionLossAndQModel:
         [({"ql": 5e-324}, "QL"), ({"qc": 1e300}, "QC"), ({"ql": 100, "qc": True}, "QC")],
     )
     def test_component_q_outside_the_accepted_range_is_rejected_by_name(self, changes, name):
-        with pytest.raises(ValueError, match=rf"^{name} must be finite and in \[0.01, 1e\+09\]$"):
+        with pytest.raises(ValueError, match=rf"^{name} must be between 0.01 and 1e9$"):
             combine_resonator_q(**changes)
 
     def test_direct_qu_is_mutually_exclusive_with_component_q(self):
-        with pytest.raises(ValueError, match="mutually exclusive"):
+        with pytest.raises(ValueError, match="^Give either Qu or QL/QC, not both$"):
             combine_resonator_q(qu=100, ql=200)
 
     def test_min_q_heuristic_is_loaded_q_times_safety_factor(self):
@@ -765,21 +836,32 @@ class TestBandpassFbwGuidance:
         "fbw, validation_warning, lumped_warning, percent",
         [
             (BANDPASS_EDGE_CALIBRATION_FBW_MAX, False, False, None),
-            (BANDPASS_EDGE_CALIBRATION_FBW_MAX + 1e-6, True, False, "FBW 10.0%"),
-            (BANDPASS_LUMPED_MODEL_CAUTION_FBW, True, False, "FBW 40.0%"),
-            (BANDPASS_LUMPED_MODEL_CAUTION_FBW + 1e-6, True, True, "FBW 40.0%"),
+            (BANDPASS_EDGE_CALIBRATION_FBW_MAX + 1e-6, True, False, "Fractional bandwidth 10.0%"),
+            (BANDPASS_LUMPED_MODEL_CAUTION_FBW, True, False, "Fractional bandwidth 40.0%"),
+            (BANDPASS_LUMPED_MODEL_CAUTION_FBW + 1e-6, True, True, "Fractional bandwidth 40.0%"),
         ],
     )
     def test_warning_boundaries_are_strict(self, fbw, validation_warning, lumped_warning, percent):
         result = calculate_bandpass_filter(10e6, 10e6 * fbw, 50, 3, "butterworth", "top")
         warnings = result["warnings"]
         assert (
-            any("studied edge-calibration range" in warning for warning in warnings)
+            any("this design method was tested up to" in warning for warning in warnings)
             is validation_warning
         )
-        assert any("transmission-line design" in warning for warning in warnings) is lumped_warning
-        # The warnings quote the requested fractional bandwidth as a percentage.
-        assert all(warning.startswith(percent) for warning in warnings if "FBW" in warning)
+        assert (
+            any(
+                "Consider a high-pass filter followed by a low-pass filter instead." in warning
+                for warning in warnings
+            )
+            is lumped_warning
+        )
+        # The warnings quote the requested fractional bandwidth as a percentage, and the
+        # limits come from the engine constants.
+        fbw_warnings = [w for w in warnings if w.startswith("Fractional bandwidth")]
+        assert all(warning.startswith(percent) for warning in fbw_warnings)
+        assert all(
+            "above the 10% " in warning or "above 40%, " in warning for warning in fbw_warnings
+        )
         # Edges are calibrated at every width; only the studied envelope carries the claim.
         assert result["synthesis_validation"]["edge_validated"] is True
         assert result["synthesis_validation"]["validated"] is not validation_warning
@@ -788,6 +870,74 @@ class TestBandpassFbwGuidance:
         )
         if not validation_warning:
             assert warnings == []
+
+
+class TestBandpassResponseWarningsAndSolverFailures:
+    """Plain warnings name what the check covers; solver failures read as one message."""
+
+    @pytest.mark.parametrize(
+        ("filter_type", "kwargs", "named"),
+        [
+            ("butterworth", {}, "passband shape or the points just outside the passband"),
+            ("chebyshev", {"ripple_db": 0.5}, "passband shape, ripple, or the points just"),
+        ],
+    )
+    def test_shape_warning_names_every_part_of_the_shape_check(self, filter_type, kwargs, named):
+        # 20% FBW fails the shape check for both types.
+        result = calculate_bandpass_filter(10e6, 2e6, 50, 3, filter_type, "top", **kwargs)
+
+        assert result["synthesis_validation"]["shape_validated"] is False
+        [shape_warning] = [w for w in result["warnings"] if "simulated" in w]
+        assert named in shape_warning
+        assert f"ideal {filter_type.title()} response" in shape_warning
+        assert "passband shape is outside" not in shape_warning
+
+    def test_split_response_warning_says_only_the_center_edges_were_matched(self):
+        result = calculate_bandpass_filter(10e6, 1e6, 50, 9, "chebyshev", "top", ripple_db=3.0)
+
+        assert result["synthesis_validation"]["connected_region_count"] > 1
+        assert (
+            "The simulated response crosses -3 dB more than twice, so it is above -3 dB in "
+            "separate ranges (for example, a ripple dip inside the band). Only the edges of the "
+            "range around the center were matched to your request. Check the response plot "
+            "before building."
+        ) in result["warnings"]
+
+    def test_chebyshev_solver_failure_is_one_plain_message_with_the_reason_chained(self):
+        with pytest.raises(ValueError) as raised:
+            calculate_bandpass_filter(10e6, 200e3, 50, 5, "chebyshev", "top", ripple_db=3.0)
+
+        assert str(raised.value) == (
+            "Could not place both -3 dB edges where requested for this ripple, resonator count "
+            "and bandwidth. Try a smaller ripple: with ripple near 3 dB the passband dips "
+            "almost to -3 dB, so the edges are hard to place."
+        )
+        assert isinstance(raised.value.__cause__, TopCCalibrationError)
+        assert str(raised.value.__cause__).startswith("Top-C calibration ")
+
+    def test_smaller_ripple_realizes_every_rejected_chebyshev_cell(self):
+        """The advice in the solver-failure message holds for the rejected matrix cells."""
+        for order, fbw in ((5, 0.02), (7, 0.01), (9, 0.02)):
+            result = calculate_bandpass_filter(
+                10e6, 10e6 * fbw, 50, order, "chebyshev", "top", ripple_db=2.5
+            )
+            assert result["response_validation_status"] == "validated"
+
+    def test_other_types_get_advice_without_ripple(self, monkeypatch):
+        from filter_lib.bandpass import bandpass_design
+
+        def fail(*_args, **_kwargs):
+            raise TopCCalibrationError("Top-C calibration Jacobian is singular")
+
+        monkeypatch.setattr(bandpass_design, "_calibrate_top_c", fail)
+        with pytest.raises(ValueError) as raised:
+            calculate_bandpass_filter(10e6, 500e3, 50, 3, "butterworth", "top")
+
+        assert str(raised.value) == (
+            "Could not place both -3 dB edges where requested for this response type, "
+            "resonator count and bandwidth. Try a different bandwidth or number of resonators."
+        )
+        assert "Jacobian" in str(raised.value.__cause__)
 
 
 class TestBandpassPublicInputValidation:
@@ -811,8 +961,8 @@ class TestBandpassPublicInputValidation:
             ({"bw": -100e3}, "Bandwidth must be positive"),
             ({"bw": 10e6}, "Bandwidth must be less than center frequency"),
             ({"z0": -50.0}, "Impedance must be positive"),
-            ({"n_resonators": 1}, "integer between 2 and 9"),
-            ({"n_resonators": 10}, "integer between 2 and 9"),
+            ({"n_resonators": 1}, "from 2 to 9"),
+            ({"n_resonators": 10}, "from 2 to 9"),
             ({"filter_type": "elliptic"}, "Filter type must be"),
             ({"coupling": "bottom"}, "Coupling must be 'top'"),
             ({"coupling": "shunt"}, "Shunt-C coupling has been removed"),
@@ -829,7 +979,7 @@ class TestBandpassPublicInputValidation:
     def test_rejects_non_integer_resonator_count(self, n_resonators):
         arguments = self._arguments()
         arguments["n_resonators"] = n_resonators
-        with pytest.raises(ValueError, match="integer between 2 and 9"):
+        with pytest.raises(ValueError, match="from 2 to 9"):
             calculate_bandpass_filter(**arguments)
 
     @pytest.mark.parametrize(
@@ -899,14 +1049,14 @@ class TestBandpassPublicInputValidation:
             ({"f0": "10e6"}, "Center frequency"),
             ({"z0": 10**400}, "Impedance"),
             ({"bw": 10.000001e6}, "less than center frequency"),
-            ({"bw": math.nextafter(10e6, 0.0)}, "too wide to realize"),
+            ({"bw": math.nextafter(10e6, 0.0)}, "resonator capacitor Cp2 would be negative"),
             # Far below the float resolution of the band edges: the message names the input.
             ({"bw": 1e-6}, "^Bandwidth 1e-06 Hz is too narrow relative to the 1e\\+07 Hz"),
             ({"f0": 1.7e308, "bw": 1.7e308 * 0.05}, "positive finite frequency"),
             ({"z0": 5e-324}, "numeric range"),
-            ({"qu": 5e-324}, "Qu must be finite and in"),
+            ({"qu": 5e-324}, "Qu must be between 0.01 and 1e9"),
             ({"q_safety": 1e308}, "numeric range"),
-            ({"resonator_impedance": 0.1}, "input/output coupling"),
+            ({"resonator_impedance": 0.1}, "too low to couple the resonators"),
             ({"resonator_inductance": 1e-3}, "would be negative"),
         ],
         ids=[

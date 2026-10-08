@@ -8,7 +8,14 @@ from textual.types import NoActiveAppError
 from textual.validation import Integer
 from textual.widgets import Button, Footer, Input, RadioButton, RadioSet, Static
 
-from ..design_field_validation import RippleValidator, parse_ripple_db, parser_error_detail
+from ...shared.cli_aliases import COMPONENT_COUNT_MESSAGE, chebyshev_odd_count_message
+from ..design_field_validation import (
+    COUNT_LABELS,
+    CUTOFF_LABELS,
+    RIPPLE_LABEL,
+    RippleValidator,
+    parse_ripple_db,
+)
 from ..filter_screen_navigation_mixin import FilterScreenNavigationMixin
 from ..radio_button_helpers import get_selected_radio
 from ..state import FilterState
@@ -25,64 +32,71 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
     BINDINGS = [
         ("escape", "back", "Back"),
     ]
-    RADIO_SET_FLOW = ["filter-type", "topology"]
-    FIRST_INPUT_ID = "frequency"
+    # Enter moves through the form in the web form's order; ripple shows for Chebyshev.
+    FOCUS_FLOW = (
+        "filter-type",
+        "topology",
+        "ripple",
+        "frequency",
+        "order",
+        "impedance",
+        "next-btn",
+    )
 
     def compose(self) -> ComposeResult:
         yield Static("High-Pass Filter Design", classes="header")
         yield Static("Enter: next · ↑/↓: choose · Esc: back", classes="nav-hint")
         with VerticalScroll(classes="content"):
             with Vertical(classes="form-section"):
-                yield Static("Response Type", classes="form-section-title")
+                yield Static("Response and topology", classes="form-section-title")
+                yield Static("Response", classes="field-label")
                 with RadioSet(id="filter-type"):
                     yield RadioButton(
                         "Butterworth - Maximally flat passband", value=True, id="butterworth"
                     )
                     yield RadioButton("Chebyshev - Sharper cutoff, passband ripple", id="chebyshev")
                     yield RadioButton(
-                        "Bessel - High-pass transform does not preserve flat group delay",
+                        "Bessel - Gentle cutoff; the high-pass form does not keep flat group delay",
                         id="bessel",
                     )
-
-            # T is the default here (lowpass defaults to Pi): for the same
-            # order, the highpass T needs fewer inductors than the shunt-L
-            # Pi, which is the usual builder's preference.
-            with Vertical(classes="form-section"):
-                yield Static("Topology", classes="form-section-title")
+                # Pi is listed first, as on the web, but T is the default here (low-pass
+                # defaults to Pi): for the same order, the high-pass T needs fewer
+                # inductors than the shunt-L Pi, which is the usual builder's preference.
+                yield Static("Topology", classes="field-label")
                 with RadioSet(id="topology"):
+                    yield RadioButton("Pi (shunt first) - L, then alternating C/L", id="pi")
                     yield RadioButton(
-                        "Series-first ladder - C first, then alternating L/C",
+                        "T (series first) - C, then alternating L/C",
                         value=True,
                         id="t",
                     )
-                    yield RadioButton("Shunt-first ladder - L first, then alternating C/L", id="pi")
-
-            with Vertical(classes="form-section"):
-                yield Static("Parameters", classes="form-section-title")
-                yield Static("Cutoff Frequency (e.g., 10MHz, 14.2M, 7100kHz):")
-                yield Input(
-                    placeholder="10MHz",
-                    id="frequency",
-                )
-                yield Static("Impedance (e.g., 50, 50ohm, 1k):")
-                yield Input(
-                    value="50",
-                    placeholder="50 or 50ohm",
-                    id="impedance",
-                )
-                yield Static("Order (2-9 components):", id="order-label")
-                yield Input(
-                    value="3",
-                    id="order",
-                    validators=[Integer(minimum=2, maximum=9)],
-                )
                 with Vertical(id="ripple-section"):
-                    yield Static("Ripple (dB):")
+                    yield Static(RIPPLE_LABEL)
                     yield Input(
                         value="0.5",
                         id="ripple",
                         validators=[RippleValidator()],
                     )
+
+            with Vertical(classes="form-section"):
+                yield Static("Frequency and size", classes="form-section-title")
+                yield Static(CUTOFF_LABELS[False], id="frequency-label")
+                yield Input(
+                    placeholder="10MHz",
+                    id="frequency",
+                )
+                yield Static(COUNT_LABELS[False], id="order-label")
+                yield Input(
+                    value="3",
+                    id="order",
+                    validators=[Integer(minimum=2, maximum=9)],
+                )
+                yield Static("Impedance, equal source and load (e.g. 50, 50ohm, 1k):")
+                yield Input(
+                    value="50",
+                    placeholder="50 or 50ohm",
+                    id="impedance",
+                )
 
             with Horizontal(classes="button-row"):
                 yield Button("Next", id="next-btn", variant="primary")
@@ -95,40 +109,20 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
         self.query_one("#filter-type", RadioSet).focus()
         self.query_one("#ripple-section").display = False
 
+    def _is_shown(self, widget_id: str) -> bool:
+        """The ripple field takes focus only while Chebyshev shows it."""
+        if widget_id == "ripple":
+            return bool(self.query_one("#ripple-section").display)
+        return True
+
     @on(RadioSet.Changed, "#filter-type")
     def _on_filter_type_changed(self, event: RadioSet.Changed) -> None:
         """Show/hide ripple section and odd-order hint based on filter type."""
         self._invalidate_previous_result()
         is_chebyshev = event.pressed.id == "chebyshev"
         self.query_one("#ripple-section").display = is_chebyshev
-        order_label = self.query_one("#order-label", Static)
-        if is_chebyshev:
-            order_label.update("Order (Chebyshev: odd only — 3, 5, 7, 9):")
-        else:
-            order_label.update("Order (2-9 components):")
-
-    @on(Input.Submitted, "#frequency")
-    def _on_frequency_submitted(self, event: Input.Submitted) -> None:
-        """Auto-advance to impedance input after frequency entry."""
-        self.query_one("#impedance", Input).focus()
-
-    @on(Input.Submitted, "#impedance")
-    def _on_impedance_submitted(self, event: Input.Submitted) -> None:
-        """Auto-advance to order input after impedance entry."""
-        self.query_one("#order", Input).focus()
-
-    @on(Input.Submitted, "#order")
-    def _on_order_submitted(self, event: Input.Submitted) -> None:
-        """Auto-advance to ripple or button after order entry."""
-        if self.query_one("#ripple-section").display:
-            self.query_one("#ripple", Input).focus()
-        else:
-            self.query_one("#next-btn", Button).focus()
-
-    @on(Input.Submitted, "#ripple")
-    def _on_ripple_submitted(self, event: Input.Submitted) -> None:
-        """Auto-advance to calculate button after ripple entry."""
-        self.query_one("#next-btn", Button).focus()
+        self.query_one("#order-label", Static).update(COUNT_LABELS[is_chebyshev])
+        self.query_one("#frequency-label", Static).update(CUTOFF_LABELS[is_chebyshev])
 
     @on(Input.Changed, "#frequency")
     @on(Input.Changed, "#impedance")
@@ -181,11 +175,9 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
         # Enter straight through the suggested defaults.
         freq_value = freq_input.value.strip() or freq_input.placeholder
         try:
-            freq_hz = parse_frequency(freq_value)
+            freq_hz = parse_frequency(freq_value, label="Cutoff frequency")
         except ValueError as e:
-            self.notify(
-                f"Invalid frequency: {parser_error_detail(e, 'frequency')}", severity="error"
-            )
+            self.notify(str(e), severity="error")
             freq_input.focus()
             return
 
@@ -193,18 +185,16 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
         try:
             impedance = parse_impedance(impedance_input.value.strip() or "50")
         except ValueError as e:
-            self.notify(
-                f"Invalid impedance: {parser_error_detail(e, 'impedance')}", severity="error"
-            )
+            self.notify(str(e), severity="error")
             impedance_input.focus()
             return
 
         try:
             order = int(order_input.value)
-            if not 2 <= order <= 9:
-                raise ValueError("must be 2-9")
-        except ValueError as e:
-            self.notify(f"Invalid order: {e}", severity="error")
+        except ValueError:
+            order = 0
+        if not 2 <= order <= 9:
+            self.notify(COMPONENT_COUNT_MESSAGE, severity="error")
             order_input.focus()
             return
 
@@ -213,11 +203,7 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
 
         # Chebyshev LP/HP requires odd order for equal source/load terminations
         if filter_type == "chebyshev" and order % 2 == 0:
-            self.notify(
-                "With equal source/load terminations, Chebyshev highpass requires odd "
-                "order (3, 5, 7, or 9)",
-                severity="warning",
-            )
+            self.notify(chebyshev_odd_count_message("components"), severity="warning")
             order_input.focus()
             return
 
@@ -228,7 +214,7 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
             try:
                 ripple = parse_ripple_db(ripple_input.value)
             except ValueError as e:
-                self.notify(f"Invalid ripple: {e}", severity="error")
+                self.notify(str(e), severity="error")
                 ripple_input.focus()
                 return
 

@@ -1,6 +1,6 @@
 """Zoomed passband plot pair rendering.
 
-Combines full-range and zoomed (0 to -6dB) ASCII plots for frequency response.
+Combines full-range and zoomed (0 to -6 dB) ASCII plots for frequency response.
 Generates 2x resolution frequency data for smoother zoomed views.
 """
 
@@ -92,7 +92,7 @@ def render_plot_pair(
         filter_type=filter_type,
         db_floor=-zoom_db,
         response_fn=response_fn,
-        title=f"Passband Detail (0 to -{zoom_db:.0f} dB)",
+        title=f"Ideal Response Detail (0 to -{zoom_db:.0f} dB)",
         **{k: v for k, v in kwargs.items() if k != "title"},
     )
 
@@ -108,6 +108,7 @@ def render_bandpass_plot_pair(
     title: str = "Frequency Response",
     ripple_db: float | None = None,
     response_fn: Callable[[float], float] | None = None,
+    detail_title: str = "Ideal Response Detail",
     **kwargs,
 ) -> str:
     """Render full-range + zoomed passband detail for bandpass filters.
@@ -121,6 +122,7 @@ def render_bandpass_plot_pair(
         title: Plot title
         ripple_db: Chebyshev ripple in dB (affects zoom range)
         response_fn: Callable (freq_hz) -> magnitude_db for 2x zoom resolution
+        detail_title: Zoomed plot title, before the "(0 to -N dB)" range
         **kwargs: Passed to render_bandpass_plot (width, height)
 
     Returns:
@@ -167,7 +169,7 @@ def render_bandpass_plot_pair(
         bw,
         f_low_hz=f_low_hz,
         f_high_hz=f_high_hz,
-        title=f"Passband Detail (0 to -{zoom_db:.0f} dB)",
+        title=f"{detail_title} (0 to -{zoom_db:.0f} dB)",
         db_floor=-zoom_db,
         **kwargs,
     )

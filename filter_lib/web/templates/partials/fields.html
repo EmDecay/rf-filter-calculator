@@ -1,37 +1,59 @@
 {#- Form controls shared by the three category forms. `values` holds either the
-    submitted fields or the fresh defaults; a checkbox is checked when its name is present. -#}
+    submitted fields or the fresh defaults; a checkbox is checked when its value is on.
+    `option` names a rule in filter_lib.design.option_applicability: app.js disables the
+    control when the rule says it cannot apply and shows the reason in `reason(option)`. -#}
 
-{% macro text_field(name, label, help="", placeholder="", wide=false, show_for="", band="", inputmode="decimal") -%}
+{% macro reason(option) -%}
+<p class="field__reason" id="reason-{{ option }}" data-reason-for="{{ option }}" hidden></p>
+{%- endmacro %}
+
+{% macro option_attrs(option) -%}
+{% if option %} data-option="{{ option }}" aria-describedby="reason-{{ option }}"{% endif %}
+{%- endmacro %}
+
+{#- A text field with an `option` describes itself by its help and by the option's reason,
+    which the caller places once with `reason(option)`. #}
+{% macro text_field(name, label, help="", placeholder="", wide=false, show_for="", band="", inputmode="decimal", option="") -%}
+{%- set described = [("f-" ~ name ~ "-help") if help else "", ("reason-" ~ option) if option else ""] | select | join(" ") %}
 <div class="field{% if wide %} field--wide{% endif %}"{% if show_for %} data-show-for="{{ show_for }}"{% endif %}{% if band %} data-band="{{ band }}"{% endif %}>
   <label class="field__label" for="f-{{ name }}">{{ label }}</label>
   <input class="input" id="f-{{ name }}" name="{{ name }}" type="text" inputmode="{{ inputmode }}"
          autocomplete="off" spellcheck="false" value="{{ values.get(name, '') }}"
          {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
-         {%- if help %} aria-describedby="f-{{ name }}-help"{% endif %}>
+         {%- if option %} data-option="{{ option }}"{% endif %}
+         {%- if described %} aria-describedby="{{ described }}"{% endif %}>
   {% if help %}<p class="field__help" id="f-{{ name }}-help">{{ help }}</p>{% endif %}
 </div>
 {%- endmacro %}
 
-{% macro segmented(name, label, options, wide=true) -%}
+{#- `option_values` limits `option` to some of the choices (all when empty). #}
+{% macro segmented(name, label, options, wide=true, option="", option_values=()) -%}
 <div class="field{% if wide %} field--wide{% endif %}">
   <span class="field__label" id="f-{{ name }}-label">{{ label }}</span>
   <div class="segmented" role="radiogroup" aria-labelledby="f-{{ name }}-label">
     {% for value, text in options %}
     <label class="segmented__option">
-      <input type="radio" name="{{ name }}" value="{{ value }}"{% if values.get(name) == value %} checked{% endif %}>
+      <input type="radio" name="{{ name }}" value="{{ value }}"{% if values.get(name) == value %} checked{% endif %}
+             {{- option_attrs(option if not option_values or value in option_values else "") }}>
       <span>{{ text }}</span>
     </label>
     {% endfor %}
   </div>
+  {% if option %}{{ reason(option) }}{% endif %}
 </div>
 {%- endmacro %}
 
-{% macro checkbox(name, label, help="") -%}
+{#- `default_on` boxes are ticked by default, so a hidden "off" goes first: an unticked
+    box sends nothing, and the server keeps the last value of a repeated name. #}
+{% macro checkbox(name, label, help="", option="", default_on=false) -%}
+{% if default_on %}<input type="hidden" name="{{ name }}" value="off"{% if option %} data-option="{{ option }}"{% endif %}>{% endif %}
 <label class="check">
-  <input type="checkbox" name="{{ name }}"{% if name in values %} checked{% endif %}>
+  <input type="checkbox" name="{{ name }}"{% if (values.get(name) or "") | lower in ("on", "true", "1", "yes") %} checked{% endif %}
+         {{- option_attrs(option) }}>
   <span class="check__text">
     <span class="check__label">{{ label }}</span>
     {% if help %}<span class="check__help">{{ help }}</span>{% endif %}
   </span>
 </label>
+{% if option %}{{ reason(option) }}{% endif %}
 {%- endmacro %}

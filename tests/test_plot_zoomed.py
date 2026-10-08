@@ -24,8 +24,8 @@ def _butterworth_db(frequency: float) -> float:
 
 def _split_pair(pair: str) -> tuple[str, str]:
     """Split a plot pair at the zoomed plot's title (each plot also has blank lines)."""
-    full, zoomed = pair.split("\n\nPassband Detail")
-    return full, "Passband Detail" + zoomed
+    full, zoomed = pair.split("\n\nIdeal Response Detail")
+    return full, "Ideal Response Detail" + zoomed
 
 
 @pytest.fixture
@@ -64,16 +64,16 @@ class TestRenderPlotPair:
 
         full = render_ascii_plot(freqs, response_db, FC, filter_type="lowpass")
         zoomed = render_ascii_plot(
-            freqs, response_db, FC, db_floor=-6.0, title="Passband Detail (0 to -6 dB)"
+            freqs, response_db, FC, db_floor=-6.0, title="Ideal Response Detail (0 to -6 dB)"
         )
         assert pair == full + "\n\n" + zoomed
 
     @pytest.mark.parametrize(
         ("ripple_db", "title", "bottom_label"),
         [
-            (None, "Passband Detail (0 to -6 dB)", "   -6 │"),
-            (1.0, "Passband Detail (0 to -6 dB)", "   -6 │"),
-            (4.0, "Passband Detail (0 to -8 dB)", "   -8 │"),
+            (None, "Ideal Response Detail (0 to -6 dB)", "  ≤-6 │"),
+            (1.0, "Ideal Response Detail (0 to -6 dB)", "  ≤-6 │"),
+            (4.0, "Ideal Response Detail (0 to -8 dB)", "  ≤-8 │"),
         ],
     )
     def test_zoom_depth_follows_ripple(self, lowpass_response, ripple_db, title, bottom_label):
@@ -113,7 +113,7 @@ class TestRenderPlotPair:
         pair = render_plot_pair(freqs, response_db, 1e3, response_fn=lambda _f: -30.0)
 
         assert pair == render_ascii_plot(freqs, response_db, 1e3)
-        assert "Passband Detail" not in pair
+        assert "Ideal Response Detail" not in pair
 
     def test_response_function_resamples_zoom_at_double_density(self, lowpass_response):
         freqs, response_db = lowpass_response
@@ -132,7 +132,7 @@ class TestRenderPlotPair:
         assert len(grid) == 2 * len(freqs)
         assert grid[-1] == pytest.approx(freqs[-1], rel=1e-12)
         assert len(steps) == 1
-        assert "Passband Detail (0 to -6 dB)" in pair
+        assert "Ideal Response Detail (0 to -6 dB)" in pair
 
     def test_size_applies_to_both_plots_and_title_only_to_the_full_plot(self, lowpass_response):
         freqs, response_db = lowpass_response
@@ -143,7 +143,7 @@ class TestRenderPlotPair:
 
         full_lines, zoom_lines = full.split("\n"), zoomed.split("\n")
         assert full_lines[0] == "LP Custom"
-        assert zoom_lines[0] == "Passband Detail (0 to -6 dB)"
+        assert zoom_lines[0] == "Ideal Response Detail (0 to -6 dB)"
         grid_rows = full_lines[2:8] + zoom_lines[2:8]  # height 8 leaves 6 grid rows each
         assert all(len(row) == 7 + 42 and row[6] == "│" for row in grid_rows)
         assert full_lines[8].startswith("      +") and zoom_lines[8].startswith("      +")
@@ -157,8 +157,8 @@ class TestRenderPlotPair:
         _, zoomed = _split_pair(pair)
         annotation = zoomed.split("\n")[-1].strip()
         ratio_3db = math.cosh(math.acosh(1 / math.sqrt(10**0.05 - 1)) / 5)
-        assert annotation.startswith("▲") and annotation.endswith("M(-3dB)")
-        assert float(annotation[1:-7]) * 1e6 == pytest.approx(FC / ratio_3db, rel=2e-3)
+        assert annotation.startswith("▲ -3 dB at ") and annotation.endswith(" MHz")
+        assert float(annotation[11:-4]) * 1e6 == pytest.approx(FC / ratio_3db, rel=2e-3)
 
 
 class TestRenderBandpassPlotPair:
@@ -186,7 +186,7 @@ class TestRenderBandpassPlotPair:
             4e6,
             f_low_hz=8e6,
             f_high_hz=12e6,
-            title="Passband Detail (0 to -6 dB)",
+            title="Ideal Response Detail (0 to -6 dB)",
             db_floor=-6.0,
         )
         assert pair == full + "\n\n" + zoomed
@@ -195,8 +195,8 @@ class TestRenderBandpassPlotPair:
         pair = render_bandpass_plot_pair(self._SWEEP, 10e6, 4e6, ripple_db=4.0)
 
         zoom_lines = _split_pair(pair)[1].split("\n")
-        assert zoom_lines[0] == "Passband Detail (0 to -8 dB)"
-        assert zoom_lines[11].startswith("  -8 │")
+        assert zoom_lines[0] == "Ideal Response Detail (0 to -8 dB)"
+        assert zoom_lines[11].startswith(" ≤-8 │")
 
     def test_flat_passband_skips_the_zoom(self):
         sweep = [(9e6, -0.05), (10e6, 0.0), (11e6, -0.05)]
@@ -222,4 +222,4 @@ class TestRenderBandpassPlotPair:
         pair = render_bandpass_plot_pair(sweep, 10e6, 2e6, response_fn=lambda _f: -30.0)
 
         assert pair == render_bandpass_plot(sweep, 10e6, 2e6)
-        assert "Passband Detail" not in pair
+        assert "Ideal Response Detail" not in pair

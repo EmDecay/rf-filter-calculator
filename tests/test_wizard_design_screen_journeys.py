@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import asyncio
 
-from textual.widgets import Button, Input, RadioButton, RadioSet, Static
+from textual.widgets import Button, Checkbox, Input, RadioButton, RadioSet, Static
 
+from filter_lib.shared.eseries import SUB_PF_OPTION_LABEL
 from filter_lib.wizard.app import FilterWizardApp
 from filter_lib.wizard.screens.bandpass import BandpassScreen
 from filter_lib.wizard.screens.highpass import HighpassScreen
@@ -69,11 +70,11 @@ def test_lowpass_keyboard_journey_blocks_even_chebyshev_then_stores_design() -> 
             screen = app.screen
             assert isinstance(screen, LowpassScreen)
             assert _radio_labels(screen, "filter-type")["bessel"] == (
-                "Bessel - Flat-delay low-pass prototype"
+                "Bessel - Maximally flat group delay, gentle cutoff"
             )
             assert _radio_labels(screen, "topology") == {
-                "pi": "Shunt-first ladder - C first, then alternating L/C",
-                "t": "Series-first ladder - L first, then alternating C/L",
+                "pi": "Pi (shunt first) - C, then alternating L/C",
+                "t": "T (series first) - L, then alternating C/L",
             }
             ripple_section = screen.query_one("#ripple-section")
             assert screen.query_one("#filter-type", RadioSet).has_focus
@@ -85,13 +86,8 @@ def test_lowpass_keyboard_journey_blocks_even_chebyshev_then_stores_design() -> 
             assert ripple_section.display is True
             assert "odd only" in str(screen.query_one("#order-label", Static).render())
             await pilot.press("enter", "down", "space", "enter")
-            # Values are entered directly (Input.Changed still fires); Enter drives
-            # each field's Submitted handler along the documented focus chain.
-            for field_id, value in (("frequency", "7.1MHz"), ("impedance", "75"), ("order", "4")):
-                field = screen.query_one(f"#{field_id}", Input)
-                assert field.has_focus
-                field.value = value
-                await pilot.press("enter")
+            # The web form's order: ripple (Chebyshev) sits with the response, then the
+            # cutoff, the number of components, and the impedance.
             ripple = screen.query_one("#ripple", Input)
             assert ripple.has_focus
             # Field styling and Next share one contract: 0 < ripple <= 3.0 dB and an
@@ -99,6 +95,15 @@ def test_lowpass_keyboard_journey_blocks_even_chebyshev_then_stores_design() -> 
             ripple.value = "0.005"
             await pilot.pause()
             assert ripple.is_valid
+            await pilot.press("enter")
+            # Values are entered directly (Input.Changed still fires); Enter drives
+            # each field's Submitted handler along the documented focus chain.
+            for field_id, value in (("frequency", "7.1MHz"), ("order", "4"), ("impedance", "75")):
+                field = screen.query_one(f"#{field_id}", Input)
+                assert field.has_focus
+                field.value = value
+                await pilot.press("enter")
+            assert screen.query_one("#next-btn", Button).has_focus
             order = screen.query_one("#order", Input)
             order.value = "3.5"
             await pilot.pause()
@@ -106,15 +111,15 @@ def test_lowpass_keyboard_journey_blocks_even_chebyshev_then_stores_design() -> 
             order.value = "4"
             await pilot.pause()
             assert order.is_valid
-            await pilot.press("enter", "enter")
+            await pilot.press("enter")
             await pilot.pause()
 
             assert app.screen is screen
             assert notes == [
                 (
                     "warning",
-                    "With equal source/load terminations, Chebyshev lowpass requires odd "
-                    "order (3, 5, 7, or 9)",
+                    "Chebyshev needs an odd number of components (3, 5, 7, or 9) for equal "
+                    "source and load impedance",
                 )
             ]
             assert screen.query_one("#order", Input).has_focus
@@ -150,14 +155,16 @@ def test_highpass_defaults_reach_results_and_a_later_edit_invalidates_them() -> 
             screen = app.screen
             assert isinstance(screen, HighpassScreen)
             assert _pressed(screen, "filter-type") == "butterworth"
-            # High-pass defaults to the series-first ladder, unlike low-pass.
+            # High-pass defaults to the series-first ladder, unlike low-pass, but lists
+            # Pi first as the web form does.
             assert _pressed(screen, "topology") == "t"
             assert _radio_labels(screen, "topology") == {
-                "t": "Series-first ladder - C first, then alternating L/C",
-                "pi": "Shunt-first ladder - L first, then alternating C/L",
+                "pi": "Pi (shunt first) - L, then alternating C/L",
+                "t": "T (series first) - C, then alternating L/C",
             }
+            assert list(_radio_labels(screen, "topology")) == ["pi", "t"]
             assert _radio_labels(screen, "filter-type")["bessel"] == (
-                "Bessel - High-pass transform does not preserve flat group delay"
+                "Bessel - Gentle cutoff; the high-pass form does not keep flat group delay"
             )
             await _assert_design_field_validators(pilot, screen, "order")
 
@@ -174,12 +181,19 @@ def test_highpass_defaults_reach_results_and_a_later_edit_invalidates_them() -> 
                 "t",
             )
             assert (state.frequency_hz, state.impedance, state.order) == (10e6, 50.0, 3)
-            assert _radio_labels(options, "eseries") == {
-                "E24": "E24 - 24 preferred values per decade (default)",
-                "E12": "E12 - 12 preferred values per decade",
-                "E96": "E96 - 96 preferred values per decade",
-                "none": "None - Calculated values only",
+            labels = _radio_labels(options, "eseries")
+            assert labels == {
+                "E12": "E12 - 12 standard values per decade",
+                "E24": "E24 - 24 standard values per decade (default)",
+                "E96": "E96 - 96 standard values per decade",
+                "none": "None - show calculated values only",
             }
+            assert list(labels) == ["E12", "E24", "E96", "none"]  # the web form's order
+            assert _pressed(options, "eseries") == "E24"
+            # The sub-pF option sits with the standard values, off by default.
+            sub_pf = options.query_one("#allow-sub-pf", Checkbox)
+            assert str(sub_pf.label) == SUB_PF_OPTION_LABEL == "Allow capacitors below 1 pF"
+            assert sub_pf.value is False
 
             options.query_one("#results-btn").focus()
             await pilot.press("enter")
@@ -188,7 +202,7 @@ def test_highpass_defaults_reach_results_and_a_later_edit_invalidates_them() -> 
             await pilot.pause()
             assert isinstance(app.screen, ResultsScreen)
             assert state.calculation_status == "success"
-            assert "High Pass" in state.output_text
+            assert "High-Pass" in state.output_text
 
             await pilot.press("escape", "escape")
             await pilot.pause()
@@ -214,16 +228,23 @@ def test_bandpass_journey_updates_fbw_feedback_and_stores_tank_inductance() -> N
             screen = app.screen
             assert isinstance(screen, BandpassScreen)
             assert _radio_labels(screen, "coupling") == {
-                "top": "Top-C (Series) - capacitively coupled resonators"
+                "top": "Top-C - series capacitors couple the resonators"
             }
             assert _radio_labels(screen, "filter-type")["bessel"] == (
-                "Bessel - Band-pass transform does not preserve flat group delay"
+                "Bessel - Gentle skirts; the band-pass form does not keep flat group delay"
             )
             await _assert_design_field_validators(pilot, screen, "resonators")
 
             await pilot.press("down", "down", "space", "enter", "enter")
             assert _pressed(screen, "filter-type") == "bessel"
             assert screen.query_one("#ripple-section").display is False
+            # The band choice comes first, as on the web; Enter accepts center and width.
+            assert screen.query_one("#band-spec", RadioSet).has_focus
+            assert _radio_labels(screen, "band-spec") == {
+                "center": "Center and width",
+                "edges": "Band edges",
+            }
+            await pilot.press("enter")
             assert screen.query_one("#frequency", Input).has_focus
 
             fbw = screen.query_one("#fbw-display", Static)
@@ -233,18 +254,29 @@ def test_bandpass_journey_updates_fbw_feedback_and_stores_tank_inductance() -> N
             assert bandwidth.has_focus
             bandwidth.value = "5MHz"
             await pilot.pause()
-            assert str(fbw.render()).startswith("Fractional BW: 35.21% · Outside studied")
+            assert str(fbw.render()).startswith(
+                "Fractional bandwidth 35.2% is above the 10% this design method was tested up to."
+            )
             assert fbw.has_class("fbw-warning")
             bandwidth.value = "500kHz"
             await pilot.pause()
-            assert str(fbw.render()).startswith("Fractional BW: 3.52% · Within studied")
+            assert str(fbw.render()).startswith(
+                "Fractional bandwidth 3.5% is within the 10% this design method was tested up to."
+            )
             assert fbw.has_class("fbw-display")
             assert not fbw.has_class("fbw-warning")
 
             inductance = screen.query_one("#resonator-inductance", Input)
             inductance.focus()
             inductance.value = "1uH"
-            await pilot.press("enter", "enter")
+            await pilot.press("enter")
+            # Resonator Q follows the resonator size, as in the web form's section.
+            qu = screen.query_one("#qu", Input)
+            assert qu.has_focus
+            qu.value = "200"
+            await pilot.press("enter", "enter", "enter")
+            assert screen.query_one("#next-btn", Button).has_focus
+            await pilot.press("enter")
             await pilot.pause()
             assert isinstance(app.screen, OutputOptionsScreen)
             state = app.filter_state
@@ -254,9 +286,11 @@ def test_bandpass_journey_updates_fbw_feedback_and_stores_tank_inductance() -> N
                 "top",
             )
             assert (state.frequency_hz, state.bandwidth_hz) == (14.2e6, 500e3)
+            assert (state.requested_f_low_hz, state.requested_f_high_hz) == (None, None)
             assert state.order == 3
             assert state.resonator_inductance == 1e-6
             assert state.resonator_impedance is None
+            assert (state.qu, state.ql, state.qc) == (200.0, None, None)
 
             # Ctrl+C exits from any screen whose focused widget does not claim it.
             assert app.return_code is None

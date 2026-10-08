@@ -20,7 +20,11 @@ from .resonator_math import (
     compute_bandpass_3db_edges,
 )
 from .response_verification import validate_netlist_shape
-from .top_c_calibration import _calibrate_top_c
+from .top_c_calibration import (
+    TopCCalibrationError,
+    _calibrate_top_c,
+    calibration_failure_message,
+)
 from .top_c_synthesis import BandpassResult
 
 
@@ -66,7 +70,7 @@ def _finish_result(
             "response_validation_status": (
                 "validated" if validation["validated"] else "outside_validated_envelope"
             ),
-            "warnings": _validation_warnings(result["fbw"], validation),
+            "warnings": _validation_warnings(result["fbw"], validation, result["filter_type"]),
         }
     )
     result.update(model_diagnostics(result))
@@ -116,42 +120,46 @@ def calculate_bandpass_filter(
         g_values, initial_fbw, z0, f0, resonator_impedance, resonator_inductance
     )
 
-    result, calibration_iterations = _calibrate_top_c(
-        f0,
-        bw,
-        f_low,
-        f_high,
-        initial_fbw,
-        z0,
-        n_resonators,
-        g_values,
-        resonator_impedance,
-        resonator_inductance,
-    )
-    result.update(
-        {
-            "f0": f0,
-            "f_low": f_low,
-            "f_high": f_high,
-            "bw": bw,
-            "fbw": fbw,
-            "fbw_synth_initial": initial_fbw,
-            "f0_synth": result["f_tank_hz"],
-            "filter_type": filter_type,
-            "coupling": coupling,
-            "ripple_db": ripple_db if filter_type == "chebyshev" else None,
-        }
-    )
+    try:
+        result, calibration_iterations = _calibrate_top_c(
+            f0,
+            bw,
+            f_low,
+            f_high,
+            initial_fbw,
+            z0,
+            n_resonators,
+            g_values,
+            resonator_impedance,
+            resonator_inductance,
+        )
+        result.update(
+            {
+                "f0": f0,
+                "f_low": f_low,
+                "f_high": f_high,
+                "bw": bw,
+                "fbw": fbw,
+                "fbw_synth_initial": initial_fbw,
+                "f0_synth": result["f_tank_hz"],
+                "filter_type": filter_type,
+                "coupling": coupling,
+                "ripple_db": ripple_db if filter_type == "chebyshev" else None,
+            }
+        )
 
-    validation = validate_netlist_shape(result, f0, bw, points=VALIDATION_POINTS)
-    _finish_result(
-        result,
-        validation,
-        calibration_iterations,
-        q_safety,
-        qu,
-        ql,
-        qc,
-        resonator_qu,
-    )
+        validation = validate_netlist_shape(result, f0, bw, points=VALIDATION_POINTS)
+        _finish_result(
+            result,
+            validation,
+            calibration_iterations,
+            q_safety,
+            qu,
+            ql,
+            qc,
+            resonator_qu,
+        )
+    except TopCCalibrationError as exc:
+        # One plain message for users; the solver's specific reason stays on __cause__.
+        raise ValueError(calibration_failure_message(filter_type)) from exc
     return result

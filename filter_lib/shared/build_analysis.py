@@ -16,9 +16,20 @@ from .circuit_builders import build_named_circuit
 from .nominal_realization import realize_nominal_build
 from .tolerance_screening import run_screening_cases, summarize_cases
 
+# The table prints this one only when extra random tolerance cases were run.
+RANDOM_CASES_LIMITATION = (
+    "The extra random tolerance cases repeat for the same seed; their spread is not a "
+    "production-yield estimate."
+)
+
+
+def _cases(count: int) -> str:
+    return f"{count} tolerance case is" if count == 1 else f"{count} tolerance cases are"
+
 
 def _analysis_limitations(
     nominal_limitations: tuple[str, ...],
+    category: str,
     source: float,
     load: float,
     grid_censored_cases: int,
@@ -28,31 +39,40 @@ def _analysis_limitations(
     limitations = list(nominal_limitations)
     limitations.extend(
         (
-            "Deterministic tolerance corners and bounded samples are not a guaranteed worst case.",
-            "Seeded uniform samples are a repeatable screening set, not a probability or yield model.",
-            "The circuit model omits layout, interconnect and package parasitics, SRF, "
-            "temperature dependence, nonlinear voltage/current effects, and power behavior.",
+            "The tolerance cases do not guarantee the true worst case.",
+            RANDOM_CASES_LIMITATION,
+            "The simulation leaves out layout and wiring, self-resonance (SRF), temperature "
+            "drift, nonlinear effects, and power handling.",
         )
     )
     if source != load:
         limitations.append(
-            "Separate source/load resistances evaluate transducer power gain; this does not "
-            "imply unequal-termination synthesis."
+            "The parts are still designed for equal source and load impedance; the different "
+            "source and load resistances apply only to this simulation."
         )
+    is_bandpass = category == "bandpass"
     if grid_censored_cases:
+        figures = "edge, center, and bandwidth figures" if is_bandpass else "cutoff figures"
+        point = "a -3 dB edge" if is_bandpass else "the -3 dB point"
         limitations.append(
-            f"Edge/cutoff summaries omit {grid_censored_cases} grid-boundary-censored "
-            "screening cases; inspect their case records before extending the sweep."
+            f"{_cases(grid_censored_cases)} left out of the {figures} because "
+            f"{point} fell outside the simulated frequency range; JSON output lists each case."
         )
     if unresolved_cases:
         limitations.append(
-            f"Metric summaries omit {unresolved_cases} unresolved screening cases; "
-            "their response measurements did not converge within the refinement budget."
+            f"{_cases(unresolved_cases)} left out of the figures because the measurement "
+            "did not converge."
         )
     if disconnected_cases:
+        their = "its" if disconnected_cases == 1 else "their"
+        taken = (
+            f"{their} edges and bandwidth come from the range around the peak nearest the center"
+            if is_bandpass
+            else f"{their} cutoff comes from the range that holds the peak"
+        )
         limitations.append(
-            f"{disconnected_cases} screening cases have disconnected half-power regions; "
-            "bandwidth describes the selected local-peak region, not the outer envelope."
+            f"In {disconnected_cases} tolerance case{'' if disconnected_cases == 1 else 's'} "
+            f"the response is above -3 dB in separate frequency ranges; {taken}."
         )
     return tuple(limitations)
 
@@ -166,6 +186,7 @@ def analyze_build(
         metric_summaries=summarize_cases(cases, category),
         limitations=_analysis_limitations(
             nominal.limitations,
+            category,
             source,
             load,
             censored,

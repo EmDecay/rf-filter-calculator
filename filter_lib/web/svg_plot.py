@@ -18,9 +18,9 @@ LEFT, RIGHT, TOP, BOTTOM = 52.0, 14.0, 14.0, 36.0
 GUIDE_DB = -3.0
 LOWEST_DB = -100.0
 SOURCES = {
-    "lowpass": "analytic transfer function",
-    "highpass": "analytic transfer function",
-    "bandpass": "simulated synthesized circuit",
+    "lowpass": "ideal transfer function",
+    "highpass": "ideal transfer function",
+    "bandpass": "simulated circuit",
 }
 
 
@@ -89,8 +89,8 @@ def render_response_svg(freqs: list[float], response_db: list[float], category: 
 
     source = SOURCES.get(category, "response")
     label = (
-        f"Frequency response, {source}: magnitude in dB from "
-        f"{format_frequency(f_min)} to {format_frequency(f_max)}, {len(freqs)} samples"
+        f"Frequency response ({source}): magnitude in dB from "
+        f"{format_frequency(f_min)} to {format_frequency(f_max)}, {len(freqs)} frequency points"
     )
     parts = [
         f'<svg class="response-plot" viewBox="0 0 {WIDTH:g} {HEIGHT:g}" role="img" '
@@ -127,7 +127,7 @@ def render_response_svg(freqs: list[float], response_db: list[float], category: 
         f'<text class="plot-axis-label" x="{_fmt(LEFT + plot_w / 2)}" y="{_fmt(HEIGHT - 4)}" '
         f'text-anchor="middle">Frequency</text>',
         f'<text class="plot-axis-label" x="12" y="{_fmt(TOP + plot_h / 2)}" text-anchor="middle" '
-        f'transform="rotate(-90 12 {_fmt(TOP + plot_h / 2)})">dB</text>',
+        f'transform="rotate(-90 12 {_fmt(TOP + plot_h / 2)})">Magnitude (dB)</text>',
     ]
     points = " ".join(f"{_fmt(x_at(f))},{_fmt(y_at(db))}" for f, db in zip(freqs, response_db))
     parts.append(f'<polyline class="plot-trace" points="{points}"/>')

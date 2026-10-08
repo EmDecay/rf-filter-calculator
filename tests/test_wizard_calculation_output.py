@@ -112,10 +112,10 @@ class TestLowpassHighpassCalculators:
     @pytest.mark.parametrize(
         "category, topology, title, first_column",
         [
-            ("lowpass", "pi", "Butterworth PI Low Pass Filter", "Capacitors"),
-            ("lowpass", "t", "Butterworth T Low Pass Filter", "Inductors"),
-            ("highpass", "pi", "Butterworth PI High Pass Filter", "Inductors"),
-            ("highpass", "t", "Butterworth T High Pass Filter", "Capacitors"),
+            ("lowpass", "pi", "Butterworth Pi Low-Pass Filter", "Capacitors"),
+            ("lowpass", "t", "Butterworth T Low-Pass Filter", "Inductors"),
+            ("highpass", "pi", "Butterworth Pi High-Pass Filter", "Inductors"),
+            ("highpass", "t", "Butterworth T High-Pass Filter", "Capacitors"),
         ],
     )
     def test_table_lists_the_first_ladder_element_first(
@@ -143,17 +143,20 @@ class TestLowpassHighpassCalculators:
         _, matched = _render(category, eseries="E12")
         _, unmatched = _render(category, eseries="none")
 
-        assert "E12 Preferred-Value Capacitor Selection" in matched
-        assert "Preferred-Value Inductor Selection" not in matched
-        assert "Inductors: wind to value (see toroid recommendations)" in matched
-        assert "Preferred-Value" not in unmatched
+        assert "E12 Standard Capacitor Values" in matched
+        assert "Standard Inductor Values" not in matched
+        assert (
+            "Inductors: no standard values; wind to the calculated value "
+            "(see Toroid Winding Suggestions)."
+        ) in matched
+        assert "Standard Capacitor Values" not in unmatched
 
     @pytest.mark.parametrize("category", ["lowpass", "highpass"])
     def test_plot_and_threshold_summary_follow_the_plot_option(self, category):
         _, with_plot = _render(category, show_plot=True)
         _, without_plot = _render(category, show_plot=False)
 
-        for heading in ("Frequency Response (dB)", "dB Threshold Summary"):
+        for heading in ("Ideal Frequency Response (dB)", "Frequencies at -3 / -10 / -20 dB"):
             assert heading in with_plot
             assert heading not in without_plot
 
@@ -194,16 +197,19 @@ class TestBandpassCalculator:
         )
         assert state.result["n_resonators"] == 3
         lines = output.splitlines()
-        assert "Butterworth Coupled Resonator Bandpass Filter" in lines
-        assert "Response validation: Passed synthesized-response checks" in lines
-        assert "E24 Preferred-Value Capacitor Selection" in lines
+        assert "Butterworth Coupled-Resonator Band-Pass Filter" in lines
+        assert (
+            "Response Check:      Passed (simulated circuit matches the requested response)"
+            in lines
+        )
+        assert "E24 Standard Capacitor Values" in lines
         for label in ("Cp1", "Cp3", "Ce_in", "Cs12", "Cs23", "Ce_out"):
-            assert any(line.startswith(f"{label} Calculated: ") for line in lines)
+            assert any(line.startswith(f"{label} calculated ") for line in lines)
 
     def test_raw_units_hide_preferred_value_selection(self):
         _, output = _render("bandpass", eseries="E24", raw_units=True)
 
-        assert "Preferred-Value Capacitor Selection" not in output
+        assert "Standard Capacitor Values" not in output
         assert "│ Cp1: " in output and " F " in output
 
     def test_chebyshev_table_states_its_ripple(self):
@@ -218,12 +224,12 @@ class TestBandpassCalculator:
         [text] = calculate_bandpass(state)
 
         names = [line.split(":")[0] for line in text.splitlines()]
-        assert names == ["Cp1", "Cp2", "Cp3", "L1", "L2", "L3", "Cs12", "Cs23", "Ce_in", "Ce_out"]
+        assert names == ["Cp1", "Cp2", "Cp3", "L1", "L2", "L3", "Ce_in", "Cs12", "Cs23", "Ce_out"]
 
     def test_one_percent_plot_finds_both_threshold_skirts(self):
         _, output = _render("bandpass", frequency_hz=10e6, bandwidth_hz=100e3, show_plot=True)
 
-        assert "Butterworth 3-pole Response" in output
+        assert "Simulated Response, ideal parts (dB): Butterworth, 3 resonators" in output
         threshold_row = next(line for line in output.splitlines() if "│ -3 dB" in line)
         assert BANDPASS_WIZARD_RESPONSE_POINTS >= 601
         assert "N/A" not in threshold_row
@@ -238,29 +244,33 @@ class TestBandpassCalculator:
         assert state.result["resonator_selection"] == "fixed_inductance"
 
 
-def test_bandpass_recommendations_require_expert_action_below_one_picofarad():
+def test_bandpass_recommendations_choose_no_part_below_one_picofarad():
     result = {"c_tank": [1e-15], "c_coupling": [], "c_end_in": None, "c_end_out": None}
 
     output = "\n".join(format_eseries_lines(result, "E24"))
 
-    assert "policy selects at most one realization; expert action may be required" in output
-    assert "Nearest Std (reference only)" in output
-    assert "EXPERT ACTION REQUIRED; no part selected" in output
-    assert "below the 1 pF automatic-selection floor" in output
+    assert "Each capacitor gets one choice" in output
+    assert "  Use:            none (below 1 pF; see warning)" in output
+    assert ", for reference only" in output
+    assert (
+        "  Warning: Below 1 pF no part is chosen automatically. Choose one manually, or" in output
+    )
+    assert '           turn on "Allow capacitors below 1 pF" (--allow-sub-pf).' in output
 
 
 class TestFormatBandpassTable:
     def test_top_c_table_lists_every_section(self, bandpass_result):
         state = FilterState(raw_units=False, show_plot=False)
+        result = {**bandpass_result, "il_estimates": {"100": 3.0, "250": 1.2}}
 
-        output = "\n".join(format_bandpass_table(bandpass_result, state))
+        output = "\n".join(format_bandpass_table(result, state))
 
         for text in (
-            "Butterworth Coupled Resonator Bandpass Filter",
+            "Butterworth Coupled-Resonator Band-Pass Filter",
             "Center Frequency f₀: 14.175 MHz",
-            "Lower Cutoff fₗ:     14.00108 MHz",
-            "Upper Cutoff fₕ:     14.35108 MHz",
-            "Bandwidth BW:        350 kHz",
+            "Lower -3 dB Edge fₗ: 14.00108 MHz",
+            "Upper -3 dB Edge fₕ: 14.35108 MHz",
+            "-3 dB Bandwidth:     350 kHz",
             "Fractional BW:       2.47%",
             "Resonators:          3",
             "Tank Capacitors",
@@ -269,7 +279,7 @@ class TestFormatBandpassTable:
             "│ L1: 1.00 µH",
             "│ Cs12: 10.00 pF",
             "External Q (input):  50.00",
-            "complete-resonator unloaded Q",
+            "resonator Qu (inductor and capacitor losses together)",
         ):
             assert text in output
         for absent in ("Shunt", "Minimum usable Q", "Q safety factor", "Ripple:"):
@@ -294,18 +304,34 @@ class TestFormatBandpassTable:
 
         lines = format_bandpass_table(result, FilterState(show_plot=False))
 
-        assert "Response validation: Outside validated envelope; see warnings" in lines
+        assert "Response Check:      Not confirmed; see warnings below" in lines
         assert lines[lines.index("\nWarnings:") + 1 :][:2] == [
             "  ⚠ Bandwidth too large",
             "  ⚠ Q values may be unrealistic",
         ]
+
+    def test_sub_pf_switch_reaches_the_e_series_rows(self):
+        """The helper carries the wizard's sub-pF switch, like the Results path."""
+        from filter_lib.bandpass import calculate_bandpass_filter
+
+        # 500 MHz, 10 MHz wide: the coupling and end capacitors are below 1 pF.
+        result = calculate_bandpass_filter(500e6, 10e6, 50, 3, "butterworth", "top")
+        state = FilterState(show_plot=False, eseries="E24")
+
+        default = "\n".join(format_bandpass_table(result, state))
+        state.allow_sub_pf = True
+        allowed = "\n".join(format_bandpass_table(result, state))
+
+        assert "Below 1 pF no part is chosen automatically" in default
+        assert "Below 1 pF no part is chosen automatically" not in allowed
+        assert "Ce_in calculated 909.08 fF\n  Use:            910.00 fF (+0.1%)" in allowed
 
     def test_chebyshev_ripple_row(self, bandpass_result):
         result = {**bandpass_result, "filter_type": "chebyshev", "ripple_db": 0.5}
 
         output = "\n".join(format_bandpass_table(result, FilterState(show_plot=False)))
 
-        assert "Chebyshev Coupled Resonator Bandpass Filter" in output
+        assert "Chebyshev Coupled-Resonator Band-Pass Filter" in output
         assert "Ripple:              0.5 dB" in output
 
 
@@ -318,9 +344,9 @@ class TestCalculateAndFormat:
     @pytest.mark.parametrize(
         "category, title",
         [
-            ("lowpass", "Low Pass"),
-            ("highpass", "High Pass"),
-            ("bandpass", "Bandpass"),
+            ("lowpass", "Low-Pass"),
+            ("highpass", "High-Pass"),
+            ("bandpass", "Band-Pass"),
         ],
     )
     def test_success_is_detached_from_the_live_state(self, category, title):
@@ -366,11 +392,11 @@ class TestCalculateAndFormat:
         assert outcome.succeeded
         assert outcome.build_analysis.config.grid_points == 51
         for heading in (
-            "Synthesis target",
-            "Calculated exact values",
-            "Selected nominal build",
-            "Tolerance screening",
-            "simulation, not a measurement",
+            "Above: the ideal design. Below: a simulation of building it with the chosen parts.",
+            "Ideal values:",
+            "Chosen parts:",
+            "Tolerance cases:",
+            "Build Simulation (chosen parts; simulated, not measured)",
         ):
             assert heading in outcome.output_text
         assert (state.result, state.build_analysis) == ({}, None)
@@ -386,7 +412,7 @@ class TestCalculateAndFormat:
 
         outcome = calculate_and_format(state, should_cancel=lambda: True)
 
-        assert (outcome.status, outcome.error) == ("error", "Calculation cancelled")
+        assert (outcome.status, outcome.error) == ("error", "Calculation stopped")
         assert (outcome.output_text, outcome.result, outcome.build_analysis) == ("", {}, None)
         assert not outcome.succeeded
 
@@ -414,21 +440,51 @@ class TestCalculateAndFormat:
         assert payload["tolerance_analysis"]["grid_points"] == 51
 
     @pytest.mark.parametrize(
-        "overrides, expected",
+        "overrides",
         [
-            ({"output_format": "csv"}, "supported only with table or JSON component output"),
-            ({"quiet": True}, "cannot be combined with quiet output"),
-            ({"eseries": "none"}, "requires an E-series"),
+            {"output_format": "csv"},
+            {"output_format": "quiet"},
+            {"quiet": True},
+            {"eseries": "none"},
         ],
     )
-    def test_build_analysis_rejects_modes_that_cannot_show_it(self, overrides, expected):
+    def test_a_build_the_output_cannot_show_is_left_out_of_the_result(self, overrides):
+        """The shared rule disables the build here; the result is the output without it."""
         values = {"eseries": "E24", "build_analysis_enabled": True, **overrides}
+        state = _state("lowpass", **values)
 
-        outcome = calculate_and_format(_state("lowpass", **values))
+        outcome = calculate_and_format(state)
 
-        assert outcome.status == "error"
-        assert expected in outcome.error
+        assert outcome.succeeded, outcome.error
         assert outcome.build_analysis is None
+        plain = calculate_and_format(
+            _state("lowpass", **{**values, "build_analysis_enabled": False})
+        )
+        assert outcome.output_text == plain.output_text
+        # A ticked build still reaches the saved JSON when its series allows it; that
+        # design is calculated when the JSON is saved, never for the result shown.
+        assert state.json_needs_own_design() is (overrides.get("eseries") != "none")
+
+    @pytest.mark.parametrize("output_format", ["csv", "quiet"])
+    def test_a_disabled_build_that_cannot_run_never_fails_the_result(self, output_format):
+        """The build's own error (Q frequency without Q) belongs to the saved JSON only."""
+        state = _state(
+            "lowpass",
+            eseries="E24",
+            output_format=output_format,
+            build_analysis_enabled=True,
+            build_reference_frequency_hz=5e6,
+        )
+
+        outcome = calculate_and_format(state)
+
+        assert outcome.succeeded, outcome.error
+        assert outcome.build_analysis is None
+        assert state.json_needs_own_design()
+        with pytest.raises(ValueError, match="frequency at which the Q values apply"):
+            from filter_lib.design import design
+
+            design(state.json_design_request())
 
 
 class TestGetSelectedRadio:

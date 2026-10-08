@@ -179,15 +179,18 @@ class TestDisplayBlock:
         nominal = CircuitMeasurement(9.6e6, 10.4e6, -3.5, False)
         lines = format_matched_sim_block(MatchedSimSummary("bandpass", "E24", exact, nominal))
 
-        assert "Nominal Build Simulation (legacy --sim-matched; E24)" in lines
+        assert "Build Simulation (E24; --sim-matched is deprecated, use --sim-build)" in lines
+        assert (
+            "Ideal values compared with the chosen parts (E24 capacitors, toroid windings)" in lines
+        )
         assert not any("inductors kept exact" in line for line in lines)
         rows = _rows(lines)
         # Geometric centers sqrt(9.5*10.5) and sqrt(9.6*10.4) MHz; BW 1 MHz -> 800 kHz.
-        assert rows["Center f0"] == ["9.987", "MHz", "9.992", "MHz", "+0.05%"]
-        assert rows["-3 dB BW"] == ["1", "MHz", "800", "kHz", "-20.00%"]
-        assert rows["Lower edge"] == ["9.5", "MHz", "9.6", "MHz", "+1.05%"]
-        assert rows["Upper edge"] == ["10.5", "MHz", "10.4", "MHz", "-0.95%"]
-        assert rows["Worst passband dev"] == ["-3.00", "dB", "-3.50", "dB", "-0.50", "dB"]
+        assert rows["Center"] == ["9.987", "MHz", "9.992", "MHz", "+0.05%"]
+        assert rows["-3 dB bandwidth"] == ["1", "MHz", "800", "kHz", "-20.00%"]
+        assert rows["Lower -3 dB edge"] == ["9.5", "MHz", "9.6", "MHz", "+1.05%"]
+        assert rows["Upper -3 dB edge"] == ["10.5", "MHz", "10.4", "MHz", "-0.95%"]
+        assert rows["Lowest gain in passband"] == ["-3.00", "dB", "-3.50", "dB", "-0.50", "dB"]
 
     @pytest.mark.parametrize(
         "category, exact, nominal, expected_cutoff_row",
@@ -212,8 +215,8 @@ class TestDisplayBlock:
         rows = _rows(format_matched_sim_block(MatchedSimSummary(category, "E24", exact, nominal)))
 
         assert rows["-3 dB cutoff"] == expected_cutoff_row
-        assert rows["Worst passband dev"] == ["-3.00", "dB", "-3.10", "dB", "-0.10", "dB"]
-        assert "Center f0" not in rows
+        assert rows["Lowest gain in passband"] == ["-3.00", "dB", "-3.10", "dB", "-0.10", "dB"]
+        assert "Center" not in rows
 
     @pytest.mark.parametrize(
         "category, nominal",
@@ -231,10 +234,11 @@ class TestDisplayBlock:
         lines = format_matched_sim_block(MatchedSimSummary(category, "E24", calculated, nominal))
 
         assert lines[-1] == (
-            "Nominal build does not exhibit a clear passband on the simulated "
-            "grid; try a finer E-series (e.g. E96)."
+            "The chosen-parts response has no clear passband in the simulated frequency "
+            "range. Try a finer E-series (e.g. E96) or --no-toroid-build, or use --sim-build "
+            "to see the parts used."
         )
-        assert "Worst passband dev" not in _rows(lines)
+        assert "Lowest gain in passband" not in _rows(lines)
 
     def test_unresolved_measurement_and_half_power_reference_are_disclosed(self):
         calculated = CircuitMeasurement(9.5e6, 10.5e6, -3.0, False, measurement_converged=False)
@@ -249,11 +253,10 @@ class TestDisplayBlock:
         )
         lines = format_matched_sim_block(MatchedSimSummary("bandpass", "E24", calculated, nominal))
 
-        assert "Calculated: UNRESOLVED response measurement (refinement budget exhausted)" in lines
-        assert "Nominal: UNRESOLVED response measurement (refinement budget exhausted)" not in lines
-        assert (
-            "Nominal half-power reference: -0.100 dB at 10000000 Hz; 1 connected region(s)" in lines
-        )
+        assert "Ideal values: did not converge; values approximate" in lines
+        assert "Chosen parts: did not converge; values approximate" not in lines
+        # The -0.1 dB reference peak differs from the unset overall peak, so it is named.
+        assert "Chosen parts: -3 dB measured from the -0.10 dB peak at 10 MHz" in lines
 
     def test_delta_blank_when_a_side_is_unmeasurable(self):
         """No delta is rendered against a missing or zero reference."""
@@ -275,7 +278,9 @@ class TestCliWiring:
         runner(maker(quiet=False, no_match=False, sim_matched=True))
 
         captured = capsys.readouterr()
-        assert "Nominal Build Simulation (legacy --sim-matched; E24)" in captured.out
+        assert (
+            "Build Simulation (E24; --sim-matched is deprecated, use --sim-build)" in captured.out
+        )
         assert "-3 dB cutoff:" in captured.out
         assert "Warning: --sim-matched is deprecated; use --sim-build" in captured.err
 
@@ -283,8 +288,10 @@ class TestCliWiring:
         bandpass_run(_bp_args(quiet=False, no_match=False, sim_matched=True, **_BP_CLI_DESIGN))
 
         captured = capsys.readouterr()
-        assert "Nominal Build Simulation (legacy --sim-matched; E96)" in captured.out
-        assert "Center f0:" in captured.out
+        assert (
+            "Build Simulation (E96; --sim-matched is deprecated, use --sim-build)" in captured.out
+        )
+        assert "Center:" in captured.out
         assert "Warning: --sim-matched is deprecated; use --sim-build" in captured.err
 
     @pytest.mark.parametrize(
@@ -297,7 +304,7 @@ class TestCliWiring:
             runner(maker(no_match=True, sim_matched=True, quiet=False))
         assert exc_info.value.code == 2
         error = capsys.readouterr().err
-        assert "--sim-matched requires selected nominal capacitor values" in error
+        assert "--sim-matched uses standard E-series capacitor values; remove --no-match" in error
         assert "remove --no-match" in error
 
     @_LADDER_COMMANDS
@@ -307,7 +314,7 @@ class TestCliWiring:
             runner(maker(no_match=False, sim_matched=True, quiet=False, plot_data="json"))
         assert exc_info.value.code == 2
         error = capsys.readouterr().err
-        assert "--plot-data is a standalone output mode; remove --sim-matched" in error
+        assert "--plot-data prints only frequency-response data; remove --sim-matched" in error
 
     def test_bp_json_matched_sim_schema(self, capsys):
         args = _bp_args(

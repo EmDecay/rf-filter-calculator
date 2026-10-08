@@ -207,10 +207,10 @@ def test_spice_export_covers_every_category_and_realization(
     _run(monkeypatch, *arguments)
 
     deck = capsys.readouterr().out
-    assert (
-        f"* realization: {'calculated_exact' if realization == 'exact' else 'nominal_build'}"
-        in deck
+    expected_values = (
+        "calculated, lossless (exact)" if realization == "exact" else "chosen parts (nominal-build)"
     )
+    assert f"* values: {expected_values}" in deck
     assert re.search(rf"(?m)^{expected_element}\w*\s", deck)
     sweep = r"lin \d+" if command[0] == "bp" else "dec 200"
     assert re.search(rf"(?m)^\.ac {sweep} [0-9.e+-]+ [0-9.e+-]+$", deck)
@@ -236,8 +236,8 @@ def test_nominal_spice_uses_physical_parallel_caps_and_q_loss(monkeypatch, capsy
 
     deck = capsys.readouterr().out
     values = _deck_values(deck)
-    assert "e_series_parallel" in deck
-    assert "exact_fallback" in deck
+    assert "* part used: C1 E24 parallel pair calculated=" in deck
+    assert "* part used: L1 calculated value (toroid windings off) calculated=" in deck
     # 318.31 pF is realized as the selected E24 pair 47 pF || 270 pF (see sample output).
     assert (values["C1A"], values["C1B"]) == (47e-12, 270e-12)
     assert "calculated=3.18309886184e-10 nominal=3.17e-10" in deck
@@ -281,7 +281,7 @@ def test_deprecated_alias_has_json_parity_and_warning(
     [
         (
             (*_LOWPASS, "--sim-build", "--no-match"),
-            "--sim-build requires selected nominal capacitor values; remove --no-match",
+            "--sim-build uses standard E-series capacitor values; remove --no-match",
         ),
         (
             (*_LOWPASS, "--sim-build", "--format", "csv"),
@@ -297,7 +297,7 @@ def test_deprecated_alias_has_json_parity_and_warning(
         ),
         (
             (*_LOWPASS, "--sim-matched", "--sim-build"),
-            "--sim-matched is deprecated; use --sim-build alone",
+            "--sim-matched and --sim-build cannot be used together; --sim-matched is deprecated, so use --sim-build alone",
         ),
         ((*_LOWPASS, "--sim-build", "--quiet"), "--quiet and --sim-build cannot be used together"),
         (
@@ -306,11 +306,20 @@ def test_deprecated_alias_has_json_parity_and_warning(
         ),
         (
             (*_LOWPASS, "--cap-tolerance", "5"),
-            "--capacitor-tolerance requires --sim-build or --format spice",
+            "error: --capacitor-tolerance requires --sim-build\n",
+        ),
+        (
+            (*_LOWPASS, "--cap-tolerance", "5", "--inductor-q", "50"),
+            "--capacitor-tolerance requires --sim-build; --inductor-q requires --sim-build or "
+            "--format spice",
+        ),
+        (
+            (*_LOWPASS, "--inductor-q", "50", "--capacitor-q", "60"),
+            "--inductor-q, --capacitor-q require --sim-build or --format spice",
         ),
         (
             (*_LOWPASS, "--cap-tolerance", "5", "--seed", "7"),
-            "--capacitor-tolerance, --seed require --sim-build or --format spice",
+            "error: --capacitor-tolerance, --seed require --sim-build\n",
         ),
         (
             (*_LOWPASS, "--sim-build", "--seed", "7"),
@@ -322,25 +331,42 @@ def test_deprecated_alias_has_json_parity_and_warning(
         ),
         (
             (*_LOWPASS, "--format", "spice", "--cap-tolerance", "5"),
-            "--capacitor-tolerance affects tolerance analysis, not a SPICE deck; use --sim-build",
+            "--capacitor-tolerance applies only to --sim-build, not to a SPICE deck; remove it or "
+            "use --sim-build instead of --format spice",
         ),
         (
             (*_LOWPASS, "--format", "spice", "--cap-tolerance", "5", "--seed", "7"),
-            "--capacitor-tolerance, --seed affect tolerance analysis, not a SPICE deck; "
-            "use --sim-build",
+            "--capacitor-tolerance, --seed apply only to --sim-build, not to a SPICE deck; remove "
+            "them or use --sim-build instead of --format spice",
         ),
         (
             (*_LOWPASS, "--format", "spice", "--no-match"),
-            "nominal-build SPICE requires selected capacitor values; remove --no-match "
-            "or use --spice-realization exact",
+            "a nominal-build SPICE deck uses standard E-series capacitor values; remove "
+            "--no-match or use --spice-realization exact",
         ),
         (
             (*_LOWPASS, "--sim-build", "--loss-reference-frequency", "1MHz"),
-            "--loss-reference-frequency requires a Q input",
+            "--loss-reference-frequency needs a Q option: --inductor-q or --capacitor-q\n",
         ),
         (
             (*_LOWPASS, "--format", "spice", "--loss-reference-frequency", "1MHz"),
-            "--loss-reference-frequency requires a Q input",
+            "--loss-reference-frequency needs a Q option: --inductor-q or --capacitor-q\n",
+        ),
+        (
+            (
+                "bp",
+                "bw",
+                "top",
+                "-f",
+                "10MHz",
+                "-b",
+                "500kHz",
+                "--sim-build",
+                "--loss-reference-frequency",
+                "10MHz",
+            ),
+            "--loss-reference-frequency needs a Q option: --inductor-q, --capacitor-q, --qu, "
+            "--ql, or --qc\n",
         ),
         (
             (
@@ -352,7 +378,8 @@ def test_deprecated_alias_has_json_parity_and_warning(
                 "--inductor-q",
                 "100",
             ),
-            "--inductor-q cannot affect an exact lossless deck",
+            "--inductor-q has no effect on an exact SPICE deck, which uses the calculated values "
+            "without losses; remove it or use --spice-realization nominal-build",
         ),
         (
             (
@@ -369,7 +396,7 @@ def test_deprecated_alias_has_json_parity_and_warning(
                 "--inductor-q",
                 "100",
             ),
-            "use either --qu/--ql/--qc or --inductor-q/--capacitor-q, not both loss models",
+            "use either --qu/--ql/--qc or --inductor-q/--capacitor-q, not both",
         ),
     ],
 )
@@ -402,16 +429,16 @@ def test_exact_bandpass_spice_rejects_loss_model_q(monkeypatch, capsys, q_flag):
         )
 
     assert exc_info.value.code == 2
-    assert "Loss-Q input" in capsys.readouterr().err
+    assert f"{q_flag} has no effect on this output." in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
     "mode_args, expected_error",
     [
-        (("--format", "csv"), "Loss-Q input --qu is not represented"),
-        (("--quiet",), "Loss-Q input --qu is not represented"),
-        (("--plot-data", "json"), "Loss-Q input --qu is not represented"),
-        (("--explain",), "--explain is standalone"),
+        (("--format", "csv"), "--qu has no effect on this output."),
+        (("--quiet",), "--qu has no effect on this output."),
+        (("--plot-data", "json"), "--qu has no effect on this output."),
+        (("--explain",), "--explain prints only a description of the filter type"),
     ],
 )
 def test_bandpass_q_rejects_modes_that_cannot_show_it(
@@ -452,7 +479,7 @@ def test_legacy_q_safety_is_limited_to_compatibility_json(monkeypatch, capsys):
         )
 
     assert exc_info.value.code == 2
-    assert "compatibility-only JSON field" in capsys.readouterr().err
+    assert "--q-safety only changes q_min in JSON output" in capsys.readouterr().err
 
 
 def test_legacy_q_safety_remains_available_in_json(monkeypatch, capsys):
@@ -476,7 +503,7 @@ def test_legacy_q_safety_remains_available_in_json(monkeypatch, capsys):
     payload = json.loads(captured.out)
     assert payload["q_min"] == pytest.approx(60)
     assert "deprecated" in captured.err
-    assert "legacy Q heuristic" in captured.err
+    assert "--q-safety is deprecated; it only changes q_min in JSON output" in captured.err
 
 
 def test_nominal_bandpass_spice_applies_complete_resonator_q(monkeypatch, capsys):
@@ -498,7 +525,7 @@ def test_nominal_bandpass_spice_applies_complete_resonator_q(monkeypatch, capsys
 
     deck = capsys.readouterr().out
     values = _deck_values(deck)
-    assert "complete resonator Q" in deck
+    assert "* limitation: The resonator Qu from the design" in deck
     # One equivalent inductor loss per tank: R = w0*L/Qu at the 10 MHz center.
     for tank in (1, 2, 3):
         expected = 2 * math.pi * 10e6 * values[f"LT{tank}"] / 100
@@ -524,7 +551,7 @@ def test_loss_reference_frequency_is_applied_when_q_is_supplied(monkeypatch, cap
 
     deck = capsys.readouterr().out
     values = _deck_values(deck)
-    assert "at 1000000 Hz" in deck
+    assert "gives that Q at 1 MHz; away from 1 MHz the modeled Q changes." in deck
     # R = w_ref*L/Q evaluated at the 1 MHz reference, not the 10 MHz cutoff.
     expected = 2 * math.pi * 1e6 * values["L1"] / 100
     assert values["RLOSSL1"] == pytest.approx(expected, rel=1e-9, abs=0)

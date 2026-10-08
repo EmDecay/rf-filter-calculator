@@ -11,9 +11,26 @@ from .eseries import DEFAULT_MATCH_POLICY, E_SERIES, MatchPolicy
 from .numeric import is_finite_real, positive_geometric_mean
 from .physical_input_limits import require_component_q
 
+# Shared with the web form, where resonator Q is entered in the band-pass tank fields.
+RESONATOR_AND_COMPONENT_Q_MESSAGE = "Use either resonator Q or inductor/capacitor Q, not both"
+
 
 def _is_finite_number(value: object) -> bool:
     return is_finite_real(value)
+
+
+# The CLI refuses ``--seed`` without ``--sample-count`` ("--seed requires a positive
+# --sample-count"); the wizard and web give this, in their labels, for a nonzero seed
+# with no extra random cases (their seed field is pre-filled with the default 0).
+SEED_NEEDS_SAMPLES_MESSAGE = (
+    "Random seed requires a positive number of extra random tolerance cases"
+)
+
+
+def require_seed_with_samples(seed: int, sample_count: int) -> None:
+    """Refuse a nonzero random seed when no extra random tolerance case uses it."""
+    if seed and not sample_count:
+        raise ValueError(SEED_NEEDS_SAMPLES_MESSAGE)
 
 
 @dataclass(frozen=True)
@@ -36,42 +53,57 @@ class BuildConfig:
     match_policy: MatchPolicy = field(default_factory=lambda: DEFAULT_MATCH_POLICY)
 
     def __post_init__(self) -> None:
+        # Messages use plain labels, not field names: the wizard and web show them as-is.
         if not isinstance(self.eseries, str) or self.eseries not in E_SERIES:
-            raise ValueError("eseries must be E12, E24, or E96")
-        for name in ("capacitor_tolerance_pct", "inductor_tolerance_pct"):
+            raise ValueError("E-series must be E12, E24, or E96")
+        for name, label in (
+            ("capacitor_tolerance_pct", "Capacitor tolerance"),
+            ("inductor_tolerance_pct", "Inductor tolerance"),
+        ):
             value = getattr(self, name)
             if not _is_finite_number(value) or not 0 <= value < 100:
-                raise ValueError(f"{name} must be finite and in [0, 100)")
-        for name in ("inductor_q", "capacitor_q", "resonator_q"):
+                raise ValueError(f"{label} must be at least 0% and less than 100%")
+        for name, label in (
+            ("inductor_q", "Inductor Q"),
+            ("capacitor_q", "Capacitor Q"),
+            ("resonator_q", "Resonator Q"),
+        ):
             value = getattr(self, name)
             if value is not None:
-                require_component_q(value, name)
+                require_component_q(value, label)
         if self.resonator_q is not None and (
             self.inductor_q is not None or self.capacitor_q is not None
         ):
-            raise ValueError("resonator_q and component quality factors are mutually exclusive")
-        for name in ("source_resistance_ohm", "load_resistance_ohm"):
+            raise ValueError(RESONATOR_AND_COMPONENT_Q_MESSAGE)
+        for name, label in (
+            ("source_resistance_ohm", "Simulation source resistance"),
+            ("load_resistance_ohm", "Simulation load resistance"),
+        ):
             value = getattr(self, name)
             if value is not None and (not _is_finite_number(value) or value <= 0):
-                raise ValueError(f"{name} must be positive and finite")
+                raise ValueError(f"{label} must be positive and finite")
         if (
             not isinstance(self.sample_count, int)
             or isinstance(self.sample_count, bool)
             or not 0 <= self.sample_count <= 10_000
         ):
-            raise ValueError("sample_count must be an integer in [0, 10000]")
+            raise ValueError(
+                "The number of extra random tolerance cases must be a whole number from 0 to 10000"
+            )
         if not isinstance(self.seed, int) or isinstance(self.seed, bool):
-            raise ValueError("seed must be an integer")
+            raise ValueError("Random seed must be a whole number")
         if (
             not isinstance(self.grid_points, int)
             or isinstance(self.grid_points, bool)
             or not 51 <= self.grid_points <= 5001
         ):
-            raise ValueError("grid_points must be an integer in [51, 5001]")
+            raise ValueError("Frequency points must be a whole number from 51 to 5001")
         if self.reference_frequency_hz is not None and (
             not _is_finite_number(self.reference_frequency_hz) or self.reference_frequency_hz <= 0
         ):
-            raise ValueError("reference_frequency_hz must be positive and finite")
+            raise ValueError(
+                "The frequency at which the Q values apply must be positive and finite"
+            )
         if not isinstance(self.use_toroid_candidates, bool):
             raise ValueError("use_toroid_candidates must be boolean")
         if not isinstance(self.match_policy, MatchPolicy):
@@ -105,7 +137,7 @@ def raise_if_cancelled(should_cancel: CancellationCheck | None) -> None:
     between bounded units of work. ``None`` means the caller never cancels.
     """
     if should_cancel is not None and should_cancel():
-        raise BuildAnalysisCancelled("Realized-build analysis was cancelled")
+        raise BuildAnalysisCancelled("Build simulation was cancelled")
 
 
 @dataclass(frozen=True)

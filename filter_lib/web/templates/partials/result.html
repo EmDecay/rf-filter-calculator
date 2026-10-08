@@ -1,3 +1,5 @@
+{#- Shown by app.js when the form no longer matches the inputs of this result. #}
+<p class="notice notice--stale" id="stale-notice" role="status" hidden>Inputs changed — select Design filter to update the result and downloads.</p>
 {% if warnings %}
 <div class="notice notice--warning" role="status">
   <p class="notice__title">Design warnings</p>
@@ -23,12 +25,18 @@
   {% endif %}
   <footer class="downloads" aria-labelledby="downloads-title">
     <h3 class="downloads__title" id="downloads-title">Download</h3>
-    <div class="downloads__buttons">
-      {% for kind, text in [("json", "JSON"), ("csv", "CSV"), ("spice-exact", "SPICE exact"), ("spice-nominal", "SPICE nominal parts"), ("response-json", "Response JSON"), ("response-csv", "Response CSV")] %}
-      <button class="btn btn--secondary btn--sm" type="submit" form="design-form"
+    {#- The inputs this result was calculated from: the downloads post these, not the
+        live form, so each download describes the result shown (with or without JavaScript). #}
+    <form class="downloads__buttons" id="result-inputs" method="post" action="/export/{{ category }}/json">
+      {% for name, value in snapshot.items() %}
+      <input type="hidden" name="{{ name }}" value="{{ value }}">
+      {% endfor %}
+      {% for kind, text in [("json", "Design (JSON)"), ("csv", "Components (CSV)"), ("spice-exact", "SPICE – calculated values"), ("spice-nominal", "SPICE – chosen parts"), ("response-json", "Response data (JSON)"), ("response-csv", "Response data (CSV)")] %}
+      <button class="btn btn--secondary btn--sm" type="submit"
               formaction="/export/{{ category }}/{{ kind }}" formmethod="post" data-download>{{ text }}</button>
       {% endfor %}
-    </div>
+    </form>
+    <p class="downloads__note">Downloads use the inputs of the result shown.</p>
     <p class="downloads__status" id="download-status" role="status" aria-live="polite"></p>
   </footer>
 </article>

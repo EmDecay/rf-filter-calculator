@@ -9,11 +9,10 @@ from ..wizard import run_wizard
 
 
 def setup_parser(parser: ArgumentParser) -> None:
-    """Add arguments to wizard subparser.
-
-    No additional arguments - wizard is fully interactive.
-    """
-    pass
+    """Describe the wizard subcommand; it takes no arguments (it is fully interactive)."""
+    parser.description = (
+        "Start the interactive terminal wizard (same as running filter-calc with no arguments)."
+    )
 
 
 def run(args: Namespace) -> None:

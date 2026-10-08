@@ -17,8 +17,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .. import __version__
+from ..shared.eseries import SUB_PF_OPTION_LABEL
 from . import routes_design, routes_export, routes_pages
+from .build_form_parsing import Q_FREQUENCY_LABEL
 from .execution import CalculationRunner
+from .option_states import OPTION_STATES_JSON
 from .request_guard import refusal
 from .responses import failure_message, failure_status, json_error
 from .settings import WebSettings
@@ -58,6 +61,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     app.state.settings = settings
     templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
     templates.env.globals["version"] = __version__
+    # Labels whose text error messages repeat; one definition keeps them identical.
+    templates.env.globals["labels"] = {
+        "allow_sub_pf": SUB_PF_OPTION_LABEL,
+        "q_frequency": Q_FREQUENCY_LABEL,
+    }
+    # Which options apply to each Format/E-series/Raw/build/toroid combination.
+    templates.env.globals["option_states"] = OPTION_STATES_JSON
     app.state.templates = templates
     app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
     for module in (routes_pages, routes_design, routes_export):

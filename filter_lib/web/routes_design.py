@@ -30,10 +30,9 @@ async def design_view(request: Request, category: str) -> HTMLResponse:
     fields = await form_fields(request)
     try:
         submitted = parse_design_form(category, fields)
-        if submitted.request.build is not None:
-            submitted.options.validate_for_build()
-        if submitted.options.output_format in ("quiet", "csv"):
-            submitted.request.reject_loss_q()
+        # The output shown must be able to use every option ticked, as in the CLI;
+        # downloads are checked against the document each one produces instead.
+        submitted.require_applicable_options()
 
         def work(should_cancel) -> dict:
             outcome = design(submitted.request, should_cancel=should_cancel)
@@ -44,7 +43,12 @@ async def design_view(request: Request, category: str) -> HTMLResponse:
                 "category": category,
                 "output": "\n".join(render_lines(outcome, submitted.options)),
                 "svg": svg,
-                "warnings": outcome.warnings,
+                # The table lists the design warnings itself; show them apart only
+                # when the output does not (the CLI prints them once the same way).
+                "warnings": (() if submitted.options.shows_design_warnings else outcome.warnings),
+                # The inputs of this result; the downloads post them, not the live form,
+                # so a download always matches the result on screen.
+                "snapshot": fields,
             }
 
         result = await runner(request).run(work)

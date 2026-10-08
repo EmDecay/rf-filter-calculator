@@ -97,10 +97,10 @@ def test_explicit_edge_metadata_preserves_parsed_requested_values(capsys) -> Non
 @pytest.mark.parametrize(
     ("extra", "message"),
     [
-        (["--qu", "200", "--ql", "180"], "qu and separate ql/qc values are mutually exclusive"),
+        (["--qu", "200", "--ql", "180"], "Give either Qu or QL/QC, not both"),
         (
             ["--resonator-impedance", "100", "--resonator-inductance", "1uH"],
-            "resonator_impedance and resonator_inductance are mutually exclusive",
+            "Set either the resonator impedance or the resonator inductance, not both",
         ),
     ],
 )
@@ -129,18 +129,15 @@ def test_mutually_exclusive_advanced_controls_fail_cleanly(extra, message, capsy
     [
         (
             ["--ql", "180", "--qc", "500"],
-            [
-                "Loss-model complete-resonator unloaded Q: 132.4",
-                "  Derived from QL=180 and QC=500 at f₀",
-            ],
+            ["Your Qu: 132.4 (from QL=180 and QC=500 at f₀)"],
         ),
         (
             ["--ql", "180"],
-            ["Loss-model complete-resonator unloaded Q: 180", "  Derived from QL=180 at f₀"],
+            ["Your Qu: 180 (from QL=180 at f₀)"],
         ),
         (
             ["--qc", "500"],
-            ["Loss-model complete-resonator unloaded Q: 500", "  Derived from QC=500 at f₀"],
+            ["Your Qu: 500 (from QC=500 at f₀)"],
         ),
     ],
 )
@@ -171,7 +168,7 @@ def test_help_describes_q_semantics_and_hides_legacy_q_safety(capsys) -> None:
         cli.main()
 
     output = capsys.readouterr().out
-    assert "complete resonator" in output
+    assert "inductor and capacitor losses together" in " ".join(output.split())
     assert "inductor q" in output.lower()
     assert "capacitor q" in output.lower()
     assert "--q-safety" not in output
@@ -182,12 +179,13 @@ def test_help_describes_q_semantics_and_hides_legacy_q_safety(capsys) -> None:
     [
         (
             ("-n", "4", "--q-safety", "3", "--format", "json"),
-            "Warning: --q-safety is deprecated and retained only for the legacy Q heuristic\n"
-            "Error: Chebyshev requires odd resonator count\n",
+            "Warning: --q-safety is deprecated; it only changes q_min in JSON output\n"
+            "Error: Chebyshev needs an odd number of resonators (3, 5, 7, or 9) for equal source and "
+            "load impedance\n",
         ),
         (
             ("--q-safety", "3", "--resonator-impedance", "-5", "--format", "json"),
-            "Warning: --q-safety is deprecated and retained only for the legacy Q heuristic\n"
+            "Warning: --q-safety is deprecated; it only changes q_min in JSON output\n"
             "Error: Resonator impedance must be positive: -5\n",
         ),
         (

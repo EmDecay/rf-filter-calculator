@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 
 import pytest
 
@@ -23,6 +24,7 @@ from filter_lib.design import (
     response_series,
 )
 from filter_lib.design.render import BUILD_TARGET_NOTE
+from filter_lib.design.render_options import BUILD_NEEDS_ESERIES_MESSAGE
 from filter_lib.shared.build_types import BuildConfig
 from tests.cli_parity_helpers import cli_stdout
 
@@ -156,17 +158,17 @@ def test_wizard_layout_differs_from_the_cli_only_by_its_framing(outcomes):
     [
         (
             RenderOptions(output_format="csv"),
-            "Realized-build analysis is supported only with table or JSON component output",
+            "Build simulation needs table or JSON output",
         ),
         (
             RenderOptions(output_format="quiet"),
-            "Realized-build analysis cannot be combined with quiet output",
+            "Build simulation cannot be used with values-only output",
         ),
-        (RenderOptions(eseries=None), "Realized-build analysis requires an E-series"),
+        (RenderOptions(eseries=None), BUILD_NEEDS_ESERIES_MESSAGE),
     ],
 )
 def test_build_mode_rules(options, message):
-    with pytest.raises(ValueError, match=f"^{message}$"):
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         options.validate_for_build()
 
 
@@ -176,14 +178,14 @@ def test_render_lines_rejects_an_analysis_the_format_cannot_carry(outcomes):
     ).build_analysis
     outcome = dataclasses.replace(outcomes["lowpass"], build_analysis=analysis)
 
-    with pytest.raises(ValueError, match="only with table or JSON"):
+    with pytest.raises(ValueError, match="^Build simulation needs table or JSON output$"):
         render_lines(outcome, RenderOptions(output_format="csv"))
 
 
 def test_render_options_reject_unknown_formats_and_both_toroid_details():
     with pytest.raises(ValueError, match="^Unknown output format: spice$"):
         RenderOptions(output_format="spice")
-    with pytest.raises(ValueError, match="^use only one of --toroid-compact or --toroid-full$"):
+    with pytest.raises(ValueError, match="^Choose either compact or full toroid detail, not both$"):
         RenderOptions(toroid_compact=True, toroid_full=True)
 
 

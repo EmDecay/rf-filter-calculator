@@ -1,5 +1,7 @@
 """Nominal physical realization of calculated filter circuits."""
 
+from collections.abc import Iterable
+
 from .build_loss_models import (
     _design_frequency,
     _loss_quality_factors,
@@ -12,8 +14,45 @@ from .build_types import (
     resolve_build_config,
 )
 from .circuit_builders import build_named_circuit
+from .circuit_display_names import display_component_name, format_name_list
 from .circuit_model import CircuitElement, NamedCircuit
 from .component_realization import _realize_capacitor, _realize_inductor
+from .formatting import format_frequency
+
+NOMINAL_PARTS_LIMITATION = (
+    "Chosen parts are simulated at their nominal values, without lead or package parasitics."
+)
+# Readable text (table and SPICE comments) prints this one only when a toroid winding
+# was actually used; JSON keeps every limitation.
+TOROID_LIMITATION = (
+    "Toroid windings were checked only for frequency range, whole-turn inductance, and wire fit."
+)
+
+
+def uses_toroid(substitutions: Iterable[ComponentSubstitution]) -> bool:
+    """Return whether any inductor was realized as a toroid winding."""
+    return any(item.core_name is not None for item in substitutions)
+
+
+def applicable_part_limitations(realization: NominalRealization) -> list[str]:
+    """Return the realization's limitations once each, without the unused toroid caveat."""
+    skipped = set() if uses_toroid(realization.substitutions) else {TOROID_LIMITATION}
+    return [item for item in dict.fromkeys(realization.limitations) if item not in skipped]
+
+
+def grouped_part_warnings(substitutions: Iterable[ComponentSubstitution]) -> list[str]:
+    """Print each warning once, naming every part it applies to (``L1–L3: ...``).
+
+    Names are the component-table names, so a warning reads the same in the table's
+    build block and in SPICE comments.
+    """
+    groups: dict[str, list[str]] = {}
+    for substitution in substitutions:
+        name = display_component_name(substitution.logical_name)
+        for warning in substitution.warnings:
+            message = warning.removeprefix(f"{name}: ")
+            groups.setdefault(message, []).append(name)
+    return [f"{format_name_list(names)}: {message}" for message, names in groups.items()]
 
 
 def _realize_element(
@@ -63,7 +102,8 @@ def realize_nominal_build(
         and capacitor_q is None
     ):
         raise ValueError(
-            "reference_frequency_hz requires an effective inductor, capacitor, or resonator Q"
+            "The frequency at which the Q values apply was given without any Q: give an "
+            "inductor, capacitor, or resonator Q"
         )
     loss_reference_frequency = _loss_reference_frequency(result, category, active_config)
 
@@ -86,18 +126,12 @@ def realize_nominal_build(
 
     limitations = list(q_limitations)
     if inductor_q is not None or capacitor_q is not None:
+        reference = format_frequency(loss_reference_frequency)
         limitations.append(
-            f"Q is converted to constant series resistance at "
-            f"{loss_reference_frequency:.12g} Hz; "
-            "the resulting model is not constant-Q away from that reference."
+            f"Each Q is modeled as a fixed series resistance that gives that Q at {reference}; "
+            f"away from {reference} the modeled Q changes."
         )
-    limitations.extend(
-        (
-            "E-series parts are nominal values and omit package and connection parasitics.",
-            "Toroid candidates are an integer-turn/frequency/mechanical screen, not an RF-Q, "
-            "SRF, saturation, thermal, or power suitability determination.",
-        )
-    )
+    limitations.extend((NOMINAL_PARTS_LIMITATION, TOROID_LIMITATION))
     circuit = NamedCircuit(
         exact.category,
         exact.n_nodes,

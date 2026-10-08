@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+import textwrap
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as metadata_version
 
@@ -36,18 +37,22 @@ def _discard_further_stdout() -> None:
     os.close(devnull)
 
 
+class _HelpFormatter(argparse.HelpFormatter):
+    """Wrap help text without splitting hyphenated words such as ``--spice-realization``."""
+
+    def _split_lines(self, text: str, width: int) -> list[str]:
+        return textwrap.wrap(" ".join(text.split()), width, break_on_hyphens=False)
+
+
+class _TopLevelHelpFormatter(_HelpFormatter, argparse.RawDescriptionHelpFormatter):
+    """Keep the hand-formatted examples epilog of the top-level help."""
+
+
 def main():
     """Main entry point for the filter calculator CLI."""
     parser = argparse.ArgumentParser(
-        description="Unified Filter Calculator",
-        epilog="""Subcommands:
-  lowpass (lp)   LC low-pass filter (Pi or T topology)
-  highpass (hp)  LC high-pass filter (Pi or T topology)
-  bandpass (bp)  Coupled resonator bandpass filter
-  wizard (w)     Interactive wizard (TUI)
-  web            Browser UI on this computer (optional web extra)
-
-Run with no arguments to start the interactive wizard.
+        description="Calculate LC low-pass, high-pass, and band-pass filter component values.",
+        epilog="""Run with no arguments to start the interactive wizard.
 
 Examples:
   %(prog)s                              # Start interactive wizard
@@ -59,7 +64,7 @@ Examples:
   %(prog)s hp ch -T pi -f 10MHz -r 0.5
   %(prog)s bandpass bw top -f 14.2MHz -b 500kHz
   %(prog)s bp ch top --fl 14MHz --fh 14.35MHz -n 7""",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=_TopLevelHelpFormatter,
     )
     parser.add_argument(
         "--version",
@@ -70,29 +75,42 @@ Examples:
     subparsers = parser.add_subparsers(dest="command")
 
     lp_parser = subparsers.add_parser(
-        "lowpass", aliases=["lp"], help="LC low-pass filter (Pi or T)"
+        "lowpass",
+        aliases=["lp"],
+        help="LC low-pass filter (Pi or T)",
+        formatter_class=_HelpFormatter,
     )
     lowpass_cmd.setup_parser(lp_parser)
     lp_parser.set_defaults(func=lowpass_cmd.run)
 
     hp_parser = subparsers.add_parser(
-        "highpass", aliases=["hp"], help="LC high-pass filter (Pi or T)"
+        "highpass",
+        aliases=["hp"],
+        help="LC high-pass filter (Pi or T)",
+        formatter_class=_HelpFormatter,
     )
     highpass_cmd.setup_parser(hp_parser)
     hp_parser.set_defaults(func=highpass_cmd.run)
 
     bp_parser = subparsers.add_parser(
-        "bandpass", aliases=["bp"], help="Coupled resonator bandpass filter"
+        "bandpass",
+        aliases=["bp"],
+        help="Coupled-resonator band-pass filter",
+        formatter_class=_HelpFormatter,
     )
     bandpass_cmd.setup_parser(bp_parser)
     bp_parser.set_defaults(func=bandpass_cmd.run)
 
-    wizard_parser = subparsers.add_parser("wizard", aliases=["w"], help="Interactive wizard (TUI)")
+    wizard_parser = subparsers.add_parser(
+        "wizard", aliases=["w"], help="Interactive terminal wizard", formatter_class=_HelpFormatter
+    )
     wizard_cmd.setup_parser(wizard_parser)
     wizard_parser.set_defaults(func=wizard_cmd.run)
 
     web_parser = subparsers.add_parser(
-        "web", help="Browser UI on this computer (needs the web extra)"
+        "web",
+        help="Browser interface on this computer (needs the optional web dependencies)",
+        formatter_class=_HelpFormatter,
     )
     web_cmd.setup_parser(web_parser)
     web_parser.set_defaults(func=web_cmd.run)

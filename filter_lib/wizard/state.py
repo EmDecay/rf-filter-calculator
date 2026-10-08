@@ -1,4 +1,12 @@
-"""Shared state dataclasses for the Textual wizard."""
+"""Shared state dataclasses for the Textual wizard.
+
+``FilterState`` holds what the user sees: every control's value, including a control the
+shared rule (``filter_lib.design.option_applicability``) disables for the chosen output.
+The result follows that rule as if a disabled control were unset, which is what leaving
+out the CLI flag means. A saved JSON or CSV file or the response data file is another
+document of the same design: like the web's downloads, it uses each visible value that
+applies to it (``document_options``).
+"""
 
 from __future__ import annotations
 
@@ -6,12 +14,47 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from filter_lib.shared.build_types import BuildConfig
+from filter_lib.shared.cli_aliases import DEFAULT_ESERIES
+
+from .state_design_inputs import (
+    CSV_DOCUMENT,
+    CSV_WITH_BUILD_MESSAGE,
+    JSON_DOCUMENT,
+    DesignInputsMixin,
+)
+
 if TYPE_CHECKING:
-    from filter_lib.design import DesignRequest, DesignResult, RenderOptions
-    from filter_lib.shared.build_simulation import BuildAnalysisResult, BuildConfig
+    from filter_lib.design import DesignResult
+    from filter_lib.shared.build_simulation import BuildAnalysisResult
+
+__all__ = [
+    "CALCULATION_STOPPED_MESSAGE",
+    "CSV_DOCUMENT",
+    "CSV_WITH_BUILD_MESSAGE",
+    "INTERNAL_NO_BUILD_MESSAGE",
+    "INTERNAL_NO_RESULT_MESSAGE",
+    "JSON_DOCUMENT",
+    "CalculationOutcome",
+    "CalculationStatus",
+    "FilterState",
+    "ToroidDetail",
+]
 
 CalculationStatus = Literal["idle", "pending", "success", "error"]
-ToroidDetail = Literal["full", "compact"]
+
+# Guards for outcomes a working calculation never produces; seeing one is a bug.
+INTERNAL_NO_RESULT_MESSAGE = (
+    "Internal error: the calculation returned no result. Please report this."
+)
+INTERNAL_NO_BUILD_MESSAGE = (
+    "Internal error: the calculation returned no build simulation. Please report this."
+)
+CALCULATION_STOPPED_MESSAGE = "Calculation stopped"
+# "Best, detailed" (CLI default) · "Up to 3, detailed" (--toroid-full) ·
+# "Best, one line" (--toroid-compact) · "None" (--no-toroids).
+ToroidDetail = Literal["best", "full", "compact", "none"]
+_BUILD_DEFAULTS = BuildConfig()
 
 
 @dataclass(frozen=True)
@@ -31,12 +74,12 @@ class CalculationOutcome:
 
 
 @dataclass
-class FilterState:
+class FilterState(DesignInputsMixin):
     """Holds all wizard state across screens.
 
     A single instance lives on `FilterWizardApp.filter_state`; each screen
     mutates it in place as the user advances, so going back and re-submitting
-    simply overwrites the relevant fields. "Design Another" on the results
+    simply overwrites the relevant fields. "Design another" on the results
     screen replaces the whole instance to restore these defaults.
     """
 
@@ -50,6 +93,10 @@ class FilterState:
     # Frequency parameters
     frequency_hz: float = 0.0  # cutoff for LP/HP, center for BP
     bandwidth_hz: float = 0.0  # bandpass only
+    # Band-pass band given by its -3 dB edges ("Band edges"); ``frequency_hz`` and
+    # ``bandwidth_hz`` then hold the center and width derived from them.
+    requested_f_low_hz: float | None = None
+    requested_f_high_hz: float | None = None
 
     # Common parameters
     impedance: float = 50.0
@@ -58,36 +105,49 @@ class FilterState:
     # Optional band-pass tank constraint. At most one may be populated.
     resonator_impedance: float | None = None
     resonator_inductance: float | None = None
+    # Band-pass resonator Q (CLI --qu/--ql/--qc): Qu, or QL and/or QC.
+    qu: float | None = None
+    ql: float | None = None
+    qc: float | None = None
 
-    # Output options
-    eseries: str = "E24"
+    # Output options, as shown (see the module docstring for disabled controls).
+    eseries: str = DEFAULT_ESERIES  # E12, E24, E96, or "none"
+    # "Allow capacitors below 1 pF" (CLI --allow-sub-pf).
+    allow_sub_pf: bool = False
+    # "table", "quiet" (Values only), "json", or "csv".
     output_format: str = "table"
-    # Wizard shows the plot by default — deliberate divergence from the CLI's
-    # opt-in --plot; the guided flow is the showcase experience.
-    show_plot: bool = True
+    # Text plot in the table (CLI --plot), off by default as in the CLI and web.
+    show_plot: bool = False
+    # Response data file saved with the results: None, "json", or "csv".
     export_format: str | None = None
     raw_units: bool = False
+    # Earlier name for Values only; ``output_format="quiet"`` is the same choice.
     quiet: bool = False
-    # Table-output toroid section: "full" lists up to three screened
-    # candidates with wire, DCR, and dimensions (CLI --toroid-full);
-    # "compact" is one line for the best candidate (CLI --toroid-compact).
+    # Toroid windings: "best" (CLI default), "full", "compact", or "none".
     # JSON always carries up to three candidates and CSV the best one.
-    toroid_detail: ToroidDetail = "full"
+    toroid_detail: ToroidDetail = "best"
 
-    # Optional realized-build analysis. It is deliberately off by default;
-    # these values map one-to-one onto shared.build_simulation.BuildConfig.
+    # Optional build simulation, off by default; the other values are the CLI's
+    # defaults (``BuildConfig``) and map one-to-one onto it.
     build_analysis_enabled: bool = False
-    build_capacitor_tolerance_pct: float = 5.0
-    build_inductor_tolerance_pct: float = 10.0
+    build_capacitor_tolerance_pct: float = _BUILD_DEFAULTS.capacitor_tolerance_pct
+    build_inductor_tolerance_pct: float = _BUILD_DEFAULTS.inductor_tolerance_pct
     build_inductor_q: float | None = None
     build_capacitor_q: float | None = None
-    build_resonator_q: float | None = None
+    build_reference_frequency_hz: float | None = None
     build_source_resistance_ohm: float | None = None
     build_load_resistance_ohm: float | None = None
-    build_sample_count: int = 0
-    build_seed: int = 0
-    build_grid_points: int = 601
+    build_sample_count: int = _BUILD_DEFAULTS.sample_count
+    build_seed: int = _BUILD_DEFAULTS.seed
+    build_grid_points: int = _BUILD_DEFAULTS.grid_points
+    # "Simulate inductors as the suggested toroid windings" (unticked = --no-toroid-build).
     build_use_toroid_candidates: bool = True
+    # The build fields as typed ({input id: text}), shown again when the output screen
+    # reopens, so values survive unticking the build and going Back.
+    build_field_text: dict[str, str] = field(default_factory=dict)
+    # Why the typed build fields cannot be used, when the result did not need them (the
+    # build was unticked or disabled). A saved JSON that uses the build reports it.
+    build_input_error: str | None = None
 
     # Calculated results. filter_type_calculators stashes the raw result dict
     # here so the results screen's export paths can re-format (JSON/CSV/
@@ -98,6 +158,9 @@ class FilterState:
     calculation_status: CalculationStatus = "idle"
     calculation_error: str | None = None
     build_analysis: BuildAnalysisResult | None = None
+    # The design of the saved JSON when it uses a build or resonator Q the result shown
+    # did not (``json_needs_own_design``). Calculated only when that JSON is saved.
+    json_design: DesignResult | None = None
     # Incremented before every calculation and whenever design inputs change.
     # Worker results publish only when their captured revision is still current.
     calculation_revision: int = 0
@@ -109,7 +172,7 @@ class FilterState:
             self.calculation_status == "success"
             and bool(self.result)
             and bool(self.output_text.strip())
-            and (not self.build_analysis_enabled or self.build_analysis is not None)
+            and (not self.runs_build or self.build_analysis is not None)
         )
 
     def _clear_calculation(self, status: CalculationStatus) -> None:
@@ -118,6 +181,7 @@ class FilterState:
         self.calculation_status = status
         self.calculation_error = None
         self.build_analysis = None
+        self.json_design = None
 
     def invalidate_calculation(self) -> None:
         """Synchronously invalidate output after any design input change."""
@@ -145,11 +209,12 @@ class FilterState:
         if revision != self.calculation_revision or self.calculation_status != "pending":
             return False
         if not output_text.strip() or not result:
-            self.publish_error(revision, "Calculation returned no usable result")
+            self.publish_error(revision, INTERNAL_NO_RESULT_MESSAGE)
             return False
         self.output_text = output_text
         self.result = deepcopy(result)
         self.build_analysis = deepcopy(build_analysis)
+        self.json_design = None
         self.calculation_status = "success"
         self.calculation_error = None
         return True
@@ -161,86 +226,10 @@ class FilterState:
         self.result = {}
         self.output_text = ""
         self.build_analysis = None
+        self.json_design = None
         self.calculation_status = "error"
         self.calculation_error = error
         return True
-
-    def make_build_config(self) -> BuildConfig:
-        """Return the shared engine configuration for the current controls."""
-        from filter_lib.shared.build_simulation import BuildConfig
-
-        return BuildConfig(
-            eseries=self.eseries,
-            capacitor_tolerance_pct=self.build_capacitor_tolerance_pct,
-            inductor_tolerance_pct=self.build_inductor_tolerance_pct,
-            inductor_q=self.build_inductor_q,
-            capacitor_q=self.build_capacitor_q,
-            resonator_q=self.build_resonator_q,
-            source_resistance_ohm=self.build_source_resistance_ohm,
-            load_resistance_ohm=self.build_load_resistance_ohm,
-            sample_count=self.build_sample_count,
-            seed=self.build_seed,
-            grid_points=self.build_grid_points,
-            use_toroid_candidates=self.build_use_toroid_candidates,
-        )
-
-    def to_design_request(self, include_build: bool) -> DesignRequest:
-        """Return the shared design request for the current inputs.
-
-        ``order`` carries the component count for ladders and the resonator count for
-        bandpass; ``topology`` carries the coupling id for bandpass. The build
-        configuration is attached only when ``include_build`` is true.
-        """
-        from filter_lib.design import DesignRequest
-
-        bandpass = self.category == "bandpass"
-        return DesignRequest(
-            category=self.category,
-            filter_type=self.filter_type,
-            topology=self.topology,
-            frequency_hz=self.frequency_hz,
-            impedance=self.impedance,
-            order=self.order,
-            ripple_db=self.ripple_db,
-            bandwidth_hz=self.bandwidth_hz if bandpass else None,
-            resonator_impedance=self.resonator_impedance if bandpass else None,
-            resonator_inductance=self.resonator_inductance if bandpass else None,
-            build=self.make_build_config() if include_build else None,
-        )
-
-    def to_render_options(self) -> RenderOptions:
-        """Return the shared render options for the wizard's output choices.
-
-        Unlike the CLI, the wizard always shows toroid windings, ends its table
-        without a blank line, and labels the synthesis target above a build block.
-        """
-        from filter_lib.design import RenderOptions
-
-        if self.output_format in ("json", "csv"):
-            output_format = self.output_format
-        else:
-            output_format = "quiet" if self.quiet else "table"
-        return RenderOptions(
-            output_format=output_format,
-            raw=self.raw_units,
-            eseries=None if self.eseries == "none" else self.eseries,
-            show_plot=self.show_plot,
-            include_toroids=True,
-            toroid_compact=self.toroid_detail == "compact",
-            toroid_full=self.toroid_detail == "full",
-            trailing_blank=False,
-            build_target_note=True,
-        )
-
-    def design_result(self) -> DesignResult:
-        """Return the stored calculation as a shared ``DesignResult`` for exports."""
-        from filter_lib.design import DesignResult
-
-        return DesignResult(
-            category=self.category,
-            result=self.result,
-            build_analysis=self.build_analysis,
-        )
 
     def cancel_calculation(self, revision: int) -> bool:
         """Clear a pending calculation when its screen is removed."""

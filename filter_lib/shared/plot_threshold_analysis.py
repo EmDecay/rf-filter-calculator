@@ -335,13 +335,18 @@ def find_db_thresholds(
 
 def _bandpass_crossing_labels(crossings: list[float | None]) -> tuple[str, str]:
     """Keep nearby skirts distinguishable down to their stored precision."""
-    from .plot_ascii_renderers import _format_freq_compact
+    from .plot_ascii_renderers import _format_freq_with_unit
 
     low, high = crossings
     if low is not None and high is not None and 0 < high - low < low * 0.01:
         digits = min(17, max(9, math.ceil(math.log10(high) - math.log10(high - low)) + 5))
         return f"{low:.{digits}g} Hz", f"{high:.{digits}g} Hz"
-    return tuple(_format_freq_compact(f) if f is not None else "N/A" for f in crossings)
+    return tuple(_format_freq_with_unit(f) if f is not None else "N/A" for f in crossings)
+
+
+def _level_text(level: float) -> str:
+    """Title text for one threshold level, e.g. '-3' or '-0.5'; the title adds ' dB' once."""
+    return f"{int(level)}" if level == int(level) else f"{level:.1f}"
 
 
 def format_threshold_table(
@@ -359,7 +364,7 @@ def format_threshold_table(
     """
     # Deferred import: plot_ascii_renderers imports from this module at
     # top level, so importing it here avoids a circular import.
-    from .plot_ascii_renderers import _format_freq_compact
+    from .plot_ascii_renderers import _format_freq_with_unit
 
     is_bandpass = filter_type == "bandpass"
     labels = (
@@ -369,20 +374,20 @@ def format_threshold_table(
     )
     width = max([14] + [len(label) for pair in labels.values() for label in pair])
 
-    lines = ["", "dB Threshold Summary"]
+    levels = sorted(thresholds.keys(), reverse=True)
+    title = " / ".join(_level_text(level) for level in levels)
+    lines = ["", f"Frequencies at {title} dB" if levels else "Frequencies at dB levels"]
 
     if is_bandpass:
         lines.append(f"\u250c{'─' * 8}\u252c{'─' * width}\u252c{'─' * width}\u2510")
-        lines.append(f"\u2502{'Level':^8}\u2502{'f_low':^{width}}\u2502{'f_high':^{width}}\u2502")
+        lines.append(f"\u2502{'Level':^8}\u2502{'Lower':^{width}}\u2502{'Upper':^{width}}\u2502")
         lines.append(f"\u251c{'─' * 8}\u253c{'─' * width}\u253c{'─' * width}\u2524")
     else:
         lines.append(f"\u250c{'─' * 8}\u252c{'─' * 14}\u2510")
         lines.append(f"\u2502{'Level':^8}\u2502{'Frequency':^14}\u2502")
         lines.append(f"\u251c{'─' * 8}\u253c{'─' * 14}\u2524")
 
-    arrow = "\u2193" if filter_type == "lowpass" else "\u2191"
-
-    for level in sorted(thresholds.keys(), reverse=True):
+    for level in levels:
         crossings = thresholds[level]
         level_str = f"{int(level):+d} dB" if level == int(level) else f"{level:+.1f} dB"
 
@@ -393,7 +398,7 @@ def format_threshold_table(
             )
         else:
             freq = crossings[0]
-            freq_str = f"{arrow} {_format_freq_compact(freq)}" if freq is not None else "N/A"
+            freq_str = _format_freq_with_unit(freq) if freq is not None else "N/A"
             lines.append(f"\u2502{level_str:^8}\u2502{freq_str:^14}\u2502")
 
     if is_bandpass:

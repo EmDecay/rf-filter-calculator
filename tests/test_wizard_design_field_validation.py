@@ -2,17 +2,14 @@
 
 import pytest
 
+from filter_lib.shared.cli_aliases import RIPPLE_RANGE_MESSAGE
 from filter_lib.wizard.design_field_validation import RippleValidator, parse_ripple_db
 
 _ACCEPTED = [("5e-324", 5e-324), ("0.005", 0.005), ("0.01", 0.01), (" 0.5 ", 0.5), ("3.0", 3.0)]
+# Every rejection is the shared range message the CLI and web print; Python's own
+# float() text ("could not convert string to float") never reaches the wizard.
 _REJECTED = [
-    ("0", "must be positive"),
-    ("-0.1", "must be positive"),
-    ("3.0000001", "must be <= 3.0 dB"),
-    ("nan", "must be finite"),
-    ("inf", "must be finite"),
-    ("abc", "could not convert string to float: 'abc'"),
-    ("", "could not convert string to float: ''"),
+    (text, RIPPLE_RANGE_MESSAGE) for text in ("0", "-0.1", "3.0000001", "nan", "inf", "abc", "")
 ]
 
 
