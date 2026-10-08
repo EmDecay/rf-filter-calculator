@@ -1,6 +1,7 @@
 """Subcommand parser wiring: alternative option spellings land on the fields ``run()`` reads."""
 
 import argparse
+import re
 import sys
 
 import pytest
@@ -152,7 +153,9 @@ def test_every_subcommand_accepts_both_frequency_spellings(setup, base, dest, fl
 def test_help_lists_frequency_spellings_in_the_same_order(setup):
     help_text = _parser(setup).format_help()
 
-    assert "-f FREQ, --frequency FREQ, --freq FREQ" in help_text
+    # Python 3.13 prints the metavar once ("-f, --frequency, --freq FREQ"); earlier
+    # versions repeat it after every spelling. Both list the spellings in this order.
+    assert re.search(r"-f( FREQ)?, --frequency( FREQ)?, --freq FREQ", help_text)
 
 
 _COUNT_CASES = [
@@ -176,7 +179,9 @@ def test_count_parses_whole_numbers_and_defers_every_rejection_to_run(setup, des
 def test_count_help_shows_the_range(setup, dest):
     help_text = " ".join(_parser(setup).format_help().split())
 
-    assert f"-n N, --{dest} N Number of {dest}, 2-9; Chebyshev needs an odd number" in help_text
+    # Python 3.13 prints the metavar once ("-n, --components N"); earlier versions repeat it.
+    pattern = rf"-n( N)?, --{dest} N Number of {dest}, 2-9; Chebyshev needs an odd number"
+    assert re.search(pattern, help_text)
 
 
 @pytest.mark.parametrize(
