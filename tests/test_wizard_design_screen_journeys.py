@@ -118,7 +118,7 @@ def test_lowpass_keyboard_journey_blocks_even_chebyshev_then_stores_design() -> 
             assert notes == [
                 (
                     "warning",
-                    "Chebyshev needs an odd number of components (3, 5, 7, or 9) for equal "
+                    "Chebyshev needs an odd order (3, 5, 7, or 9) for equal "
                     "source and load impedance",
                 )
             ]
@@ -228,7 +228,7 @@ def test_bandpass_journey_updates_fbw_feedback_and_stores_tank_inductance() -> N
             screen = app.screen
             assert isinstance(screen, BandpassScreen)
             assert _radio_labels(screen, "coupling") == {
-                "top": "Top-C - series capacitors couple the resonators"
+                "top": "Top-coupled - series capacitors couple the resonators"
             }
             assert _radio_labels(screen, "filter-type")["bessel"] == (
                 "Bessel - Gentle skirts; the band-pass form does not keep flat group delay"

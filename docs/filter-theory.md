@@ -6,6 +6,8 @@ Background on filter types, response characteristics, and topologies.
 
 ## Response Types
 
+The ARRL Handbook calls these filter *families*; this calculator calls them response types.
+
 ### Butterworth (Maximally Flat Magnitude)
 
 - Flattest possible passband response
@@ -76,6 +78,7 @@ IN ───┤L1├───┬───┤L2├───┬───┤L3├�
 - Passes frequencies below cutoff
 - Pi: capacitors at odd (shunt) positions, inductors at even (series)
 - T: inductors at odd (series) positions, capacitors at even (shunt)
+- ARRL Handbook names: Pi is *capacitor-input* and T is *inductor-input*
 
 ### Highpass (Pi/T Topology)
 
@@ -100,8 +103,11 @@ IN ──┤            │            ├── OUT
 - Passes frequencies above cutoff
 - T: capacitors at odd (series) positions, inductors at even (shunt)
 - Pi: inductors at odd (shunt) positions, capacitors at even (series)
+- ARRL Handbook names: T is *capacitor-input* and Pi is *inductor-input*. The Handbook names
+  a ladder by the part at its input, so the same shape has the opposite name in low-pass and
+  high-pass (ARRL Handbook, 102nd edition, §10.3.1 and Figs. 10.17, 10.18, and 10.23)
 
-### Bandpass (Coupled Resonator, Top-C Series Coupling)
+### Bandpass (Coupled Resonator, Top-Coupled Through Series Capacitors)
 
 ```
        Ce_in     Cs12           Cs23      Ce_out
@@ -190,7 +196,7 @@ The default safety factor is 2.0. This number is not a stability boundary, a com
 `Qu` is the unloaded Q of each resonator, with inductor and capacitor losses together. If inductor and capacitor Q are known separately, the calculator combines their loss channels as:
 
 ```text
-1 / Qu = 1 / QL + 1 / QC
+1 / Qu = 1 / (inductor Q) + 1 / (capacitor Q)
 ```
 
 If one of them is omitted, that part is modeled as lossless. In the build simulation, each Q is turned into a fixed series resistance at the frequency where the Q values apply. The resistance is held constant during the sweep, so the modeled Q varies with frequency.
@@ -210,17 +216,17 @@ Where:
 
 The calculator shows estimates at Qu = 100 and Qu = 250 and adds the resonator Qu you give (`--qu`, or `--ql`/`--qc` combined). This is a low-loss approximation, not a substitute for the named-circuit loss simulation or a measurement.
 
-The **Added loss at f₀** block prints each Cohn estimate next to a circuit simulation of the calculated values, which makes the approximation's breakdown visible. For
+The **Insertion loss at f₀** block prints each Cohn estimate next to a circuit simulation of the calculated values, which makes the approximation's breakdown visible. For
 a 3-resonator Butterworth design at 10 MHz with 10 kHz bandwidth and Qu=100, Cohn gives about
 174 dB while the equivalent-loss circuit gives about 62 dB of center loss. A finite answer
 does not establish an approximation's applicability. See the [reporting policy](user-guide.md#interpreting-response-measurements)
 and [independent circuit regressions](../tests/test_response_accuracy.py).
 
-### Top-C rejection away from the passband
+### Top-coupled rejection away from the passband
 
 Capacitive couplers are frequency dependent; their near-passband equivalence to prototype
 inverters does not extend to arbitrary remote frequencies. At 20 MHz, a 3-resonator
-Butterworth Top-C design that passes the response check, centered at 10 MHz with 1 MHz bandwidth, gives about −47.66 dB circuit
+top-coupled Butterworth design that passes the response check, centered at 10 MHz with 1 MHz bandwidth, gives about −47.66 dB circuit
 gain, versus about −70.57 dB for the ideal prototype. Both calculations can be correct for
 their respective models. The response check's four points just outside the passband use normalized
 deviations −2, −1.5, +1.5 and +2. The attenuation printed at 2× and 3× the center is for

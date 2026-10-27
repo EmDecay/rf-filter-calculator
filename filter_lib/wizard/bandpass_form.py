@@ -17,6 +17,7 @@ from filter_lib.bandpass.input_validation import (
 from filter_lib.bandpass.resonator_math import TANK_SETTING_CONFLICT_MESSAGE, combine_resonator_q
 from filter_lib.design import band_from_edges
 from filter_lib.shared.cli_aliases import chebyshev_odd_count_message
+from filter_lib.shared.cli_bandpass_output_validation import RESONATOR_Q_LABELS
 from filter_lib.shared.parsing import parse_frequency, parse_impedance, parse_inductance
 from filter_lib.shared.physical_input_limits import require_component_q
 
@@ -35,7 +36,7 @@ __all__ = [
 # "Specify the band by": center and width, or the -3 dB band edges (CLI --fl/--fh).
 BAND_SPECS = ("center", "edges")
 # Resonator Q fields (CLI --qu/--ql/--qc): (field id, label used in messages).
-RESONATOR_Q_FIELDS = (("qu", "Qu"), ("ql", "QL"), ("qc", "QC"))
+RESONATOR_Q_FIELDS = tuple(zip(("qu", "ql", "qc"), RESONATOR_Q_LABELS))
 
 
 class BandpassFormError(ValueError):
@@ -127,10 +128,10 @@ def _parse_band(values: BandpassFormValues) -> tuple[float, float, float | None,
 
 
 def _parse_resonator_q(values: BandpassFormValues) -> dict[str, float | None]:
-    """Parse Qu, QL, and QC with the messages the web and the CLI give.
+    """Parse Qu and the resonator inductor and capacitor Q with the web's and CLI's messages.
 
-    Qu with QL or QC is refused first (the shared calculator's rule and message), then
-    each value is checked against the shared Q range, naming its own field.
+    Qu with an inductor or capacitor Q is refused first (the shared calculator's rule and
+    message), then each value is checked against the shared Q range, naming its own field.
     """
     parsed: dict[str, float | None] = {}
     for field_id, label in RESONATOR_Q_FIELDS:

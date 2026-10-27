@@ -10,11 +10,11 @@ Calculates LC filter component values for RF engineers and amateur radio operato
 
 ## Features
 
-- **Filter Types**: Low-pass (Pi/T topology), High-pass (Pi/T topology), Band-pass (coupled resonators with Top-C series-capacitor coupling, checked by circuit simulation)
+- **Filter Types**: Low-pass (Pi/T topology), High-pass (Pi/T topology), Band-pass (coupled resonators, top-coupled through series capacitors, checked by circuit simulation)
 - **Response Types**: Butterworth, Chebyshev (any ripple in (0, 3] dB), Bessel. Chebyshev LP/HP cutoff is the ripple-band edge (ARRL/Elsie/Zverev convention), not the −3 dB point; band-pass `bw` is the true −3 dB bandwidth
 - **Standard Capacitor Values**: E12/E24/E96 sets how many standard values there are per decade, not the part tolerance. Each capacitor gets one choice: a single part within 1%, otherwise two in parallel if that is at least 0.5 percentage points closer. Below 1 pF no part is chosen automatically unless you turn on `--allow-sub-pf` (**Allow capacitors below 1 pF** in the wizard and web UI)
 - **End Coupling**: Band-pass external Q is set by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
-- **Checked Band-Pass Design**: Each Top-C design places both −3 dB edges where requested, and a response check simulates the circuit to confirm the passband, outer edges, passband shape, ripple, and points just outside the passband. Rejection farther out is not checked; the attenuation at 2×f₀ and 3×f₀ and the Cohn loss estimates are reported separately
+- **Checked Band-Pass Design**: Each top-coupled design places both −3 dB edges where requested, and a response check simulates the circuit to confirm the passband, outer edges, passband shape, ripple, and points just outside the passband. Rejection farther out is not checked; the attenuation at 2×f₀ and 3×f₀ and the Cohn loss estimates are reported separately
 - **Build Simulation**: `--sim-build` simulates the filter with the chosen parts (standard capacitor values and suggested toroid windings), optional part losses (Q), and tolerance cases plus repeatable extra random cases. Measurements include the exact requested band edges and say when a value did not converge or the response is above −3 dB in separate ranges
 - **Generic SPICE Export**: decks with the calculated values (`exact`, or `calculated`) or the chosen parts (`nominal-build`, or `chosen-parts`) use the same named circuit as the build simulation; band-pass decks map SPICE names to table names in a `* names:` comment
 - **Toroid Winding Suggestions**: Automatic suggestions are limited to cores with primary-source data (currently T25-6, T50-2, and T68-2) that are rated for the frequency, reach the inductance within the A_L tolerance using whole turns, and fit the winding. RF Q, SRF, core loss, saturation, heating, and power handling are not checked
@@ -163,7 +163,7 @@ bandwidth and agree with the requested values to floating-point precision.
 |--------|-------------|
 | `-T, --topology` | Topology: `pi` (shunt first) or `t` (series first) (required for lowpass/highpass, positionally or as a flag) |
 | `--type` | Response type: butterworth, chebyshev, bessel (or bw/ch/bs aliases) |
-| `-n, --components` | LP/HP number of components (2–9, default: 3; Chebyshev needs an odd number) |
+| `-n, --components` | LP/HP order: the number of inductors and capacitors (2–9, default: 3; Chebyshev needs an odd order) |
 | `-n, --resonators` | Band-pass number of resonators (2–9, default: 3; Chebyshev needs an odd number) |
 | `-f, --frequency, --freq` | LP/HP cutoff frequency (the −3 dB point for Butterworth and Bessel, the ripple-band edge for Chebyshev); band-pass center frequency (or use `--fl`/`--fh`). Both spellings work on every subcommand |
 | `-c, --coupling` | Band-pass coupling `top` (alias `t`), as a flag instead of the positional argument |
@@ -178,7 +178,7 @@ bandwidth and agree with the requested values to floating-point precision.
 | `--format` | Output format: table, json, csv, spice (default: table) |
 | `--plot` | Add a text plot of the frequency response to the table |
 | `--plot-data` | Print only the frequency response, as json or csv |
-| `--explain` | Print a short description of the filter type and exit |
+| `--explain` | Print a short description of the response type and exit |
 | `--no-toroids` | Leave out the suggested toroid windings from all outputs |
 | `--toroid-compact` | Table output: the best toroid suggestion for each inductor on one line |
 | `--toroid-full` | Table output: up to three toroid suggestions per inductor (default: the best one; JSON lists up to three, CSV the best) |
@@ -192,7 +192,7 @@ bandwidth and agree with the requested values to floating-point precision.
 | `--no-toroid-build` | Simulate the calculated inductances instead of the suggested toroid windings |
 | `--spice-realization` | Values in the `--format spice` deck: `exact` or `calculated` (calculated values, lossless), or `nominal-build` or `chosen-parts` (chosen parts; default) |
 | `--qu` | Band-pass resonator Qu (inductor and capacitor losses together), for the loss estimate and the build simulation |
-| `--ql`, `--qc` | Band-pass inductor/capacitor Q; combined as `1/Qu = 1/QL + 1/QC` |
+| `--ql`, `--qc` | Band-pass resonator inductor Q and resonator capacitor Q; combined as `1/Qu = 1/(inductor Q) + 1/(capacitor Q)` |
 | `--resonator-impedance`, `--resonator-inductance` (aliases `--tank-impedance`, `--tank-inductance`) | Resonator (L–C tank) impedance `sqrt(L/C)` or inductance, independent of the source and load impedance |
 | `--version` | Root option: `filter-calc --version` |
 | `--host`, `--port` | `web` subcommand only: bind address (default `127.0.0.1`) and port (default `8765`) |
@@ -207,7 +207,7 @@ uv run filter-calc wizard   # explicit subcommand (alias: w)
 Running with no arguments starts a Textual TUI wizard with screen-based navigation:
 
 1. **Welcome Screen** - Choose a filter (low-pass, high-pass, band-pass)
-2. **Filter Configuration** - Set response, topology or coupling, frequency, impedance, and number of components or resonators. Band-pass takes the center and width or the two −3 dB band edges, plus optional resonator size and resonator Q (Qu, or QL and QC)
+2. **Filter Configuration** - Set response, topology or coupling, frequency, impedance, and order (low-pass, high-pass) or number of resonators (band-pass). Band-pass takes the center and width or the two −3 dB band edges, plus optional resonator size and resonator Q (Qu, or resonator inductor Q and capacitor Q)
 3. **Output options** - Format (Table, Values only, JSON, CSV), standard capacitor values (and **Allow capacitors below 1 pF**), toroid windings (Best, detailed; Up to 3, detailed; Best, one line; None), text plot and raw units, a response data file, and the optional build simulation. An option that cannot apply to the chosen format is disabled with the reason under it
 4. **Results** - View the calculation and save it; the component file and an optional response-data file are chosen separately
 
@@ -239,9 +239,9 @@ It prints its address (by default `http://127.0.0.1:8765/`) and serves until you
 
 **Local by design.** The web UI is meant for use on your own computer. It listens only on the loopback address unless you pass `--host`, warns when you do, and has no login. It accepts form submissions only from its own page, so other websites you visit cannot make your browser use it. Only use `--host 0.0.0.0` on a network you trust.
 
-## Filter Type Aliases
+## Response Type Aliases
 
-| Alias | Filter Type |
+| Alias | Response Type |
 |-------|-------------|
 | `bw`, `b` | Butterworth |
 | `ch`, `c` | Chebyshev |
@@ -352,7 +352,7 @@ rf-filter-calculator/
     ├── design/             # Shared request → synthesis → render/export path for every surface
     ├── lowpass/            # Lowpass calculations (Pi/T)
     ├── highpass/           # Highpass calculations (Pi/T)
-    ├── bandpass/           # Top-C band-pass design and its response check
+    ├── bandpass/           # Top-coupled band-pass design and its response check
     ├── wizard/             # Interactive design mode
     ├── web/                # Local browser UI (optional web dependencies)
     └── shared/             # Parsing, part selection, build simulation, SPICE, plotting
@@ -364,7 +364,7 @@ See [docs/](docs/README.md) for the full index. Good starting points:
 - [Quick Start Guide](docs/quick-start.md) - Common commands for all three interfaces
 - [User Guide](docs/user-guide.md) - Complete reference, including the [web UI field-to-flag table](docs/user-guide.md#web-ui)
 - [Sample Output](docs/sample-output.md) - What each output format looks like
-- [Filter Theory](docs/filter-theory.md) - Background on filter types
+- [Filter Theory](docs/filter-theory.md) - Background on filter and response types
 - [Caveats & Known Issues](docs/caveats-and-known-issues.md) - Limits of the models and of the web UI
 - [Testing Guide](docs/testing.md) - Test suite documentation
 

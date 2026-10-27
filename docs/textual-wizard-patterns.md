@@ -16,7 +16,7 @@ One `FilterState` lives at `FilterWizardApp.filter_state`. Screens read or updat
 `query_one()`.
 
 Parameter screens store validated design inputs (band-pass also stores the band edges and
-Qu/QL/QC). Output options stores every control's *visible* value: format (Values only is
+the resonator Q). Output options stores every control's *visible* value: format (Values only is
 `output_format="quiet"`), E-series, `allow_sub_pf`, toroid detail
 (`best`/`full`/`compact`/`none`), plot, raw, response sidecar, and build-simulation controls,
 including ones that are disabled. `DesignInputsMixin` (`state_design_inputs.py`) turns those
@@ -40,7 +40,7 @@ units, the build box, or Toroid windings asks the shared rule,
 `filter_lib.design.option_applicability.inapplicable_options`, which controls cannot apply. Those
 are disabled and the rule's one-line reason is shown in the `#reason-<option>` Static under them.
 The result treats a disabled control as unset, the same as leaving out the CLI flag, so Values
-only with E24 just works. The band-pass screen checks Qu/QL/QC (`loss_q`) again on
+only with E24 just works. The band-pass screen checks the resonator Q (`loss_q`) again on
 `on_screen_resume`, because the format is chosen on the next screen.
 
 Saved JSON and CSV use `document_options`, the same mapping the web downloads use: a disabled
@@ -83,8 +83,8 @@ saved in. A build simulation can be saved as text or JSON; the CSV choice is dis
 reason (`CSV_WITH_BUILD_MESSAGE`, "CSV cannot include the build simulation. Save as Text or
 JSON.") because the nested results have no lossy flattening contract, and with
 `LOSS_Q_NOT_SHOWN_MESSAGE` when the result used resonator Q. An optional response JSON/CSV
-sidecar is written beside the component file; it is the ideal response and leaves out Qu/QL/QC
-(equal to `--plot-data` without them). Files use UTF-8 and CSV-safe newline handling.
+sidecar is written beside the component file; it is the ideal response and leaves out the
+resonator Q (equal to `--plot-data` without it). Files use UTF-8 and CSV-safe newline handling.
 
 ## Where Logic Belongs
 

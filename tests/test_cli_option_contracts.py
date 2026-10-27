@@ -55,7 +55,7 @@ def test_bandpass_parser_tracks_explicit_eseries() -> None:
         ),
         (
             ("--explain",),
-            "--explain prints only a description of the filter type; remove --eseries",
+            "--explain prints only a description of the response type; remove --eseries",
         ),
         (
             ("--format", "spice", "--spice-realization", "exact"),
@@ -344,7 +344,7 @@ def test_explain_names_each_single_design_control_it_would_ignore(
 
     assert exc_info.value.code == 2
     assert capsys.readouterr().err.endswith(
-        f"error: --explain prints only a description of the filter type; remove {ignored}\n"
+        f"error: --explain prints only a description of the response type; remove {ignored}\n"
     )
 
 
@@ -387,7 +387,7 @@ def test_explain_rejects_design_controls_it_would_ignore(monkeypatch, capsys, ar
         _run(monkeypatch, *arguments)
 
     assert exc_info.value.code == 2
-    assert "--explain prints only a description of the filter type" in capsys.readouterr().err
+    assert "--explain prints only a description of the response type" in capsys.readouterr().err
 
 
 def _capture_run(monkeypatch, capsys, arguments: list[str]) -> tuple[object, str, str]:

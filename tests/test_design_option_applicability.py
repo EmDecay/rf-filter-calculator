@@ -89,7 +89,9 @@ def test_csv_also_has_no_build():
 
 
 def test_resonator_q_is_refused_with_the_shared_loss_q_message():
-    assert LOSS_Q_NOT_SHOWN_MESSAGE == loss_q_not_shown_message(["Qu", "QL", "QC"])
+    assert LOSS_Q_NOT_SHOWN_MESSAGE == loss_q_not_shown_message(
+        ["Qu", "Resonator inductor Q", "Resonator capacitor Q"]
+    )
     for output_format in ("table", "json"):
         assert option_reason(OutputChoices(output_format=output_format), LOSS_Q) is None
     for output_format in ("quiet", "csv"):

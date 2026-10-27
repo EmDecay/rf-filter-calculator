@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .. import __version__
+from ..shared.cli_bandpass_output_validation import CAPACITOR_Q_LABEL, INDUCTOR_Q_LABEL
 from ..shared.eseries import SUB_PF_OPTION_LABEL
 from . import routes_design, routes_export, routes_pages
 from .build_form_parsing import Q_FREQUENCY_LABEL
@@ -65,6 +66,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     templates.env.globals["labels"] = {
         "allow_sub_pf": SUB_PF_OPTION_LABEL,
         "q_frequency": Q_FREQUENCY_LABEL,
+        "inductor_q": INDUCTOR_Q_LABEL,
+        "capacitor_q": CAPACITOR_Q_LABEL,
     }
     # Which options apply to each Format/E-series/Raw/build/toroid combination.
     templates.env.globals["option_states"] = OPTION_STATES_JSON

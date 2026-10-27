@@ -148,7 +148,7 @@ def _calculate_chebyshev_base(
     # (ripple does not return to 0 dB at DC for LP / at infinity for HP),
     # which this library assumes. Match bandpass behavior by restricting to odd.
     if n % 2 == 0:
-        raise ValueError(chebyshev_odd_count_message("components"))
+        raise ValueError(chebyshev_odd_count_message("order"))
     # Get g-values from shared calculator
     g = calculate_chebyshev_g_values(n, ripple_db)
 

@@ -17,7 +17,7 @@
       {% if category == "bandpass" %}
       <div class="field field--wide">
         <span class="field__label">Coupling</span>
-        <p class="field__static">Top-C: series capacitors couple the resonators</p>
+        <p class="field__static">Top-coupled: series capacitors couple the resonators</p>
         <input type="hidden" name="coupling" value="top">
       </div>
       {% else %}
@@ -34,7 +34,7 @@
     <legend class="group__title">Frequency and size</legend>
     <div class="fields">
       {{ text_field("frequency", "Cutoff frequency", help="The −3 dB point for Butterworth and Bessel; the edge of the ripple band for Chebyshev. Units: Hz, kHz, MHz, GHz (10MHz, 10M, 10e6).", wide=true) }}
-      {{ text_field("components", "Number of components", help="2 to 9; odd (3, 5, 7, 9) for Chebyshev.", inputmode="numeric") }}
+      {{ text_field("components", "Order", help="The number of inductors and capacitors, 2 to 9; odd (3, 5, 7, 9) for Chebyshev.", inputmode="numeric") }}
       {{ text_field("impedance", "Impedance (Ω)", help="Equal source and load impedance; k and M allowed (e.g. 1k).") }}
     </div>
   </fieldset>

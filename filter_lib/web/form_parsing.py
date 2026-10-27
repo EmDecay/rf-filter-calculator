@@ -40,6 +40,11 @@ from ..shared.cli_aliases import (
     resolve_filter_type,
 )
 from ..shared.cli_argument_parsers import require_count
+from ..shared.cli_bandpass_output_validation import (
+    CAPACITOR_Q_LABEL,
+    INDUCTOR_Q_LABEL,
+    QU_LABEL,
+)
 from ..shared.cli_helpers import FILTER_TYPE_CHOICES, validate_filter_args
 from ..shared.parsing import parse_frequency, parse_impedance, parse_inductance
 from .build_form_parsing import BUILD_FIELD_DEFAULTS, parse_build_config
@@ -166,7 +171,7 @@ def _render_options(form: FormData) -> RenderOptions:
 def _ladder_request(category: str, form: FormData, filter_type: str) -> DesignRequest:
     frequency_hz = parse_frequency(required(form, "frequency", "Cutoff frequency"))
     impedance = parse_impedance(text(form, "impedance", DEFAULT_IMPEDANCE))
-    components = int_or(form, "components", "Number of components", DEFAULT_COMPONENTS)
+    components = int_or(form, "components", "Order", DEFAULT_COMPONENTS)
     validate_filter_args(frequency_hz, impedance, components)
     return DesignRequest(
         category=category,
@@ -227,9 +232,9 @@ def _bandpass_request(form: FormData, filter_type: str) -> DesignRequest:
         bandwidth_hz=bw,
         requested_f_low_hz=f_low,
         requested_f_high_hz=f_high,
-        qu=optional_float(form, "qu", "Qu"),
-        ql=optional_float(form, "ql", "QL"),
-        qc=optional_float(form, "qc", "QC"),
+        qu=optional_float(form, "qu", QU_LABEL),
+        ql=optional_float(form, "ql", INDUCTOR_Q_LABEL),
+        qc=optional_float(form, "qc", CAPACITOR_Q_LABEL),
         resonator_impedance=(
             parse_impedance(tank_impedance, label="Resonator impedance") if tank_impedance else None
         ),

@@ -28,6 +28,7 @@ from ..shared.cli_aliases import (
 from ..shared.cli_argument_parsers import (
     FILTER_TYPE_CHOICES,
     FILTER_TYPE_HELP,
+    FILTER_TYPE_METAVAR,
     FREQUENCY_FLAGS,
     IMPEDANCE_HELP,
     TYPE_FLAG_HELP,
@@ -35,7 +36,10 @@ from ..shared.cli_argument_parsers import (
     count_type,
     require_count,
 )
-from ..shared.cli_bandpass_output_validation import validate_bandpass_output_args
+from ..shared.cli_bandpass_output_validation import (
+    RESONATOR_Q_FORMULA,
+    validate_bandpass_output_args,
+)
 from ..shared.cli_helpers import (
     FREQ_SUFFIX_HELP,
     SIM_MATCHED_DEPRECATION_WARNING,
@@ -65,7 +69,7 @@ def setup_parser(parser: ArgumentParser) -> None:
         "filter_type",
         nargs="?",
         choices=FILTER_TYPE_CHOICES,
-        metavar="FILTER_TYPE",
+        metavar=FILTER_TYPE_METAVAR,
         help=FILTER_TYPE_HELP,
     )
     parser.add_argument(
@@ -73,7 +77,8 @@ def setup_parser(parser: ArgumentParser) -> None:
         nargs="?",
         choices=COUPLING_CHOICES,
         metavar="COUPLING",
-        help="Coupling between resonators: top or t (series capacitors; the only supported type)",
+        help="Coupling between resonators: top or t (top-coupled through series capacitors; "
+        "the only supported type)",
     )
 
     parser.add_argument(
@@ -154,16 +159,18 @@ def setup_parser(parser: ArgumentParser) -> None:
         "--ql",
         type=float,
         default=None,
-        help="Inductor Q at the center frequency, 0.01 to 1e9; an alternative to --qu. "
-        "Combined with --qc as 1/Qu = 1/QL + 1/QC",
+        metavar="Q",
+        help="Resonator inductor Q at the center frequency, 0.01 to 1e9; an alternative to "
+        f"--qu. Combined with --qc as {RESONATOR_Q_FORMULA}",
     )
     parser.add_argument(
         "--qc",
         type=float,
         default=None,
-        help="Capacitor Q at the center frequency, 0.01 to 1e9; an alternative to --qu. "
-        "Combined with --ql as 1/Qu = 1/QL + 1/QC. In --sim-build and SPICE it applies to "
-        "the resonator capacitors only",
+        metavar="Q",
+        help="Resonator capacitor Q at the center frequency, 0.01 to 1e9; an alternative to "
+        f"--qu. Combined with --ql as {RESONATOR_Q_FORMULA}. In --sim-build and SPICE it "
+        "applies to the resonator capacitors only",
     )
     parser.add_argument(
         "--resonator-impedance",
@@ -205,7 +212,7 @@ def run(args: Namespace) -> None:
     Raises:
         ValueError: For invalid numeric input or unrealizable designs;
             cli.main() converts this to a clean stderr message. Usage-level
-            problems (missing filter type, coupling, or frequencies) exit via
+            problems (missing response type, coupling, or frequencies) exit via
             argparse's usage error instead.
     """
     filter_type = get_filter_type_arg(args)
@@ -214,7 +221,7 @@ def run(args: Namespace) -> None:
     if args.explain:
         if not filter_type:
             usage_error(
-                args, "filter type required for --explain (try: filter-calc bp bw --explain)"
+                args, "response type required for --explain (try: filter-calc bp bw --explain)"
             )
         validate_output_mode_args(args)
         validate_bandpass_output_args(args)
@@ -223,7 +230,7 @@ def run(args: Namespace) -> None:
         return
 
     if not filter_type:
-        usage_error(args, f"filter type required: butterworth/chebyshev/bessel ({BP_EXAMPLE})")
+        usage_error(args, f"response type required: butterworth/chebyshev/bessel ({BP_EXAMPLE})")
     if not coupling:
         usage_error(args, f"coupling required: top is the only supported type ({BP_EXAMPLE})")
 

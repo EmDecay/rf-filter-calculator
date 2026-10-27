@@ -564,7 +564,7 @@ def test_resonator_q_is_the_cli_qu_ql_qc_design(
 def test_response_file_with_resonator_q_is_the_cli_plot_data_without_it(
     monkeypatch, capsys, fmt, q_state, output_format
 ):
-    """The response data file leaves Qu/QL/QC out, as the web's response downloads do."""
+    """The response data file leaves the resonator Q out, as the web's response downloads do."""
     state = _saved(_bandpass("chebyshev", 5, eseries="E24", output_format=output_format, **q_state))
     expected = _cli_stdout(monkeypatch, capsys, *_bandpass_argv(state), "--plot-data", fmt)
 

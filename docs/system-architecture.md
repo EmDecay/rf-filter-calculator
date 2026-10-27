@@ -162,7 +162,8 @@ re-raises one plain `ValueError` from `calibration_failure_message` with the sol
 `__cause__`.
 
 `--qu` is the resonator Qu: unloaded Q of each resonator, inductor and capacitor losses
-together. Separate `--ql` and `--qc` combine as `1/Qu = 1/QL + 1/QC`. The Cohn insertion-loss
+together. Separate `--ql` and `--qc` (resonator inductor Q and capacitor Q) combine as
+`1/Qu = 1/(inductor Q) + 1/(capacitor Q)`. The Cohn insertion-loss
 value is an estimate; the build simulation with part losses (Q) is a separate circuit
 calculation.
 

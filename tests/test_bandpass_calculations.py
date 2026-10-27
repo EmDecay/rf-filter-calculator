@@ -520,14 +520,20 @@ class TestInsertionLossAndQModel:
 
     @pytest.mark.parametrize(
         ("changes", "name"),
-        [({"ql": 5e-324}, "QL"), ({"qc": 1e300}, "QC"), ({"ql": 100, "qc": True}, "QC")],
+        [
+            ({"ql": 5e-324}, "Resonator inductor Q"),
+            ({"qc": 1e300}, "Resonator capacitor Q"),
+            ({"ql": 100, "qc": True}, "Resonator capacitor Q"),
+        ],
     )
     def test_component_q_outside_the_accepted_range_is_rejected_by_name(self, changes, name):
         with pytest.raises(ValueError, match=rf"^{name} must be between 0.01 and 1e9$"):
             combine_resonator_q(**changes)
 
     def test_direct_qu_is_mutually_exclusive_with_component_q(self):
-        with pytest.raises(ValueError, match="^Give either Qu or QL/QC, not both$"):
+        with pytest.raises(
+            ValueError, match="^Give either Qu or the resonator inductor and capacitor Q, not both$"
+        ):
             combine_resonator_q(qu=100, ql=200)
 
     def test_min_q_heuristic_is_loaded_q_times_safety_factor(self):
@@ -987,8 +993,8 @@ class TestBandpassPublicInputValidation:
         [
             ("q_safety", "q_safety"),
             ("qu", "Qu"),
-            ("ql", "QL"),
-            ("qc", "QC"),
+            ("ql", "Resonator inductor Q"),
+            ("qc", "Resonator capacitor Q"),
             ("resonator_impedance", "resonator_impedance"),
             ("resonator_inductance", "resonator_inductance"),
         ],

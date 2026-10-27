@@ -9,6 +9,11 @@ from textual.validation import Integer
 from textual.widgets import Button, Footer, Input, RadioButton, RadioSet, Static
 
 from ...design.option_applicability import LOSS_Q
+from ...shared.cli_bandpass_output_validation import (
+    CAPACITOR_Q_LABEL,
+    INDUCTOR_Q_LABEL,
+    RESONATOR_Q_FORMULA,
+)
 from ..bandpass_form import (
     BandpassFormError,
     BandpassFormValues,
@@ -29,12 +34,13 @@ F_LOW_EXAMPLE = "14MHz"
 F_HIGH_EXAMPLE = "14.35MHz"
 RESONATOR_Q_IDS = ("qu", "ql", "qc")
 RESONATOR_QU_HELP = (
-    "Unloaded Q of each resonator, inductor and capacitor losses together. Adds a loss "
-    "estimate and is used by the build simulation."
+    "Unloaded Q of each resonator, inductor and capacitor losses together. Adds an "
+    "insertion-loss estimate and is used by the build simulation."
 )
 RESONATOR_Q_NOTE = (
-    "Or enter QL and QC instead of Qu; they combine as 1/Qu = 1/QL + 1/QC. QC applies to "
-    "the resonator capacitors only. Each Q is 0.01 to 1e9."
+    "Or enter the resonator inductor Q and capacitor Q instead of Qu; they combine as "
+    f"{RESONATOR_Q_FORMULA}. The capacitor Q applies to the resonator capacitors only. "
+    "Each Q is 0.01 to 1e9."
 )
 
 
@@ -83,14 +89,16 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                         "Bessel - Gentle skirts; the band-pass form does not keep flat group delay",
                         id="bessel",
                     )
-                # Single-option RadioSet on purpose: Top-C is the only coupling
+                # Single-option RadioSet on purpose: top coupling is the only coupling
                 # that survived simulation validation (shunt coupling was
                 # removed), but keeping the RadioSet preserves the Enter-through
                 # navigation flow and leaves room for future topologies.
                 yield Static("Coupling", classes="field-label")
                 with RadioSet(id="coupling"):
                     yield RadioButton(
-                        "Top-C - series capacitors couple the resonators", value=True, id="top"
+                        "Top-coupled - series capacitors couple the resonators",
+                        value=True,
+                        id="top",
                     )
                 with Vertical(id="ripple-section"):
                     yield Static(RIPPLE_LABEL)
@@ -154,9 +162,9 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
                 yield Static("Resonator Qu", classes="field-label")
                 yield Input(id="qu")
                 yield Static(RESONATOR_QU_HELP, classes="field-help")
-                yield Static("Inductor QL", classes="field-label")
+                yield Static(INDUCTOR_Q_LABEL, classes="field-label")
                 yield Input(id="ql")
-                yield Static("Capacitor QC", classes="field-label")
+                yield Static(CAPACITOR_Q_LABEL, classes="field-label")
                 yield Input(id="qc")
                 yield Static(RESONATOR_Q_NOTE, classes="field-help")
                 reason = Static("", id="reason-loss_q", classes="option-reason")
@@ -181,7 +189,7 @@ class BandpassScreen(FilterScreenNavigationMixin, Screen):
         self._refresh_resonator_q()
 
     def _refresh_resonator_q(self) -> None:
-        """Disable Qu/QL/QC, with the shared rule's reason, when the output cannot use them.
+        """Disable the resonator Q fields, with the shared reason, when the output cannot use them.
 
         The output format is chosen on the next screen, so this reflects the choice made
         there; values stay in place and still reach a saved JSON file.

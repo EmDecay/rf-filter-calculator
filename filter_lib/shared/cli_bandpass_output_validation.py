@@ -5,6 +5,16 @@ from argparse import Namespace
 from .cli_aliases import DEFAULT_Q_SAFETY
 from .cli_output_validation import usage_error
 
+# Names of the band-pass resonator Q inputs (CLI --qu/--ql/--qc) in every label and message.
+# Inductor and capacitor Q are spelled out because filter texts use "QL" for loaded Q.
+QU_LABEL = "Qu"
+INDUCTOR_Q_LABEL = "Resonator inductor Q"
+CAPACITOR_Q_LABEL = "Resonator capacitor Q"
+RESONATOR_Q_LABELS = (QU_LABEL, INDUCTOR_Q_LABEL, CAPACITOR_Q_LABEL)
+RESONATOR_Q_CONFLICT_MESSAGE = "Give either Qu or the resonator inductor and capacitor Q, not both"
+# How separate inductor and capacitor Q combine, in help text on every surface.
+RESONATOR_Q_FORMULA = "1/Qu = 1/(inductor Q) + 1/(capacitor Q)"
+
 
 def loss_q_not_shown_message(names: list[str]) -> str:
     """Message for resonator-loss Q given with an output that cannot show its effect.

@@ -21,7 +21,7 @@ Calculates LC filter component values for RF engineers and amateur radio operato
 - **Response Types**: Butterworth, Chebyshev, Bessel
 - **Standard Capacitor Values**: E12/E24/E96 with one stated choice rule per capacitor; the E-series sets values per decade, not tolerance. `--allow-sub-pf` also chooses values below 1 pF
 - **Build Simulation**: The chosen parts (standard capacitors and toroid windings, or the calculated value where no part was chosen), optional part losses (Q), fixed tolerance cases, and optional repeatable extra random cases
-- **Checked Band-Pass Results**: Top-C designs with a per-design response check rather than a blanket support claim
+- **Checked Band-Pass Results**: Top-coupled designs with a per-design response check rather than a blanket support claim
 - **Toroid Winding Suggestions**: Primary-sourced whole-turn windings that fit the core, with what is and is not checked stated explicitly
 - **Outputs**: Table, strict JSON, rectangular CSV, response data, ASCII plots, and generic SPICE decks (calculated values or chosen parts)
 - **Interactive Wizard**: Guided design and build-simulation controls with safe export behavior

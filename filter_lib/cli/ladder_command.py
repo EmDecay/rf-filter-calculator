@@ -42,7 +42,7 @@ def run_ladder(args: Namespace, category: str, explanations: dict, example: str)
 
     Raises:
         ValueError: For invalid numeric input; cli.main() converts this to a
-            clean stderr message. Usage-level problems (missing filter type,
+            clean stderr message. Usage-level problems (missing response type,
             frequency, or topology) exit via argparse's usage error instead.
     """
     alias = example.split()[0]
@@ -54,7 +54,7 @@ def run_ladder(args: Namespace, category: str, explanations: dict, example: str)
         if not filter_type:
             usage_error(
                 args,
-                f"filter type required for --explain (try: filter-calc {alias} bw --explain)",
+                f"response type required for --explain (try: filter-calc {alias} bw --explain)",
             )
         validate_output_mode_args(args)
         print(explanations[resolve_filter_type(filter_type)])
@@ -63,7 +63,7 @@ def run_ladder(args: Namespace, category: str, explanations: dict, example: str)
     if not filter_type:
         usage_error(
             args,
-            f"filter type required: butterworth/chebyshev/bessel (try: filter-calc {example})",
+            f"response type required: butterworth/chebyshev/bessel (try: filter-calc {example})",
         )
     if not freq_input:
         usage_error(args, f"frequency required (try: filter-calc {example})")

@@ -46,7 +46,7 @@ uv run filter-calc lp <FILTER_TYPE> -T pi|t -f <FREQUENCY> [options]
 | `--type` | - | Response type, as a flag instead of the positional argument |
 | `-T, --topology` | - | Topology: `pi` (shunt first) or `t` (series first), as a flag instead of the positional argument |
 | `-f, --frequency, --freq` | - | Cutoff frequency, as a flag instead of the positional argument |
-| `-n, --components` | 3 | Number of components, 2-9; Chebyshev needs an odd number. Anything else, including a non-whole number, is refused with `Number of components must be from 2 to 9` (exit status 1) |
+| `-n, --components` | 3 | Order: the number of inductors and capacitors, 2-9; Chebyshev needs an odd order. Anything else, including a non-whole number, is refused with `Order must be from 2 to 9` (exit status 1) |
 | `-z, --impedance` | 50 | Source and load impedance in ohms; k and M suffixes allowed (`m` also means mega) |
 | `-r, --ripple` | 0.5 | Chebyshev ripple in dB, `0 < r <= 3.0` (ignored by other types) |
 | `-e, --eseries` | E24 | Standard capacitor values to choose from: E12, E24, or E96 (12, 24, or 96 values per decade); sets how many values there are, not part tolerance |
@@ -57,7 +57,7 @@ uv run filter-calc lp <FILTER_TYPE> -T pi|t -f <FREQUENCY> [options]
 | `--format` | table | Output format: `table`, `json`, `csv`, `spice` |
 | `--plot` | - | Add a text plot of the frequency response to the table |
 | `--plot-data` | - | Print only the frequency response, as `json` or `csv` |
-| `--explain` | - | Print a short description of the filter type and exit |
+| `--explain` | - | Print a short description of the response type and exit |
 | `--no-toroids` | - | Leave out the suggested toroid windings from all outputs |
 | `--toroid-compact` | - | Table output: the best toroid suggestion for each inductor on one line |
 | `--toroid-full` | - | Table output: up to three toroid suggestions per inductor (default: the best one) |
@@ -233,12 +233,12 @@ with the request to floating-point precision.
 | `--format` | table | Output format: `table`, `json`, `csv`, `spice` |
 | `--plot` | - | Add a text plot of the frequency response to the table |
 | `--plot-data` | - | Print only the frequency response, as `json` or `csv` |
-| `--explain` | - | Print a short description of the filter type and exit |
+| `--explain` | - | Print a short description of the response type and exit |
 | `--no-toroids` | - | Leave out the suggested toroid windings from all outputs |
 | `--toroid-compact` | - | Table output: the best toroid suggestion on one line |
 | `--toroid-full` | - | Table output: up to three toroid suggestions |
-| `--qu` | - | Resonator Qu: unloaded Q of each resonator, inductor and capacitor losses together (0.01 to 1e9). Adds a loss estimate and sets the resonator losses for `--sim-build` and the chosen-parts SPICE deck. Estimates at Qu = 100 and 250 are always shown |
-| `--ql`, `--qc` | - | Inductor and resonator-capacitor Q at the center frequency (each 0.01 to 1e9), instead of `--qu`; combined as `1/Qu = 1/QL + 1/QC` |
+| `--qu` | - | Resonator Qu: unloaded Q of each resonator, inductor and capacitor losses together (0.01 to 1e9). Adds an insertion-loss estimate and sets the resonator losses for `--sim-build` and the chosen-parts SPICE deck. Estimates at Qu = 100 and 250 are always shown |
+| `--ql`, `--qc` | - | Resonator inductor Q and resonator capacitor Q at the center frequency (each 0.01 to 1e9), instead of `--qu`; combined as `1/Qu = 1/(inductor Q) + 1/(capacitor Q)` |
 | `--resonator-impedance` (alias `--tank-impedance`) | `-z` | Resonator (L–C tank) impedance `sqrt(L/C)`; it can differ from the source and load impedance |
 | `--resonator-inductance` (alias `--tank-inductance`) | - | Inductance of every resonator, e.g. `1.2uH`; cannot be combined with `--resonator-impedance` |
 | `--sim-build` | - | Build simulation (see [Build Simulation and SPICE Controls](#build-simulation-and-spice-controls)) |
@@ -261,19 +261,19 @@ uv run filter-calc bp bw top -f 14.2MHz -b 500kHz \
   --resonator-inductance 1.2uH --ql 180 --qc 500 --sim-build
 ```
 
-The calculator places each Top-C design's −3 dB edges where requested and prints a
+The calculator places each top-coupled design's −3 dB edges where requested and prints a
 **Response Check** line (`response_validation_status` in JSON): `Passed (simulated circuit
 matches the requested response)` or `Not confirmed; see warnings below`. The verified range
 goes up to 10% fractional bandwidth, but some designs within it are still not confirmed and
 some combinations cannot be built; check each result.
 
 The response check covers the −3 dB edges, the passband shape, and points just outside the
-passband. Farther out, Top-C rejection can differ from the ideal (e.g. Butterworth) response
+passband. Farther out, top-coupled rejection can differ from the ideal (e.g. Butterworth) response
 and is not checked.
 The `Attenuation at 2×f₀ … at 3×f₀` line (`harmonic_response` in JSON) reports the lossless
 circuit at twice and three times the requested center, without an acceptance limit.
 
-The **Added loss at f₀** block compares two numbers for each resonator Qu (inductor and capacitor
+The **Insertion loss at f₀** block compares two numbers for each resonator Qu (inductor and capacitor
 losses together): the Cohn estimate, a small-loss approximation, and a circuit simulation of the
 calculated parts with one equivalent series loss in each resonator inductor. When they differ by
 more than 0.5 dB the table adds `(estimate off by more than 0.5 dB; use the simulated value)`,
@@ -306,16 +306,16 @@ Under *Choose a filter*, pick **Low-Pass**, **High-Pass**, or **Band-Pass** and 
 - **Low-pass and high-pass:** *Response and topology*: Response (Butterworth, Chebyshev,
   Bessel), Topology (Pi (shunt first) or T (series first); low-pass defaults to Pi, high-pass
   to T), and passband ripple in dB, shown only for Chebyshev. *Frequency and size*: cutoff
-  frequency (the label says −3 dB point or ripple-band edge to match the response), number of
-  components (2-9), and impedance, equal source and load (`50`).
-- **Band-pass:** *Response and coupling*: Response, Coupling (Top-C, the only option), and
+  frequency (the label says −3 dB point or ripple-band edge to match the response), order
+  (the number of inductors and capacitors, 2-9), and impedance, equal source and load (`50`).
+- **Band-pass:** *Response and coupling*: Response, Coupling (top-coupled, the only option), and
   ripple for Chebyshev. *Passband*: *Specify the band by* **Center and width** (`14.175MHz`,
   `350kHz`) or **Band edges** (lower and upper −3 dB edges, `14MHz` and `14.35MHz`, the same as
   `--fl`/`--fh`), with a fractional bandwidth note shown as you type; number of resonators
   (2-9) and impedance. *Resonators and losses (optional)*: resonator impedance `sqrt(L/C)` or
-  resonator inductance, not both; and **Resonator Qu**, or **Inductor QL** and **Capacitor QC**
-  (`--qu`, `--ql`, `--qc`). Qu, QL, and QC are disabled, with the reason, when the format
-  chosen on the next screen cannot show them (Values only and CSV).
+  resonator inductance, not both; and **Resonator Qu**, or **Resonator inductor Q** and
+  **Resonator capacitor Q** (`--qu`, `--ql`, `--qc`). These are disabled, with the reason,
+  when the format chosen on the next screen cannot show them (Values only and CSV).
 
 #### 3. Output options
 
@@ -326,7 +326,7 @@ Under *Choose a filter*, pick **Low-Pass**, **High-Pass**, or **Band-Pass** and 
 - **Text plot in the table** (`--plot`, off by default) and **Raw units (F, H)** (`--raw`).
 
 *Response data file*: None, or a JSON or CSV response file (`--plot-data`), saved when you export
-the results. It is the ideal response, so it leaves out Qu, QL, and QC.
+the results. It is the ideal response, so it leaves out the resonator Q.
 
 *Build simulation (optional)*: tick **Simulate the built filter** (`--sim-build`) to show its
 fields, pre-filled with the CLI defaults (a blank field takes that default): capacitor and
@@ -429,8 +429,9 @@ the toroid detail never reach a download. **Allow capacitors below 1 pF** is use
 Components, and SPICE – chosen parts downloads; SPICE – calculated values and the response data
 ignore it.
 
-Components (CSV) and SPICE – calculated values refuse resonator Q (Qu, QL, QC) that the result
-shown used, as the CLI does. The response data downloads leave Qu, QL, and QC out, so they equal
+Components (CSV) and SPICE – calculated values refuse resonator Q (Qu, or the inductor and
+capacitor Q) that the result shown used, as the CLI does. The response data downloads leave the
+resonator Q out, so they equal
 `--plot-data` without them (the wizard's response data file does the same).
 
 `POST /api/design/<category>` with the same form fields returns the `--format json`
@@ -444,15 +445,15 @@ Field names mirror the CLI flags, so a design can move between the two.
 |---|---|---|
 | Response (`filter_type`) | positional type or `--type` | Aliases such as `bw`, `ch`, `bs` are accepted |
 | Topology (`topology`) | positional or `-T` | Lowpass and highpass |
-| Coupling (`coupling`) | positional `top` | Bandpass; Top-C is the only coupling |
+| Coupling (`coupling`) | positional `top` | Bandpass; top coupling is the only coupling |
 | Cutoff / Center frequency (`frequency`) | positional or `-f` | Same unit suffixes as the CLI |
 | Bandwidth (−3 dB) (`bandwidth`) | `-b` | Bandpass, when the band is given by center and width |
 | Lower / Upper edge (−3 dB) (`f_low`, `f_high`) | `--fl`, `--fh` | Bandpass, when `band_spec` is `edges` |
-| Number of components / resonators (`components`, `resonators`) | `-n` | |
+| Order / Number of resonators (`components`, `resonators`) | `-n` | |
 | Impedance (`impedance`) | `-z` | |
 | Passband ripple (`ripple`) | `-r` | Shown and used for Chebyshev only |
 | Resonator impedance / inductance (`resonator_impedance`, `resonator_inductance`) | `--resonator-impedance`, `--resonator-inductance` | Bandpass |
-| Resonator Qu, Inductor QL, Capacitor QC (`qu`, `ql`, `qc`) | `--qu`, `--ql`, `--qc` | Bandpass; disabled with Values only and CSV |
+| Resonator Qu, Resonator inductor Q, Resonator capacitor Q (`qu`, `ql`, `qc`) | `--qu`, `--ql`, `--qc` | Bandpass; disabled with Values only and CSV |
 | Format (`output_format`: table, quiet, json, csv) | `--format`; Values only is `-q` | |
 | Standard capacitor values (`eseries`) | `-e`; **None** is `--no-match` | |
 | Allow capacitors below 1 pF (`allow_sub_pf`) | `--allow-sub-pf` | Needs E12, E24, or E96 |

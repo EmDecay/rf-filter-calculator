@@ -29,7 +29,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Automated CI with GitHub Actions
 - Code quality enforced via ruff linting
 - Bandpass external Q set by series end-coupling capacitors; shunt-C coupling removed
-- Bandpass Top-C design calibrated to the requested −3 dB edges, with a per-design response check; 128-cell maintained acceptance matrix
+- Bandpass top-coupled design calibrated to the requested −3 dB edges, with a per-design response check; 128-cell maintained acceptance matrix
 - Chebyshev g-values computed by formula for arbitrary ripple; capacitors-only E-series matching
 - Graph enhancements (GH-7): dB threshold tables + zoomed plots
 - Automatic toroid winding suggestions restricted to primary-sourced T25-6, T50-2, and T68-2; RF Q, SRF, core loss, heating, saturation, and power are explicitly not checked
@@ -177,7 +177,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Category-specific parameter screens with conditional UI
 - Chebyshev ripple field appears only when needed
 - Band-pass: center and width or lower/upper −3 dB band edges; optional resonator size and
-  resonator Q (Qu, or QL and QC) in "Resonators and losses"
+  resonator Q (Qu, or resonator inductor Q and capacitor Q) in "Resonators and losses"
 - VerticalScroll support for small terminals (<25 lines)
 
 **FR-1.6.3: Output options**

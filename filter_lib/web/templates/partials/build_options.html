@@ -5,7 +5,7 @@
   <div class="build__fields fields">
     {{ text_field("build_capacitor_tolerance_pct", "Capacitor tolerance (±%)", help="Blank = 5.") }}
     {{ text_field("build_inductor_tolerance_pct", "Inductor tolerance (±%)", help="Blank = 10.") }}
-    {{ text_field("build_inductor_q", "Inductor Q", help="Q of each inductor; blank = lossless. For band-pass, enter Q here or in the Resonator Qu, QL, and QC fields, not both.") }}
+    {{ text_field("build_inductor_q", "Inductor Q", help="Q of each inductor; blank = lossless. For band-pass, enter Q here or in the resonator Q fields, not both.") }}
     {{ text_field("build_capacitor_q", "Capacitor Q", help="Q of each capacitor; blank = lossless.") }}
     {{ text_field("build_reference_frequency", labels.q_frequency, help="Blank = the cutoff frequency (low-pass, high-pass) or the center frequency (band-pass).", wide=true) }}
     {{ text_field("build_source_resistance", "Simulation source resistance (Ω)", help="Used only to simulate; component values are still designed for the impedance you entered. Blank = that impedance.") }}

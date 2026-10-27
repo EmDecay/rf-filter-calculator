@@ -247,7 +247,7 @@ class TestCliRejectsTheFlagWhereItHasNoEffect:
         err = cli_stderr(monkeypatch, capsys, command, "bw", "--explain", SUB_PF_CLI_FLAG)
 
         assert err.rstrip().endswith(
-            "error: --explain prints only a description of the filter type; remove --allow-sub-pf"
+            "error: --explain prints only a description of the response type; remove --allow-sub-pf"
         )
 
     def test_raw_table_with_build_simulation_accepts_it(self, monkeypatch, capsys):

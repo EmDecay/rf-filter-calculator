@@ -182,10 +182,10 @@ class TestValidateFilterArgs:
             (-10e6, 50, 5, "Frequency must be positive"),
             (0.0, 50, 5, "Frequency must be positive"),
             (10e6, 0, 5, "Impedance must be positive"),
-            (10e6, 50, 1, "Number of components must be from 2 to 9"),
-            (10e6, 50, 10, "Number of components must be from 2 to 9"),
-            (10e6, 50, True, "Number of components must be from 2 to 9"),
-            (10e6, 50, 3.0, "Number of components must be from 2 to 9"),
+            (10e6, 50, 1, "Order must be from 2 to 9"),
+            (10e6, 50, 10, "Order must be from 2 to 9"),
+            (10e6, 50, True, "Order must be from 2 to 9"),
+            (10e6, 50, 3.0, "Order must be from 2 to 9"),
         ],
     )
     def test_rejects_out_of_range_values(self, frequency, impedance, components, message):
@@ -323,14 +323,14 @@ class TestDesignArgumentUsageErrors:
     @pytest.mark.parametrize("category", _CATEGORIES)
     def test_missing_filter_type(self, category, capsys):
         err = _usage_error(category, capsys, filter_type=None)
-        assert "error: filter type required: butterworth/chebyshev/bessel" in err
+        assert "error: response type required: butterworth/chebyshev/bessel" in err
 
     @pytest.mark.parametrize("category", _CATEGORIES)
     def test_explain_without_filter_type(self, category, capsys):
         err = _usage_error(
             category, capsys, filter_type=None, explain=True, quiet=False, no_match=False
         )
-        assert "error: filter type required for --explain" in err
+        assert "error: response type required for --explain" in err
 
     @pytest.mark.parametrize("category", _LADDERS)
     def test_ladder_missing_frequency(self, category, capsys):
@@ -349,13 +349,13 @@ class TestDesignArgumentUsageErrors:
     @pytest.mark.parametrize(
         ("category", "overrides", "label"),
         [
-            ("lowpass", {"type_flag": "chebyshev"}, "filter type"),
+            ("lowpass", {"type_flag": "chebyshev"}, "response type"),
             ("lowpass", {"freq_flag": "5MHz"}, "frequency"),
             ("lowpass", {"topology_flag": "t"}, "topology"),
-            ("highpass", {"type_flag": "chebyshev"}, "filter type"),
+            ("highpass", {"type_flag": "chebyshev"}, "response type"),
             ("highpass", {"freq_flag": "5MHz"}, "frequency"),
             ("highpass", {"topology_flag": "pi"}, "topology"),
-            ("bandpass", {"type_flag": "chebyshev"}, "filter type"),
+            ("bandpass", {"type_flag": "chebyshev"}, "response type"),
             ("bandpass", {"coupling_flag": "top"}, "coupling"),
         ],
     )
@@ -497,7 +497,7 @@ class TestBandpassInputs:
         out = capsys.readouterr().out
 
         assert (
-            "Added loss at f₀ for resonator Qu (inductor and capacitor losses together):\n"
+            "Insertion loss at f₀ for resonator Qu (inductor and capacitor losses together):\n"
             "  Qu=100:  Cohn estimate 7.04 dB, circuit simulation 6.87 dB\n"
             "  Qu=250:  Cohn estimate 2.82 dB, circuit simulation 2.81 dB\n"
         ) in out

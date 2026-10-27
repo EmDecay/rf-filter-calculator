@@ -234,7 +234,7 @@ _INVALID = [
         "Error: Invalid impedance: 50ohms (use a number of ohms with an optional k or M suffix, e.g. 50 or 1k)",
     ),
     *(
-        (f"{command} 10MHz {count}", 1, "Error: Number of components must be from 2 to 9")
+        (f"{command} 10MHz {count}", 1, "Error: Order must be from 2 to 9")
         for command in ("lp bw pi", "hp bw t")
         for count in ("-n 0", "--components=-1", "-n 10", "-n 99", "-n 3.5", "-n x", "-n ''")
     ),
@@ -250,8 +250,7 @@ _INVALID = [
     (
         "hp ch t 10MHz -n 4",
         1,
-        "Error: Chebyshev needs an odd number of components (3, 5, 7, or 9) for equal source and "
-        "load impedance",
+        "Error: Chebyshev needs an odd order (3, 5, 7, or 9) for equal source and load impedance",
     ),
     (
         "lp bw pi 10MHz --sim-build --capacitor-tolerance nan",
@@ -391,11 +390,15 @@ _INVALID = [
     ("bp bw top -f 14MHz -b 1MHz --qu inf", 1, "Error: Qu must be between 0.01 and 1e9"),
     ("bp bw top -f 14MHz -b 1MHz --qu 0", 1, "Error: Qu must be between 0.01 and 1e9"),
     ("bp bw top -f 14MHz -b 1MHz --qu 2e9", 1, "Error: Qu must be between 0.01 and 1e9"),
-    ("bp bw top -f 14MHz -b 1MHz --ql nan", 1, "Error: QL must be between 0.01 and 1e9"),
+    (
+        "bp bw top -f 14MHz -b 1MHz --ql nan",
+        1,
+        "Error: Resonator inductor Q must be between 0.01 and 1e9",
+    ),
     (
         "bp bw top -f 14MHz -b 1MHz --ql 100 --qc 0",
         1,
-        "Error: QC must be between 0.01 and 1e9",
+        "Error: Resonator capacitor Q must be between 0.01 and 1e9",
     ),
     (
         "bp bw top -f 14MHz -b 1MHz --q-safety nan --format json",

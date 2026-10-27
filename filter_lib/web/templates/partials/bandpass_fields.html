@@ -19,10 +19,10 @@
     <p class="field__help field--wide">Each resonator is an L–C tank. Set its impedance or its inductance, not both.</p>
     {{ text_field("resonator_impedance", "Resonator impedance (Ω)", help="sqrt(L/C). Blank = the impedance above.") }}
     {{ text_field("resonator_inductance", "Resonator inductance", help="Inductance of every resonator, e.g. 1.2uH.") }}
-    {{ text_field("qu", "Resonator Qu", help="Unloaded Q of each resonator, inductor and capacitor losses together. Adds a loss estimate and is used by the build simulation and the SPICE – chosen parts download.", wide=true, option="loss_q") }}
-    {{ text_field("ql", "Inductor QL", option="loss_q") }}
-    {{ text_field("qc", "Capacitor QC", option="loss_q") }}
-    <p class="field__help field--wide">Or enter QL and QC instead of Qu; they combine as 1/Qu = 1/QL + 1/QC. QC applies to the resonator capacitors only. Each Q is 0.01 to 1e9.</p>
+    {{ text_field("qu", "Resonator Qu", help="Unloaded Q of each resonator, inductor and capacitor losses together. Adds an insertion-loss estimate and is used by the build simulation and the SPICE – chosen parts download.", wide=true, option="loss_q") }}
+    {{ text_field("ql", labels.inductor_q, option="loss_q") }}
+    {{ text_field("qc", labels.capacitor_q, option="loss_q") }}
+    <p class="field__help field--wide">Or enter the resonator inductor Q and capacitor Q instead of Qu; they combine as 1/Qu = 1/(inductor Q) + 1/(capacitor Q). The capacitor Q applies to the resonator capacitors only. Each Q is 0.01 to 1e9.</p>
     <div class="field--wide">{{ reason("loss_q") }}</div>
   </div>
 </details>

@@ -66,7 +66,7 @@ BUILD_FIELDS = (
         "build-inductor-q",
         "Inductor Q",
         "Q of each inductor; blank = lossless. For band-pass, enter Q here or in the "
-        "Resonator Qu, QL, and QC fields, not both.",
+        "resonator Q fields, not both.",
     ),
     BuildField("build-capacitor-q", "Capacitor Q", "Q of each capacitor; blank = lossless."),
     BuildField("build-reference-frequency", Q_FREQUENCY_LABEL, Q_FREQUENCY_HELP),
@@ -178,7 +178,7 @@ def parse_build_config(
     as a ``BuildOptionError`` naming the input that caused it. With
     ``design_impedance``, an explicit source or load resistance is also checked against
     the ratio that analysis would enforce, so the form can focus that input instead of
-    failing later on Results. ``resonator_q_supplied`` (band-pass Qu, QL, or QC entered)
+    failing later on Results. ``resonator_q_supplied`` (band-pass resonator Q entered)
     refuses inductor or capacitor Q with the shared message, as the web does.
     """
 

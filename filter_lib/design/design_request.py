@@ -20,7 +20,7 @@ from ..shared.cli_aliases import (
     resolve_coupling,
     resolve_filter_type,
 )
-from ..shared.cli_bandpass_output_validation import loss_q_not_shown_message
+from ..shared.cli_bandpass_output_validation import RESONATOR_Q_LABELS, loss_q_not_shown_message
 from ..shared.eseries import SUB_PF_OPTION_LABEL
 from ..shared.numeric import is_finite_real, positive_geometric_mean, require_positive_finite
 
@@ -114,7 +114,7 @@ class DesignRequest:
         """
         supplied = [
             label
-            for label, value in (("Qu", self.qu), ("QL", self.ql), ("QC", self.qc))
+            for label, value in zip(RESONATOR_Q_LABELS, (self.qu, self.ql, self.qc))
             if value is not None
         ]
         if supplied:

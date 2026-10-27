@@ -271,7 +271,7 @@ class TestDisplay:
         assert "Center Frequency f₀: 14.175 MHz" in out
         assert "-3 dB Bandwidth:     350 kHz" in out
         assert "Resonators:          3" in out
-        assert "Coupling:            Top-C (series capacitors)" in out
+        assert "Coupling:            Top-coupled (series capacitors)" in out
         assert "Ripple:" not in out
 
     @staticmethod
@@ -338,11 +338,11 @@ class TestDisplay:
             ({"resonator_qu": 150.0}, ["", "Your Qu: 150"]),
             (
                 {"resonator_qu": 400.0 / 3.0, "inductor_ql": 200.0, "capacitor_qc": 400.0},
-                ["", "Your Qu: 133.3 (from QL=200 and QC=400 at f₀)"],
+                ["", "Your Qu: 133.3 (from inductor Q 200 and capacitor Q 400 at f₀)"],
             ),
             (
                 {"resonator_qu": 400.0, "inductor_ql": None, "capacitor_qc": 400.0},
-                ["", "Your Qu: 400 (from QC=400 at f₀)"],
+                ["", "Your Qu: 400 (from capacitor Q 400 at f₀)"],
             ),
         ],
     )
@@ -361,7 +361,7 @@ class TestDisplay:
                     "inductor_ql": 12345.0,
                     "capacitor_qc": 20000.0,
                 },
-                ["", "Your Qu: 7633 (from QL=12345 and QC=20000 at f₀)"],
+                ["", "Your Qu: 7633 (from inductor Q 12345 and capacitor Q 20000 at f₀)"],
             ),
         ],
     )

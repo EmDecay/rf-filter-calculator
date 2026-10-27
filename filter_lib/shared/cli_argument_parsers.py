@@ -23,6 +23,7 @@ FREQ_SUFFIX_HELP = (
 # usage errors name them (``argument TOPOLOGY: invalid choice``) and list the choices
 # in the help text instead of the usage line.
 FILTER_TYPE_HELP = "Response type: butterworth (bw, b), chebyshev (ch, c), or bessel (bs)"
+FILTER_TYPE_METAVAR = "RESPONSE"
 TYPE_FLAG_HELP = "Response type, as a flag instead of the positional argument"
 IMPEDANCE_HELP = (
     "Source and load impedance in ohms; k and M suffixes allowed (m also means mega) "
@@ -31,8 +32,16 @@ IMPEDANCE_HELP = (
 
 
 def count_help(noun: str, default: int) -> str:
-    """Help for ``-n``: the component count (LP/HP) or the resonator count (bandpass)."""
+    """Help for bandpass ``-n``: the number of resonators."""
     return f"Number of {noun}, 2-9; Chebyshev needs an odd number (default: {default})"
+
+
+def order_help(default: int) -> str:
+    """Help for LP/HP ``-n``: the filter order, which is the number of inductors and capacitors."""
+    return (
+        "Order: the number of inductors and capacitors, 2-9; Chebyshev needs an odd order "
+        f"(default: {default})"
+    )
 
 
 def count_type(text: str) -> int | str:
@@ -72,12 +81,12 @@ class _StoreExplicitValue(Action):
 
 
 def add_filter_type_args(parser: ArgumentParser, filter_category: str = "lowpass") -> None:
-    """Add filter type, topology, and cutoff-frequency arguments."""
+    """Add response type, topology, and cutoff-frequency arguments."""
     parser.add_argument(
         "filter_type",
         nargs="?",
         choices=FILTER_TYPE_CHOICES,
-        metavar="FILTER_TYPE",
+        metavar=FILTER_TYPE_METAVAR,
         help=FILTER_TYPE_HELP,
     )
     if filter_category in ("lowpass", "highpass"):
@@ -119,7 +128,7 @@ def add_filter_type_args(parser: ArgumentParser, filter_category: str = "lowpass
 
 
 def add_common_filter_args(parser: ArgumentParser) -> None:
-    """Add impedance, ripple, and component-count arguments."""
+    """Add impedance, ripple, and order arguments."""
     parser.add_argument("-z", "--impedance", default=DEFAULT_IMPEDANCE, help=IMPEDANCE_HELP)
     parser.add_argument(
         "-r",
@@ -135,7 +144,7 @@ def add_common_filter_args(parser: ArgumentParser) -> None:
         type=count_type,
         default=DEFAULT_COMPONENTS,
         metavar="N",
-        help=count_help("components", DEFAULT_COMPONENTS),
+        help=order_help(DEFAULT_COMPONENTS),
     )
 
 
@@ -150,7 +159,7 @@ def add_output_args(parser: ArgumentParser) -> None:
     parser.add_argument(
         "--explain",
         action="store_true",
-        help="Print a short description of the filter type and exit",
+        help="Print a short description of the response type and exit",
     )
     parser.add_argument(
         "-q", "--quiet", action="store_true", help="Print only the component values, one per line"

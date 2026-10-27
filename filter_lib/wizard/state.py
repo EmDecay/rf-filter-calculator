@@ -105,7 +105,7 @@ class FilterState(DesignInputsMixin):
     # Optional band-pass tank constraint. At most one may be populated.
     resonator_impedance: float | None = None
     resonator_inductance: float | None = None
-    # Band-pass resonator Q (CLI --qu/--ql/--qc): Qu, or QL and/or QC.
+    # Band-pass resonator Q (CLI --qu/--ql/--qc): Qu, or inductor and/or capacitor Q.
     qu: float | None = None
     ql: float | None = None
     qc: float | None = None

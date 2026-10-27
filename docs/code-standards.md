@@ -174,12 +174,14 @@ gain expression.
 Help, errors, output, wizard, and web text use one plain term per concept: build simulation,
 ideal values, chosen parts, parts used, calculated value used, tolerance cases, extra random
 tolerance cases, toroid winding suggestions, response check, part losses (Q), resonator Qu,
-simulation source/load resistance, frequency points, values only, and standard capacitor
-values. Do not reintroduce "realized", "nominal build", "screened candidate", "expert
-override", "tolerance corners", or "validated envelope" in human-readable text. JSON keys,
-JSON enum values, CSV columns, flag names, and choice values (`nominal-build`, `exact`) are
-machine contracts and keep their names. A plainer CLI spelling is an additive alias resolved at
-parse time (`--spice-realization calculated`/`chosen-parts` via
+resonator inductor Q and resonator capacitor Q, order (LP/HP `-n`), response type, insertion
+loss, top-coupled, simulation source/load resistance, frequency points, values only, and
+standard capacitor values. Do not reintroduce "realized", "nominal build", "screened candidate",
+"expert override", "tolerance corners", or "validated envelope" in human-readable text, and do
+not label the resonator inductor or capacitor Q as "QL"/"QC" (filter texts use QL for loaded Q).
+JSON keys, JSON enum values, CSV columns, flag names, and choice values (`nominal-build`,
+`exact`) are machine contracts and keep their names. A plainer CLI spelling is an additive alias
+resolved at parse time (`--spice-realization calculated`/`chosen-parts` via
 `shared/cli_aliases.py::SPICE_REALIZATION_ALIASES`), so validation and output only ever see the
 canonical value.
 
@@ -192,13 +194,15 @@ of restating the text. Examples: `design/render_options.py` (`BUILD_NEEDS_ESERIE
 `bandpass/input_validation.py` (`RESONATOR_COUNT_MESSAGE`, `BANDWIDTH_NOT_BELOW_CENTER`,
 `fbw_untested_warning`, `fbw_impractical_warning`), `bandpass/resonator_math.py`
 (`TANK_SETTING_CONFLICT_MESSAGE`), `shared/build_types.py`
-(`RESONATOR_AND_COMPONENT_Q_MESSAGE`), `shared/cli_helpers.py`
-(`SIM_MATCHED_DEPRECATION_WARNING`), `shared/cli_argument_parsers.py` (`require_count`, used
-with the count messages by all three subcommands and the web), `design/option_applicability.py`
-(the disabled-control reasons, such as `TEXT_PLOT_NEEDS_TABLE_MESSAGE` and
-`LOSS_Q_NOT_SHOWN_MESSAGE`), `design/q_reference_frequency.py` (`Q_FREQUENCY_LABEL`,
-`Q_FREQUENCY_HELP`), and `wizard/state_design_inputs.py` (`CSV_WITH_BUILD_MESSAGE`). Error text
-names fields in words, never as snake_case.
+(`RESONATOR_AND_COMPONENT_Q_MESSAGE`), `shared/cli_bandpass_output_validation.py`
+(`RESONATOR_Q_LABELS`, `RESONATOR_Q_CONFLICT_MESSAGE`, `RESONATOR_Q_FORMULA`),
+`shared/cli_helpers.py` (`SIM_MATCHED_DEPRECATION_WARNING`), `shared/cli_argument_parsers.py`
+(`require_count`, used with the count messages by all three subcommands and the web),
+`design/option_applicability.py` (the disabled-control reasons, such as
+`TEXT_PLOT_NEEDS_TABLE_MESSAGE` and `LOSS_Q_NOT_SHOWN_MESSAGE`),
+`design/q_reference_frequency.py` (`Q_FREQUENCY_LABEL`, `Q_FREQUENCY_HELP`), and
+`wizard/state_design_inputs.py` (`CSV_WITH_BUILD_MESSAGE`). Error text names fields in words,
+never as snake_case.
 
 Whether a wizard or web control applies to the chosen output is decided only by
 `design/option_applicability.py`, which restates the CLI's accept/refuse rules and is tested
