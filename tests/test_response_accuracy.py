@@ -333,7 +333,8 @@ def test_harmonic_response_exposes_actual_top_c_rejection_without_changing_gate(
     assert sample["transducer_gain_db"] == pytest.approx(-47.65952875, abs=1e-6)
     scope = "\n".join(format_validation_scope_lines(result))
     assert (
-        "Top-C rejection can differ from the ideal Butterworth response and is not checked" in scope
+        "top-coupled rejection can differ from the ideal Butterworth response and is not checked"
+        in scope
     )
     # Equal terminations and lossless parts: the attenuation is exactly minus the gain.
     assert "  Attenuation at 2×f₀: 47.66 dB; at 3×f₀: " in scope

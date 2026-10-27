@@ -39,7 +39,7 @@ def _validate_inputs(
     if coupling == "shunt":
         raise ValueError(
             "Shunt-C coupling has been removed: capacitive bottom coupling cannot "
-            "realize the designed response (simulation-verified). Use Top-C ('top')."
+            "realize the designed response (simulation-verified). Use top coupling ('top')."
         )
     if coupling != "top":
         raise ValueError("Coupling must be 'top'")

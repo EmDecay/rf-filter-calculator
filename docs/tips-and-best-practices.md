@@ -4,7 +4,7 @@ Get the most out of RF Filter Calculator.
 
 ---
 
-## Choosing Filter Type
+## Choosing a Response Type
 
 ### When to Use Butterworth
 
@@ -19,7 +19,7 @@ Get the most out of RF Filter Calculator.
 - Can tolerate some passband ripple
 - Adjacent channel rejection is critical
 - Start with 0.5 dB ripple, increase only if needed
-- Use an odd order (3, 5, 7, or 9 components or resonators); equal source and load
+- Use an odd order or number of resonators (3, 5, 7, or 9); equal source and load
   terminations require it, and even orders are rejected
 
 ### When to Use Bessel
@@ -83,7 +83,7 @@ Example: Need 196.73 pF (`uv run filter-calc lp bw pi 10MHz -n 5`)
 
 ### Coupling
 
-**Top-C (series capacitors)** is the only supported coupling: series capacitors couple adjacent resonators, and series end-coupling capacitors (Ce_in/Ce_out) set the external Q at the ports. (Shunt-coupled topology was removed in v2.0.0 — netlist simulation showed it cannot realize the designed passband.)
+**Top coupling (series capacitors)** is the only supported coupling: series capacitors couple adjacent resonators, and series end-coupling capacitors (Ce_in/Ce_out) set the external Q at the ports. (Shunt-coupled topology was removed in v2.0.0 — netlist simulation showed it cannot realize the designed passband.)
 
 ### Resonator Count
 
@@ -98,7 +98,7 @@ The historical Q-safety field is only a compatibility heuristic; it does not det
 stability or select parts. For a real loss model:
 
 - use `--qu` for the resonator Qu (inductor and capacitor losses together), or `--ql` and
-  `--qc` for separate inductor and resonator-capacitor Q;
+  `--qc` for a separate resonator inductor Q and resonator capacitor Q;
 - use `--inductor-q` / `--capacitor-q` with the build simulation for part losses (Q);
 - remember that each Q becomes a fixed series resistance at one frequency (the frequency at
   which the Q values apply);
@@ -182,7 +182,7 @@ behavior unless you add suitable models.
 
 ### Design Iteration
 
-1. Start with `--explain` to understand filter types
+1. Start with `--explain` to understand the response types
 2. Run with no arguments for the wizard, or `uv run filter-calc web` for the browser page, if
    unfamiliar with the options; both show the same results the CLI prints
 3. Try different orders: `uv run filter-calc lp bw pi 10MHz -n 3` vs `-n 5`

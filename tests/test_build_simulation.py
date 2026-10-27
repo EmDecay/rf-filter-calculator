@@ -96,7 +96,7 @@ class TestBuildConfig:
             ({"capacitor_q": float("inf")}, "^Capacitor Q must be between"),
             (
                 {"resonator_q": 100, "inductor_q": 200},
-                "^Use either resonator Q or inductor/capacitor Q, not both$",
+                "^Use either resonator Q or the build simulation's inductor and capacitor Q, not both$",
             ),
             (
                 {"source_resistance_ohm": 0},

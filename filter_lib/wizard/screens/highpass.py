@@ -203,7 +203,7 @@ class HighpassScreen(FilterScreenNavigationMixin, Screen):
 
         # Chebyshev LP/HP requires odd order for equal source/load terminations
         if filter_type == "chebyshev" and order % 2 == 0:
-            self.notify(chebyshev_odd_count_message("components"), severity="warning")
+            self.notify(chebyshev_odd_count_message("order"), severity="warning")
             order_input.focus()
             return
 

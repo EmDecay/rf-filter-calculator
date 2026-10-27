@@ -59,8 +59,8 @@ def resolve_alternative_arg(
 
 
 def get_filter_type_arg(args: Namespace) -> str | None:
-    """Resolve the positional or flag form of a filter type."""
-    return resolve_alternative_arg(args, "filter_type", "type_flag", "filter type")
+    """Resolve the positional or flag form of the response type."""
+    return resolve_alternative_arg(args, "filter_type", "type_flag", "response type")
 
 
 def export_plot_data(

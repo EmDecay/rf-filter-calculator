@@ -139,7 +139,7 @@ def _validate_primary_output_mode(args: Namespace) -> None:
         if incompatible:
             usage_error(
                 args,
-                "--explain prints only a description of the filter type; "
+                "--explain prints only a description of the response type; "
                 f"remove {', '.join(incompatible)}",
             )
     if output_format != "table":

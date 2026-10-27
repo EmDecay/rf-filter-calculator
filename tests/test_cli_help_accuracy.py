@@ -152,7 +152,7 @@ def test_explain_rejects_machine_output_mode_instead_of_ignoring_it(command: str
 
     assert exc_info.value.code == 2
     assert (
-        "--explain prints only a description of the filter type; remove --format json"
+        "--explain prints only a description of the response type; remove --format json"
         in capsys.readouterr().err
     )
 
@@ -187,7 +187,7 @@ def test_ladder_chebyshev_explanation_states_cutoff_and_odd_order(command, calcu
 
     assert "- Cutoff is the ripple-band edge; the -3 dB point lies beyond it" in text
     assert "- Odd order only (3, 5, 7, 9) for equal source and load impedance" in text
-    with pytest.raises(ValueError, match="odd number of components"):
+    with pytest.raises(ValueError, match="odd order"):
         calculate(10e6, 50.0, 0.5, 4, "pi")
 
 

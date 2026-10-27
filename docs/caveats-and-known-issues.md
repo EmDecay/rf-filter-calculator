@@ -4,7 +4,7 @@ The calculator keeps three things apart: the ideal design (the calculated values
 
 ## Input and numeric limits
 
-- The number of components or resonators is a whole number from 2 to 9. Chebyshev needs an odd number (3, 5, 7, or 9) for equal source and load impedance.
+- The order (low-pass and high-pass: the number of inductors and capacitors) or the number of resonators (band-pass) is a whole number from 2 to 9. Chebyshev needs an odd order or number of resonators (3, 5, 7, or 9) for equal source and load impedance.
 - Chebyshev ripple is finite and in `0 < ripple <= 3.0 dB` in the CLI, wizard, web UI, and public synthesis APIs.
 - Frequency, bandwidth, impedance, Q, and component values must be positive finite numbers. Values whose formulas underflow or overflow IEEE-754 binary64 are rejected instead of producing zero, infinity, NaN, or a misleading component value.
 - Part Q (`--inductor-q`, `--capacitor-q`, and bandpass `--qu`/`--ql`/`--qc`, with the same fields in the wizard and web UI) must be from 0.01 to 1e9; omit Q for a lossless part. The simulation source and load resistances (build simulation and SPICE) must be within 1e-6 to 1e6 times the design impedance. These bounds exclude only values no lumped filter contains; beyond them a single simulation could take minutes.
@@ -13,7 +13,7 @@ The calculator keeps three things apart: the ideal design (the calculated values
 
 ## Band-pass response check
 
-Top-C band-pass design uses a bounded two-variable calibration to place both requested −3 dB edges. A separate dense circuit sweep, the **response check**, then checks:
+Top-coupled band-pass design uses a bounded two-variable calibration to place both requested −3 dB edges. A separate dense circuit sweep, the **response check**, then checks:
 
 - the lower and upper −3 dB edges around the center;
 - the outermost −3 dB edges, and whether the response is above −3 dB in one range or in separate ranges;
@@ -23,7 +23,7 @@ Top-C band-pass design uses a bounded two-variable calibration to place both req
 
 The table shows the result on its `Response Check:` line, and JSON carries `synthesis_validation` and `response_validation_status`. Matching −3 dB edges do not by themselves prove the complete response shape. Treat `Not confirmed; see warnings below` (`outside_validated_envelope` in JSON) as a direction to read the warnings and check the response yourself before building.
 
-`Passed` (`validated`) does not cover rejection farther from the passband. Top-C harmonic leakage can be much higher than the ideal response predicts. The `Attenuation at 2×f₀ … at 3×f₀` line reports the circuit at those frequencies for information only, with no acceptance limit; see [filter theory](filter-theory.md#top-c-rejection-away-from-the-passband).
+`Passed` (`validated`) does not cover rejection farther from the passband. Harmonic leakage through the top-coupled design can be much higher than the ideal response predicts. The `Attenuation at 2×f₀ … at 3×f₀` line reports the circuit at those frequencies for information only, with no acceptance limit; see [filter theory](filter-theory.md#top-coupled-rejection-away-from-the-passband).
 
 The maintained acceptance study contains 128 cells at 1%, 2%, 5%, and 10% fractional bandwidth: 106 currently pass the response check, 17 are designed but marked not confirmed (`outside_validated_envelope`), and 5 known-unrealizable cells are rejected. Three of the rejected cells are 3 dB Chebyshev designs whose −3 dB edges cannot be placed (the error suggests a smaller ripple); two are 10% Bessel designs whose end coupling or resonator capacitors cannot be built. Some 3 dB Chebyshev cases are above −3 dB in separate ranges (for example, a ripple dip inside the band); matching the edges of the range around the center must not be mistaken for checking the whole response.
 
@@ -54,19 +54,19 @@ not E-series matched.
 
 ## Q and loss semantics
 
-Bandpass `--qu` is the resonator Qu: the unloaded Q of each resonator, with inductor and capacitor losses together. `--ql` and `--qc` give the inductor and resonator-capacitor Q separately and combine as:
+Bandpass `--qu` is the resonator Qu: the unloaded Q of each resonator, with inductor and capacitor losses together. `--ql` and `--qc` give the resonator inductor Q and resonator capacitor Q separately and combine as:
 
 ```text
-1 / Qu = 1 / QL + 1 / QC
+1 / Qu = 1 / (inductor Q) + 1 / (capacitor Q)
 ```
 
-When only one of QL or QC is given, the other part is treated as lossless. The coupling and end capacitors stay lossless when `--qc` is used.
+The labels spell these out instead of writing QL and QC, because filter texts use QL for loaded Q. When only one of them is given, the other part is treated as lossless. The coupling and end capacitors stay lossless when `--qc` is used.
 
 The historical `q_min = (f0 / bw) * q_safety` field is only a heuristic retained for compatibility. It is not a stability threshold and `--q-safety` is not a build-model control. Non-default `--q-safety` is accepted only in JSON so that its compatibility status is visible.
 
 In the build simulation and the chosen-parts SPICE deck, each Q is modeled as a fixed series resistance that gives that Q at the frequency where the Q values apply: the cutoff or center frequency, or `--loss-reference-frequency`. The resistance is fixed across the sweep, so away from that frequency the modeled Q changes. `--loss-reference-frequency` without any Q option is rejected.
 
-Cohn estimates can be seriously inaccurate for large loss. The **Added loss at f₀** block puts
+Cohn estimates can be seriously inaccurate for large loss. The **Insertion loss at f₀** block puts
 each Cohn estimate next to a circuit simulation and notes when they differ by more than 0.5 dB;
 agreement at that one frequency does not prove accuracy across the passband or on hardware. The
 circuit simulation uses the calculated values, not the chosen parts, and one equivalent series
@@ -83,7 +83,7 @@ loss in each resonator inductor rather than separate inductor and capacitor Q. S
 
 The fixed cases are nominal, all parts low, all parts high, and each part low and high alone. They show spread but do not guarantee the true worst case. The extra random cases draw each part uniformly within its tolerance; they are not a Monte Carlo yield estimate or a probability model. The percentiles in the spread table come from only these cases.
 
-The simulation reports transducer gain (Gt) and accepts separate simulation source and load resistances. Those resistances change only the simulation; the component values are still designed for equal source and load impedance at the impedance you entered.
+The simulation reports transducer gain (Gt) and accepts separate simulation source and load resistances. With equal source and load, Gt in dB is the negative of the insertion loss, and the table says so. Those resistances change only the simulation; the component values are still designed for equal source and load impedance at the impedance you entered.
 
 A −3 dB point outside the simulated frequency range is flagged and left out of the cutoff or edge figures; JSON lists each such case. The simulated frequency range is not adjustable (`--analysis-points` adds points, not range), so check such a design independently, for example with the SPICE deck.
 
@@ -141,7 +141,7 @@ sweeps.
 - The web UI is a local tool. It has no login, stores nothing, and is not hardened for hosting on the internet. Binding with `--host 0.0.0.0` exposes it to everyone on the network and turns off its check that requests are addressed to this computer.
 - Browser submissions are accepted only from the web UI's own page. Scripts that send no browser origin headers, such as `curl`, can still use it.
 - A calculation is cut off after 60 seconds ("Calculation stopped after 60 s"). The build simulation stops at its next case; a design calculation already running cannot be interrupted and finishes in the background, then is discarded. At most two calculations run at once and the rest wait their turn.
-- Options that cannot apply to the chosen output are disabled on the page with the reason, and a hand-made request that sets one is refused with that reason, as the CLI refuses the flag. Two are ignored instead: the standard capacitor values with Values only or Raw units (a radio choice is always submitted), and the toroid box with Toroid windings None. Downloads judge each option again for their own document: **Allow capacitors below 1 pF** is ignored by the SPICE – calculated values and response-data downloads, and the response-data downloads leave out Qu/QL/QC, while Components (CSV) and SPICE – calculated values refuse resonator Q that the result used.
+- Options that cannot apply to the chosen output are disabled on the page with the reason, and a hand-made request that sets one is refused with that reason, as the CLI refuses the flag. Two are ignored instead: the standard capacitor values with Values only or Raw units (a radio choice is always submitted), and the toroid box with Toroid windings None. Downloads judge each option again for their own document: **Allow capacitors below 1 pF** is ignored by the SPICE – calculated values and response-data downloads, and the response-data downloads leave out the resonator Q, while Components (CSV) and SPICE – calculated values refuse resonator Q that the result used.
 - Without JavaScript nothing is disabled live and no stale-inputs notice appears; the server still refuses options that cannot apply, and downloads still use the inputs of the result shown.
 - The response graph shows magnitude only, on the fixed frequency points of the response-data export; zoom with the text plot (`--plot`) or by plotting the downloaded data.
 

@@ -39,7 +39,7 @@ def run(args: Namespace) -> None:
 
     Raises:
         ValueError: For invalid numeric input; cli.main() converts this to a
-            clean stderr message. Usage-level problems (missing filter type,
+            clean stderr message. Usage-level problems (missing response type,
             frequency, or topology) exit via argparse's usage error instead.
     """
     run_ladder(args, "lowpass", FILTER_EXPLANATIONS, "lp bw pi 10MHz")

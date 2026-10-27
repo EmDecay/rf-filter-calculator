@@ -1,5 +1,37 @@
 # Project Changelog
 
+## Unreleased — Industry-Standard Filter Terms
+
+### Changed
+
+Wording now follows the terms used in the ARRL Handbook (102nd edition, chapter 10) and common
+RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
+
+- Band-pass resonator Q: the inductor and capacitor Q fields are labeled **Resonator inductor
+  Q** and **Resonator capacitor Q** instead of "Inductor QL" and "Capacitor QC", because filter
+  texts use QL for loaded Q. The table prints `Your Qu: 130.4 (from inductor Q 150 and
+  capacitor Q 1000 at f₀)`, help and docs write `1/Qu = 1/(inductor Q) + 1/(capacitor Q)`,
+  `--ql`/`--qc` show `Q` as their value name, and errors name the fields in words (for example
+  `Resonator inductor Q must be between 0.01 and 1e9`).
+- The band-pass loss block is headed **Insertion loss at f₀** (was "Added loss at f₀"), and the
+  Qu help says "insertion-loss estimate" on every surface. With equal source and load, the
+  build simulation adds the line "Source and load are equal, so each gain in dB is the
+  negative of the insertion loss." Transducer gain stays the reported quantity, since it is
+  the correct one when the simulation source and load differ.
+- Low-pass and high-pass `-n` is called the **order** (the number of inductors and
+  capacitors), matching the table's `Order:` line: help, the wizard and web labels, and the
+  errors `Order must be from 2 to 9` and `Chebyshev needs an odd order (3, 5, 7, or 9) …`.
+- The CLI calls Butterworth, Chebyshev, and Bessel the **response type** everywhere: the usage
+  line shows `RESPONSE` instead of `FILTER_TYPE`, and `--explain` and the related errors say
+  "response type". "Filter type" now means only low-pass, high-pass, or band-pass.
+- Band-pass coupling is **top-coupled** instead of "Top-C" in the table (`Coupling:
+  Top-coupled (series capacitors)`), the rejection note, the wizard and web, and the help.
+- The build simulation's conflict message says "Use either resonator Q or the build
+  simulation's inductor and capacitor Q, not both", so it is not confused with the resonator
+  inductor and capacitor Q.
+- Filter theory lists the ARRL Handbook names for each ladder: low-pass Pi is capacitor-input
+  and T is inductor-input; high-pass T is capacitor-input and Pi is inductor-input.
+
 ## 2.3.0 — 2026-10-08 — Plain-Language Output and Aligned Interfaces
 
 ### Added

@@ -39,7 +39,7 @@ EXPORT_KINDS = {
 }
 # Downloads whose document cannot show the resonator-loss model (the shared rule).
 _LOSS_Q_UNUSED = frozenset(kind for kind in EXPORT_KINDS if document_reason(kind, LOSS_Q))
-# Response data is the ideal response, which Qu/QL/QC never change; the wizard's
+# Response data is the ideal response, which resonator Q never changes; the wizard's
 # response file and these downloads therefore leave them out instead of refusing.
 LOSS_Q_DROPPED = _LOSS_Q_UNUSED & RESPONSE_DOCUMENTS
 # The others refuse them, as in the CLI.

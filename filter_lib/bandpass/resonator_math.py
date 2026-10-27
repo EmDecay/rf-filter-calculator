@@ -2,6 +2,10 @@
 
 import math
 
+from ..shared.cli_bandpass_output_validation import (
+    RESONATOR_Q_CONFLICT_MESSAGE,
+    RESONATOR_Q_LABELS,
+)
 from ..shared.numeric import positive_float_from_log
 from ..shared.physical_input_limits import require_component_q
 from .numeric_validation import _is_positive_finite
@@ -74,8 +78,8 @@ def combine_resonator_q(
 ) -> float | None:
     """Resolve complete unloaded Q directly or from reciprocal component losses."""
     if qu is not None and (ql is not None or qc is not None):
-        raise ValueError("Give either Qu or QL/QC, not both")
-    for name, value in (("Qu", qu), ("QL", ql), ("QC", qc)):
+        raise ValueError(RESONATOR_Q_CONFLICT_MESSAGE)
+    for name, value in zip(RESONATOR_Q_LABELS, (qu, ql, qc)):
         if value is not None:
             require_component_q(value, name)
     if qu is not None:

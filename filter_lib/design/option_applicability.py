@@ -9,7 +9,7 @@ exactly when the equivalent CLI flag would be accepted. The build reasons are th
 messages ``RenderOptions`` raises, so a refused request and a disabled control say the
 same thing. Resonator Q is the one exception: its fields cannot be edited while disabled,
 so their reason says what to choose instead (``LOSS_Q_DISABLED_MESSAGE``), while a
-request that still sends Qu, QL, or QC is refused with the shared
+request that still sends a resonator Q is refused with the shared
 ``loss_q_not_shown_message`` (``require_applicable``).
 
 Typical use::
@@ -31,7 +31,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, replace
 
 from ..shared.cli_aliases import DEFAULT_ESERIES
-from ..shared.cli_bandpass_output_validation import loss_q_not_shown_message
+from ..shared.cli_bandpass_output_validation import RESONATOR_Q_LABELS, loss_q_not_shown_message
 from ..shared.eseries import SUB_PF_OPTION_LABEL
 from .render_options import (
     BUILD_NEEDS_ESERIES_MESSAGE,
@@ -49,7 +49,7 @@ TEXT_PLOT = "plot"  # Text plot in the table (CLI --plot)
 RAW_UNITS = "raw"  # Raw units (F, H) (CLI --raw)
 BUILD = "build"  # Simulate the built filter (CLI --sim-build)
 TOROID_BUILD = "toroid_build"  # Simulate inductors as the suggested toroid windings
-LOSS_Q = "loss_q"  # Band-pass resonator Q: Qu, QL, QC (CLI --qu/--ql/--qc)
+LOSS_Q = "loss_q"  # Band-pass resonator Q (CLI --qu/--ql/--qc)
 OPTIONS = (
     ESERIES,
     ALLOW_SUB_PF,
@@ -68,8 +68,8 @@ TOROID_BUILD_NEEDS_TOROIDS_MESSAGE = (
     "There are no toroid windings to simulate when Toroid windings is None"
 )
 # The shared message every surface gives when resonator Q is refused, for all three fields.
-LOSS_Q_NOT_SHOWN_MESSAGE = loss_q_not_shown_message(["Qu", "QL", "QC"])
-# Why Qu, QL, and QC are disabled: a disabled field cannot be cleared, so this names the
+LOSS_Q_NOT_SHOWN_MESSAGE = loss_q_not_shown_message(list(RESONATOR_Q_LABELS))
+# Why the resonator Q fields are disabled: a disabled field cannot be cleared, so this names the
 # outputs that use them instead of asking the user to remove them.
 LOSS_Q_DISABLED_MESSAGE = (
     "Resonator Q values are not used with Values only or CSV output; "
@@ -205,7 +205,7 @@ DOCUMENT_FORMATS = {
     "response-csv": "csv",
 }
 # The response data documents (CLI ``--plot-data``): the ideal response, which resonator
-# Q never changes, so they leave Qu, QL, and QC out instead of refusing them.
+# Q never changes, so they leave the resonator Q out instead of refusing it.
 RESPONSE_DOCUMENTS = frozenset({"response-json", "response-csv"})
 
 

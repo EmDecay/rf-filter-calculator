@@ -438,7 +438,7 @@ def test_exact_bandpass_spice_rejects_loss_model_q(monkeypatch, capsys, q_flag):
         (("--format", "csv"), "--qu has no effect on this output."),
         (("--quiet",), "--qu has no effect on this output."),
         (("--plot-data", "json"), "--qu has no effect on this output."),
-        (("--explain",), "--explain prints only a description of the filter type"),
+        (("--explain",), "--explain prints only a description of the response type"),
     ],
 )
 def test_bandpass_q_rejects_modes_that_cannot_show_it(

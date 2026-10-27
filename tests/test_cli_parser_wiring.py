@@ -109,7 +109,7 @@ def test_removed_short_type_flag_is_rejected(setup, capsys):
 @pytest.mark.parametrize(
     ("setup", "argv", "message"),
     [
-        (lowpass_cmd.setup_parser, ["elliptic", "pi", "10MHz"], "argument FILTER_TYPE"),
+        (lowpass_cmd.setup_parser, ["elliptic", "pi", "10MHz"], "argument RESPONSE"),
         (highpass_cmd.setup_parser, ["bw", "L", "10MHz"], "argument TOPOLOGY"),
         (bandpass_cmd.setup_parser, ["bw", "shunt"], "argument COUPLING"),
         (lowpass_cmd.setup_parser, ["bw", "pi", "10MHz", "-e", "E48"], "argument -e/--eseries"),
@@ -179,8 +179,13 @@ def test_count_parses_whole_numbers_and_defers_every_rejection_to_run(setup, des
 def test_count_help_shows_the_range(setup, dest):
     help_text = " ".join(_parser(setup).format_help().split())
 
+    # LP/HP -n is the filter order; band-pass -n counts resonators.
+    if dest == "components":
+        meaning = "Order: the number of inductors and capacitors, 2-9; Chebyshev needs an odd order"
+    else:
+        meaning = f"Number of {dest}, 2-9; Chebyshev needs an odd number"
     # Python 3.13 prints the metavar once ("-n, --components N"); earlier versions repeat it.
-    pattern = rf"-n( N)?, --{dest} N Number of {dest}, 2-9; Chebyshev needs an odd number"
+    pattern = rf"-n( N)?, --{dest} N {meaning}"
     assert re.search(pattern, help_text)
 
 

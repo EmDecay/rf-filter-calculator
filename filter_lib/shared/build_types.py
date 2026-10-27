@@ -12,7 +12,9 @@ from .numeric import is_finite_real, positive_geometric_mean
 from .physical_input_limits import require_component_q
 
 # Shared with the web form, where resonator Q is entered in the band-pass tank fields.
-RESONATOR_AND_COMPONENT_Q_MESSAGE = "Use either resonator Q or inductor/capacitor Q, not both"
+RESONATOR_AND_COMPONENT_Q_MESSAGE = (
+    "Use either resonator Q or the build simulation's inductor and capacitor Q, not both"
+)
 
 
 def _is_finite_number(value: object) -> bool:

@@ -31,7 +31,7 @@ def format_response_export(state: FilterState, fmt: str) -> str:
 
     A saved file ends with one LF, byte-identical to the CLI's --plot-data output. The
     document leaves out resonator Q and the build (``FilterState.document_options``):
-    Qu, QL, and QC only add a loss estimate and never change the ideal response, so the
+    Resonator Q values only add a loss estimate and never change the ideal response, so the
     stored result gives the ``--plot-data`` output of the same design without them.
     """
     from filter_lib.design import export_response_data

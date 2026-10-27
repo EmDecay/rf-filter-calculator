@@ -116,15 +116,15 @@ Upper -3 dB Edge fₕ: 14.35108 MHz
 Fractional BW:       2.47%
 Impedance Z₀:        50 Ω
 Resonators:          3
-Coupling:            Top-C (series capacitors)
+Coupling:            Top-coupled (series capacitors)
 Response Check:      Passed (simulated circuit matches the requested response)
 ==================================================
 
-Added loss at f₀ for resonator Qu (inductor and capacitor losses together):
+Insertion loss at f₀ for resonator Qu (inductor and capacitor losses together):
   Qu=100:  Cohn estimate 7.04 dB, circuit simulation 6.87 dB
   Qu=250:  Cohn estimate 2.82 dB, circuit simulation 2.81 dB
 Response check covers the -3 dB edges, passband shape, and points just outside the passband.
-Farther out, Top-C rejection can differ from the ideal Butterworth response and is not checked.
+Farther out, top-coupled rejection can differ from the ideal Butterworth response and is not checked.
   Attenuation at 2×f₀: 83.36 dB; at 3×f₀: 84.96 dB (ideal lossless parts)
 
 Topology:
@@ -265,6 +265,7 @@ The build-simulation block that follows the table and the toroid suggestions is:
 Build Simulation (chosen parts; simulated, not measured)
 ──────────────────────────────────────────────────
 Simulated with a 50 Ω source and a 50 Ω load; gains are transducer gain (Gt).
+Source and load are equal, so each gain in dB is the negative of the insertion loss.
 Part losses (Q): none; all parts are lossless.
 Passband = up to the requested cutoff, including it.
 Ideal values:  -3 dB cutoff 10 MHz

@@ -196,7 +196,7 @@ LP_HP_REJECTIONS = [
     (
         {"filter_type": "chebyshev", "order": "4"},
         "warning",
-        chebyshev_odd_count_message("components"),
+        chebyshev_odd_count_message("order"),
         "#order",
     ),
     ({"filter_type": "chebyshev", "ripple": "0"}, "error", RIPPLE_RANGE_MESSAGE, "#ripple"),
@@ -381,7 +381,7 @@ class TestLowpassHighpassForm:
     @pytest.mark.parametrize("screen_cls", LP_HP_SCREENS)
     @pytest.mark.parametrize(
         "submitted, ripple_visible, focused",
-        # The web form's order: frequency, number of components, impedance.
+        # The web form's order: frequency, order, impedance.
         [
             ("ripple", True, "#frequency"),
             ("frequency", False, "#order"),
@@ -416,9 +416,13 @@ class TestLowpassHighpassForm:
     @pytest.mark.parametrize(
         "pressed, ripple_visible, label",
         [
-            ("chebyshev", True, "Number of components (Chebyshev: odd only — 3, 5, 7, 9):"),
-            ("butterworth", False, "Number of components (2-9):"),
-            ("bessel", False, "Number of components (2-9):"),
+            (
+                "chebyshev",
+                True,
+                "Order (number of inductors and capacitors; Chebyshev: odd only — 3, 5, 7, 9):",
+            ),
+            ("butterworth", False, "Order (number of inductors and capacitors, 2-9):"),
+            ("bessel", False, "Order (number of inductors and capacitors, 2-9):"),
         ],
     )
     def test_response_type_toggles_ripple_and_order_hint(
@@ -745,13 +749,21 @@ class TestParseBandEdgesAndResonatorQ:
         "overrides, message, field_id",
         [
             ({"qu": "abc"}, "^Qu must be a number$", "qu"),
-            ({"qc": "x"}, "^QC must be a number$", "qc"),
+            ({"qc": "x"}, "^Resonator capacitor Q must be a number$", "qc"),
             # The shared calculator's mutual-exclusion message, on the field that conflicts.
-            ({"qu": "200", "ql": "150"}, "^Give either Qu or QL/QC, not both$", "ql"),
-            ({"qu": "200", "qc": "900"}, "^Give either Qu or QL/QC, not both$", "qc"),
+            (
+                {"qu": "200", "ql": "150"},
+                "^Give either Qu or the resonator inductor and capacitor Q, not both$",
+                "ql",
+            ),
+            (
+                {"qu": "200", "qc": "900"},
+                "^Give either Qu or the resonator inductor and capacitor Q, not both$",
+                "qc",
+            ),
             ({"qu": "0"}, "^Qu must be between 0.01 and 1e9$", "qu"),
-            ({"ql": "nan"}, "^QL must be between 0.01 and 1e9$", "ql"),
-            ({"qc": "2e9"}, "^QC must be between 0.01 and 1e9$", "qc"),
+            ({"ql": "nan"}, "^Resonator inductor Q must be between 0.01 and 1e9$", "ql"),
+            ({"qc": "2e9"}, "^Resonator capacitor Q must be between 0.01 and 1e9$", "qc"),
         ],
     )
     def test_invalid_resonator_q_names_its_field(self, overrides, message, field_id):

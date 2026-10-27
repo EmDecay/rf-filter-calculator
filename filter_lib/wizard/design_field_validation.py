@@ -13,14 +13,14 @@ from ..shared.cli_aliases import MAX_RIPPLE_DB, RIPPLE_RANGE_MESSAGE
 
 # Field labels shared by the design screens. Those keyed by ``is_chebyshev`` follow the
 # response choice: the Chebyshev cutoff is the edge of the ripple band, not the -3 dB
-# point, and Chebyshev needs an odd number of components or resonators.
+# point, and Chebyshev needs an odd order or number of resonators.
 CUTOFF_LABELS = {
     False: "Cutoff frequency, the -3 dB point (e.g. 14.2MHz, 7100kHz; blank = 10MHz):",
     True: "Cutoff frequency, the ripple-band edge (e.g. 14.2MHz, 7100kHz; blank = 10MHz):",
 }
 COUNT_LABELS = {
-    False: "Number of components (2-9):",
-    True: "Number of components (Chebyshev: odd only — 3, 5, 7, 9):",
+    False: "Order (number of inductors and capacitors, 2-9):",
+    True: "Order (number of inductors and capacitors; Chebyshev: odd only — 3, 5, 7, 9):",
 }
 RESONATOR_COUNT_LABELS = {
     False: "Number of resonators (2-9):",

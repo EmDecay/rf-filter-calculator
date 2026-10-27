@@ -44,15 +44,14 @@ DEFAULT_ESERIES: str = "E24"
 # DesignRequest, so every surface rejects the same input with the same text.
 MAX_RIPPLE_DB: float = 3.0
 RIPPLE_RANGE_MESSAGE = f"Ripple must be greater than 0 and at most {MAX_RIPPLE_DB} dB"
-COMPONENT_COUNT_MESSAGE = "Number of components must be from 2 to 9"
+# LP/HP ``-n`` is the filter order: the number of inductors and capacitors.
+COMPONENT_COUNT_MESSAGE = "Order must be from 2 to 9"
 
 
 def chebyshev_odd_count_message(noun: str) -> str:
-    """Odd-count rule for Chebyshev ladders (``components``) and bandpass (``resonators``)."""
-    return (
-        f"Chebyshev needs an odd number of {noun} (3, 5, 7, or 9) for equal source and load "
-        "impedance"
-    )
+    """Odd-count rule for Chebyshev ladders (``order``) and bandpass (``resonators``)."""
+    count = "order" if noun == "order" else f"number of {noun}"
+    return f"Chebyshev needs an odd {count} (3, 5, 7, or 9) for equal source and load impedance"
 
 
 # Facts shared by the LP and HP Chebyshev explanations. Both are enforced in

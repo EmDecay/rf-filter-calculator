@@ -94,7 +94,7 @@ response graph and download buttons; downloads use the inputs of the result show
 | Option | Description |
 |--------|-------------|
 | `-f`, `--frequency`, `--freq` | Cutoff or center frequency, as a flag instead of the positional argument |
-| `-n` | Number of components or resonators (2-9) |
+| `-n` | Order (LP/HP) or number of resonators (band-pass), 2-9 |
 | `-z` | Source and load impedance (default: 50 Ω) |
 | `-r` | Chebyshev ripple in dB |
 | `--plot` | Add a text plot of the frequency response to the table |
@@ -110,7 +110,7 @@ E12/E24/E96 set how many standard values there are per decade, not the part tole
 Enter capacitor and inductor tolerances separately for the build simulation. In the wizard
 and web UI, **Allow capacitors below 1 pF** is the same as `--allow-sub-pf`.
 
-## Filter Type Aliases
+## Response Type Aliases
 
 | Alias | Full Name |
 |-------|-----------|

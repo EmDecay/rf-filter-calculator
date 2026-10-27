@@ -15,6 +15,9 @@ from .formatting import format_capacitance, format_fixed, format_frequency, form
 from .nominal_realization import TOROID_LIMITATION, grouped_part_warnings, uses_toroid
 
 BUILD_SIMULATION_HEADING = "Build Simulation (chosen parts; simulated, not measured)"
+EQUAL_PORTS_GAIN_NOTE = (
+    "Source and load are equal, so each gain in dB is the negative of the insertion loss."
+)
 _ROW_INDENT = " " * 15
 _WRAP_WIDTH = 96
 
@@ -256,6 +259,12 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
             f"Simulated with a {analysis.source_resistance_ohm:g} Ω source and a "
             f"{analysis.load_resistance_ohm:g} Ω load; gains are transducer gain (Gt)."
         ),
+    ]
+    # Only with equal ports is the source's available power what the load would get without
+    # the filter, so only then is Gt the familiar insertion loss with its sign flipped.
+    if analysis.source_resistance_ohm == analysis.load_resistance_ohm:
+        lines.append(EQUAL_PORTS_GAIN_NOTE)
+    lines += [
         _loss_line(analysis),
         PASSBAND_NOTES[category],
         *_measurement_row("Ideal values:", category, analysis.calculated),

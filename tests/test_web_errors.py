@@ -148,7 +148,7 @@ def test_design_view_shows_the_cli_message(monkeypatch, capsys, client, category
         ),
         ({**BP, "bandwidth": ""}, "Bandwidth is required"),
         ({**LP, "frequency": " "}, "Cutoff frequency is required"),
-        ({**LP, "components": "three"}, "Number of components must be a whole number"),
+        ({**LP, "components": "three"}, "Order must be a whole number"),
         ({**LP, "filter_type": "chebyshev", "ripple": "lots"}, RIPPLE_RANGE_MESSAGE),
         ({**LP, "output_format": "spice"}, "Output format must be one of: table, quiet, json, csv"),
         ({**LP, "topology": "x"}, "Topology must be one of: pi, t"),
@@ -311,7 +311,7 @@ def test_design_view_refuses_loss_q_its_output_cannot_show(client, output_format
     response = client.post("/design/bandpass", data=form, headers=HTMX)
 
     assert response.status_code == 400
-    assert LOSS_Q_MESSAGE.format("Qu, QL", "have") in response.text
+    assert LOSS_Q_MESSAGE.format("Qu, Resonator inductor Q", "have") in response.text
 
 
 @pytest.mark.parametrize("kind", ["csv", "spice-exact"])
@@ -327,7 +327,7 @@ def test_downloads_refuse_loss_q_they_cannot_show(monkeypatch, capsys, client, k
     response = client.post(f"/export/bandpass/{kind}", data={**BP, "qc": "900"})
 
     assert response.status_code == 400
-    assert response.json() == {"error": LOSS_Q_MESSAGE.format("QC", "has")}
+    assert response.json() == {"error": LOSS_Q_MESSAGE.format("Resonator capacitor Q", "has")}
     # The CLI refuses the same combination, naming its flag instead of the form label.
     assert LOSS_Q_MESSAGE.format("--qc", "has") in cli_err
 
@@ -336,7 +336,7 @@ def test_downloads_refuse_loss_q_they_cannot_show(monkeypatch, capsys, client, k
 def test_response_downloads_leave_out_loss_q_like_the_wizard(
     monkeypatch, capsys, client, data_format
 ):
-    # Qu/QL/QC never change the ideal response, so the download equals the CLI's
+    # Resonator Q never changes the ideal response, so the download equals the CLI's
     # --plot-data output for the same design without them.
     cli_out = cli_stdout(
         monkeypatch,
@@ -402,7 +402,10 @@ def test_outputs_that_show_the_loss_model_accept_loss_q(client, path, extra):
             {**BP, "resonator_impedance": "75", "resonator_inductance": "1uH"},
             "Set either the resonator impedance or the resonator inductance, not both",
         ),
-        ({**BP, "qu": "100", "ql": "200"}, "Give either Qu or QL/QC, not both"),
+        (
+            {**BP, "qu": "100", "ql": "200"},
+            "Give either Qu or the resonator inductor and capacitor Q, not both",
+        ),
         ({**BP, "qu": "0"}, "Qu must be between 0.01 and 1e9"),
     ],
     ids=[

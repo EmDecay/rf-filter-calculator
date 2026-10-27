@@ -63,7 +63,7 @@ class DesignInputsMixin:
 
     @property
     def has_resonator_q(self) -> bool:
-        """Whether Qu, QL, or QC is entered (band-pass only)."""
+        """Whether a resonator Q (Qu, inductor Q, or capacitor Q) is entered (band-pass only)."""
         return self.category == "bandpass" and any(
             value is not None for value in (self.qu, self.ql, self.qc)
         )

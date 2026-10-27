@@ -97,7 +97,10 @@ def test_explicit_edge_metadata_preserves_parsed_requested_values(capsys) -> Non
 @pytest.mark.parametrize(
     ("extra", "message"),
     [
-        (["--qu", "200", "--ql", "180"], "Give either Qu or QL/QC, not both"),
+        (
+            ["--qu", "200", "--ql", "180"],
+            "Give either Qu or the resonator inductor and capacitor Q, not both",
+        ),
         (
             ["--resonator-impedance", "100", "--resonator-inductance", "1uH"],
             "Set either the resonator impedance or the resonator inductance, not both",
@@ -129,15 +132,15 @@ def test_mutually_exclusive_advanced_controls_fail_cleanly(extra, message, capsy
     [
         (
             ["--ql", "180", "--qc", "500"],
-            ["Your Qu: 132.4 (from QL=180 and QC=500 at f₀)"],
+            ["Your Qu: 132.4 (from inductor Q 180 and capacitor Q 500 at f₀)"],
         ),
         (
             ["--ql", "180"],
-            ["Your Qu: 180 (from QL=180 at f₀)"],
+            ["Your Qu: 180 (from inductor Q 180 at f₀)"],
         ),
         (
             ["--qc", "500"],
-            ["Your Qu: 500 (from QC=500 at f₀)"],
+            ["Your Qu: 500 (from capacitor Q 500 at f₀)"],
         ),
     ],
 )

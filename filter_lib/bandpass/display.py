@@ -231,7 +231,7 @@ def format_header_lines(result: BandpassResult) -> list[str]:
     if result["ripple_db"] is not None:
         lines.append(f"Ripple:              {result['ripple_db']} dB")
     lines.append(f"Resonators:          {result['n_resonators']}")
-    lines.append("Coupling:            Top-C (series capacitors)")
+    lines.append("Coupling:            Top-coupled (series capacitors)")
     status_text = _VALIDATION_STATUS_TEXT.get(result.get("response_validation_status"))
     if status_text:
         lines.append(f"Response Check:      {status_text}")
@@ -240,9 +240,9 @@ def format_header_lines(result: BandpassResult) -> list[str]:
 
 
 def format_insertion_loss_line(result: BandpassResult) -> str:
-    """Loss added at f₀ by resonator losses, Cohn estimate beside the circuit result, e.g.
+    """Insertion loss at f₀ from resonator losses, Cohn estimate beside the circuit result, e.g.
 
-    ``Added loss at f₀ for resonator Qu (inductor and capacitor losses together):``
+    ``Insertion loss at f₀ for resonator Qu (inductor and capacitor losses together):``
     ``  Qu=100:  Cohn estimate 3.46 dB, circuit simulation 3.46 dB``
 
     The circuit value is the center-frequency gain of the exact circuit, lossless minus
@@ -257,7 +257,7 @@ def format_insertion_loss_line(result: BandpassResult) -> str:
     validation = result.get("loss_estimate_validation") or {}
     comparisons = validation.get("comparisons", {})
     tolerance = validation.get("comparison_tolerance_db")
-    lines = ["Added loss at f₀ for resonator Qu (inductor and capacitor losses together):"]
+    lines = ["Insertion loss at f₀ for resonator Qu (inductor and capacitor losses together):"]
     for key, estimate in il_estimates.items():
         row = f"  {f'Qu={labels[key]}:':<{width}}  Cohn estimate {format_fixed(estimate, 2)} dB"
         check = comparisons.get(key)
@@ -315,7 +315,7 @@ def format_validation_scope_lines(result: BandpassResult) -> list[str]:
     lines = [
         "Response check covers the -3 dB edges, passband shape, and points just outside the "
         "passband.",
-        f"Farther out, Top-C rejection can differ from the ideal "
+        f"Farther out, top-coupled rejection can differ from the ideal "
         f"{result['filter_type'].title()} response and is not checked.",
     ]
     parts = []
@@ -343,9 +343,9 @@ def format_q_model_lines(result: BandpassResult) -> list[str]:
     )
     component_parts = []
     if q_model.get("inductor_ql") is not None:
-        component_parts.append(f"QL={_qu_label(q_model['inductor_ql'])}")
+        component_parts.append(f"inductor Q {_qu_label(q_model['inductor_ql'])}")
     if q_model.get("capacitor_qc") is not None:
-        component_parts.append(f"QC={_qu_label(q_model['capacitor_qc'])}")
+        component_parts.append(f"capacitor Q {_qu_label(q_model['capacitor_qc'])}")
     source = f" (from {' and '.join(component_parts)} at f₀)" if component_parts else ""
     return ["", f"Your Qu: {qu_text}{source}"]
 
