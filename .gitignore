@@ -201,17 +201,28 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-# Claude Code
-.claude/
-repomix-output.xml
-plans/
-docs/visuals/
-
-# OS files
-.DS_Store
-Thumbs.db
-
 # Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ---------------------------------------------------------------------------
+# Project-specific entries (everything above is GitHub's Python.gitignore)
+# ---------------------------------------------------------------------------
+
+# Claude Code: personal files only. Shared config in .claude/ (settings.json,
+# skills/, agents/, commands/, rules/) is meant to be committed.
+.claude/settings.local.json
+.claude/worktrees/
+.claude/agent-memory-local/
+CLAUDE.local.md
+
+# Repomix snapshot (regenerate on demand)
+repomix-output.xml
+
+# Local working notes and session reports (see CLAUDE.md "Reports")
+/plans/
+
+# OS files
+.DS_Store
+Thumbs.db
