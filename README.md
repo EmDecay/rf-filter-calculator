@@ -27,7 +27,7 @@ Calculates LC filter component values for RF engineers and amateur radio operato
 
 ## Installation
 
-Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). Python 3.11 through 3.14 are supported. Each Python release stays supported until it reaches end of life, and a new release is added once the project's dependencies support it (see [Supported Python Versions](docs/code-standards.md#supported-python-versions)). If your system Python is older, uv downloads a supported one automatically.
 
 Install uv if you don't have it:
 ```bash
@@ -326,7 +326,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=filter_lib --cov-report=term-missing
 ```
 
-**Test suite:** More than 4,500 collected cases, with a CI coverage floor of 90%, including an exhaustive 128-cell bandpass study, independent response verification, build/tolerance/loss contracts, strict JSON, generic SPICE, Python 3.10–3.13, wheel/sdist inspection, installed-wheel smoke tests, and real Textual pilot tests. See [docs/testing.md](docs/testing.md) for current details.
+**Test suite:** More than 4,500 collected cases, with a CI coverage floor of 90%, including an exhaustive 128-cell bandpass study, independent response verification, build/tolerance/loss contracts, strict JSON, generic SPICE, the oldest and newest supported Python, wheel/sdist inspection, installed-wheel smoke tests, and real Textual pilot tests. See [docs/testing.md](docs/testing.md) for current details.
 
 ### Linting
 
@@ -339,7 +339,7 @@ uv run ruff format --check .  # Check formatting
 
 ### Continuous Integration
 
-GitHub Actions runs Ruff, the full coverage-gated suite on Python 3.10–3.13 with the `web` extra, the suite again on a core install without it, and wheel/sdist build plus installed-wheel smoke checks on every push and PR to `main`.
+GitHub Actions runs Ruff, the full suite with the `web` extra on the oldest supported Python (3.11) and on the newest (3.14, with the 90% coverage gate), and a wheel/sdist build plus an installed-wheel smoke check without the `web` extra, on every push and PR to `main`. Versions in between are not tested separately; [docs/testing.md](docs/testing.md#ci-workflow) explains why.
 
 ## Project Structure
 

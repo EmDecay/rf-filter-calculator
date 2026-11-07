@@ -32,6 +32,26 @@ RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
 - Filter theory lists the ARRL Handbook names for each ladder: low-pass Pi is capacitor-input
   and T is inductor-input; high-pass T is capacitor-input and Pi is inductor-input.
 
+### Python support and CI
+
+- **Python 3.10 is no longer supported.** It reached end of life in October 2026. The
+  package now requires Python 3.11 or later (`requires-python = ">=3.11"`). The documented
+  `uv sync` install is unaffected on a system whose Python is 3.10, because uv downloads a
+  supported interpreter automatically. Python 3.14 is now supported and listed in the
+  classifiers, so the supported releases are 3.11 through 3.14. Python 3.15 will be added
+  once the locked dependencies ship wheels for it.
+- A written policy decides which releases are supported: every CPython release that has not
+  reached end of life and that the locked dependencies support. See
+  [Supported Python Versions](code-standards.md#supported-python-versions).
+  `tests/test_packaging.py` checks that `requires-python`, the classifiers, the Ruff target,
+  and the CI Python versions agree.
+- CI runs the full suite on the oldest (3.11) and newest (3.14) supported Python instead of
+  3.10 through 3.13, and measures coverage once, on 3.14, with coverage.py's low-overhead
+  `sys.monitoring` core. The core-install job is gone: `tests/test_web_optional_import.py`
+  and the installed-wheel smoke test, which installs without the `web` extra, already cover
+  it. The old pipeline took about 23 minutes per run.
+- Ruff targets Python 3.11, and the development group no longer needs `tomli`.
+
 ## 2.3.0 — 2026-10-08 — Plain-Language Output and Aligned Interfaces
 
 ### Added

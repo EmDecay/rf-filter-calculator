@@ -52,7 +52,7 @@ class CalculationRunner:
             waiter = asyncio.wrap_future(future)
             try:
                 return await asyncio.wait_for(asyncio.shield(waiter), self.timeout_s)
-            except (asyncio.TimeoutError, asyncio.CancelledError) as stop:
+            except (TimeoutError, asyncio.CancelledError) as stop:
                 # Timed out, or the request itself was abandoned: either way stop the
                 # work. Queued work never starts; running work ends at its next check,
                 # and its outcome is consumed here so nothing is logged.

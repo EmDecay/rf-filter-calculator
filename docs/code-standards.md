@@ -1,6 +1,6 @@
 # Code Standards and Architecture Guidelines
 
-**Last updated:** October 7, 2026
+**Last updated:** November 7, 2026
 
 This document records the conventions that matter for the current calculator. Follow the
 repository-level `CLAUDE.md`, then these project-specific rules and nearby code patterns.
@@ -19,9 +19,10 @@ or substituting a mock result for real circuit behavior.
 
 - Python modules and functions use `snake_case`; classes use `PascalCase`; constants use
   `UPPER_SNAKE_CASE`.
-- Use Python 3.10 syntax, including `T | None` and `A | B` rather than legacy
-  `Optional[T]`/`Union[A, B]` spellings.
-- Ruff is authoritative: target `py310`, line length 100, rules `E`, `F`, `I`, `UP`, and
+- Write for the oldest supported Python (3.11; see
+  [Supported Python Versions](#supported-python-versions)), including `T | None` and `A | B`
+  rather than legacy `Optional[T]`/`Union[A, B]` spellings.
+- Ruff is authoritative: target `py311`, line length 100, rules `E`, `F`, `I`, `UP`, and
   `B`, with the exceptions recorded in `pyproject.toml`.
 - Keep imports in standard-library, third-party, then local groups.
 - Comments explain invariants, units, limitations, or non-obvious choices—not the syntax.
@@ -33,6 +34,36 @@ Run:
 uv run ruff check .
 uv run ruff format --check .
 ```
+
+## Supported Python Versions
+
+The project supports every CPython release that has not reached end of life and for which
+all locked dependencies, including the `web` extra, ship wheels. As of November 2026 that is
+**3.11, 3.12, 3.13, and 3.14**.
+
+- **Oldest:** the oldest CPython release that has not reached end of life (see the
+  [CPython release status](https://devguide.python.org/versions/)). New releases arrive each
+  October, and the oldest one leaves support then too; 3.11 reaches end of life in October
+  2027. Dropping a release does not strand users of the documented `uv sync` install: uv
+  downloads a supported interpreter when the system Python is too old.
+- **Newest:** the newest CPython release for which every locked dependency ships wheels and
+  the suite passes. A new release joins once `uv lock --upgrade` brings in those wheels.
+  pydantic-core, which FastAPI uses, is usually the last to arrive: Python 3.15 shipped in
+  October 2026, but the locked pydantic-core has no 3.15 wheels yet. Do not add an
+  allowed-to-fail CI job for a release that is not ready; it costs CI time and gets ignored.
+- **Where the range is stated:** `requires-python` names the oldest release, the trove
+  classifiers list every supported release, the Ruff `target-version` matches the oldest,
+  and `.github/workflows/ci.yml` tests the oldest and the newest.
+  `tests/test_packaging.py::test_supported_python_range_is_stated_consistently` fails if
+  those disagree. When the range moves, also search `README.md`, `CLAUDE.md`, and `docs/`
+  for the old version number.
+- **CI tests only the oldest and the newest release.** The code is pure Python, with no
+  compiled extensions and no version-specific branches, so breakage comes from one of the two
+  ends: something the oldest release lacks (a standard-library API that Ruff cannot flag), or
+  a behavior change in the newest (Python 3.13 changed how argparse prints a shared metavar).
+  The earlier four-version matrix never caught a failure that the oldest and newest jobs
+  would have missed. Revisit this rule if the project adds compiled extensions,
+  version-conditional code, or dependencies that ship different builds per Python release.
 
 ## Calculation Contracts
 
@@ -290,7 +321,8 @@ Important regression layers include:
 - toroid provenance and winding math;
 - Textual unit tests and real `run_test()` pilot flows;
 - source archive, wheel contents, and installed-wheel smoke tests;
-- Python 3.10 through 3.13.
+- the oldest and the newest supported Python (see
+  [Supported Python Versions](#supported-python-versions)).
 
 Do not hide a failing gate or reduce coverage to land a change.
 

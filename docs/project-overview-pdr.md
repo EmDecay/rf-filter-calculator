@@ -25,7 +25,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - More than 4,500 collected tests, with a 90% CI coverage floor
 - Full CLI, interactive TUI, and local web UI with advanced plotting
 - Complete documentation
-- Python 3.10+ compatible
+- Python 3.11+ compatible (3.11 through 3.14 supported)
 - Automated CI with GitHub Actions
 - Code quality enforced via ruff linting
 - Bandpass external Q set by series end-coupling capacitors; shunt-C coupling removed
@@ -269,8 +269,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - More than 4,500 collected tests covering calculations, outputs, build analysis,
   packaging, and the Textual wizard
 - Coverage must remain at or above 90%
-- GitHub Actions CI runs lint, format, Python 3.10–3.13 tests, coverage, and
-  distribution smoke checks on push/PR
+- GitHub Actions CI runs lint, format, tests on the oldest and newest supported Python,
+  coverage, and distribution smoke checks on push/PR
 
 #### 2.5 Maintainability
 
@@ -279,7 +279,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Modules are split when doing so reduces real complexity or matches an existing boundary;
   line count alone is not a design requirement
 - Comments explain non-obvious logic
-- Ruff linting enforced (E/F/I/UP/B rules, py310+ target)
+- Ruff linting enforced (E/F/I/UP/B rules, py311+ target)
 - Code formatting standardized via ruff format
 
 **NFR-2.5.2: Architecture Clarity**
@@ -290,7 +290,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 #### 2.6 Portability
 
 **NFR-2.6.1: Platform Support**
-- Python 3.10+ required
+- Python 3.11+ required; each release is supported until it reaches end of life (see
+  [Supported Python Versions](code-standards.md#supported-python-versions))
 - Runs on macOS, Linux, Windows
 - No platform-specific dependencies
 

@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
@@ -40,14 +40,24 @@ jobs:
       - name: Check formatting
         run: uv run --locked ruff format --check .
 
+  # CI tests the oldest and newest supported Python, not every version in between. The
+  # supported range and the rule for moving it are in docs/code-standards.md
+  # ("Supported Python versions"); tests/test_packaging.py keeps these versions, the
+  # classifiers, and requires-python in agreement.
   test:
-    name: Python ${{ matrix.python-version }}
+    name: Python ${{ matrix.python-version }} (${{ matrix.role }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - python-version: "3.11"
+            role: oldest supported
+            coverage: false
+          - python-version: "3.14"
+            role: newest supported, with coverage
+            coverage: true
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -64,10 +74,16 @@ jobs:
       - name: Install dependencies (with the web extra)
         run: uv sync --locked --group dev --extra web
 
+      - name: Run the full suite
+        if: ${{ !matrix.coverage }}
+        run: uv run --locked pytest tests/
+
       - name: Check runtimes without coverage overhead
+        if: ${{ matrix.coverage }}
         run: uv run --locked pytest tests/ -m runtime_budget
 
       - name: Run correctness suite with coverage
+        if: ${{ matrix.coverage }}
         run: >-
           uv run --locked pytest tests/
           -m "not runtime_budget"
@@ -76,52 +92,20 @@ jobs:
           --cov-report=xml
           --cov-fail-under=90
 
-  core-install:
-    name: Core install without the web extra
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.10"
-
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-          cache-suffix: core
-
-      - name: Install dependencies (no extras)
-        run: uv sync --locked --group dev
-
-      - name: Run the suite; web tests skip themselves
-        run: uv run --locked pytest tests/ -m "not runtime_budget" -q
-
-      - name: filter-calc web explains how to install the extra
-        run: |
-          set +e
-          message=$(uv run --locked filter-calc web 2>&1)
-          status=$?
-          set -e
-          echo "$message"
-          test "$status" -eq 1
-          expected='Error: The web UI needs the optional web dependencies. From a source checkout run: uv sync --extra web. For an installed package: pip install "rf-filter-calculator[web]".'
-          test "$message" = "$expected"
-
+  # The wheel smoke test installs the wheel without the web extra, so it also covers the
+  # core install: the CLI and wizard work, and `filter-calc web` prints the install hint.
   package:
     name: Build and smoke distributions
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [quality, test, core-install]
+    needs: [quality, test]
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:

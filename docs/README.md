@@ -29,7 +29,7 @@ Calculates LC filter component values for RF engineers and amateur radio operato
 
 ## Requirements
 
-- Python 3.10 or higher
+- Python 3.11 or higher (3.11 through 3.14 are supported; see [Supported Python Versions](code-standards.md#supported-python-versions))
 - `textual` library (for interactive TUI wizard)
 - Optional `web` dependencies for the browser UI: FastAPI, uvicorn, Jinja2, and python-multipart (`uv sync --extra web`, or `pip install "rf-filter-calculator[web]"` for an installed package)
 - The development dependency group supplies pytest, coverage, and Ruff

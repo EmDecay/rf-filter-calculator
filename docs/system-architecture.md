@@ -1,6 +1,6 @@
 # System Architecture
 
-**Last updated:** October 8, 2026
+**Last updated:** November 7, 2026
 **Applies to:** RF Filter Calculator 2.3.0
 
 ## Overview
@@ -349,13 +349,16 @@ extra.
 
 GitHub Actions runs on pushes and pull requests to `main`:
 
-1. Ruff lint and format check on Python 3.13.
-2. Full coverage-gated test suite on Python 3.10, 3.11, 3.12, and 3.13 with the `web`
-   extra installed.
-3. The suite on a core install without the extra, plus a check of the `filter-calc web`
-   install hint.
-4. Wheel and source-distribution build, archive inspection, installed-wheel smoke test,
-   and artifact upload.
+1. Ruff lint and format check on Python 3.14.
+2. The full test suite with the `web` extra on the oldest supported Python (3.11).
+3. The full test suite with the `web` extra and the 90% coverage gate on the newest
+   supported Python (3.14).
+4. Wheel and source-distribution build, archive inspection, an installed-wheel smoke test
+   without the `web` extra (including the `filter-calc web` install hint), and artifact
+   upload.
+
+CI tests only the oldest and newest supported Python; see
+[Supported Python Versions](code-standards.md#supported-python-versions).
 
 This is continuous integration and artifact production; the workflow does not deploy a
 release.

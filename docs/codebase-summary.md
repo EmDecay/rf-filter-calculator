@@ -1,9 +1,9 @@
 # Codebase Summary
 
-**Last updated:** October 8, 2026
+**Last updated:** November 7, 2026
 **Version:** 2.3.0
 
-RF Filter Calculator is a Python 3.10+ command-line, Textual TUI, and local web application for
+RF Filter Calculator is a Python 3.11+ command-line, Textual TUI, and local web application for
 synthesizing lowpass, highpass, and coupled-resonator bandpass LC filters. The current
 design explicitly separates calculated values, selected physical parts, estimated loss,
 and simulated build behavior.
@@ -13,7 +13,7 @@ and simulated build behavior.
 - More than 4,500 collected pytest cases
 - 90% minimum coverage enforced in CI
 - Ruff lint and format gates
-- Full test matrix on Python 3.10–3.13
+- Full suite on the oldest and newest supported Python (3.11 and 3.14)
 - Wheel and source-distribution inspection plus installed-wheel smoke test
 - One required runtime dependency, Textual; the optional `web` extra adds FastAPI, uvicorn,
   Jinja2, and python-multipart for the browser UI
@@ -217,7 +217,7 @@ or after failure. Component format selection and response-data sidecar selection
 
 - `pyproject.toml` — setuptools build, dynamic version, dependency and tool settings
 - `uv.lock` — locked resolution
-- `.github/workflows/ci.yml` — quality, Python matrix, core-install, packaging/smoke jobs
+- `.github/workflows/ci.yml` — Ruff quality, oldest/newest Python test jobs, packaging/smoke job
 - `filter_lib/shared/toroid_core_data.json` — packaged toroid data
 - `filter_lib/wizard/styles.tcss` — packaged wizard stylesheet
 - `filter_lib/web/templates/`, `filter_lib/web/static/` — packaged web templates and assets
