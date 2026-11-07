@@ -21,14 +21,14 @@ classifiers = [
     "Intended Audience :: Other Audience",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Electronic Design Automation (Eda)",
     "Topic :: Communications :: Ham Radio",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "textual>=0.89.0",
 ]
@@ -47,7 +47,6 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff>=0.8",
-    "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.scripts]
@@ -71,7 +70,7 @@ version = {attr = "filter_lib.__version__"}
 "filter_lib.web" = ["templates/*.html", "templates/partials/*.html", "static/*"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
@@ -79,7 +78,7 @@ select = [
     "E",    # pycodestyle errors
     "F",    # pyflakes (undefined names, unused imports)
     "I",    # isort (import sorting)
-    "UP",   # pyupgrade (modernize syntax for 3.10+)
+    "UP",   # pyupgrade (modernize syntax for 3.11+)
     "B",    # flake8-bugbear (likely bugs)
 ]
 ignore = [
@@ -98,3 +97,9 @@ addopts = "-v --tb=short --strict-markers"
 markers = [
     "runtime_budget: wall-clock budget check; run without coverage (-m runtime_budget)",
 ]
+
+[tool.coverage.run]
+# sys.monitoring cuts coverage overhead severalfold on Python 3.12+. Naming it explicitly
+# makes coverage.py fail loudly, instead of silently falling back to its slower tracer, if a
+# later setting conflicts with it. Python 3.11 warns and uses the slower tracer.
+core = "sysmon"

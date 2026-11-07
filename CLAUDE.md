@@ -38,7 +38,7 @@ uv run ruff format .                # auto-format
 
 ## Architecture
 
-Python 3.10+ CLI tool for calculating LC filter component values. Entry point is `filter_lib.cli:main` (registered as `filter-calc` script). No arguments launches a Textual TUI wizard; `filter-calc web` serves a FastAPI + HTMX browser UI from the optional `web` extra.
+Python 3.11+ CLI tool for calculating LC filter component values. Entry point is `filter_lib.cli:main` (registered as `filter-calc` script). No arguments launches a Textual TUI wizard; `filter-calc web` serves a FastAPI + HTMX browser UI from the optional `web` extra.
 
 ### Package layout (`filter_lib/`)
 
@@ -81,7 +81,7 @@ Full module map: `docs/codebase-summary.md`.
 
 ## Ruff config
 
-Target: py310, line-length 100, rules: E/F/I/UP/B. Ignores: E501 (formatter handles), B905 (zip without strict=). Tests ignore E501.
+Target: py311, line-length 100, rules: E/F/I/UP/B. Ignores: E501 (formatter handles), B905 (zip without strict=). Tests ignore E501.
 
 ## Validation convention
 
@@ -96,7 +96,9 @@ Component-Q and source/load-resistance ranges are owned by `shared/physical_inpu
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs Ruff, coverage-gated tests on Python 3.10–3.13 with the `web` extra, a core-install job without it (web tests skip; `filter-calc web` must print the install hint), source/wheel builds, archive inspection, and installed-wheel smoke tests on push/PR to `main`.
+GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `main`: Ruff; the full suite with the `web` extra on the oldest supported Python (3.11, no coverage) and the newest (3.14, `runtime_budget` tests first, then the 90% coverage gate); and source/wheel builds, archive inspection, and an installed-wheel smoke test without the `web` extra (`tests/wheel_smoke.py` checks the CLI, the wizard, and the `filter-calc web` install hint).
+
+Supported Python: 3.11–3.14. The policy is in `docs/code-standards.md#supported-python-versions`: support every CPython release that has not reached end of life and whose wheels the locked dependencies ship (pydantic-core is usually last). CI tests only the oldest and newest; do not add middle versions or allowed-to-fail jobs. Moving the range means changing `requires-python`, the classifiers, the Ruff `target-version`, and the CI versions together (`tests/test_packaging.py::test_supported_python_range_is_stated_consistently` enforces this), then grepping README/CLAUDE.md/docs for the old number. Coverage uses `[tool.coverage.run] core = "sysmon"`; measure it only on the newest version.
 
 ## Testing wizard screens
 

@@ -1,14 +1,15 @@
 # Testing Guide
 
-**Last updated:** October 7, 2026
+**Last updated:** November 7, 2026
 **Applies to:** RF Filter Calculator 2.3.0
 
 ## Quality gates
 
 The repository has more than 4,500 collected pytest cases. CI requires at least 90% line
-coverage and runs the complete suite on Python 3.10, 3.11, 3.12, and 3.13. A skipped test
-is reported as a skip; failures, lint errors, format errors, and coverage shortfalls are
-not hidden.
+coverage and runs the complete suite on the oldest and the newest supported Python (3.11
+and 3.14; see [Supported Python Versions](code-standards.md#supported-python-versions)). A
+skipped test is reported as a skip; failures, lint errors, format errors, and coverage
+shortfalls are not hidden.
 
 Run the same primary gates locally. The coverage gate assumes the `web` extra is
 installed; without it the web tests skip themselves and `filter_lib/web/` counts as
@@ -259,15 +260,16 @@ its meaningful success and failure paths.
 
 ## Multi-version checks
 
-CI is authoritative for all four supported Python versions. Locally, uv can select an
-installed interpreter explicitly. `uv run --python X.Y` rebuilds the project's `.venv` for
-that interpreter, and syncs only what the command asks for, so pass `--extra web` (or the web
-tests skip) and point `UV_PROJECT_ENVIRONMENT` at a directory outside the repository to keep
-your main environment intact:
+CI runs the suite on the oldest and the newest supported Python. The releases in between
+are supported but not tested separately; to check one, or to reproduce a CI failure, run the
+suite on that interpreter locally. `uv run --python X.Y` rebuilds the project's `.venv` for
+that interpreter (uv downloads it if needed), and syncs only what the command asks for, so
+pass `--extra web` (or the web tests skip) and point `UV_PROJECT_ENVIRONMENT` at a directory
+outside the repository to keep your main environment intact:
 
 ```bash
-UV_PROJECT_ENVIRONMENT=/tmp/rf-filter-py310 uv run --python 3.10 --locked --extra web pytest tests/
-UV_PROJECT_ENVIRONMENT=/tmp/rf-filter-py313 uv run --python 3.13 --locked --extra web pytest tests/
+UV_PROJECT_ENVIRONMENT=/tmp/rf-filter-py311 uv run --python 3.11 --locked --extra web pytest tests/
+UV_PROJECT_ENVIRONMENT=/tmp/rf-filter-py314 uv run --python 3.14 --locked --extra web pytest tests/
 ```
 
 Do not update the lock file during a verification-only run. Use `uv lock --check` to
@@ -309,15 +311,34 @@ the installed command and package data rather than importing the source checkout
 
 `.github/workflows/ci.yml` contains four jobs:
 
-1. **Ruff quality** — lint and format check.
-2. **Python matrix** — all tests on 3.10–3.13 with the `web` extra. Tests marked `runtime_budget` (build-analysis,
-   calibration, and extreme-input runtime checks) run first without coverage
+1. **Ruff quality** — lint and format check on the newest supported Python.
+2. **Oldest supported Python (3.11)** — the full suite with the `web` extra, without
+   coverage.
+3. **Newest supported Python (3.14), with coverage** — tests marked `runtime_budget`
+   (build-analysis, calibration, and extreme-input runtime checks) run first without coverage
    instrumentation, so their wall-clock limits measure application runtime; the remaining
-   suite (`-m "not runtime_budget"`) enforces the coverage gate.
-3. **Core install** — the suite on Python 3.10 without the `web` extra (web tests skip),
-   plus the exact `filter-calc web` install hint and exit code.
+   suite (`-m "not runtime_budget"`) enforces the 90% coverage gate.
 4. **Build and smoke distributions** — build, inspect, install, smoke, and upload
-   artifacts after the other jobs pass.
+   artifacts after the other jobs pass. The smoke test installs the wheel without the `web`
+   extra, so it also proves the core install: the CLI and wizard work, and `filter-calc web`
+   prints the install hint and exits with status 1.
+
+Why only two Python versions: the code is pure Python, so version breakage comes from the
+oldest release (a missing standard-library feature) or the newest (a behavior change). The
+earlier matrix ran the coverage suite on 3.10 through 3.13 plus a separate core-install job,
+about 23 minutes per run, and every failure it caught was on the oldest version, the
+newest, or all of them. The full policy is in
+[Supported Python Versions](code-standards.md#supported-python-versions).
+
+Why coverage runs once, on the newest version: line coverage measures the code, not the
+interpreter, so measuring it on every version repeats the same result. On Python 3.12 and
+later, coverage.py can trace through `sys.monitoring`, which costs far less than its older
+tracer; `[tool.coverage.run] core = "sysmon"` in `pyproject.toml` makes that explicit, so a
+conflicting setting fails loudly instead of quietly slowing the job. Under the older tracer,
+each coverage job took 11 to 19 minutes, against about 5 minutes for the suite without
+coverage. A separate core-install job is unnecessary because
+`tests/test_web_optional_import.py` blocks the web packages inside the normal suite, and the
+wheel smoke test checks a real install without them.
 
 The workflow uses read-only repository permissions and cancels an older in-progress run
 for the same ref. Third-party actions are pinned to full commit SHAs, with the release

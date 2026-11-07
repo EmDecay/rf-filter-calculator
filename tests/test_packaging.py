@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import os
+import re
 import tarfile
+import tomllib
 import zipfile
 from email.parser import Parser
 from pathlib import Path
 
 import pytest
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10 CI
-    import tomli as tomllib
 
 from filter_lib import __version__
 
@@ -88,9 +85,38 @@ def test_license_uses_pep639_metadata(project_config: dict) -> None:
     assert "setuptools>=77.0.3" in project_config["build-system"]["requires"]
 
 
-def test_python_310_has_an_explicit_toml_reader(project_config: dict) -> None:
-    """The oldest CI target must not rely on a transitive tomli dependency."""
-    assert "tomli>=2.0; python_version < '3.11'" in project_config["dependency-groups"]["dev"]
+def _minor(version: str) -> int:
+    """Return N from a ``3.N`` Python version string."""
+    major, minor = version.split(".")
+    assert major == "3", version
+    return int(minor)
+
+
+def test_supported_python_range_is_stated_consistently(project_config: dict) -> None:
+    """requires-python, the classifiers, Ruff, and CI's Python versions name one range.
+
+    The policy is in docs/code-standards.md ("Supported Python versions"): the classifiers
+    list every supported release, and CI tests only the oldest and the newest of them.
+    """
+    project = project_config["project"]
+    floor = re.fullmatch(r">=(3\.\d+)", project["requires-python"])
+    assert floor, project["requires-python"]
+    oldest = _minor(floor.group(1))
+
+    prefix = "Programming Language :: Python :: "
+    classified = sorted(
+        _minor(value.removeprefix(prefix))
+        for value in project["classifiers"]
+        if re.fullmatch(re.escape(prefix) + r"3\.\d+", value)
+    )
+    assert classified == list(range(oldest, classified[-1] + 1))
+    newest = classified[-1]
+
+    assert project_config["tool"]["ruff"]["target-version"] == f"py3{oldest}"
+
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    tested = {_minor(version) for version in re.findall(r'python-version: "(3\.\d+)"', workflow)}
+    assert tested == {oldest, newest}
 
 
 def _distribution_directory() -> Path:
