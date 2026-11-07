@@ -207,18 +207,6 @@ repomix-output.xml
 plans/
 docs/visuals/
 
-# Superpowers (Claude Code skills plugin)
-#   .superpowers holds brainstorm mockups (plus the server's session key) and SDD
-#   ledgers/briefs; .worktrees/worktrees are the git-worktree fallback locations.
-#   No trailing slash on these: using-git-worktrees runs `git check-ignore .worktrees`
-#   before the directory exists, and a directory-only pattern does not match then.
-.superpowers
-/.worktrees
-/worktrees
-#   Specs and plans stay local like plans/ (CLAUDE.md points the skills there);
-#   this catches the skills' default location.
-docs/superpowers/
-
 # OS files
 .DS_Store
 Thumbs.db

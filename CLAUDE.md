@@ -34,7 +34,7 @@ uv run ruff format .                # auto-format
 
 ## Reports
 
-`plans/` is gitignored — session reports written to `plans/reports/` are local-only and won't show up in `git status`. Superpowers skills follow the same rule: save brainstorming specs to `plans/specs/YYYY-MM-DD-<topic>-design.md` and implementation plans to `plans/YYYY-MM-DD-<feature-name>.md` (not `docs/superpowers/`), and skip the skills' step that commits them. `.gitignore` also covers `docs/superpowers/`, the `.superpowers` scratch directory, and the `.worktrees`/`worktrees` fallback locations.
+`plans/` is gitignored — session reports written to `plans/reports/` are local-only and won't show up in `git status`.
 
 ## Architecture
 
