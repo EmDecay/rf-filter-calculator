@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
@@ -13,6 +13,13 @@ from .form_parsing import form_defaults
 from .form_values import FormData
 
 CATEGORY_LABELS = {"lowpass": "Low-pass", "highpass": "High-pass", "bandpass": "Band-pass"}
+
+# Calculator forms contain only short scalar options, including export snapshots.
+MAX_FORM_BODY_BYTES = 16 * 1024
+MAX_FORM_FIELDS = 128
+MAX_FIELD_NAME_LENGTH = 64
+MAX_FIELD_VALUE_LENGTH = 256
+FORM_TOO_LARGE = "Form exceeds the allowed size or field limits"
 
 
 def templates(request: Request) -> Jinja2Templates:
@@ -33,8 +40,31 @@ async def form_fields(request: Request) -> FormData:
     A repeated name keeps its last value: the form's hidden ``toroid_build=off`` is
     replaced by the box's ``on`` when the box is ticked.
     """
-    form = await request.form()
-    return {name: value for name, value in form.items() if isinstance(value, str)}
+    # Bound actual bytes before the form parser buffers or decodes them. Do not
+    # rely on Content-Length: streamed requests may omit or misstate it.
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_FORM_BODY_BYTES:
+            raise HTTPException(status_code=413, detail=FORM_TOO_LARGE)
+        body.extend(chunk)
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": bytes(body), "more_body": False}
+
+    # Parse a bounded replay rather than caching through Request's private fields.
+    bounded_request = Request(request.scope, receive)
+    async with bounded_request.form() as form:
+        fields: FormData = {}
+        for count, (name, value) in enumerate(form.multi_items(), start=1):
+            # Count duplicates and check every value, including values that a
+            # subsequent duplicate would replace, before numeric normalization.
+            if count > MAX_FORM_FIELDS or len(name) > MAX_FIELD_NAME_LENGTH:
+                raise HTTPException(status_code=413, detail=FORM_TOO_LARGE)
+            if isinstance(value, str):
+                if len(value) > MAX_FIELD_VALUE_LENGTH:
+                    raise HTTPException(status_code=413, detail=FORM_TOO_LARGE)
+                fields[name] = value
+        return fields
 
 
 def page_context(category: str, form: FormData | None = None, **extra) -> dict:
