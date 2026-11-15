@@ -8,6 +8,7 @@ it and the wizard shows it, so the two cannot drift apart.
 import textwrap
 from typing import Any
 
+from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from ..shared.display_helpers import eseries_section_lines
 from ..shared.eseries import MatchPolicy
 from ..shared.formatting import (
@@ -435,7 +436,7 @@ def _frequency_response_lines(result: BandpassResult) -> list[str]:
 
     # ripple_db is None for non-Chebyshev results; the plot annotations still
     # need a numeric ripple, so fall back to the 0.5 dB display default.
-    ripple = result.get("ripple_db") or 0.5
+    ripple = result.get("ripple_db") or DEFAULT_RIPPLE_DB
     sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
     # "Simulated" because this is the circuit, not the ideal response shape that the
     # shape warning compares it with; "ideal parts" because the parts are lossless and exact.

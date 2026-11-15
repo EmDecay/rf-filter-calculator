@@ -3,7 +3,11 @@
 import math
 
 from ..shared.formatting import format_inductance
-from ..shared.numeric import is_finite_real, positive_float_from_log, positive_geometric_mean
+from ..shared.numeric import (
+    positive_float_from_log,
+    positive_geometric_mean,
+    require_positive_finite,
+)
 
 # Advice for resonator (tank) capacitors that come out zero or negative. There are two
 # cases with different fixes:
@@ -42,9 +46,7 @@ def tank_capacitor_names(indexes: list[int]) -> list[str]:
 
 
 def _positive_finite(value: object, name: str) -> float:
-    if not is_finite_real(value) or value <= 0:
-        raise ValueError(f"{name} must be positive and finite")
-    return float(value)
+    return float(require_positive_finite(value, name))
 
 
 def _positive_values(values: list[float], name: str, *, minimum_length: int = 1) -> list[float]:

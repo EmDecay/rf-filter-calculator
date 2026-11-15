@@ -6,23 +6,37 @@ result dict on `state.result` (the results screen's export paths re-format it la
 and return display lines rendered by the shared dispatcher.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from filter_lib.design.export import BANDPASS_RESPONSE_POINTS
 
 from .state import FilterState
+
+if TYPE_CHECKING:
+    from filter_lib.design import DesignResult
 
 # Kept for callers that size the wizard's response export; the shared export owns it.
 BANDPASS_WIZARD_RESPONSE_POINTS = BANDPASS_RESPONSE_POINTS
 
 
-def _calculate(state: FilterState) -> list[str]:
-    """Synthesize without build analysis, store the result, and render it."""
-    from filter_lib.design import design, render_lines
+def synthesize(state: FilterState) -> DesignResult:
+    """Synthesize without build analysis and store the raw result on ``state``."""
+    from filter_lib.design import design
 
     outcome = design(state.to_design_request(include_build=False))
     # Keep the raw result so the results screen can export JSON/CSV/response
     # data later without re-running the synthesis.
     state.result = outcome.result
-    return render_lines(outcome, state.to_render_options())
+    return outcome
+
+
+def _calculate(state: FilterState) -> list[str]:
+    """Synthesize without build analysis, store the result, and render it."""
+    from filter_lib.design import render_lines
+
+    return render_lines(synthesize(state), state.to_render_options())
 
 
 def calculate_lowpass(state: FilterState) -> list[str]:

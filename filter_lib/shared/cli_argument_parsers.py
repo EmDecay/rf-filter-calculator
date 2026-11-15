@@ -10,6 +10,7 @@ from .cli_aliases import (
     DEFAULT_RIPPLE_DB,
 )
 from .eseries import SUB_PF_CLI_FLAG
+from .numeric import require_count  # noqa: F401  (re-exported for the CLI and web)
 
 FILTER_TYPE_CHOICES = ["butterworth", "chebyshev", "bessel", "bw", "ch", "bs", "b", "c"]
 TOPOLOGY_CHOICES = ["pi", "t"]
@@ -56,13 +57,6 @@ def count_type(text: str) -> int | str:
         return int(text)
     except ValueError:
         return text
-
-
-def require_count(count: object, message: str) -> int:
-    """Return ``count`` if it is a whole number from 2 to 9; otherwise raise ``message``."""
-    if isinstance(count, bool) or not isinstance(count, int) or not 2 <= count <= 9:
-        raise ValueError(message)
-    return count
 
 
 class _StoreExplicitValue(Action):

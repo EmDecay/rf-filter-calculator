@@ -7,7 +7,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 
 
 @dataclass(frozen=True)
@@ -130,8 +130,7 @@ def _select_threshold_region(
         return next((region for region in reversed(regions) if region.end_index == last), None)
     if reference_frequency is None:
         return max(regions, key=lambda region: (region.peak_db, -region.start_index))
-    if not is_finite_real(reference_frequency) or reference_frequency <= 0:
-        raise ValueError("reference_frequency must be positive and finite")
+    require_positive_finite(reference_frequency, "reference_frequency")
 
     log_reference = math.log(reference_frequency)
 
@@ -165,8 +164,7 @@ def _reference_passband_peak_db(
     intended passband. Local maxima are determined from neighboring samples;
     a flat plateau is deterministic and equally suitable as the reference.
     """
-    if not is_finite_real(reference_frequency) or reference_frequency <= 0:
-        raise ValueError("reference_frequency must be positive and finite")
+    require_positive_finite(reference_frequency, "reference_frequency")
     local_maxima = [
         i
         for i, value in enumerate(response_db)

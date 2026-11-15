@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 # ``bandpass.display.PLOT_POINTS`` so the export matches the on-screen plot.
 BANDPASS_RESPONSE_POINTS = 601
 RESPONSE_FORMATS = ("json", "csv")
-SPICE_REALIZATIONS = ("exact", "nominal_build")
 
 
 def response_series(outcome: DesignResult) -> tuple[list[float], list[float]]:

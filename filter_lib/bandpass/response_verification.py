@@ -3,6 +3,7 @@
 import math
 from typing import Any
 
+from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from ..shared.netlist_builders import build_bandpass_top_c_netlist
 from ..shared.netlist_simulation import solve_s21
 from ..shared.numeric import positive_geometric_mean
@@ -28,7 +29,7 @@ def _sample_prototype_errors(
 ) -> tuple[list[float], list[float], dict[str, dict[str, float]]]:
     """Collect passband, ripple-band, and representative stopband errors."""
     peak_db = measurement["peak_db"]
-    ripple_db = result.get("ripple_db") or 0.5
+    ripple_db = result.get("ripple_db") or DEFAULT_RIPPLE_DB
     ripple_limit = 1.0
     if result["filter_type"] == "chebyshev":
         ripple_limit = 1.0 / chebyshev_3db_deviation(result["n_resonators"], ripple_db)
@@ -112,7 +113,7 @@ def validate_netlist_shape(
     )
     stopband_ok = max_stopband_error <= STOPBAND_SAMPLE_ERROR_LIMIT_DB
     shape_ok = max_shape_error <= PASSBAND_SHAPE_ERROR_LIMIT_DB and stopband_ok
-    ripple_db = result.get("ripple_db") or 0.5
+    ripple_db = result.get("ripple_db") or DEFAULT_RIPPLE_DB
     if result["filter_type"] == "chebyshev":
         shape_ok = (
             shape_ok and measured_passband_variation <= ripple_db + CHEBYSHEV_RIPPLE_ALLOWANCE_DB

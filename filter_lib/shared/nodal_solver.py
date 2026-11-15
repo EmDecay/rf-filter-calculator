@@ -6,12 +6,12 @@ from collections.abc import Callable
 from .branch_admittance import (
     branch_admittance_from_logs,
     branch_log_terms,
-    is_finite_number,
     log_angular_frequency,
     normalise_branch,
 )
 from .circuit_model import Branch
 from .decimal_nodal_solver import solve_decimal_nodal
+from .numeric import is_finite_real, require_positive_finite
 
 _DECIMAL_FALLBACK_LOG_RANGE = math.log(1e7)
 # A pinned port row is divided by its conductance, leaving branch terms of about
@@ -96,15 +96,13 @@ def _validate_and_normalise(
 ) -> list[PreparedBranch]:
     if not isinstance(n_nodes, int) or isinstance(n_nodes, bool) or n_nodes < 1:
         raise ValueError("n_nodes must be a positive integer")
-    if not is_finite_number(rs) or rs <= 0:
-        raise ValueError("rs must be positive and finite")
-    if not is_finite_number(rl) or rl <= 0:
-        raise ValueError("rl must be positive and finite")
+    require_positive_finite(rs, "rs")
+    require_positive_finite(rl, "rl")
     if any(isinstance(node, bool) or not isinstance(node, int) for node in (in_node, out_node)):
         raise ValueError("in_node and out_node must be integers")
     if not (1 <= in_node <= n_nodes and 1 <= out_node <= n_nodes):
         raise ValueError("in_node and out_node must be within 1..n_nodes")
-    if any(not is_finite_number(frequency) or frequency <= 0 for frequency in freqs):
+    if any(not is_finite_real(frequency) or frequency <= 0 for frequency in freqs):
         raise ValueError("frequencies must be positive and finite")
 
     normalised = [normalise_branch(branch) for branch in branches]
@@ -343,8 +341,7 @@ def make_transducer_gain_evaluator(
     prepared = _validate_and_normalise(n_nodes, branches, rs, rl, in_node, out_node, [])
 
     def evaluate(frequency: float) -> float:
-        if not is_finite_number(frequency) or frequency <= 0:
-            raise ValueError("frequencies must be positive and finite")
+        require_positive_finite(frequency, "frequencies")
         voltage = _output_voltage_at(n_nodes, prepared, rs, rl, in_node, out_node, frequency)
         return _transducer_gain_from_voltage(voltage, rs, rl)
 

@@ -125,9 +125,7 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
     has_required_edges = (
         matched.f_low is not None and matched.f_high is not None
         if summary.category == "bandpass"
-        else matched.f_high is not None
-        if summary.category == "lowpass"
-        else matched.f_low is not None
+        else matched.ladder_cutoff(summary.category) is not None
     )
     if not has_required_edges or matched.at_grid_edge:
         lines.append(
@@ -181,9 +179,8 @@ def format_matched_sim_block(summary: MatchedSimSummary) -> list[str]:
             )
         )
     else:
-        # LP cutoff is the upper -3 dB crossing; HP cutoff is the lower one.
-        e_cut = exact.f_high if summary.category == "lowpass" else exact.f_low
-        m_cut = matched.f_high if summary.category == "lowpass" else matched.f_low
+        e_cut = exact.ladder_cutoff(summary.category)
+        m_cut = matched.ladder_cutoff(summary.category)
         lines.append(
             row("-3 dB cutoff:", e_cut, m_cut, format_frequency, _fmt_delta_pct(e_cut, m_cut))
         )
@@ -221,10 +218,8 @@ def matched_sim_json_payload(summary: MatchedSimSummary) -> dict:
             ],
             "selected_region_index": m.selected_region_index,
         }
-        if summary.category == "lowpass":
-            payload["cutoff_hz"] = m.f_high
-        elif summary.category == "highpass":
-            payload["cutoff_hz"] = m.f_low
+        if summary.category in ("lowpass", "highpass"):
+            payload["cutoff_hz"] = m.ladder_cutoff(summary.category)
         return payload
 
     calculated = measurement(summary.calculated)

@@ -15,8 +15,9 @@ References:
 import math
 
 from ..shared.chebyshev_g_calculator import MAX_PROTOTYPE_ORDER, calculate_chebyshev_g_values
+from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from ..shared.constants import BESSEL_G_VALUES
-from ..shared.numeric import is_finite_real
+from ..shared.numeric import require_positive_finite
 
 
 def _validate_positive_integer_order(n: int) -> None:
@@ -59,8 +60,7 @@ def get_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
     Raises:
         ValueError: If n is even or ripple_db is outside (0, 3.0]
     """
-    if not is_finite_real(ripple_db) or ripple_db <= 0:
-        raise ValueError("ripple_db must be positive and finite")
+    require_positive_finite(ripple_db, "ripple_db")
     if ripple_db > 3.0:
         raise ValueError(f"Ripple {ripple_db} dB not supported. Must be at most 3.0 dB")
     _validate_positive_integer_order(n)
@@ -90,7 +90,7 @@ def get_bessel_g_values(n: int) -> list[float]:
     return BESSEL_G_VALUES[n].copy()
 
 
-def get_g_values(filter_type: str, n: int, ripple_db: float = 0.5) -> list[float]:
+def get_g_values(filter_type: str, n: int, ripple_db: float = DEFAULT_RIPPLE_DB) -> list[float]:
     """Get g-values for any supported filter type.
 
     Args:

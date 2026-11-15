@@ -3,14 +3,9 @@
 import math
 
 from .circuit_model import Branch
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 
 _LOG_TWO_PI = math.log(2 * math.pi)
-
-
-def is_finite_number(value: object) -> bool:
-    """Return whether ``value`` is a finite real number but not a boolean."""
-    return is_finite_real(value)
 
 
 def normalise_branch(branch: Branch) -> tuple[int, int, str, float, float]:
@@ -26,9 +21,8 @@ def normalise_branch(branch: Branch) -> tuple[int, int, str, float, float]:
         raise ValueError("Branch must contain four fields plus optional series resistance")
     if not isinstance(kind, str) or kind not in {"C", "L", "R"}:
         raise ValueError(f"Unknown branch kind {kind!r}: use 'C', 'L', or 'R'")
-    if not is_finite_number(value) or value <= 0:
-        raise ValueError("branch value must be positive and finite")
-    if not is_finite_number(series_resistance) or series_resistance < 0:
+    require_positive_finite(value, "branch value")
+    if not is_finite_real(series_resistance) or series_resistance < 0:
         raise ValueError("branch series resistance must be finite and non-negative")
     if kind == "R" and series_resistance:
         raise ValueError("resistor branches cannot specify a series resistance")

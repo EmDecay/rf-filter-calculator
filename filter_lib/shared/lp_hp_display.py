@@ -9,7 +9,7 @@ LpHpDisplayConfig rather than duplicated per module.
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .cli_aliases import resolve_filter_type
+from .cli_aliases import DEFAULT_RIPPLE_DB, resolve_filter_type
 from .display_common import (
     format_component_table,
     format_csv_result,
@@ -300,7 +300,7 @@ def _plot_lines(result: dict, config: LpHpDisplayConfig) -> list[str]:
     # Non-Chebyshev results carry no ripple; the transfer functions still
     # take a ripple argument, so pass DEFAULT_RIPPLE_DB (0.5) — it is
     # ignored for Butterworth/Bessel responses.
-    ripple = result.get("ripple") or 0.5
+    ripple = result.get("ripple") or DEFAULT_RIPPLE_DB
     response = config.frequency_response(
         result["filter_type"], freqs, result["freq_hz"], result["order"], ripple
     )

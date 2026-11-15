@@ -227,8 +227,9 @@ of restating the text. Examples: `design/render_options.py` (`BUILD_NEEDS_ESERIE
 (`TANK_SETTING_CONFLICT_MESSAGE`), `shared/build_types.py`
 (`RESONATOR_AND_COMPONENT_Q_MESSAGE`), `shared/cli_bandpass_output_validation.py`
 (`RESONATOR_Q_LABELS`, `RESONATOR_Q_CONFLICT_MESSAGE`, `RESONATOR_Q_FORMULA`),
-`shared/cli_helpers.py` (`SIM_MATCHED_DEPRECATION_WARNING`), `shared/cli_argument_parsers.py`
-(`require_count`, used with the count messages by all three subcommands and the web),
+`shared/cli_helpers.py` (`SIM_MATCHED_DEPRECATION_WARNING`), `shared/numeric.py`
+(`require_count`, used with the count messages by all three subcommands, the web, and the
+LP/HP and bandpass calculators),
 `design/option_applicability.py` (the disabled-control reasons, such as
 `TEXT_PLOT_NEEDS_TABLE_MESSAGE` and `LOSS_Q_NOT_SHOWN_MESSAGE`),
 `design/q_reference_frequency.py` (`Q_FREQUENCY_LABEL`, `Q_FREQUENCY_HELP`), and

@@ -7,7 +7,6 @@ mapping, diagram builders, and response functions).
 
 from ..shared.eseries import MatchPolicy
 from ..shared.lp_hp_display import (
-    CAPACITOR_MATCH,
     DiagramConfig,
     LpHpDisplayConfig,
     display_results_for_config,
@@ -118,9 +117,3 @@ def display_results(
         matched_sim=matched_sim,
         build_analysis=build_analysis,
     )
-
-
-# Wizard match-mode hook: capacitors get E-series matching (inductors are
-# wound to value, so they are never matched). Named per filter type so the
-# wizard can import one symbol regardless of filter category.
-LP_WIZARD_MATCH = CAPACITOR_MATCH

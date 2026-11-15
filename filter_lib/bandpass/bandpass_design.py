@@ -1,5 +1,7 @@
 """High-level orchestration for calibrated Top-C bandpass designs."""
 
+from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
+from ..shared.numeric import require_positive_finite
 from .coupling_math import require_end_coupling_resonator
 from .design_constants import VALIDATION_POINTS
 from .design_result import (
@@ -12,7 +14,7 @@ from .g_values import get_g_values
 from .ideal_response import chebyshev_3db_deviation
 from .input_validation import _validate_inputs
 from .model_diagnostics import model_diagnostics
-from .numeric_validation import _is_positive_finite, _validate_chebyshev_ripple
+from .numeric_validation import _validate_chebyshev_ripple
 from .passband_measurement import require_resolvable_bandwidth
 from .resonator_math import (
     _resolve_resonator_components,
@@ -83,7 +85,7 @@ def calculate_bandpass_filter(
     n_resonators: int,
     filter_type: str,
     coupling: str,
-    ripple_db: float = 0.5,
+    ripple_db: float = DEFAULT_RIPPLE_DB,
     q_safety: float = 2.0,
     qu: float | None = None,
     ql: float | None = None,
@@ -102,8 +104,7 @@ def calculate_bandpass_filter(
         ValueError: If inputs are invalid or the requested circuit is unrealizable.
     """
     _validate_inputs(f0, bw, z0, n_resonators, filter_type, coupling)
-    if not _is_positive_finite(q_safety):
-        raise ValueError("q_safety must be positive and finite")
+    require_positive_finite(q_safety, "q_safety")
     resonator_qu = combine_resonator_q(qu=qu, ql=ql, qc=qc)
     _resolve_resonator_components(f0, z0, resonator_impedance, resonator_inductance)
     if filter_type == "chebyshev":

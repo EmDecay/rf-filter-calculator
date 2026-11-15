@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from fractions import Fraction
 
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 
 # E-series normalized values (1.0-10.0 range), geometric progression
 # fmt: off
@@ -197,8 +197,7 @@ class ESeriesMatch:
 
 def _normalize(value: float) -> tuple[float, int]:
     """Extract mantissa (1.0-10.0) and decade exponent."""
-    if not is_finite_real(value) or value <= 0:
-        raise ValueError("Value must be positive and finite")
+    require_positive_finite(value, "Value")
     logarithm = math.log10(value)
     decade = math.floor(logarithm)
     scale = 10.0**decade

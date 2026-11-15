@@ -29,6 +29,13 @@ def require_positive_finite(value: object, label: str) -> int | float:
     return value
 
 
+def require_count(count: object, message: str) -> int:
+    """Return ``count`` if it is a whole number from 2 to 9; otherwise raise ``message``."""
+    if isinstance(count, bool) or not isinstance(count, int) or not 2 <= count <= 9:
+        raise ValueError(message)
+    return count
+
+
 def require_nonnegative_finite(value: object, label: str) -> int | float:
     """Return a non-negative finite real or raise a stable public ``ValueError``."""
     if not is_finite_real(value) or value < 0:

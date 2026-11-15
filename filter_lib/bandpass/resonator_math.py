@@ -6,7 +6,7 @@ from ..shared.cli_bandpass_output_validation import (
     RESONATOR_Q_CONFLICT_MESSAGE,
     RESONATOR_Q_LABELS,
 )
-from ..shared.numeric import positive_float_from_log
+from ..shared.numeric import positive_float_from_log, require_positive_finite
 from ..shared.physical_input_limits import require_component_q
 from .numeric_validation import _is_positive_finite
 
@@ -24,10 +24,8 @@ def _resolve_resonator_components(
     resonator_inductance: float | None,
 ) -> tuple[float, float, float, str]:
     """Resolve tank L/C, actual reactance, and selection mode."""
-    if not _is_positive_finite(f0):
-        raise ValueError("f0 must be positive and finite")
-    if not _is_positive_finite(z0):
-        raise ValueError("z0 must be positive and finite")
+    require_positive_finite(f0, "f0")
+    require_positive_finite(z0, "z0")
     if resonator_impedance is not None and resonator_inductance is not None:
         raise ValueError(TANK_SETTING_CONFLICT_MESSAGE)
     if resonator_impedance is not None and not _is_positive_finite(resonator_impedance):
@@ -95,10 +93,8 @@ def combine_resonator_q(
 
 def estimate_insertion_loss(g_values: list[float], fbw_synth: float, qu: float) -> float:
     """Estimate Cohn midband dissipation loss for uniform resonator Q."""
-    if not _is_positive_finite(fbw_synth):
-        raise ValueError("fbw_synth must be positive and finite")
-    if not _is_positive_finite(qu):
-        raise ValueError("Qu must be positive and finite")
+    require_positive_finite(fbw_synth, "fbw_synth")
+    require_positive_finite(qu, "Qu")
     if not g_values or any(not _is_positive_finite(value) for value in g_values):
         raise ValueError("g_values must contain positive finite values")
     largest = max(g_values)
@@ -122,10 +118,8 @@ def calculate_min_q(f0: float, bw: float, safety_factor: float = 2.0) -> float:
 
 def compute_bandpass_3db_edges(f0: float, bw: float) -> tuple[float, float]:
     """Return exact geometrically centered -3 dB edges without cancellation."""
-    if not _is_positive_finite(f0):
-        raise ValueError("f0 must be positive and finite")
-    if not _is_positive_finite(bw):
-        raise ValueError("bw must be positive and finite")
+    require_positive_finite(f0, "f0")
+    require_positive_finite(bw, "bw")
     half_bw = bw / 2.0
     f_high = half_bw + math.hypot(half_bw, f0)
     f_low = f0 * (f0 / f_high)

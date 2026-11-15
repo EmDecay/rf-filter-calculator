@@ -8,7 +8,7 @@ response function. Magnitudes are unitless 0-1; frequencies are Hz.
 import math
 from collections.abc import Sequence
 
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 
 # Reverse Bessel polynomial theta_n(s) coefficients for orders 2-9, listed
 # in ascending powers of s (coeffs[0] = theta_n(0) = the DC gain the
@@ -75,8 +75,7 @@ def generate_frequency_points(
     Raises:
         ValueError: If f0 is not positive and finite, or num_points < 2.
     """
-    if not is_finite_real(f0) or f0 <= 0:
-        raise ValueError("Cutoff frequency must be positive and finite")
+    require_positive_finite(f0, "Cutoff frequency")
 
     if num_points is not None:
         if (
@@ -98,8 +97,7 @@ def generate_frequency_points(
         return points
 
     # Flexible mode: configurable decades centered on f0
-    if not is_finite_real(decades) or decades <= 0:
-        raise ValueError("decades must be positive and finite")
+    require_positive_finite(decades, "decades")
     if (
         isinstance(points_per_decade, bool)
         or not isinstance(points_per_decade, int)

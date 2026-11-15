@@ -8,7 +8,7 @@ These normalized element values are derived from:
 
 import math
 
-from .numeric import is_finite_real
+from .numeric import require_positive_finite
 
 # Conversion factor from dB to nepers for Chebyshev ripple calculation.
 # Derivation: dB = 20 * log10(x), nepers = ln(x)
@@ -50,8 +50,7 @@ def calculate_chebyshev_g_values(n: int, ripple_db: float) -> list[float]:
     """
     if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= MAX_PROTOTYPE_ORDER:
         raise ValueError(f"n must be a positive integer no greater than {MAX_PROTOTYPE_ORDER:,}")
-    if not is_finite_real(ripple_db) or ripple_db <= 0:
-        raise ValueError("ripple_db must be positive and finite")
+    require_positive_finite(ripple_db, "ripple_db")
 
     # Matthaei, Young, Jones "Microwave Filters" Sec. 4.05, Eq. 4.13-4.16
     # (their beta/gamma/a_k/b_k recurrence for equal-ripple prototypes):

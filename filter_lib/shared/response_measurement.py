@@ -2,20 +2,16 @@
 
 import math
 
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 from .transfer_functions import MAX_FREQUENCY_POINTS
-
-
-def _is_real(value: object) -> bool:
-    return is_finite_real(value)
 
 
 def _validate_response_arrays(freqs: list[float], mags: list[float]) -> None:
     if len(freqs) != len(mags):
         raise ValueError("freqs and mags must have the same length")
-    if any(not _is_real(frequency) or frequency <= 0 for frequency in freqs):
+    if any(not is_finite_real(frequency) or frequency <= 0 for frequency in freqs):
         raise ValueError("frequencies must be positive and finite")
-    if any(not _is_real(magnitude) or magnitude < 0 for magnitude in mags):
+    if any(not is_finite_real(magnitude) or magnitude < 0 for magnitude in mags):
         raise ValueError("magnitudes must be finite and non-negative")
 
 
@@ -131,8 +127,7 @@ def passband_ripple_db(
     freqs: list[float], mags: list[float], f_limit: float
 ) -> tuple[float, float]:
     """Return absolute (maximum dB, minimum dB) over ``freqs <= f_limit``."""
-    if not is_finite_real(f_limit) or f_limit <= 0:
-        raise ValueError("f_limit must be positive and finite")
+    require_positive_finite(f_limit, "f_limit")
     _validate_response_arrays(freqs, mags)
     in_band = [magnitude for frequency, magnitude in zip(freqs, mags) if frequency <= f_limit]
     if not in_band:
@@ -143,7 +138,7 @@ def passband_ripple_db(
 
 def logspace(start_exp: float, stop_exp: float, points: int) -> list[float]:
     """Log-spaced grid from 10**start_exp to 10**stop_exp inclusive."""
-    if not _is_real(start_exp) or not _is_real(stop_exp):
+    if not is_finite_real(start_exp) or not is_finite_real(stop_exp):
         raise ValueError("logspace exponents must be finite real numbers")
     if (
         isinstance(points, bool)

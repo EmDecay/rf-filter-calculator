@@ -5,7 +5,7 @@ from typing import Any
 
 from ..shared.netlist_builders import build_bandpass_top_c_netlist
 from ..shared.netlist_simulation import find_3db_edges, solve_s21
-from ..shared.numeric import is_finite_real
+from ..shared.numeric import require_positive_finite
 from ..shared.plot_threshold_analysis import find_threshold_regions
 from ..shared.transfer_functions import MAX_FREQUENCY_POINTS, magnitude_to_db
 from .design_constants import THREE_DB_DOWN, VALIDATION_POINTS
@@ -20,8 +20,7 @@ def _deviation_grid(f0: float, bw: float, points: int, span: float = 4.0) -> lis
         or not 3 <= points <= MAX_FREQUENCY_POINTS
     ):
         raise ValueError(f"points must be an integer between 3 and {MAX_FREQUENCY_POINTS:,}")
-    if not is_finite_real(span) or span <= 0:
-        raise ValueError("span must be positive and finite")
+    require_positive_finite(span, "span")
     step = 2.0 * span / (points - 1)
     return [frequency_from_deviation(-span + index * step, f0, bw) for index in range(points)]
 

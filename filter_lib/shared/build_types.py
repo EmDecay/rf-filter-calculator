@@ -17,10 +17,6 @@ RESONATOR_AND_COMPONENT_Q_MESSAGE = (
 )
 
 
-def _is_finite_number(value: object) -> bool:
-    return is_finite_real(value)
-
-
 # The CLI refuses ``--seed`` without ``--sample-count`` ("--seed requires a positive
 # --sample-count"); the wizard and web give this, in their labels, for a nonzero seed
 # with no extra random cases (their seed field is pre-filled with the default 0).
@@ -63,7 +59,7 @@ class BuildConfig:
             ("inductor_tolerance_pct", "Inductor tolerance"),
         ):
             value = getattr(self, name)
-            if not _is_finite_number(value) or not 0 <= value < 100:
+            if not is_finite_real(value) or not 0 <= value < 100:
                 raise ValueError(f"{label} must be at least 0% and less than 100%")
         for name, label in (
             ("inductor_q", "Inductor Q"),
@@ -82,7 +78,7 @@ class BuildConfig:
             ("load_resistance_ohm", "Simulation load resistance"),
         ):
             value = getattr(self, name)
-            if value is not None and (not _is_finite_number(value) or value <= 0):
+            if value is not None and (not is_finite_real(value) or value <= 0):
                 raise ValueError(f"{label} must be positive and finite")
         if (
             not isinstance(self.sample_count, int)
@@ -101,7 +97,7 @@ class BuildConfig:
         ):
             raise ValueError("Frequency points must be a whole number from 51 to 5001")
         if self.reference_frequency_hz is not None and (
-            not _is_finite_number(self.reference_frequency_hz) or self.reference_frequency_hz <= 0
+            not is_finite_real(self.reference_frequency_hz) or self.reference_frequency_hz <= 0
         ):
             raise ValueError(
                 "The frequency at which the Q values apply must be positive and finite"
@@ -201,6 +197,10 @@ class CircuitMeasurement:
         if self.f_low is None or self.f_high is None:
             return None
         return self.f_high - self.f_low
+
+    def ladder_cutoff(self, category: str) -> float | None:
+        """Return the -3 dB cutoff of a ladder: the upper edge for lowpass, else the lower."""
+        return self.f_high if category == "lowpass" else self.f_low
 
 
 @dataclass(frozen=True)

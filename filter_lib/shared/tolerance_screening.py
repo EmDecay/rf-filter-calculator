@@ -116,10 +116,8 @@ def _metric_extractors(category: str) -> tuple[tuple[str, MetricExtractor, bool]
         ("peak_transducer_gain_db", lambda item: item.peak_transducer_gain_db, False),
         ("worst_passband_db", lambda item: item.worst_passband_db, False),
     )
-    if category == "lowpass":
-        return common + (("cutoff_hz", lambda item: item.f_high, True),)
-    if category == "highpass":
-        return common + (("cutoff_hz", lambda item: item.f_low, True),)
+    if category in ("lowpass", "highpass"):
+        return common + (("cutoff_hz", lambda item: item.ladder_cutoff(category), True),)
     return common + (
         ("f_low_hz", lambda item: item.f_low, True),
         ("f_high_hz", lambda item: item.f_high, True),

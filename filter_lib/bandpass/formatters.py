@@ -10,9 +10,10 @@ from typing import Any
 
 from ..shared.display_common import (
     ESERIES_CSV_HEADER,
-    build_standard_match,
     csv_match_fields,
+    json_component,
 )
+from ..shared.display_helpers import format_component_value, split_value_unit
 from ..shared.display_helpers import format_eseries_match as _shared_format_eseries
 from ..shared.eseries import MatchPolicy
 from ..shared.formatting import format_capacitance, format_inductance
@@ -76,7 +77,9 @@ def format_json(
     """
 
     def component(name: str, value: float, unit_key: str, parallel_mode: str) -> dict[str, Any]:
-        return _bandpass_json_component(name, value, unit_key, eseries, parallel_mode, match_policy)
+        return json_component(
+            name, value, unit_key, eseries, parallel_mode, match_policy=match_policy
+        )
 
     output = {
         "filter_type": result["filter_type"],
@@ -145,28 +148,6 @@ def format_json(
     return dumps_strict(output, indent=2)
 
 
-def _bandpass_json_component(
-    name: str,
-    value: float,
-    unit_key: str,
-    eseries: str | None,
-    parallel_mode: str,
-    policy: MatchPolicy | None = None,
-) -> dict[str, Any]:
-    """Build one JSON component entry for bandpass export.
-
-    Only capacitor entries (unit_key == "value_farads") receive a
-    standard_match block — inductors are wound to value, never E-series
-    matched — so parallel_mode is meaningful only for capacitors.
-    """
-    component: dict[str, Any] = {"name": name, unit_key: value}
-    if eseries and unit_key == "value_farads":
-        component["standard_match"] = build_standard_match(
-            value, eseries, unit_key, parallel_mode, policy
-        )
-    return component
-
-
 def format_csv(
     result: BandpassResult,
     eseries: str | None = None,
@@ -214,39 +195,26 @@ def format_csv(
         recs = recommend_cores(result["L_resonant"], result["f0"])
         toroid_cols = csv_columns_for_best(recs)
 
-    for i, v in enumerate(result["c_tank"]):
-        formatted = format_capacitance(v)
-        val, unit = formatted.rsplit(" ", 1)
-        row = [f"Cp{i + 1}", val, unit]
-        row.extend(csv_match_fields(v, format_capacitance, eseries, "additive", match_policy))
+    def write_capacitor(name: str, value: float) -> None:
+        row = [name, *split_value_unit(format_capacitance(value))]
+        row.extend(csv_match_fields(value, format_capacitance, eseries, "additive", match_policy))
         if include_toroids:
             row.extend([""] * n_toroid_cols)
         writer.writerow(row)
+
+    for i, v in enumerate(result["c_tank"]):
+        write_capacitor(f"Cp{i + 1}", v)
     for i in range(result["n_resonators"]):
-        formatted = format_inductance(result["L_resonant"])
-        val, unit = formatted.rsplit(" ", 1)
-        row = [f"L{i + 1}", val, unit]
+        row = [f"L{i + 1}", *split_value_unit(format_inductance(result["L_resonant"]))]
         if eseries:
             row.extend([""] * len(ESERIES_CSV_HEADER))
         if include_toroids:
             row.extend(toroid_cols)
         writer.writerow(row)
     for i, v in enumerate(result["c_coupling"]):
-        formatted = format_capacitance(v)
-        val, unit = formatted.rsplit(" ", 1)
-        row = [f"Cs{i + 1}{i + 2}", val, unit]
-        row.extend(csv_match_fields(v, format_capacitance, eseries, "additive", match_policy))
-        if include_toroids:
-            row.extend([""] * n_toroid_cols)
-        writer.writerow(row)
+        write_capacitor(f"Cs{i + 1}{i + 2}", v)
     for name, value in _end_cap_items(result):
-        formatted = format_capacitance(value)
-        val, unit = formatted.rsplit(" ", 1)
-        row = [name, val, unit]
-        row.extend(csv_match_fields(value, format_capacitance, eseries, "additive", match_policy))
-        if include_toroids:
-            row.extend([""] * n_toroid_cols)
-        writer.writerow(row)
+        write_capacitor(name, value)
     return output.getvalue().removesuffix("\n")
 
 
@@ -278,15 +246,12 @@ def format_quiet(result: BandpassResult, raw: bool = False) -> str:
     Returns:
         Minimal text output
     """
-    rows = [(f"Cp{i + 1}", v, "F") for i, v in enumerate(result["c_tank"])]
-    rows += [(f"L{i + 1}", result["L_resonant"], "H") for i in range(result["n_resonators"])]
-    rows += [(name, value, "F") for name, value in coupling_capacitor_rows(result)]
-    lines: list[str] = []
-    for name, value, unit in rows:
-        if raw:
-            lines.append(f"{name}: {value:.6e} {unit}")
-        elif unit == "H":
-            lines.append(f"{name}: {format_inductance(value)}")
-        else:
-            lines.append(f"{name}: {format_capacitance(value)}")
-    return "\n".join(lines)
+    rows = [(f"Cp{i + 1}", v, format_capacitance) for i, v in enumerate(result["c_tank"])]
+    rows += [
+        (f"L{i + 1}", result["L_resonant"], format_inductance)
+        for i in range(result["n_resonators"])
+    ]
+    rows += [(name, value, format_capacitance) for name, value in coupling_capacitor_rows(result)]
+    return "\n".join(
+        format_component_value(name, value, formatter, raw) for name, value, formatter in rows
+    )

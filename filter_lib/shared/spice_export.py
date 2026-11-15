@@ -20,12 +20,11 @@ from .nominal_realization import (
     grouped_part_warnings,
     realize_nominal_build,
 )
-from .numeric import is_finite_real
+from .numeric import require_positive_finite
 
 
 def _number(value: float) -> str:
-    if not is_finite_real(value) or value <= 0:
-        raise ValueError("SPICE values must be positive and finite")
+    require_positive_finite(value, "SPICE values")
     return f"{value:.12g}"
 
 

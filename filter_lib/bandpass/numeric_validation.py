@@ -2,9 +2,8 @@
 
 from typing import Any
 
+from ..shared.cli_aliases import MAX_RIPPLE_DB as MAX_CHEBYSHEV_RIPPLE_DB
 from ..shared.numeric import is_finite_real
-
-MAX_CHEBYSHEV_RIPPLE_DB = 3.0
 
 
 def _is_positive_finite(value: Any) -> bool:
