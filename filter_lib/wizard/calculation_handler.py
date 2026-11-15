@@ -36,7 +36,12 @@ def calculate_and_format(
     from filter_lib.design import render_lines, with_build_analysis
     from filter_lib.shared.build_types import BuildAnalysisCancelled
 
-    from .filter_type_calculators import calculate_bandpass, calculate_highpass, calculate_lowpass
+    from .filter_type_calculators import (
+        calculate_bandpass,
+        calculate_highpass,
+        calculate_lowpass,
+        synthesize,
+    )
 
     # Direct calculator functions retain their legacy state.result side effect
     # for CLI/tests. Running them on a deep copy prevents a canceled or stale
@@ -65,15 +70,17 @@ def calculate_and_format(
     # Only the result shown is calculated here. A disabled build or resonator Q never
     # runs for it; a saved JSON that uses one is calculated when it is saved.
     try:
-        lines = calculators[snapshot.category](snapshot)
-
         build_analysis = None
         if snapshot.runs_build:
+            # Render once, after the build, instead of rendering the design alone first.
+            synthesize(snapshot)
             outcome = with_build_analysis(
                 snapshot.design_result(), snapshot.make_build_config(), should_cancel
             )
             build_analysis = outcome.build_analysis
             lines = render_lines(outcome, options)
+        else:
+            lines = calculators[snapshot.category](snapshot)
     except BuildAnalysisCancelled:
         # Only a cancelled worker sees this, and its revision can no longer publish.
         return CalculationOutcome(status="error", error=CALCULATION_STOPPED_MESSAGE)

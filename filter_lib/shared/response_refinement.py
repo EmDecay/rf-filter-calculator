@@ -9,7 +9,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 from .plot_threshold_analysis import find_threshold_regions
 
 GAIN_TOLERANCE_DB = 0.001
@@ -190,10 +190,8 @@ def refine_response(
         or not 1 <= max_passes <= MAX_REFINEMENT_PASSES
     ):
         raise ValueError(f"max_passes must be an integer in [1, {MAX_REFINEMENT_PASSES}]")
-    if not is_finite_real(frequency_scale) or frequency_scale <= 0:
-        raise ValueError("frequency_scale must be positive and finite")
-    if not is_finite_real(drop_db) or drop_db <= 0:
-        raise ValueError("drop_db must be positive and finite")
+    require_positive_finite(frequency_scale, "frequency_scale")
+    require_positive_finite(drop_db, "drop_db")
     if (
         not isinstance(freqs, (list, tuple))
         or len(freqs) < 2

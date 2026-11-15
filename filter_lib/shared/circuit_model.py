@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 
 Branch = tuple[int, int, str, float] | tuple[int, int, str, float, float]
-
-
-def _is_finite_number(value: object) -> bool:
-    return is_finite_real(value)
 
 
 @dataclass(frozen=True)
@@ -41,25 +37,20 @@ class CircuitElement:
             for node in (self.node1, self.node2)
         ):
             raise ValueError("element nodes must be non-negative integers")
-        if not _is_finite_number(self.value) or self.value <= 0:
-            raise ValueError("element value must be positive and finite")
-        if not _is_finite_number(self.series_resistance_ohm) or self.series_resistance_ohm < 0:
+        require_positive_finite(self.value, "element value")
+        if not is_finite_real(self.series_resistance_ohm) or self.series_resistance_ohm < 0:
             raise ValueError("element series resistance must be finite and non-negative")
         if self.kind == "R" and self.series_resistance_ohm:
             raise ValueError("resistors cannot carry an additional series resistance")
         if self.quality_factor is not None and (
-            not _is_finite_number(self.quality_factor) or self.quality_factor <= 0
+            not is_finite_real(self.quality_factor) or self.quality_factor <= 0
         ):
             raise ValueError("element quality factor must be positive and finite")
         if self.loss_reference_frequency_hz is not None and (
-            not _is_finite_number(self.loss_reference_frequency_hz)
+            not is_finite_real(self.loss_reference_frequency_hz)
             or self.loss_reference_frequency_hz <= 0
         ):
             raise ValueError("loss reference frequency must be positive and finite")
-
-    def with_value(self, value: float) -> CircuitElement:
-        """Return a copy with a perturbed value and unchanged metadata."""
-        return replace(self, value=value)
 
     def as_branch(self) -> Branch:
         """Convert to the solver's compatible four- or five-field branch."""

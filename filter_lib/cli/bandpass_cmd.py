@@ -42,7 +42,6 @@ from ..shared.cli_bandpass_output_validation import (
 )
 from ..shared.cli_helpers import (
     FREQ_SUFFIX_HELP,
-    SIM_MATCHED_DEPRECATION_WARNING,
     add_build_analysis_args,
     add_eseries_args,
     add_output_args,
@@ -56,7 +55,11 @@ from ..shared.cli_helpers import (
     validate_output_mode_args,
 )
 from ..shared.parsing import parse_frequency, parse_impedance, parse_inductance
-from .design_output_args import render_options_from_args, spice_realization_from_args
+from .design_output_args import (
+    render_options_from_args,
+    run_deprecated_matched_simulation,
+    spice_realization_from_args,
+)
 from .toroid_flags import add_toroid_flags
 
 BP_EXAMPLE = "try: filter-calc bp bw top -f 14.2MHz -b 500kHz"
@@ -301,7 +304,13 @@ def run(args: Namespace) -> None:
     if getattr(args, "sim_build", False):
         outcome = with_build_analysis(outcome, make_build_config(args))
     elif getattr(args, "sim_matched", False):
-        _run_deprecated_matched_simulation(args, result)
+        run_deprecated_matched_simulation(
+            args,
+            "bandpass",
+            result,
+            display_results,
+            eseries=None if args.no_match else args.eseries,
+        )
         return
 
     if args.plot_data:
@@ -315,34 +324,6 @@ def _table_shows_design_warnings(args: Namespace) -> bool:
     """True when stdout is the component table, which lists the design warnings itself."""
     output_format = "quiet" if args.quiet else args.format
     return shows_design_warnings(output_format) and not args.plot_data
-
-
-def _run_deprecated_matched_simulation(args: Namespace, result: dict) -> None:
-    """Print the deprecated ``--sim-matched`` output, kept apart from the dispatcher."""
-    from ..shared.matched_simulation import (
-        format_matched_sim_block,
-        matched_sim_json_payload,
-        run_matched_simulation,
-    )
-
-    print(SIM_MATCHED_DEPRECATION_WARNING, file=sys.stderr)
-    summary = run_matched_simulation(
-        result, "bandpass", args.eseries, use_toroid_candidates=not args.no_toroids
-    )
-    display_results(
-        result,
-        raw=args.raw,
-        output_format=args.format,
-        quiet=args.quiet,
-        eseries=None if args.no_match else args.eseries,
-        show_plot=args.plot,
-        include_toroids=not args.no_toroids,
-        toroid_compact=args.toroid_compact,
-        toroid_full=args.toroid_full,
-        matched_sim=matched_sim_json_payload(summary) if args.format == "json" else None,
-    )
-    if args.format == "table" and not args.quiet:
-        print("\n".join(format_matched_sim_block(summary)))
 
 
 def _validate_frequencies(args: Namespace) -> tuple[float, float, float | None, float | None]:

@@ -7,16 +7,12 @@ from .build_types import BuildConfig, CircuitMeasurement
 from .circuit_model import NamedCircuit
 from .formatting import format_frequency
 from .nodal_solver import make_transducer_gain_evaluator
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 from .physical_input_limits import require_port_resistance
 from .response_refinement import refine_response
 from .transfer_functions import MAX_FREQUENCY_POINTS
 
 _CATEGORIES = ("lowpass", "highpass", "bandpass")
-
-
-def _is_finite_number(value: object) -> bool:
-    return is_finite_real(value)
 
 
 def build_frequency_grid(result: dict, category: str, points: int) -> list[float]:
@@ -37,8 +33,8 @@ def build_frequency_grid(result: dict, category: str, points: int) -> list[float
         if (
             center is None
             or bandwidth is None
-            or not _is_finite_number(center)
-            or not _is_finite_number(bandwidth)
+            or not is_finite_real(center)
+            or not is_finite_real(bandwidth)
             or center <= 0
             or bandwidth <= 0
         ):
@@ -52,8 +48,7 @@ def build_frequency_grid(result: dict, category: str, points: int) -> list[float
         decades = min(1.0, math.log10(upper_ratio))
     else:
         center = result.get("freq_hz")
-        if not _is_finite_number(center) or center <= 0:
-            raise ValueError("freq_hz must be positive and finite")
+        require_positive_finite(center, "freq_hz")
         decades = 1.0
     start = center / (10.0**decades)
     stop = center * (10.0**decades)
@@ -75,7 +70,7 @@ def evaluation_ports(result: dict, category: str, config: BuildConfig) -> tuple[
     """
     key = "z0" if category == "bandpass" else "impedance"
     synthesized = result.get(key)
-    if not _is_finite_number(synthesized) or synthesized <= 0:
+    if not is_finite_real(synthesized) or synthesized <= 0:
         raise ValueError(f"{key} must be positive and finite")
     source = config.source_resistance_ohm or synthesized
     load = config.load_resistance_ohm or synthesized

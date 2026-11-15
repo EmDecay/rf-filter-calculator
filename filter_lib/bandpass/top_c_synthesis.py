@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from ..shared.numeric import is_finite_real
+from ..shared.numeric import require_positive_finite
 from .coupling_math import (
     _calculate_end_coupling_at_frequency,
     calculate_coupling_capacitors,
@@ -27,8 +27,7 @@ def _synthesize_top_c_raw(
     resonator_inductance: float | None,
 ) -> BandpassResult:
     """Generate one uncompromised Top-C candidate without claiming its edges."""
-    if not is_finite_real(fbw_synth) or fbw_synth <= 0:
-        raise ValueError("fbw_synth must be positive and finite")
+    require_positive_finite(fbw_synth, "fbw_synth")
 
     k_values = calculate_coupling_coefficients(g_values, fbw_synth)
     qe_in, qe_out = calculate_external_q(g_values, fbw_synth)

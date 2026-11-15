@@ -103,7 +103,7 @@ def build_standard_match(
     return standard
 
 
-def _json_component(
+def json_component(
     name: str,
     value: float,
     unit_key: str,
@@ -212,13 +212,13 @@ def format_json_result(
     freq_for_toroids = toroid_freq_hz if include_toroids else None
 
     cap_list = [
-        _json_component(
+        json_component(
             f"C{i + 1}", v, "value_farads", eseries, "additive", match_policy=match_policy
         )
         for i, v in enumerate(result["capacitors"])
     ]
     ind_list = [
-        _json_component(f"L{i + 1}", v, "value_henries", eseries, "harmonic", freq_for_toroids)
+        json_component(f"L{i + 1}", v, "value_henries", eseries, "harmonic", freq_for_toroids)
         for i, v in enumerate(result["inductors"])
     ]
     if primary_component == "capacitors":

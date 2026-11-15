@@ -1,10 +1,10 @@
 """Validation and design-range warnings for public bandpass synthesis inputs."""
 
+from ..shared.numeric import require_count, require_positive_finite
 from .design_constants import (
     BANDPASS_EDGE_CALIBRATION_FBW_MAX,
     BANDPASS_LUMPED_MODEL_CAUTION_FBW,
 )
-from .numeric_validation import _is_positive_finite
 
 # Shared with the wizard, which checks the same rules before calculating.
 BANDWIDTH_NOT_BELOW_CENTER = "Bandwidth must be less than center frequency"
@@ -20,20 +20,12 @@ def _validate_inputs(
     coupling: str,
 ) -> None:
     """Validate core bandpass inputs before any synthesis work."""
-    if not _is_positive_finite(f0):
-        raise ValueError("Center frequency must be positive and finite")
-    if not _is_positive_finite(bw):
-        raise ValueError("Bandwidth must be positive and finite")
+    require_positive_finite(f0, "Center frequency")
+    require_positive_finite(bw, "Bandwidth")
     if bw >= f0:
         raise ValueError(BANDWIDTH_NOT_BELOW_CENTER)
-    if not _is_positive_finite(z0):
-        raise ValueError("Impedance must be positive and finite")
-    if (
-        isinstance(n_resonators, bool)
-        or not isinstance(n_resonators, int)
-        or not 2 <= n_resonators <= 9
-    ):
-        raise ValueError(RESONATOR_COUNT_MESSAGE)
+    require_positive_finite(z0, "Impedance")
+    require_count(n_resonators, RESONATOR_COUNT_MESSAGE)
     if filter_type not in ("butterworth", "chebyshev", "bessel"):
         raise ValueError("Filter type must be 'butterworth', 'chebyshev', or 'bessel'")
     if coupling == "shunt":

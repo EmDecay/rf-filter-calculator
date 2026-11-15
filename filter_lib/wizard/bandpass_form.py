@@ -16,7 +16,7 @@ from filter_lib.bandpass.input_validation import (
 )
 from filter_lib.bandpass.resonator_math import TANK_SETTING_CONFLICT_MESSAGE, combine_resonator_q
 from filter_lib.design import band_from_edges
-from filter_lib.shared.cli_aliases import chebyshev_odd_count_message
+from filter_lib.shared.cli_aliases import DEFAULT_RIPPLE_DB, chebyshev_odd_count_message
 from filter_lib.shared.cli_bandpass_output_validation import RESONATOR_Q_LABELS
 from filter_lib.shared.parsing import parse_frequency, parse_impedance, parse_inductance
 from filter_lib.shared.physical_input_limits import require_component_q
@@ -201,7 +201,7 @@ def parse_bandpass_form(values: BandpassFormValues) -> ParsedBandpassDesign:
     if values.filter_type == "chebyshev" and resonators % 2 == 0:
         raise BandpassFormError(chebyshev_odd_count_message("resonators"), "resonators", "warning")
 
-    ripple_db = 0.5
+    ripple_db = DEFAULT_RIPPLE_DB
     if values.filter_type == "chebyshev":
         try:
             ripple_db = parse_ripple_db(values.ripple)

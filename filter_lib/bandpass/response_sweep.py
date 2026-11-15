@@ -3,9 +3,10 @@
 import math
 from collections.abc import Mapping
 
+from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from ..shared.netlist_builders import build_bandpass_top_c_netlist
 from ..shared.netlist_simulation import solve_s21
-from ..shared.numeric import is_finite_real
+from ..shared.numeric import is_finite_real, require_positive_finite
 from ..shared.transfer_functions import (
     MAX_FREQUENCY_POINTS,
     magnitude_to_db,
@@ -22,10 +23,8 @@ def _log_sweep_frequencies(
     decades: float | None,
 ) -> list[float]:
     """Build a finite log grid shared by ideal and netlist bandpass sweeps."""
-    if not _is_positive_finite(f0):
-        raise ValueError("f0 must be positive and finite")
-    if not _is_positive_finite(bw):
-        raise ValueError("bw must be positive and finite")
+    require_positive_finite(f0, "f0")
+    require_positive_finite(bw, "bw")
     if (
         isinstance(points, bool)
         or not isinstance(points, int)
@@ -83,7 +82,7 @@ def frequency_sweep(
     bw: float,
     order: int,
     filter_type: str,
-    ripple_db: float = 0.5,
+    ripple_db: float = DEFAULT_RIPPLE_DB,
     decades: float | None = None,
     points: int = 61,
 ) -> list[tuple[float, float]]:
@@ -131,7 +130,7 @@ def frequency_response(result: dict, freqs: list[float]) -> list[float]:
     bw = result.get("bw")
     order = result.get("n_resonators")
     filter_type = result.get("filter_type")
-    ripple_db = result.get("ripple_db", 0.5)
+    ripple_db = result.get("ripple_db", DEFAULT_RIPPLE_DB)
     # Validate the response definition even for an empty caller-supplied grid.
     magnitude_db(f0, f0, bw, order, filter_type, ripple_db)
     return [magnitude_db(frequency, f0, bw, order, filter_type, ripple_db) for frequency in freqs]

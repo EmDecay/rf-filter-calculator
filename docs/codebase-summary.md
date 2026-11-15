@@ -207,6 +207,9 @@ The wizard uses independent Textual screens:
 Welcome → Lowpass/Highpass/Bandpass form → Output options → Results
 ```
 
+The lowpass and highpass forms are one `screens/ladder.py::LadderScreen`; each subclass sets
+only its title, Bessel and topology labels, and default topology.
+
 `FilterState` is the single state owner and holds each control's visible value;
 `state_design_inputs.py` (`DesignInputsMixin`) decides from the shared rule what the result and
 each saved file use. Calculation workers publish through revisioned outcomes so an

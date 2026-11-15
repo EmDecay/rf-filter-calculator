@@ -41,10 +41,8 @@ def _measurement_payload(
         "selected_region_index": measurement.selected_region_index,
         "center_in_selected_region": measurement.center_in_selected_region,
     }
-    if category == "lowpass":
-        payload["cutoff_hz"] = measurement.f_high
-    elif category == "highpass":
-        payload["cutoff_hz"] = measurement.f_low
+    if category in ("lowpass", "highpass"):
+        payload["cutoff_hz"] = measurement.ladder_cutoff(category)
     return payload
 
 

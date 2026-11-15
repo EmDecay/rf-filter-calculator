@@ -3,10 +3,12 @@
 import math
 import sys
 
+from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from ..shared.lp_hp_base_transfer_functions import lowpass_bessel_response
 from ..shared.numeric import (
     is_finite_real,
     positive_float_from_log,
+    require_positive_finite,
 )
 from ..shared.numeric import (
     magnitude_from_log_gain as _magnitude_from_log_gain,
@@ -35,14 +37,10 @@ def chebyshev_3db_deviation(order: int, ripple_db: float) -> float:
 
 def _bandpass_deviation(f: float, f0: float, bw: float) -> float:
     """Return ``(f²-f0²)/(BW*f)`` without intermediate overflow or NaN."""
-    from .numeric_validation import _is_positive_finite
 
-    if not _is_positive_finite(f):
-        raise ValueError("Frequency must be positive and finite")
-    if not _is_positive_finite(f0):
-        raise ValueError("Center frequency must be positive and finite")
-    if not _is_positive_finite(bw):
-        raise ValueError("Bandwidth must be positive and finite")
+    require_positive_finite(f, "Frequency")
+    require_positive_finite(f0, "Center frequency")
+    require_positive_finite(bw, "Bandwidth")
     if f == f0:
         return 0.0
 
@@ -64,14 +62,11 @@ def _bandpass_deviation(f: float, f0: float, bw: float) -> float:
 
 def frequency_from_deviation(delta: float, f0: float, bw: float) -> float:
     """Invert the bandpass deviation using cancellation-resistant roots."""
-    from .numeric_validation import _is_positive_finite
 
     if not is_finite_real(delta):
         raise ValueError("delta must be finite")
-    if not _is_positive_finite(f0):
-        raise ValueError("f0 must be positive and finite")
-    if not _is_positive_finite(bw):
-        raise ValueError("bw must be positive and finite")
+    require_positive_finite(f0, "f0")
+    require_positive_finite(bw, "bw")
     if delta == 0:
         return f0
 
@@ -177,7 +172,7 @@ def magnitude_db(
     bw: float,
     order: int,
     filter_type: str,
-    ripple_db: float = 0.5,
+    ripple_db: float = DEFAULT_RIPPLE_DB,
 ) -> float:
     """Return ideal magnitude in dB, floored at the shared -120 dB limit."""
     if filter_type == "butterworth":

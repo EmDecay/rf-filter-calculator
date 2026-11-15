@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from filter_lib.shared.build_types import BuildConfig
-from filter_lib.shared.cli_aliases import DEFAULT_ESERIES
+from filter_lib.shared.cli_aliases import DEFAULT_ESERIES, DEFAULT_RIPPLE_DB
 
 from .state_design_inputs import (
     CSV_DOCUMENT,
@@ -101,7 +101,7 @@ class FilterState(DesignInputsMixin):
     # Common parameters
     impedance: float = 50.0
     order: int = 3  # num_components for LP/HP, resonators for BP
-    ripple_db: float = 0.5
+    ripple_db: float = DEFAULT_RIPPLE_DB
     # Optional band-pass tank constraint. At most one may be populated.
     resonator_impedance: float | None = None
     resonator_inductance: float | None = None

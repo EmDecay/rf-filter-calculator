@@ -4,7 +4,6 @@ The two handlers differ only in their category, their explanation table, and the
 example shown in usage errors; everything after argument resolution lives here.
 """
 
-import sys
 from argparse import Namespace
 
 from ..design import (
@@ -17,7 +16,6 @@ from ..design import (
 )
 from ..shared.cli_aliases import resolve_filter_type
 from ..shared.cli_helpers import (
-    SIM_MATCHED_DEPRECATION_WARNING,
     get_filter_type_arg,
     make_build_config,
     resolve_alternative_arg,
@@ -27,7 +25,11 @@ from ..shared.cli_helpers import (
     validate_output_mode_args,
 )
 from ..shared.parsing import parse_frequency, parse_impedance
-from .design_output_args import render_options_from_args, spice_realization_from_args
+from .design_output_args import (
+    render_options_from_args,
+    run_deprecated_matched_simulation,
+    spice_realization_from_args,
+)
 
 
 def run_ladder(args: Namespace, category: str, explanations: dict, example: str) -> None:
@@ -112,34 +114,16 @@ def run_ladder(args: Namespace, category: str, explanations: dict, example: str)
 
 
 def _run_deprecated_matched_simulation(args: Namespace, category: str, result: dict) -> None:
-    """Print the deprecated ``--sim-matched`` output, kept apart from the dispatcher."""
-    from ..shared.matched_simulation import (
-        format_matched_sim_block,
-        matched_sim_json_payload,
-        run_matched_simulation,
-    )
-
     if category == "lowpass":
         from ..lowpass import display_results
     else:
         from ..highpass import display_results
 
-    print(SIM_MATCHED_DEPRECATION_WARNING, file=sys.stderr)
-    summary = run_matched_simulation(
-        result, category, args.eseries, use_toroid_candidates=not args.no_toroids
-    )
-    display_results(
+    run_deprecated_matched_simulation(
+        args,
+        category,
         result,
-        raw=args.raw,
-        output_format=args.format,
-        quiet=args.quiet,
+        display_results,
         eseries=args.eseries,
         show_match=not args.no_match,
-        show_plot=args.plot,
-        include_toroids=not args.no_toroids,
-        toroid_compact=args.toroid_compact,
-        toroid_full=args.toroid_full,
-        matched_sim=matched_sim_json_payload(summary) if args.format == "json" else None,
     )
-    if args.format == "table" and not args.quiet:
-        print("\n".join(format_matched_sim_block(summary)))

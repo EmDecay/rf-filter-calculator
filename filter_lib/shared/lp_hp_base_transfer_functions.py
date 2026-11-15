@@ -9,7 +9,12 @@ HPF response is derived from LPF response using frequency transformation:
 import math
 import sys
 
-from .numeric import is_finite_real, magnitude_from_log_gain, ripple_log_epsilon
+from .numeric import (
+    is_finite_real,
+    magnitude_from_log_gain,
+    require_positive_finite,
+    ripple_log_epsilon,
+)
 from .transfer_functions import (
     BESSEL_COEFFS,
     BESSEL_SCALE,
@@ -21,10 +26,14 @@ def _validate_response_inputs(freq_hz: float, cutoff_hz: float, order: int) -> N
     """Validate the numeric contract shared by every LP/HP response."""
     if not is_finite_real(freq_hz) or freq_hz < 0:
         raise ValueError("Frequency must be non-negative and finite")
-    if not is_finite_real(cutoff_hz) or cutoff_hz <= 0:
-        raise ValueError("Cutoff frequency must be positive and finite")
+    require_positive_finite(cutoff_hz, "Cutoff frequency")
     if isinstance(order, bool) or not isinstance(order, int) or order <= 0:
         raise ValueError("Order must be a positive integer")
+
+
+def _frequency_ratio(freq_hz: float, cutoff_hz: float, is_lowpass: bool) -> float:
+    """Return f/fc for lowpass, fc/f for highpass (callers return early at HP DC)."""
+    return freq_hz / cutoff_hz if is_lowpass else cutoff_hz / freq_hz
 
 
 def _butterworth_response_base(
@@ -45,10 +54,7 @@ def _butterworth_response_base(
     if not is_lowpass and freq_hz == 0:
         return 0.0  # HPF blocks DC
 
-    if is_lowpass:
-        ratio = freq_hz / cutoff_hz
-    else:
-        ratio = cutoff_hz / freq_hz  # Inverted for HPF; freq_hz == 0 returned above
+    ratio = _frequency_ratio(freq_hz, cutoff_hz, is_lowpass)
 
     # For |ratio| >> 1, ratio**(2n) may overflow double precision. The limit
     # of 1/sqrt(1 + ratio^(2n)) as that term overflows is 0, so clamp.
@@ -82,17 +88,12 @@ def _chebyshev_response_base(
         Magnitude response (0 to 1)
     """
     _validate_response_inputs(freq_hz, cutoff_hz, order)
-    if not is_finite_real(ripple_db) or ripple_db <= 0:
-        raise ValueError("ripple_db must be positive and finite")
+    require_positive_finite(ripple_db, "ripple_db")
     if not is_lowpass and freq_hz == 0:
         return 0.0  # HPF blocks DC
 
     log_epsilon = ripple_log_epsilon(ripple_db)
-
-    if is_lowpass:
-        ratio = freq_hz / cutoff_hz
-    else:
-        ratio = cutoff_hz / freq_hz  # Inverted for HPF; freq_hz == 0 returned above
+    ratio = _frequency_ratio(freq_hz, cutoff_hz, is_lowpass)
 
     tn = chebyshev_polynomial(order, ratio)
     if tn == 0:
@@ -127,11 +128,7 @@ def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpa
     if not is_lowpass and freq_hz == 0:
         return 0.0  # HPF blocks DC
 
-    if is_lowpass:
-        w = (freq_hz / cutoff_hz) * BESSEL_SCALE[order]
-    else:
-        # Inverted for HPF; freq_hz == 0 returned above
-        w = (cutoff_hz / freq_hz) * BESSEL_SCALE[order]
+    w = _frequency_ratio(freq_hz, cutoff_hz, is_lowpass) * BESSEL_SCALE[order]
 
     coeffs = BESSEL_COEFFS[order]
 
@@ -145,11 +142,10 @@ def _bessel_response_base(freq_hz: float, cutoff_hz: float, order: int, is_lowpa
     for k, c in enumerate(coeffs):
         if not math.isfinite(w_power):
             return 0.0
+        sign = (-1) ** (k // 2)
         if k % 2 == 0:
-            sign = (-1) ** (k // 2)
             real_part += sign * c * w_power
         else:
-            sign = (-1) ** (k // 2)
             imag_part += sign * c * w_power
         if not math.isfinite(real_part) or not math.isfinite(imag_part):
             return 0.0

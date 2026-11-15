@@ -57,7 +57,7 @@ def _landmark_text(category: str, measurement: CircuitMeasurement) -> str | None
             f"edges {format_frequency(measurement.f_low)} / "
             f"{format_frequency(measurement.f_high)}"
         )
-    cutoff = measurement.f_high if category == "lowpass" else measurement.f_low
+    cutoff = measurement.ladder_cutoff(category)
     return None if cutoff is None else f"-3 dB cutoff {format_frequency(cutoff)}"
 
 

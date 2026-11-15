@@ -8,11 +8,7 @@ from dataclasses import replace
 from .build_types import BuildConfig
 from .circuit_display_names import display_component_name, format_name_list
 from .circuit_model import CircuitElement
-from .numeric import is_finite_real
-
-
-def _is_finite_number(value: object) -> bool:
-    return is_finite_real(value)
+from .numeric import is_finite_real, require_positive_finite
 
 
 def derive_series_resistance(
@@ -26,7 +22,7 @@ def derive_series_resistance(
         ("quality_factor", quality_factor),
         ("reference_frequency_hz", reference_frequency_hz),
     ):
-        if not _is_finite_number(candidate) or candidate <= 0:
+        if not is_finite_real(candidate) or candidate <= 0:
             raise ValueError(f"{name} must be positive and finite")
     log_reactance = math.log(2.0 * math.pi) + math.log(reference_frequency_hz) + math.log(value)
     log_resistance = (
@@ -46,7 +42,7 @@ def derive_series_resistance(
 def _design_frequency(result: dict, category: str) -> float:
     key = "f0" if category == "bandpass" else "freq_hz"
     frequency = result.get(key)
-    if not _is_finite_number(frequency) or frequency <= 0:
+    if not is_finite_real(frequency) or frequency <= 0:
         raise ValueError(f"{key} must be positive and finite")
     return frequency
 
@@ -58,8 +54,7 @@ def _loss_reference_frequency(result: dict, category: str, config: BuildConfig) 
         q_model = result.get("q_model")
         if isinstance(q_model, dict) and q_model.get("reference_frequency_hz") is not None:
             reference = q_model["reference_frequency_hz"]
-            if not _is_finite_number(reference) or reference <= 0:
-                raise ValueError("q_model reference_frequency_hz must be positive and finite")
+            require_positive_finite(reference, "q_model reference_frequency_hz")
             return reference
     return _design_frequency(result, category)
 
