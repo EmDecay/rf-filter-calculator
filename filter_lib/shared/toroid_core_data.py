@@ -11,14 +11,12 @@ Unit conventions:
 
 from __future__ import annotations
 
-import json
-import math
 from collections.abc import Iterator
 from dataclasses import dataclass
-from importlib.resources import files
 from typing import Any
 
 from .numeric import is_finite_real, require_positive_finite
+from .packaged_data import load_packaged_json, require_https_url, require_printable_line
 
 
 @dataclass(frozen=True)
@@ -109,38 +107,20 @@ def _require_toroid_core(core: object) -> ToroidCore:
     return core
 
 
-def _reject_json_constant(value: str) -> None:
-    """Reject NaN/Infinity extensions while loading the packaged JSON."""
-    raise ValueError(f"Non-finite JSON constant {value!r} in toroid core data")
-
-
-def _reject_non_finite_json_float(text: str) -> float:
-    """Reject number literals, such as ``1e999``, that overflow while loading the JSON."""
-    value = float(text)
-    if not math.isfinite(value):
-        raise ValueError(f"Non-finite JSON number {text!r} in toroid core data")
-    return value
-
-
 def _load_raw_data() -> dict[str, Any]:
-    data_path = files(__package__).joinpath("toroid_core_data.json")
-    with data_path.open("r", encoding="utf-8") as data_file:
-        raw = json.load(
-            data_file,
-            parse_constant=_reject_json_constant,
-            parse_float=_reject_non_finite_json_float,
-        )
-    if not isinstance(raw, dict) or raw.get("schema_version") != 2:
-        raise RuntimeError("Unsupported toroid core data schema; expected version 2")
-    return raw
+    return load_packaged_json(
+        __package__, "toroid_core_data.json", schema_version=2, label="toroid core data"
+    )
 
 
 def _load_sources(raw_sources: dict[str, dict[str, Any]]) -> dict[str, SourceReference]:
     sources: dict[str, SourceReference] = {}
     for source_id, values in raw_sources.items():
         source = SourceReference(source_id=source_id, **values)
-        if not source.url.startswith("https://"):
-            raise RuntimeError(f"Toroid source {source_id!r} must use an HTTPS URL")
+        label = f"Toroid source {source_id!r}"
+        require_https_url(source.url, label)
+        for text in (source.publisher, source.source_type, source.title, source.accessed_on):
+            require_printable_line(text, label)
         sources[source_id] = source
     return sources
 
