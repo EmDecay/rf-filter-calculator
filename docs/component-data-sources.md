@@ -31,7 +31,7 @@ sources; a data change updates this page in the same change.
 These four designs define what the suggestions must cover. Values are from
 `uv run filter-calc ... --format json` on `main` at d8c550f.
 
-| Design | Inductors | Check window | C_self limit for 5 % drift | SRF needed |
+| Design | Inductors | Check window | C_self limit for 5 % drift | SRF needed if f_m ≪ SRF |
 |---|---|---|---|---|
 | `lp ch pi 146MHz -n 5 -r 0.1` | L1, L2 = 74.7381 nH | DC to 146 MHz (cutoff) | 0.757 pF | ≥ 669 MHz |
 | `lp ch pi 222MHz -n 5 -r 0.1` | L1, L2 = 49.1521 nH | DC to 222 MHz | 0.498 pF | ≥ 1017 MHz |
@@ -42,7 +42,8 @@ These four designs define what the suggestions must cover. Values are from
   the upper −3 dB edge. A high-pass design is checked from the cutoff to 2 × cutoff.
 - The capacitance limit is the largest parallel capacitance that keeps the inductance drift at
   the top of the window within 5 %: C ≤ (1 − 1/1.05) / ((2πf)²·L). With f_m ≪ SRF that is
-  SRF ≥ √21·f ≈ 4.583·f.
+  SRF ≥ √21·f ≈ 4.583·f. These two columns are a reference case only: the chip screen below
+  uses each part's real test frequency f_m, so a part slightly below this SRF can still pass.
 - **Band-pass coupling.** The 146 MHz band-pass needs Cs12 = Cs23 = 0.38634 pF with its
   54.51 nH tanks, which is below the 1 pF floor for a chosen part. The coupling capacitance
   scales roughly as 1/L, so the estimate for 1 pF is 54.5148 × 0.38634 = 21.061 nH. Reruns with
@@ -80,7 +81,7 @@ tolerance.
 
 ### Tolerance grades
 
-| Value range | Codes with a current reference sheet | Standard | Tight | Evidence (Rated Value line, p. 2) |
+| Value range | Codes found (sheet available) | Standard | Tight | Evidence (Rated Value line, p. 2) |
 |---|---|---|---|---|
 | 0.5–0.9 pF (0.1 pF steps) | W ±0.05 pF, B ±0.1 pF | B ±0.1 pF | W ±0.05 pF | GRM1885C1HR50BA01: "0.5pF +/-0.1pF" |
 | 1.0–5.0 pF (0.1 pF steps) | W, B, C ±0.25 pF | C ±0.25 pF | B ±0.1 pF | GRM1885C1H1R0CA01: "1pF +/-0.25pF"; GRM1885C1H4R3CA01: "4.3pF +/-0.25pF" |
@@ -110,9 +111,10 @@ tolerance.
 
 ### Value coverage
 
-Coverage was established by requesting Murata's per-part reference sheet for 976 candidate
-part numbers, because Murata no longer publishes ceramic-capacitor catalogs
-[MU-FAQ-CATALOG]. 450 parts across 168 values returned a sheet. A refused request (HTTP 403)
+Coverage was established by requesting Murata's per-part reference sheet (976 requests for
+970 distinct part numbers), because Murata no longer publishes ceramic-capacitor catalogs
+[MU-FAQ-CATALOG]. 450 distinct parts across 168 values answered HTTP 200. That is a status
+check: the 14 GRM sheets listed in the source index were downloaded and read. A refused request (HTTP 403)
 is recorded only as "not found": it does not prove that a part is not made.
 
 - Sheets were found for 0.5 to 9.9 pF in 0.1 pF steps and for every E24 value from 10 pF to
@@ -134,7 +136,7 @@ using today's part choices:
 |---|---|---|
 | E12 | 6 of 5616 (0.1 %) | a part above 10 nF (Bessel high-pass T at 1.8 and 2 MHz) |
 | E24 | 5 of 5616 (0.1 %) | a part above 10 nF (same designs) |
-| E96 | 5328 of 5616 (94.9 %) | a three-digit value (5320), or only a part above 10 nF (8) |
+| E96 | 5328 of 5616 (94.9 %) | a three-significant-digit value (5043); a two-digit value the series does not make above 10 pF, such as 3400 pF (277); or only a part above 10 nF (8) |
 
 Those capacitors keep today's nominal rule, labelled "tolerance not sourced".
 
@@ -170,26 +172,26 @@ SRF and a guaranteed minimum Q (Q is shown, never used for ranking).
 
 ### Qualifying families
 
-| Manufacturer | Families | Wording that qualifies them |
-|---|---|---|
-| Coilcraft | 0603CS, 0603HC, 0604HQ, 0805HQ, 0805HT, 1008CS, 1008CT, 1008HQ, 1008HT, 1206CS | Column headers "Q min" and "SRF min"; "Electrical specifications at 25°C" |
-| Murata | LQW15AN_00, LQW15AN_80, LQW15AW_80, LQW18AN_00, LQW18AN_10, LQW18AN_80, LQW18AS_00, LQW18AS_0C, LQW2BAN_00, LQW2BAS_00, LQW2BAS_0C, LQW2UAS_00, LQW2UAS_0C | Rating table headers "Q (Min.)" and "Self-resonant frequency (MHz min.)" or "(GHz min.)"; §7 "Meet chapter 3 ratings" |
-| Johanson | LRW0402W, LRW0603W, LRW0805W | Per-part charts headed "Q (min.)" and "SRF (min.)". Lower confidence: the series summary is labelled "(Typ.)", no fixture is named, no revision is printed, and the 0402 chart stops at 30 nH |
+| Manufacturer | Families | Wording that qualifies them | Sources |
+|---|---|---|---|
+| Coilcraft | 0603CS, 0603HC, 0604HQ, 0805HQ, 0805HT, 1008CS, 1008CT, 1008HQ, 1008HT, 1206CS | Column headers "Q min" and "SRF min"; "Electrical specifications at 25°C" | [CC-0603CS], [CC-0603HC], [CC-0604HQ], [CC-0805HQ], [CC-0805HT], [CC-1008CS], [CC-1008CT], [CC-1008HQ], [CC-1008HT], [CC-1206CS] |
+| Murata | LQW15AN_00, LQW15AN_80, LQW15AW_80, LQW18AN_00, LQW18AN_10, LQW18AN_80, LQW18AS_00, LQW18AS_0C, LQW2BAN_00, LQW2BAS_00, LQW2BAS_0C, LQW2UAS_00, LQW2UAS_0C | Rating table headers "Q (Min.)" and "Self-resonant frequency (MHz min.)" or "(GHz min.)"; §7 "Meet chapter 3 ratings" | [MU-LQW15AN-00], [MU-LQW15AN-80], [MU-LQW15AW-80], [MU-LQW18AN-00], [MU-LQW18AN-10], [MU-LQW18AN-80], [MU-LQW18AS-00], [MU-LQW18AS-0C], [MU-LQW2BAN-00], [MU-LQW2BAS-00], [MU-LQW2BAS-0C], [MU-LQW2UAS-00], [MU-LQW2UAS-0C] |
+| Johanson | LRW0402W, LRW0603W, LRW0805W | Per-part charts headed "Q (min.)" and "SRF (min.)". Lower confidence: the series summary is labelled "(Typ.)", no fixture is named, no revision is printed, and the 0402 chart stops at 30 nH | [JO-WW] |
 
 **Excluded** (the wording that excludes them):
 
-| Family | Wording | Reason |
-|---|---|---|
-| Coilcraft 0603HP, 0402HP, 0805HP | "Q typ", "SRF typ" | Q and SRF typical |
-| Coilcraft 0402CS | "SRF min" but "Q typ" | no Q minimum |
-| Coilcraft 0805CS, 0403HQ | "Q min" but "SRF typ" | SRF typical |
-| Coilcraft 016008C, 0201CT/DS/HL/HT, 026011C, 0302CS, 0402CT/DC/HL/PA, 0603CT/DC/HL | "Q typ", "SRF typ" | typical only |
-| Murata LQW15CN_00, LQW18CN_00 | SRF "(MHz min.)" but no Q column | no Q guarantee |
-| TDK | product.tdk.com refused both download routes (HTTP 403) | not verified |
+| Family | Wording | Reason | Sources |
+|---|---|---|---|
+| Coilcraft 0603HP, 0402HP, 0805HP | "Q typ", "SRF typ" | Q and SRF typical | [CC-0603HP], [CC-0402HP], [CC-0805HP] |
+| Coilcraft 0402CS | "SRF min" but "Q typ" | no Q minimum | [CC-0402CS] |
+| Coilcraft 0805CS, 0403HQ | "Q min" but "SRF typ" | SRF typical | [CC-0805CS], [CC-0403HQ] |
+| Coilcraft 0402DC, 0603DC | "Q typ", "SRF typ" | typical only | [CC-0402DC], [CC-0603DC] |
+| Murata LQW15CN_00, LQW18CN_00 | SRF "(MHz min.)" but no Q column | no Q guarantee | [MU-LQW15CN-00], [MU-LQW18CN-00] |
+| TDK | product.tdk.com refused both download routes (HTTP 403) | not verified | — |
 
 Coilcraft's web part pages do not list the 1 % (F) variants that the 1008CS/CT/HQ/HT, 1206CS
 and 0805HT datasheets print, so Coilcraft 1 % parts are left out. Murata's 1 % parts (for
-example LQW2UAS47NF00L) are in its specifications; none of the recommended families below
+example LQW2UAS47NF00L, [MU-LQW2UAS-00] p. 2) are in its specifications; none of the recommended families below
 offers 1 % between 10 and 100 nH.
 
 ### Recommended catalog
@@ -269,7 +271,7 @@ minimums. Values outside 10–100 nH were not collected.
 | LQW18AN13N_80D | 13 nH at 100 MHz | G 2 %, J 5 % | 5000 MHz | 37 at 250 MHz | [MU-LQW18AN-80] p. 2 |
 | LQW18AN15N_80D | 15 nH at 100 MHz | G 2 %, J 5 % | 4600 MHz | 38 at 250 MHz | [MU-LQW18AN-80] p. 2 |
 | LQW18AN16N_80D | 16 nH at 100 MHz | G 2 %, J 5 % | 4600 MHz | 40 at 250 MHz | [MU-LQW18AN-80] p. 2 |
-| LQW18AN17N_80D | 17 nH at 100 MHz | G 2 %, J 5 % | 4600 MHz | 40 at 250 MHz | [MU-LQW18AN-80] p. 2 |
+| LQW18AN17N_80D | 17 nH at 100 MHz | G 2 %, J 5 % | 4600 MHz | 40 at 250 MHz | [MU-LQW18AN-80] p. 2, 3 |
 | LQW18AN18N_80D | 18 nH at 100 MHz | G 2 %, J 5 % | 4600 MHz | 40 at 250 MHz | [MU-LQW18AN-80] p. 3 |
 | LQW18AN19N_80D | 19 nH at 100 MHz | G 2 %, J 5 % | 4600 MHz | 40 at 250 MHz | [MU-LQW18AN-80] p. 3 |
 | LQW18AN22N_80D | 22 nH at 100 MHz | G 2 %, J 5 % | 3450 MHz | 40 at 250 MHz | [MU-LQW18AN-80] p. 3 |
@@ -292,7 +294,7 @@ minimums. Values outside 10–100 nH were not collected.
 | LQW18AN48N_80D | 48 nH at 100 MHz | G 2 %, J 5 % | 2700 MHz | 32 at 200 MHz | [MU-LQW18AN-80] p. 3 |
 | LQW18AN51N_80D | 51 nH at 100 MHz | G 2 %, J 5 % | 2700 MHz | 32 at 200 MHz | [MU-LQW18AN-80] p. 3 |
 | LQW18AN52N_80D | 52 nH at 100 MHz | G 2 %, J 5 % | 2750 MHz | 35 at 200 MHz | [MU-LQW18AN-80] p. 3 |
-| LQW18AN56N_80D | 56 nH at 100 MHz | G 2 %, J 5 % | 2600 MHz | 38 at 200 MHz | [MU-LQW18AN-80] p. 3 |
+| LQW18AN56N_80D | 56 nH at 100 MHz | G 2 %, J 5 % | 2600 MHz | 38 at 200 MHz | [MU-LQW18AN-80] p. 3, 4 |
 | LQW18AN58N_80D | 58 nH at 100 MHz | G 2 %, J 5 % | 2400 MHz | 35 at 200 MHz | [MU-LQW18AN-80] p. 4 |
 | LQW18AN68N_80D | 68 nH at 100 MHz | G 2 %, J 5 % | 2380 MHz | 37 at 200 MHz | [MU-LQW18AN-80] p. 4 |
 | LQW18AN69N_80D | 69 nH at 100 MHz | G 2 %, J 5 % | 2380 MHz | 37 at 200 MHz | [MU-LQW18AN-80] p. 4 |
@@ -307,7 +309,7 @@ minimums. Values outside 10–100 nH were not collected.
 | LQW18ANR10_80D | 100 nH at 100 MHz | G 2 %, J 5 % | 1750 MHz | 34 at 150 MHz | [MU-LQW18AN-80] p. 4 |
 | LQW15AN10N_80D | 10 nH at 100 MHz | G 2 %, J 5 % | 6000 MHz | 31 at 250 MHz | [MU-LQW15AN-80] p. 6 |
 | LQW15AN11N_80D | 11 nH at 100 MHz | G 2 %, J 5 % | 6200 MHz | 32 at 250 MHz | [MU-LQW15AN-80] p. 6 |
-| LQW15AN12N_80D | 12 nH at 100 MHz | G 2 %, J 5 % | 5200 MHz | 30 at 250 MHz | [MU-LQW15AN-80] p. 6 |
+| LQW15AN12N_80D | 12 nH at 100 MHz | G 2 %, J 5 % | 5200 MHz | 30 at 250 MHz | [MU-LQW15AN-80] p. 6, 7 |
 | LQW15AN13N_80D | 13 nH at 100 MHz | G 2 %, J 5 % | 5200 MHz | 30 at 250 MHz | [MU-LQW15AN-80] p. 7 |
 | LQW15AN14N_80D | 14 nH at 100 MHz | G 2 %, J 5 % | 5200 MHz | 31 at 250 MHz | [MU-LQW15AN-80] p. 7 |
 | LQW15AN15N_80D | 15 nH at 100 MHz | G 2 %, J 5 % | 5500 MHz | 31 at 250 MHz | [MU-LQW15AN-80] p. 7 |
@@ -330,7 +332,7 @@ minimums. Values outside 10–100 nH were not collected.
 | LQW15AN43N_80D | 43 nH at 100 MHz | G 2 %, J 5 % | 3400 MHz | 30 at 250 MHz | [MU-LQW15AN-80] p. 7 |
 | LQW15AN47N_80D | 47 nH at 100 MHz | G 2 %, J 5 % | 3200 MHz | 25 at 200 MHz | [MU-LQW15AN-80] p. 7 |
 | LQW15AN51N_80D | 51 nH at 100 MHz | G 2 %, J 5 % | 2900 MHz | 25 at 200 MHz | [MU-LQW15AN-80] p. 7 |
-| LQW15AN53N_80D | 53 nH at 100 MHz | G 2 %, J 5 % | 2900 MHz | 25 at 200 MHz | [MU-LQW15AN-80] p. 7 |
+| LQW15AN53N_80D | 53 nH at 100 MHz | G 2 %, J 5 % | 2900 MHz | 25 at 200 MHz | [MU-LQW15AN-80] p. 7, 8 |
 | LQW15AN56N_80D | 56 nH at 100 MHz | G 2 %, J 5 % | 2900 MHz | 25 at 200 MHz | [MU-LQW15AN-80] p. 8 |
 | LQW15AN68N_80D | 68 nH at 100 MHz | G 2 %, J 5 % | 2500 MHz | 25 at 200 MHz | [MU-LQW15AN-80] p. 8 |
 | LQW15AN75N_80D | 75 nH at 100 MHz | G 2 %, J 5 % | 2400 MHz | 25 at 200 MHz | [MU-LQW15AN-80] p. 8 |
@@ -359,19 +361,26 @@ any mix, and mix 0 also fails the first.
   not an SRF basis.
 - The ±5 % applies to the stated test winding (10 to 100 turns, depending on the core),
   mostly at 1 MHz (a few sizes at 10 kHz or 1 kHz). The catalog warns that "Iron powder cores tested with a small number of turns which
-  are not evenly distributed will produce higher inductance readings than expected" (p. 45);
-  the acceptance designs would need about 2–11 turns.
+  are not evenly distributed will produce higher inductance readings than expected" (p. 45).
+  At nominal A_L the acceptance inductances (20–75 nH) need about 1.2 to 24 turns, depending
+  on the core.
 - Part datasheets examined [MM-DS] (each was searched for SRF, resonance and capacitance, and
-  its A_L tolerance wording was read; A_L values are not recorded here because no result
-  depends on them). Names omit the mix: under mix 0, T12A means T12-0A.
-  - mix 0 (34): T5, T7, T10, T12, T12A, T16, T16D, T20, T20D, T20F, T22, T22A, T25, T25D, T27,
-    T30, T37, T44, T44D, T50, T51, T60, T68, T72, T80, T94, T106, T130, T157, T184, T201, T300,
-    T400 and T400D;
-  - mix 10 (27): T5, T7, T10, T10B, T12, T12A, T12B, T16, T20, T22, T22A, T25, T25A, T27, T30,
-    T37, T44, T50, T60, T68, T80, T94, T106, T106B, T130, T157 and T184 (T225-10 is listed in
+  its A_L tolerance wording was read). Each entry gives the core and its "AL value (nominal)"
+  in nH/turn²; the guarantee type is the mix's wording in the table above. Names omit the mix:
+  under mix 0, T12A means T12-0A.
+  - mix 0 (34): T5 0.16, T7 0.3, T10 0.24, T12 0.24, T12A 0.13, T16 0.3, T16D 0.3, T20 0.35,
+    T20D 0.35, T20F 0.48, T22 0.71, T22A 0.51, T25 0.45, T25D 0.9, T27 0.45, T30 0.6, T37 0.49,
+    T44 0.65, T44D 1.4, T50 0.64, T51 2.6, T60 0.88, T68 0.75, T72 1.5, T80 0.85, T94 1.06,
+    T106 1.9, T130 1.5, T157 1.8, T184 3, T201 4.2, T300 1.5, T400 2.4 and T400D 4.8;
+  - mix 10 (27): T5 0.7, T7 0.9, T10 0.8, T10B 1.25, T12 1.2, T12A 0.72, T12B 1, T16 1.3,
+    T20 1.6, T22 3.2, T22A 2.2, T25 1.9, T25A 1.46, T27 2.2, T30 2.5, T37 2.5, T44 3.3, T50 3.1,
+    T60 4, T68 3.2, T80 3.2, T94 5.8, T106 8.5, T106B 11.1, T130 6.83, T157 8.2 and T184 13.8
+    (T225-10 is listed in
     the product finder, but its datasheet URL was refused);
-  - mix 17 (31): T5, T7, T10, T12, T16, T20, T22, T22A, T25, T27, T30, T37, T44, T44D, T50, T60,
-    T68, T68A, T68D, T68E, T72, T80, T80D, T94, T106, T106B, T130, T157, T184, T225 and T400D.
+  - mix 17 (31): T5 0.42, T7 0.6, T10 0.5, T12 0.75, T16 0.8, T20 1, T22 2, T22A N/A, T25 1.2,
+    T27 1.3, T30 1.6, T37 1.5, T44 1.85, T44D 3.7, T50 1.8, T60 2.6, T68 2.1, T68A 2.8, T68D 4.2,
+    T68E 5.7, T72 4.5, T80 2.2, T80D 4.4, T94 2.9, T106 5.1, T106B 6.6, T130 4, T157 5.3,
+    T184 8.7, T225 5 and T400D 14.4.
 - **Exclusion reason (for output):** "VHF toroids are not offered: the core maker publishes no
   self-resonance or winding-capacitance data, so the inductance near the band cannot be
   checked."
@@ -422,39 +431,39 @@ maximum. Ranges printed only as "x to y", as bare values or as typical values do
 | Exxelia AT 0300 R2, AT 1300 R2, AT 03HV00 R2 (SMD chip) | "From below 1.5 … To above 3.0" with "+50%/-0" on the maximum | not stated | graph only; AT 03HV: Q 500 minimum at 1 MHz, Cmax | "Typical Self-Resonance Frequency at CMax" (typical) | SMD, reflow; 100 VDC (AT 03HV 350 VDC); revision 02/26 | [EXX-CHIP-V3] pp. 2, 5 |
 | Exxelia AT 9402G, AT 9410G (SMD thin), AT 23XXG (SMD hermetic) | "From below 0.5 … To above 2.5" | not stated | "Typical Q@100 MHz, CMax" (typical) | none | SMD; 250 VDC; revision 02/26 | [EXX-THIN-V2] pp. 6–7; [EXX-AT23XXG] p. 2 |
 | Suntan TSC3S (SMD) | "Capacitance(pF Min) 1.5 MAX"; "Capacitance(pF Max) 3.0+30-0%" | not stated | "Q Value (at 1 Mhz, C max)" minimum | none | SMD; 100 VDC; sheet undated | [SUN-TSC3S] p. 1 |
-| Knowles Voltronics glass and quartz piston trimmers (S, H, TF, TM/QM, TP/QP) | "From below minimum to above maximum value listed for each part. Capacitance measured at 1 MHz." | 1 MHz | "Q (Min.) at 1 MHz" | none | through-hole and panel; 125–1250 DCWV | [KNO-CAT-R5] pp. 41–42 and the part tables that follow |
-| Knowles Voltronics K air trimmers | "Capacitance Range (pF) From Below To Above" | not stated on that page | typical Q only | none | through-hole; 125 or 250 DCWV | [KNO-CAT-R5] p. 26 |
+| Knowles Voltronics glass and quartz piston trimmers (S, H, TF, TM/QM, TP/QP) | "From below minimum to above maximum value listed for each part. Capacitance measured at 1 MHz." | 1 MHz | "Q (Min.) at 1 MHz" | none | through-hole, panel and surface mount (for example SM10–SM40, 1.5–10 to 1.5–40 pF, Q 800 minimum at 1 MHz); 125–1250 DCWV | [KNO-CAT-R5] pp. 41–42 and the part tables that follow |
+| Knowles Voltronics K air trimmers | "Capacitance Range (pF) From Below To Above" | not stated on that page | typical Q only (p. 19) | none | through-hole; 125 or 250 DCWV | [KNO-CAT-R5] pp. 19, 26 |
 | Knowles Voltronics K_HV PTFE trimmers | "From Below To Above" | not stated on that page | Q at 100 MHz at maximum rated C, measured with no terminals; not labelled minimum | none | 250 or 1000 DCWV | [KNO-CAT-R5] p. 33 |
 
 **Per-part data** for the Vishay, Exxelia and Suntan TSC3S parts. "Cmin ≤" and "Cmax ≥" are
-the guaranteed bounds. Vishay Q is derived as 1/tan δ from the guaranteed maximum tan δ at
-Cmax; "—" means the sheet gives no value. The Knowles glass, quartz and K parts are tabulated
+the guaranteed bounds. Vishay states a maximum tan δ at Cmax; the Q in brackets is 1/tan δ,
+rounded down. "—" means the sheet gives no value. The Knowles glass, quartz and K parts are tabulated
 per part in [KNO-CAT-R5].
 
 | Part numbers | Cmin ≤ | Cmax ≥ | Q as stated | SRF as stated | Dielectric | Working V | Source |
 |---|---|---|---|---|---|---|---|
-| BFC280822158 | 0.35 pF | 1.5 pF | min 1000 at 1 MHz (from tan δ) | — | PTFE | 150 V | [VIS-28526] p. 3 |
-| BFC280824508 | 1.2 pF | 5 pF | min 1000 at 1 MHz (from tan δ) | — | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820508, BFC280823508 | 1.5 pF | 5 pF | min 400 at 100 MHz (from tan δ) | min 700 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280824708 | 1.5 pF | 7 pF | min 1000 at 1 MHz (from tan δ) | — | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820109, BFC280823109 | 3 pF | 10 pF | min 400 at 100 MHz (from tan δ) | min 500 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820159, BFC280823159 | 3 pF | 15 pF | min 400 at 100 MHz (from tan δ) | min 400 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820209, BFC280823209 | 4 pF | 20 pF | min 400 at 100 MHz (from tan δ) | min 300 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820279, BFC280823279 | 4 pF | 27 pF | min 400 at 100 MHz (from tan δ) | min 300 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280811558, BFC280800004, BFC280851558 | 1.4 pF | 5.5 pF | min 400 at 100 MHz (from tan δ) | min 850 MHz at Cmax | PE | 250 V | [VIS-28527] p. 3 |
-| BFC280800018 | 2 pF | 9 pF | min 667 at 100 MHz (from tan δ) | min 400 MHz at Cmax | PTFE | 250 V | [VIS-28527] p. 3 |
-| BFC280811109, BFC280800005, BFC280851109 | 2 pF | 10 pF | min 400 at 100 MHz (from tan δ) | min 480 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280811159 | 2 pF | 15 pF | min 400 at 100 MHz (from tan δ) | min 450 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280800016 | 2 pF | 18 pF | min 667 at 100 MHz (from tan δ) | min 350 MHz at Cmax | PTFE | 250 V | [VIS-28527] p. 3 |
-| BFC280811006 | 2.5 pF | 20 pF | min 62 at 1 MHz (from tan δ) | min 250 MHz at Cmax | PET | 250 V | [VIS-28527] p. 3 |
-| BFC280811229, BFC280800006, BFC280851229 | 2.5 pF | 22 pF | min 400 at 100 MHz (from tan δ) | min 350 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280811339 | 3 pF | 33 pF | min 1000 at 1 MHz (from tan δ) | min 300 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280811409 | 3 pF | 40 pF | min 1000 at 1 MHz (from tan δ) | min 300 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280831159, BFC280832159 | 2.5 pF | 15 pF | min 400 at 100 MHz (from tan δ) | min 420 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
-| BFC280831229, BFC280832229 | 3 pF | 22.5 pF | min 400 at 100 MHz (from tan δ) | min 200 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
-| BFC280831409, BFC280832409 | 5.5 pF | 40 pF | min 400 at 100 MHz (from tan δ) | min 200 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
-| BFC280801029, BFC280801006 | 5.5 pF | 50 pF | min 400 at 100 MHz (from tan δ) | min 170 MHz at Cmax | PTFE | 150 V | [VIS-28528] p. 3 |
-| BFC280801001, BFC280831659, BFC280832659 | 5.5 pF | 65 pF | min 400 at 100 MHz (from tan δ) | min 170 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
+| BFC280822158 | 0.35 pF | 1.5 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | — | PTFE | 150 V | [VIS-28526] p. 3 |
+| BFC280824508 | 1.2 pF | 5 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | — | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820508, BFC280823508 | 1.5 pF | 5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 700 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280824708 | 1.5 pF | 7 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | — | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820109, BFC280823109 | 3 pF | 10 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 500 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820159, BFC280823159 | 3 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 400 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820209, BFC280823209 | 4 pF | 20 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 300 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820279, BFC280823279 | 4 pF | 27 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 300 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280811558, BFC280800004, BFC280851558 | 1.4 pF | 5.5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 850 MHz at Cmax | PE | 250 V | [VIS-28527] p. 3 |
+| BFC280800018 | 2 pF | 9 pF | tan δ ≤ 15 × 10⁻⁴ at 100 MHz (Q ≥ 666.6) | min 400 MHz at Cmax | PTFE | 250 V | [VIS-28527] p. 3 |
+| BFC280811109, BFC280800005, BFC280851109 | 2 pF | 10 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 480 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280811159 | 2 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 450 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280800016 | 2 pF | 18 pF | tan δ ≤ 15 × 10⁻⁴ at 100 MHz (Q ≥ 666.6) | min 350 MHz at Cmax | PTFE | 250 V | [VIS-28527] p. 3 |
+| BFC280811006 | 2.5 pF | 20 pF | tan δ ≤ 160 × 10⁻⁴ at 1 MHz (Q ≥ 62.5) | min 250 MHz at Cmax | PET | 250 V | [VIS-28527] p. 3 |
+| BFC280811229, BFC280800006, BFC280851229 | 2.5 pF | 22 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 350 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280811339 | 3 pF | 33 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | min 300 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280811409 | 3 pF | 40 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | min 300 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280831159, BFC280832159 | 2.5 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 420 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
+| BFC280831229, BFC280832229 | 3 pF | 22.5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 200 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
+| BFC280831409, BFC280832409 | 5.5 pF | 40 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 200 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
+| BFC280801029, BFC280801006 | 5.5 pF | 50 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 170 MHz at Cmax | PTFE | 150 V | [VIS-28528] p. 3 |
+| BFC280801001, BFC280831659, BFC280832659 | 5.5 pF | 65 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 170 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
 | AT 0303 R2, AT 1303 R2 | 1.5 pF | 3 pF | graph only | typical 2000 / 2300 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
 | AT 0306 R2, AT 1306 R2 | 2 pF | 6 pF | graph only | typical 1400 / 1600 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
 | AT 0310 R2, AT 1310 R2 | 2 pF | 10 pF | graph only | typical 1100 / 1200 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
@@ -481,11 +490,11 @@ per part in [KNO-CAT-R5].
 | AT 9410G-4, AT 9410G-4 SL1 | 7 pF | 40 pF | typical 200 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
 | AT 9410G-5, AT 9410G-5 SL1 | 10 pF | 50 pF | typical 200 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
 | AT 9410G-25, AT 9410G-25 SL1 | 5 pF | 25 pF | typical 200 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
-| AT 2320G-0 | 0.6 pF | 2.5 pF | typical 3000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| AT 2320G-1 | 1 pF | 5 pF | typical 1000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| AT 2320G-2 | 2.5 pF | 10 pF | typical 1000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| AT 2320G-3 | 7.5 pF | 18 pF | typical 500 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| AT 2340G-4 | 8.5 pF | 22 pF | typical 300 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2320G-0 | 0.6 pF | 2.5 pF | typical >3000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2320G-1 | 1 pF | 5 pF | typical >1000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2320G-2 | 2.5 pF | 10 pF | typical >1000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2320G-3 | 7.5 pF | 18 pF | typical >500 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2340G-4 | 8.5 pF | 22 pF | typical >300 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
 | TSC3S503T1R | 1.5 pF | 3 pF | min 300 at 1 MHz | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
 | TSC3S506T1R | 2 pF | 6 pF | min 500 at 1 MHz | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
 | TSC3S510T1R | 3 pF | 10 pF | min 500 at 1 MHz | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
@@ -536,25 +545,30 @@ L0 = 23.786 nH, C_self = 0.1516 pF, L(250 MHz) = 24.000 nH.
 - drift L(f)/L(f_m) − 1 at the minimum SRF stays within ±5 %, including below f_m where it is
   negative. A real part's SRF is at or above the minimum, so its drift is no larger.
 - with L_m at both tolerance endpoints, the effective inductance stays within 10 % of the
-  target, combined in henries (so 5 % tolerance plus 5 % drift is 10.25 % and fails). At each
-  frequency a real part's inductance lies between its value at the minimum SRF and the
-  catalog value with no drift (SRF far above the minimum), so both limits are checked at both
-  window ends. Checking only the minimum SRF understates the error when the window lies
+  target, combined in henries (so 5 % tolerance plus 5 % drift is 10.25 % and fails). Within
+  this model, a part's inductance at each frequency lies between its value at the minimum SRF
+  and the catalog value with no drift (SRF far above the minimum), so both limits are checked
+  at both window ends. Checking only the minimum SRF understates the error when the window lies
   below f_m: 0603CS-56NXGRW at +2 % reaches 57.12 nH with no drift, +4.78 % of 54.5148 nH,
   against +4.25 % at the minimum SRF.
+
+These bounds are conditional on the parallel-LC model and on inputs measured in the
+manufacturer's fixture. On a board the SRF differs: Coilcraft states that "the true SRF of
+any inductor always depends on the specific characteristics of the circuit board to which it
+is mounted" [CC-SRF-NOTE]. Layout capacitance is not part of this screen.
 
 Qualifying parts are ranked by the smallest worst-case error, then by part number. "Achieved
 L" is the nominal part's effective inductance at the top of the window, at the minimum SRF.
 The counts are tolerance variants in the catalog rows above that pass the screen.
 
-| Design and inductor | Chip inductor (recommended catalog) | Error budget: mismatch, drift, worst ends | Achieved L | VHF toroid | Air coil |
+| Design and inductor | Chip inductor (recommended catalog) | Error budget: mismatch; tolerance (of target); drift (of catalog L, minimum SRF to none); worst ends | Achieved L | VHF toroid | Air coil |
 |---|---|---|---|---|---|
-| LP 146 MHz, 74.7381 nH | **LQW15AN75NG80D** (18 qualify) | +0.35 %; −0.17 to +0.20 %; −1.83 to +2.56 % | 75.148 nH; C_self 0.0587 pF | no SRF basis | no validated model for 2–6 turns |
-| LP 222 MHz, 49.1521 nH | **LQW18AN48NG80D** (20) | −2.34 %; −0.14 to +0.54 %; −4.43 to +0.15 % | 48.260 nH; C_self 0.0725 pF | no SRF basis | no validated model |
-| LP 440 MHz, 24.7995 nH | **LQW15AN25NG80D** (17) | +0.81 %; −0.06 to +1.10 %; −1.27 to +3.96 % | 25.276 nH; C_self 0.0603 pF | no SRF basis | no validated model; C_self limit 0.251 pF below the validated range |
-| BP 146 MHz, 54.5148 nH (as designed) | **0603CS-56NXGRW** (18) | +2.72 %; −1.11 to −0.50 %; −0.45 to +4.78 % | 55.718 nH; C_self 0.1267 pF | no SRF basis | no validated model |
-| BP 146 MHz with `--tank-inductance 21nH` | **LQW15AN21NG80D** (11) | 0 %; −0.05 to +0.06 %; −2.05 to +2.06 % | 21.012 nH; C_self 0.0596 pF | no SRF basis | no validated model |
-| BP 146 MHz with `--tank-inductance 20nH` | **LQW18AN20NG00D** (9) | 0 %; −0.04 to +0.05 %; −2.04 to +2.05 % | 20.010 nH; C_self 0.0528 pF | no SRF basis | no validated model |
+| LP 146 MHz, 74.7381 nH | **LQW15AN75NG80D** (18 qualify) | +0.35 %; ±2.01 %; −0.17 to +0.20 %; −1.83 to +2.56 % | 75.148 nH; C_self 0.0587 pF | no SRF basis | no validated model for 2–6 turns |
+| LP 222 MHz, 49.1521 nH | **LQW18AN48NG80D** (20) | −2.34 %; ±1.95 %; −0.14 to +0.54 %; −4.43 to +0.15 % | 48.260 nH; C_self 0.0725 pF | no SRF basis | no validated model |
+| LP 440 MHz, 24.7995 nH | **LQW15AN25NG80D** (17) | +0.81 %; ±2.02 %; −0.06 to +1.10 %; −1.27 to +3.96 % | 25.276 nH; C_self 0.0603 pF | no SRF basis | no validated model; C_self limit 0.251 pF below the validated range |
+| BP 146 MHz, 54.5148 nH (as designed) | **0603CS-56NXGRW** (18) | +2.72 %; ±2.05 %; −1.11 to 0 %; −0.45 to +4.78 % | 55.718 nH; C_self 0.1267 pF | no SRF basis | no validated model |
+| BP 146 MHz with `--tank-inductance 21nH` | **LQW15AN21NG80D** (11) | 0 %; ±2.00 %; −0.05 to +0.06 %; −2.05 to +2.06 % | 21.012 nH; C_self 0.0596 pF | no SRF basis | no validated model |
+| BP 146 MHz with `--tank-inductance 20nH` | **LQW18AN20NG00D** (9) | 0 %; ±2.00 %; −0.04 to +0.05 %; −2.04 to +2.05 % | 20.010 nH; C_self 0.0528 pF | no SRF basis | no validated model |
 
 - Every inductor of every acceptance design has a qualifying chip inductor. The band-pass
   coupling advice can reach 1 pF with 21 nH (in the catalog only LQW15AN21N_80D supplies that
@@ -609,6 +623,37 @@ under the same URL.
 | MU-LQW18AN-00 | Murata reference specification, LQW18AN_00 | Spec No. JELF243A_0024AC-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0024_PDF_INDUCTOR | be795e7f314706838324684ee7d5f5694f8c68ee5a3351556dae6190fded697a |
 | MU-LQW18AN-80 | Murata reference specification, LQW18AN_80 | Spec No. JELF243A_0102L-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0102_PDF_INDUCTOR | 12e6e209d9d063424c94dc2946205f62846311c1eee2e36c36c3ac3efa126c26 |
 | MU-LQW15AN-80 | Murata reference specification, LQW15AN_80 | Spec No. JELF243A_0100K-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0100_PDF_INDUCTOR | 2bca847ecc569c11674d6af7ab390ed19be23467d925f48e04e7800825cb0a7c |
+| CC-SRF-NOTE | Coilcraft, "Measuring Self Resonant Frequency" (application note, web page) | Document 363 | https://www.coilcraft.com/en-us/resources/application-notes/measuring-self-resonant-frequency/ | 0b5ffb4781aaf8b952adefd048b68ab45a25147198d30630af684bfa91e8e0f6 |
+| CC-0603HC | Coilcraft 0603HC (1608) | Doc 218-1, Revised 08/08/22 | https://www.coilcraft.com/getmedia/070cbd0e-93e3-43a3-a7ac-08bbbb3db32b/0603hc.pdf | bbe647b4726ad143cd24fdf3858b61d497e8edefc65bda6ffc480ecd9d4d6e86 |
+| CC-0604HQ | Coilcraft 0604HQ (1610) | Doc 285-1, Revised 07/22/21 | https://www.coilcraft.com/getmedia/0719743d-cfb7-4d4d-9e58-bb01a615ada6/0604hq.pdf | ef5c633bd293dc109014b4488cba8ed0c538b739c1ae649233a565f0e3fac401 |
+| CC-0805HQ | Coilcraft 0805HQ (2012) | Doc 197-1, Revised 08/08/22 | https://www.coilcraft.com/getmedia/d1c77d59-e9b0-44a7-81e0-f46e468b0410/0805hq.pdf | 33b7c5a503d3d7b98a8b9b788ca50aa3e2a996d2f00c5c75c985df359f705dcb |
+| CC-0805HT | Coilcraft 0805HT (2012) | Doc 168-1, Revised 08/08/22 | https://www.coilcraft.com/getmedia/78c6e03c-4cbf-4883-b3bd-a6f68c27e168/0805ht.pdf | 6ec228bf9272881b7c1b94e885961ed303c2e8fc4628ddd793f876dff0d74d8f |
+| CC-1008CS | Coilcraft 1008CS (2520) | Doc 101-2, Revised 08/05/22 | https://www.coilcraft.com/getmedia/9b59774c-05d4-40c5-99c9-417bb8e881ea/1008cs.pdf | 691856064efde2aee75226d4ed300f279e19a02f9d1c5f0a15ce76c4e1f3ce29 |
+| CC-1008CT | Coilcraft 1008CT (2520) | Doc 102-1, Revised 08/05/22 | https://www.coilcraft.com/getmedia/0b09d855-216b-45ef-80eb-60c83c03faea/1008ct.pdf | 009fddfdc825b625c08caa8e0dbc7f02aae4ef4a477d9a94daa4e0b3e887cf3a |
+| CC-1008HQ | Coilcraft 1008HQ (2520) | Doc 190-1, Revised 08/08/22 | https://www.coilcraft.com/getmedia/d309e334-bba7-474c-baad-e9acd748f87a/1008hq.pdf | 40bd11b56ec108637ec79adced96f397611972226d92ecc9a812b9ee3a1a98a9 |
+| CC-1008HT | Coilcraft 1008HT (2520) | Doc 169-1, Revised 08/08/22 | https://www.coilcraft.com/getmedia/b92e7006-01e6-4f1e-ab6f-0773da92e9ea/1008ht.pdf | 7c5dc338f11873d4e3205370b606604e1ab12f8b635121b3e2082e6879998027 |
+| CC-1206CS | Coilcraft 1206CS (3216) | Doc 104-1, Revised 08/08/22 | https://www.coilcraft.com/getmedia/0d2d6445-1567-49d3-b969-9190d57aa771/1206cs.pdf | dbe88c3f1d63059f24a1b070ec68739884a7b8e05a1e2857d34635a58c1c5089 |
+| CC-0603HP | Coilcraft 0603HP (1608) | Doc 537-2, Revised 08/08/22 | https://www.coilcraft.com/getmedia/624a615f-2f4d-4200-95a6-61764a49bbc8/0603hp.pdf | d8bbe394d16c640df3586c9f6f27160b71bd96591862843efacffee85355f0d4 |
+| CC-0402CS | Coilcraft 0402CS (1005) | Doc 198-2, Revised 08/06/21 | https://www.coilcraft.com/getmedia/f6cf468d-46eb-4342-9245-4b8b34f8d1bb/0402cs.pdf | 6478a7bfdc83983c98f481f1e33d59486bfc4f375399e0f5161b51e5ad6ffb2c |
+| CC-0402HP | Coilcraft 0402HP (1005) | Doc 526-2, Revised 12/20/23 | https://www.coilcraft.com/getmedia/54459dcc-b821-4a9d-b91e-0416ea86a9b2/0402hp.pdf | 2f5c071c4face227bcdfee9d5beb22ebc63848ca5ccca1fb7b3aa39e6ecb1822 |
+| CC-0805CS | Coilcraft 0805CS (2012) | Doc 100-1/100-2, Revised 08/05/22 | https://www.coilcraft.com/getmedia/dd5f20e4-1ff7-43df-8317-b693eb2dce3e/0805cs.pdf | fccf2b1840d888222bd553cb4d73ef84a9d1a66a9f641e66c53fc11da2dd09fe |
+| CC-0805HP | Coilcraft 0805HP (2012) | Doc 1362-1, Revised 04/11/22 | https://www.coilcraft.com/getmedia/c30565bc-9cf5-4393-9380-6f782e4b4cd8/0805hp.pdf | 020e798b3976cf149b0193218e0811d7206dbf21f95a9395a9a08d7643314898 |
+| CC-0403HQ | Coilcraft 0403HQ | Doc 300-1, Revised 12/01/21 | https://www.coilcraft.com/getmedia/69c5aa91-3ca0-4922-874d-581cd4e27e62/0403hq.pdf | 4cc1a11078027b5f5f04a0bb414a69f08152990b69b33a941de0e8da701fbd48 |
+| CC-0402DC | Coilcraft 0402DC | Doc 1153-2, Revised 11/09/23 | https://www.coilcraft.com/getmedia/b3553702-9a56-4386-b513-fcddf8709240/0402dc.pdf | a61dfff73ba0e33a63a83459cd443709c438faadd488e11cfcaac0ffdf3bd682 |
+| CC-0603DC | Coilcraft 0603DC | Doc 1605-2, Revised 05/03/22 | https://www.coilcraft.com/getmedia/f3d98f97-cbe2-41fa-b3a9-518f674e881e/0603dc.pdf | 3b40b48e08d64892bc6b54b721052431e872f5ee7830c13ca74ecc4845852938 |
+| MU-LQW15AN-00 | Murata LQW15AN_00 reference specification | JELF243A_0050AE-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0050_PDF_INDUCTOR | e0fb471cbca51e7b3b248d0f6eef23ded2eec1d3fb3e2b9bd602f008856faccf |
+| MU-LQW15AW-80 | Murata LQW15AW_80 reference specification | JELF243A_0161E-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0161_PDF_INDUCTOR | cee1c4a802525ff9bb57fd375453610918a2412b90fb823120e47535b94acbfb |
+| MU-LQW18AN-10 | Murata LQW18AN_10 reference specification | JELF243A_0026U-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0026_PDF_INDUCTOR | d55e431bffc965654324c849457ad3ac8398ba130bd706b3af5de2cf5a181884 |
+| MU-LQW18AS-00 | Murata LQW18AS_00 reference specification | JELF243A_0111G-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0111_PDF_INDUCTOR | 084d5fec5731f8b4464f172677f60ddfdb752525e0ce2fdce0fb2f3f96d6fb18 |
+| MU-LQW18AS-0C | Murata LQW18AS_0C reference specification | JELF243A_0167E-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0167_PDF_INDUCTOR | 492867f98f87d44fafbb2eb1831b1353c4e6f55d595e98a377adc12428b48a8d |
+| MU-LQW2BAN-00 | Murata LQW2BAN_00 reference specification | JELF243A_0115F-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0115_PDF_INDUCTOR | e55f02c80f80a6c326fe34f7c1d2615eac8618afe01cc1a37cb77b90dd2acfa5 |
+| MU-LQW2BAS-00 | Murata LQW2BAS_00 reference specification | JELF243A_0084S-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0084_PDF_INDUCTOR | 14be59c93b02020e0b27f42dea32a5686f1c5b756f9e2b284bf28994a46dbe2e |
+| MU-LQW2BAS-0C | Murata LQW2BAS_0C reference specification | JELF243A-0181A-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0181_PDF_INDUCTOR | b2216477e20411194efd67446ce899615629b61b766d5fdaabca2be19970e43d |
+| MU-LQW2UAS-00 | Murata LQW2UAS_00 reference specification | JELF243A_0085N-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0085_PDF_INDUCTOR | 619b249b8bdac8dea72c37379cb94018fe7b7b6f7ba5651d574d58d6d5df8d47 |
+| MU-LQW2UAS-0C | Murata LQW2UAS_0C reference specification | JELF243A_0173F-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0173_PDF_INDUCTOR | 93eded4e4a6523ba105abef3638ec497812f63ca776853568458971fe90dfbd6 |
+| MU-LQW15CN-00 | Murata LQW15CN_00 | JELF243A_0087R-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0087_PDF_INDUCTOR | 7f5a4e156e02410f13769c69144bb66ebef27ea0377beff9c779ae9f84164c4b |
+| MU-LQW18CN-00 | Murata LQW18CN_00 | JELF243A_0082N-01 | https://pim.murata.com/asset/pim4/inductor/JELF243A-0082_PDF_INDUCTOR | 45b0ac5a7469a139f9f269bbfa6b9354d231de6c0705669edf0965638f14b0ad |
+| JO-WW | Johanson Technology, RF Inductors – WireWound Inductors (catalog pp. 89–94) | no revision printed (PDF dated 2025-06-27) | https://www.johansontechnology.com/docs/4524/wirewound-inductors-datasheet.pdf | 5fd58fac5f61ec997b538c2c6e556ec6bc4cee168e0ef59cb26b4db95228d880 |
 | CC-MIDI-SPRING | Coilcraft, "Midi Spring Air Core Inductors" | Document 184, revised 12/02/21 | https://coilcraft.com/getmedia/c6fe1f83-b176-469d-a071-e2edb068fef2/midi.pdf | e8ce1b27f9bea4630e9531c73fa777b2a6acfc8dc414bc4b45ecfc3bf6a42ce3 |
 | MM-CAT-2023 | Micrometals, Iron Powder Products Catalog (88 pp.) | 2023 (PDF dated 2023-12-21) | https://s3.amazonaws.com/micrometals-production/filer_public/f4/da/f4da63c8-44fc-4d87-a290-bf3f5c8ae2de/micrometals_2023_catalog-final_122123.pdf | b7908837a938f4f90e2192b4d0c877c649f7b369357e6006d359ae36f1d2c881 |
 | MM-MIX10 | Micrometals, Mix -10 material datasheet | Rev. 2023-Dec-15 | https://s3.amazonaws.com/micrometals-production/filer_public/b7/06/b706a4bb-7be2-459a-aa3e-26c439f74ec8/mix-10-datasheet.pdf | 5d5cb66122051fc9800d1e997b3a6190177b3db190cf136530132cbde8288ebf |
