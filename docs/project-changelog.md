@@ -52,6 +52,15 @@ RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
   it. The old pipeline took about 23 minutes per run.
 - Ruff targets Python 3.11, and the development group no longer needs `tomli`.
 
+### Documentation
+
+- New [Component Data Sources](component-data-sources.md) page: the primary-sourced part data
+  and coverage evidence for the planned VHF/UHF part suggestions. It records the Murata
+  GRM1885C1H…A01 C0G tolerance grades and the values that series makes, chip inductors with
+  guaranteed tolerance, minimum SRF and minimum Q, trimmer families with guaranteed ranges,
+  and why VHF iron-powder toroids and few-turn air-core coils are not offered (no published
+  self-resonance basis, and no model validated for 2–6 turns). No calculator output changes.
+
 ## 2.3.0 — 2026-10-08 — Plain-Language Output and Aligned Interfaces
 
 ### Added
