@@ -59,8 +59,9 @@ RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
   GRM1885C1H…A01 C0G tolerance grades and the values that series makes, chip inductors with
   guaranteed tolerance, minimum SRF and minimum Q, trimmer families with guaranteed ranges,
   and why VHF iron-powder toroids and few-turn air-core coils are not offered (no published
-  self-resonance basis, and no self-capacitance model validated for 2–6 turns). No calculator
-  output changes.
+  self-resonance basis, and no self-capacitance model validated for 2–6 turns). The
+  [VHF Toroid Core Data](component-data-sources-toroid-cores.md) appendix records each
+  toroid datasheet examined. No calculator output changes.
 
 ## 2.3.0 — 2026-10-08 — Plain-Language Output and Aligned Interfaces
 

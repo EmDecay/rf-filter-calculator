@@ -136,7 +136,7 @@ using today's part choices:
 |---|---|---|
 | E12 | 6 of 5616 (0.1 %) | a part above 10 nF (Bessel high-pass T at 1.8 and 2 MHz) |
 | E24 | 5 of 5616 (0.1 %) | a part above 10 nF (same designs) |
-| E96 | 5328 of 5616 (94.9 %) | a three-significant-digit value (5043); a two-digit value the series does not make above 10 pF, such as 3400 pF (277); or only a part above 10 nF (8) |
+| E96 | 5328 of 5616 (94.9 %) | a three-significant-digit value (5043); a two-digit value above 10 pF with no sheet found, such as 3400 pF (277); or only a part above 10 nF (8) |
 
 Those capacitors keep today's nominal rule, labelled "tolerance not sourced".
 
@@ -190,7 +190,8 @@ SRF and a guaranteed minimum Q (Q is shown, never used for ranking).
 | TDK | product.tdk.com refused both download routes (HTTP 403) | not verified | — |
 
 Coilcraft's web part pages do not list the 1 % (F) variants that the 1008CS/CT/HQ/HT, 1206CS
-and 0805HT datasheets print, so Coilcraft 1 % parts are left out. Murata's 1 % parts (for
+and 0805HT datasheets print, so Coilcraft 1 % parts are left out; for the same reason
+0603CS-47NXH (3 %) is left out. Murata's 1 % parts (for
 example LQW2UAS47NF00L, [MU-LQW2UAS-00] p. 2) are in its specifications; none of the recommended families below
 offers 1 % between 10 and 100 nH.
 
@@ -232,7 +233,7 @@ minimums. Values outside 10–100 nH were not collected.
 | 0603CS-36NX_RW | 36 nH at 250 MHz | G 2 %, H 3 %, J 5 % | 2080 MHz | 37 at 250 MHz | [CC-0603CS] p. 2 |
 | 0603CS-39NX_RW | 39 nH at 250 MHz | G 2 %, H 3 %, J 5 % | 2200 MHz | 40 at 250 MHz | [CC-0603CS] p. 2 |
 | 0603CS-43NX_RW | 43 nH at 250 MHz | G 2 %, H 3 %, J 5 % | 2000 MHz | 38 at 250 MHz | [CC-0603CS] p. 2 |
-| 0603CS-47NX_RW | 47 nH at 200 MHz | G 2 %, H 3 %, J 5 % | 2000 MHz | 38 at 200 MHz | [CC-0603CS] p. 2 |
+| 0603CS-47NX_RW | 47 nH at 200 MHz | G 2 %, J 5 % (H 3 % printed, not offered on the web part page) | 2000 MHz | 38 at 200 MHz | [CC-0603CS] p. 2 |
 | 0603CS-51NX_RW | 51 nH at 200 MHz | G 2 %, H 3 %, J 5 % | 1900 MHz | 35 at 200 MHz | [CC-0603CS] p. 2 |
 | 0603CS-56NX_RW | 56 nH at 200 MHz | G 2 %, H 3 %, J 5 % | 1900 MHz | 38 at 200 MHz | [CC-0603CS] p. 2 |
 | 0603CS-68NX_RW | 68 nH at 200 MHz | G 2 %, H 3 %, J 5 % | 1700 MHz | 37 at 200 MHz | [CC-0603CS] p. 2 |
@@ -364,23 +365,11 @@ any mix, and mix 0 also fails the first.
   are not evenly distributed will produce higher inductance readings than expected" (p. 45).
   At nominal A_L the acceptance inductances (20–75 nH) need about 1.2 to 24 turns, depending
   on the core.
-- Part datasheets examined [MM-DS] (each was searched for SRF, resonance and capacitance, and
-  its A_L tolerance wording was read). Each entry gives the core and its "AL value (nominal)"
-  in nH/turn²; the guarantee type is the mix's wording in the table above. Names omit the mix:
-  under mix 0, T12A means T12-0A.
-  - mix 0 (34): T5 0.16, T7 0.3, T10 0.24, T12 0.24, T12A 0.13, T16 0.3, T16D 0.3, T20 0.35,
-    T20D 0.35, T20F 0.48, T22 0.71, T22A 0.51, T25 0.45, T25D 0.9, T27 0.45, T30 0.6, T37 0.49,
-    T44 0.65, T44D 1.4, T50 0.64, T51 2.6, T60 0.88, T68 0.75, T72 1.5, T80 0.85, T94 1.06,
-    T106 1.9, T130 1.5, T157 1.8, T184 3, T201 4.2, T300 1.5, T400 2.4 and T400D 4.8;
-  - mix 10 (27): T5 0.7, T7 0.9, T10 0.8, T10B 1.25, T12 1.2, T12A 0.72, T12B 1, T16 1.3,
-    T20 1.6, T22 3.2, T22A 2.2, T25 1.9, T25A 1.46, T27 2.2, T30 2.5, T37 2.5, T44 3.3, T50 3.1,
-    T60 4, T68 3.2, T80 3.2, T94 5.8, T106 8.5, T106B 11.1, T130 6.83, T157 8.2 and T184 13.8
-    (T225-10 is listed in
-    the product finder, but its datasheet URL was refused);
-  - mix 17 (31): T5 0.42, T7 0.6, T10 0.5, T12 0.75, T16 0.8, T20 1, T22 2, T22A N/A, T25 1.2,
-    T27 1.3, T30 1.6, T37 1.5, T44 1.85, T44D 3.7, T50 1.8, T60 2.6, T68 2.1, T68A 2.8, T68D 4.2,
-    T68E 5.7, T72 4.5, T80 2.2, T80D 4.4, T94 2.9, T106 5.1, T106B 6.6, T130 4, T157 5.3,
-    T184 8.7, T225 5 and T400D 14.4.
+- Part datasheets examined [MM-DS]: 34 for mix 0, 27 for mix 10 and 31 for mix 17. Each was
+  searched for SRF, resonance and capacitance, and its A_L, tolerance wording, test winding,
+  revision and SHA-256 are recorded per core in
+  [VHF Toroid Core Data](component-data-sources-toroid-cores.md). T225-10 has no datasheet
+  (its URL was refused) and only an uncorroborated product-finder value.
 - **Exclusion reason (for output):** "VHF toroids are not offered: the core maker publishes no
   self-resonance or winding-capacitance data, so the inductance near the band cannot be
   checked."
@@ -530,8 +519,13 @@ TSC3S520T1R (5.8 pF).
 capacitance. A Vishay minimum SRF bounds that inductance only at Cmax
 (L ≤ 1/((2π·f_res,min)²·Cmax,min), derived); using the bound at other settings assumes the
 inductance does not grow as the trimmer is turned down, and no sheet states that. So no
-family supports a guaranteed fit at VHF without a labelled assumption, and no qualifying SMD
-family guarantees Q or SRF at VHF.
+family supports a guaranteed fit away from its measurement frequency without a labelled
+assumption, and no qualifying SMD family guarantees Q or SRF at VHF. A fit must therefore be
+checked at the operating frequency under a stated series inductance, and it fails when the
+required setting is out of reach under that assumption: BFC280820109 (3–10 pF, SRF ≥ 500 MHz
+at Cmax, so up to 10.1 nH) with 10 nH has an effective minimum of 3.00299 pF at 29 MHz,
+3.07770 pF at 146 MHz and 3.89252 pF at 440 MHz, so it cannot reach a 3.00 pF low end at
+146 MHz.
 
 ## Coverage of the acceptance designs
 
@@ -557,18 +551,26 @@ manufacturer's fixture. On a board the SRF differs: Coilcraft states that "the t
 any inductor always depends on the specific characteristics of the circuit board to which it
 is mounted" [CC-SRF-NOTE]. Layout capacitance is not part of this screen.
 
+A simulation that keeps the self-capacitance branch fixed at its nominal value while it moves
+the inductance to a tolerance endpoint does not stay inside this envelope. For
+LQW15AN25NG80D at ±2 % it gives 24.499708 and 25.500304 nH at the 100 MHz test frequency,
+where the envelope is exactly 24.5–25.5 nH, and 25.78777 nH at 440 MHz against an upper
+limit of 25.78176 nH. Such corners are model stress cases, not qualified values.
+
 Qualifying parts are ranked by the smallest worst-case error, then by part number. "Achieved
 L" is the nominal part's effective inductance at the top of the window, at the minimum SRF.
-The counts are tolerance variants in the catalog rows above that pass the screen.
+The counts are tolerance variants in the catalog rows above that pass the screen. The drift
+screen is the ratio to the catalog value (the 5 % check); the error budget gives each
+contribution in percent of the target, terms rounded, so the total is the worst-case error.
 
-| Design and inductor | Chip inductor (recommended catalog) | Error budget: mismatch; tolerance (of target); drift (of catalog L, minimum SRF to none); worst ends | Achieved L | VHF toroid | Air coil |
-|---|---|---|---|---|---|
-| LP 146 MHz, 74.7381 nH | **LQW15AN75NG80D** (18 qualify) | +0.35 %; ±2.01 %; −0.17 to +0.20 %; −1.83 to +2.56 % | 75.148 nH; C_self 0.0587 pF | no SRF basis | no validated model for 2–6 turns |
-| LP 222 MHz, 49.1521 nH | **LQW18AN48NG80D** (20) | −2.34 %; ±1.95 %; −0.14 to +0.54 %; −4.43 to +0.15 % | 48.260 nH; C_self 0.0725 pF | no SRF basis | no validated model |
-| LP 440 MHz, 24.7995 nH | **LQW15AN25NG80D** (17) | +0.81 %; ±2.02 %; −0.06 to +1.10 %; −1.27 to +3.96 % | 25.276 nH; C_self 0.0603 pF | no SRF basis | no validated model; C_self limit 0.251 pF below the validated range |
-| BP 146 MHz, 54.5148 nH (as designed) | **0603CS-56NXGRW** (18) | +2.72 %; ±2.05 %; −1.11 to 0 %; −0.45 to +4.78 % | 55.718 nH; C_self 0.1267 pF | no SRF basis | no validated model |
-| BP 146 MHz with `--tank-inductance 21nH` | **LQW15AN21NG80D** (11) | 0 %; ±2.00 %; −0.05 to +0.06 %; −2.05 to +2.06 % | 21.012 nH; C_self 0.0596 pF | no SRF basis | no validated model |
-| BP 146 MHz with `--tank-inductance 20nH` | **LQW18AN20NG00D** (9) | 0 %; ±2.00 %; −0.04 to +0.05 %; −2.04 to +2.05 % | 20.010 nH; C_self 0.0528 pF | no SRF basis | no validated model |
+| Design and inductor | Chip inductor (recommended catalog) | Drift screen (of catalog L) | Worst ends, % of target: mismatch + tolerance + drift = total | Achieved L | VHF toroid | Air coil |
+|---|---|---|---|---|---|---|
+| LP 146 MHz, 74.7381 nH | **LQW15AN75NG80D** (18 qualify) | −0.17 to +0.20 % | upper +0.35 + 2.01 + 0.20 = +2.56; lower +0.35 − 2.01 − 0.17 = −1.83 | 75.148 nH; C_self 0.0587 pF | no SRF basis | no validated model for 2–6 turns |
+| LP 222 MHz, 49.1521 nH | **LQW18AN48NG80D** (19) | −0.14 to +0.54 % | upper −2.34 + 1.95 + 0.54 = +0.15; lower −2.34 − 1.95 − 0.13 = −4.43 | 48.260 nH; C_self 0.0725 pF | no SRF basis | no validated model |
+| LP 440 MHz, 24.7995 nH | **LQW15AN25NG80D** (17) | −0.06 to +1.10 % | upper +0.81 + 2.02 + 1.14 = +3.96; lower +0.81 − 2.02 − 0.06 = −1.27 | 25.276 nH; C_self 0.0603 pF | no SRF basis | no validated model; C_self limit 0.251 pF below the validated range |
+| BP 146 MHz, 54.5148 nH (as designed) | **0603CS-56NXGRW** (18) | −1.11 to 0 % | upper +2.72 + 2.05 + 0 = +4.78; lower +2.72 − 2.05 − 1.12 = −0.45 | 55.718 nH; C_self 0.1267 pF | no SRF basis | no validated model |
+| BP 146 MHz with `--tank-inductance 21nH` | **LQW15AN21NG80D** (11) | −0.05 to +0.06 % | upper 0 + 2.00 + 0.06 = +2.06; lower 0 − 2.00 − 0.05 = −2.05 | 21.012 nH; C_self 0.0596 pF | no SRF basis | no validated model |
+| BP 146 MHz with `--tank-inductance 20nH` | **LQW18AN20NG00D** (9) | −0.04 to +0.05 % | upper 0 + 2.00 + 0.05 = +2.05; lower 0 − 2.00 − 0.04 = −2.04 | 20.010 nH; C_self 0.0528 pF | no SRF basis | no validated model |
 
 - Every inductor of every acceptance design has a qualifying chip inductor. The band-pass
   coupling advice can reach 1 pF with 21 nH (in the catalog only LQW15AN21N_80D supplies that
@@ -658,7 +660,7 @@ under the same URL.
 | MM-CAT-2023 | Micrometals, Iron Powder Products Catalog (88 pp.) | 2023 (PDF dated 2023-12-21) | https://s3.amazonaws.com/micrometals-production/filer_public/f4/da/f4da63c8-44fc-4d87-a290-bf3f5c8ae2de/micrometals_2023_catalog-final_122123.pdf | b7908837a938f4f90e2192b4d0c877c649f7b369357e6006d359ae36f1d2c881 |
 | MM-MIX10 | Micrometals, Mix -10 material datasheet | Rev. 2023-Dec-15 | https://s3.amazonaws.com/micrometals-production/filer_public/b7/06/b706a4bb-7be2-459a-aa3e-26c439f74ec8/mix-10-datasheet.pdf | 5d5cb66122051fc9800d1e997b3a6190177b3db190cf136530132cbde8288ebf |
 | MM-MIX17 | Micrometals, Mix -17 material datasheet | Rev. 2023-Dec-15 | https://s3.amazonaws.com/micrometals-production/filer_public/f4/b5/f4b57390-3bd0-477a-9fff-c62a10e7d5ab/mix-17-datasheet.pdf | 8c7b2d6f574bc36aa95d8fabadc98ef9255c261c8078e21bac77c3e5b04fc323 |
-| MM-DS | Micrometals part datasheets, e.g. T50-0, T37-17, T50-10 | per part (2019–2025) | `https://datasheets.micrometals.com/<part>-DataSheet.pdf` | T50-0 cfb6098d5b05d061ca064bba44c4bd266cd586c0289a2bf7098fe9617a988a09; T37-17 59817fc2b5709dce7e8882b27b531ba905fb4e94b642b3d1c6655a9d5381adac; T50-10 50a50664b2cedf39deced8557956e4b12eb918635ce88a0e68b759b722ca1b3d |
+| MM-DS | Micrometals part datasheets, mixes 0, 10 and 17 (92 sheets) | per part, 2019–2025 | `https://datasheets.micrometals.com/<part>-DataSheet.pdf` | per core in [VHF Toroid Core Data](component-data-sources-toroid-cores.md) |
 | MM-QCURVE-1997 | Micrometals, Q-Curves for Iron Powder Cores (hosted by Acal BFi) | Issue G, 12/97 | https://www.acalbfi.com/media/pdf/q_curve_catalog_issue_h.pdf | ab10ae5a17507bd49602300a9681b7431165223a1e437b20eba2849dd5f0ec29 |
 | WHEELER-1928 | H. A. Wheeler, "Simple Inductance Formulas for Radio Coils", Proc. IRE 16(10), pp. 1398–1400 | 1928 | https://worldradiohistory.com/Archive-IRE/20s/IRE-1928-10.pdf | bf45c82a2b6b371d6d7216cc6da4eb6121cb892ce8a189cbdd6662bc24bd3748 |
 | ROSA-1906 | E. B. Rosa, "Calculation of the Self-Inductance of Single-Layer Coils", Bull. Bur. Stand. 2(2), pp. 161–187 | 1906 | https://nvlpubs.nist.gov/nistpubs/bulletin/02/nbsbulletinv2n2p161_A2b.pdf | 6348c036d65a5e413e5c1bbbcd41d3f9121dfae427f20a50630bc54af8bc7989 |
