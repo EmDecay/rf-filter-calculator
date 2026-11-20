@@ -6,6 +6,8 @@ Provides E-series matching display, component formatting, and output formatters.
 import textwrap
 from collections.abc import Callable
 
+from .capacitor_choice import assumed_tolerance_pct
+from .capacitor_grades import SERIES, require_grade, tolerance_rule_text
 from .eseries import DEFAULT_MATCH_POLICY, TOLERANCE_NOT_SOURCED, MatchPolicy, match_component
 from .formatting import format_fixed
 
@@ -31,8 +33,6 @@ _RULE_WIDTH = 88
 
 def not_sourced_note(policy: MatchPolicy) -> str:
     """The table note under a choice whose part values the sourced series does not make."""
-    from .capacitor_choice import assumed_tolerance_pct
-
     return (
         "  Tolerance not sourced (the sourced series does not make it): chosen by nominal "
         f"value, ±{assumed_tolerance_pct(policy):g}% assumed."
@@ -68,14 +68,13 @@ def eseries_section_lines(
 
 def _policy_lines(policy: MatchPolicy) -> list[str]:
     """The grade, its tolerances, any override and the stray, wrapped for the table."""
-    from .capacitor_grades import SERIES, require_grade, tolerance_rule_text
-
-    grade = require_grade(policy.grade)
-    tolerance = f"Tolerance ({grade.label.lower()} grade, {SERIES.title}): "
-    if policy.tolerance_override_pct is not None:
+    grade = require_grade(policy.grade).label.lower()
+    if policy.tolerance_override_pct is None:
+        tolerance = f"Tolerance ({grade} grade, {SERIES.title}): "
+    else:
         tolerance = (
             f"Tolerance: the larger of ±{policy.tolerance_override_pct:g}% and the "
-            f"{grade.label.lower()} grade ({SERIES.title}): "
+            f"{grade} grade ({SERIES.title}): "
         )
     stray_pf = policy.stray_capacitance_f * 1e12
     return [

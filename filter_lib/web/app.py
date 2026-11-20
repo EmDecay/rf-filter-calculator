@@ -19,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 from .. import __version__
 from ..design.capacitor_policy_inputs import (
     CAPACITOR_GRADE_LABEL,
+    GRADE_CHOICES,
     GRADE_HELP,
     STRAY_FIELD_HELP,
     STRAY_FIELD_LABEL,
@@ -74,6 +75,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     templates.env.globals["labels"] = {
         "allow_sub_pf": SUB_PF_OPTION_LABEL,
         "capacitor_grade": CAPACITOR_GRADE_LABEL,
+        "capacitor_grade_choices": GRADE_CHOICES,
         "capacitor_tolerance": TOLERANCE_FIELD_LABEL,
         "capacitor_tolerance_help": TOLERANCE_FIELD_HELP,
         "capacitor_grade_help": GRADE_HELP,

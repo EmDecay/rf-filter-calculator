@@ -100,13 +100,14 @@ def stray_element(element: CircuitElement, value: float) -> CircuitElement:
     It keeps its value in every tolerance case (``fixed``) and is named with a ``C``
     prefix so a SPICE reader sees a capacitor (``CSTRAY_C1``, shown as "C1 stray").
     """
+    name = f"{STRAY_PREFIX}{element.name}"
     return CircuitElement(
-        name=f"{STRAY_PREFIX}{element.name}",
+        name=name,
         node1=element.node1,
         node2=element.node2,
         kind="C",
         value=value,
-        logical_name=f"{STRAY_PREFIX}{element.name}",
+        logical_name=name,
         fixed=True,
     )
 

@@ -7,7 +7,7 @@
     <div class="field field--wide checks">
       {{ checkbox("allow_sub_pf", labels.allow_sub_pf, "Also choose standard values for capacitors below 1 pF. When off, no part is chosen below 1 pF and you choose one manually. Needs E12, E24, or E96.", option="allow_sub_pf") }}
     </div>
-    {{ segmented("capacitor_grade", labels.capacitor_grade, [("standard", "Standard"), ("tight", "Tight")], option="capacitor_grade") }}
+    {{ segmented("capacitor_grade", labels.capacitor_grade, labels.capacitor_grade_choices, option="capacitor_grade") }}
     <p class="field__help field--wide">{{ labels.capacitor_grade_help }}</p>
     {{ text_field("capacitor_tolerance_pct", labels.capacitor_tolerance, help=labels.capacitor_tolerance_help, option="capacitor_tolerance") }}
     {{ text_field("stray_capacitance", labels.stray_capacitance, help=labels.stray_capacitance_help, inputmode="text", option="stray_capacitance") }}

@@ -100,11 +100,8 @@ def _no_effect_with_raw(subject: str, verb: str) -> str:
     return f"{subject} {verb} no effect with Raw units unless the build simulation is on"
 
 
-_SUB_PF_SUBJECT = f'"{SUB_PF_OPTION_LABEL}"'
 ESERIES_VALUES_ONLY_MESSAGE = _no_effect_with_values_only("Standard capacitor values", "have")
 ESERIES_RAW_MESSAGE = _no_effect_with_raw("Standard capacitor values", "have")
-SUB_PF_VALUES_ONLY_MESSAGE = _no_effect_with_values_only(_SUB_PF_SUBJECT, "has")
-SUB_PF_RAW_MESSAGE = _no_effect_with_raw(_SUB_PF_SUBJECT, "has")
 # Options that change only which standard capacitors are chosen, and their labels; each
 # follows the sub-pF option's rule.
 CAPACITOR_POLICY_LABELS = {
@@ -125,6 +122,8 @@ def _policy_reasons(make) -> dict[str, str]:
 _POLICY_VALUES_ONLY = _policy_reasons(lambda subject: _no_effect_with_values_only(subject, "has"))
 _POLICY_RAW = _policy_reasons(lambda subject: _no_effect_with_raw(subject, "has"))
 _POLICY_NEEDS_ESERIES = _policy_reasons(needs_eseries_message)
+SUB_PF_VALUES_ONLY_MESSAGE = _POLICY_VALUES_ONLY[ALLOW_SUB_PF]
+SUB_PF_RAW_MESSAGE = _POLICY_RAW[ALLOW_SUB_PF]
 
 
 @dataclass(frozen=True)

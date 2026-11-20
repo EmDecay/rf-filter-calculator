@@ -9,6 +9,8 @@ import textwrap
 
 from .build_analysis import RANDOM_CASES_LIMITATION
 from .build_types import BuildAnalysisResult, CircuitMeasurement, ComponentSubstitution
+from .capacitor_choice import assumed_tolerance_pct
+from .capacitor_grades import require_grade
 from .circuit_display_names import display_component_name
 from .component_realization import inductor_case_tolerance_pct
 from .display_helpers import SECTION_RULE
@@ -214,7 +216,7 @@ def _tolerance_lines(analysis: BuildAnalysisResult) -> list[str]:
         f"Tolerance cases: {capacitor_tolerance_text(analysis)}, "
         f"L ±{inductor_case_tolerance_pct(config):g}%."
     )
-    cases = f"{len(analysis.cases)} cases: nominal, all low, all high,"
+    cases = f"  {len(analysis.cases)} cases: nominal, all low, all high,"
     samples = config.sample_count
     if samples:
         noun = "case" if samples == 1 else "cases"
@@ -224,18 +226,16 @@ def _tolerance_lines(analysis: BuildAnalysisResult) -> list[str]:
         )
     else:
         second = "  and each part low and high alone."
-    return [first, f"  {cases}", second]
+    return [first, cases, second]
 
 
 def capacitor_tolerance_text(analysis: BuildAnalysisResult) -> str:
     """How the capacitors' tolerances were set: the grade, any override, any assumption."""
-    from .capacitor_choice import assumed_tolerance_pct
-    from .capacitor_grades import require_grade
-
     policy = analysis.match_policy
     grade = require_grade(policy.grade).label.lower()
-    text = f"each capacitor at its {grade}-grade tolerance"
-    if policy.tolerance_override_pct is not None:
+    if policy.tolerance_override_pct is None:
+        text = f"each capacitor at its {grade}-grade tolerance"
+    else:
         text = (
             f"each capacitor at the larger of ±{policy.tolerance_override_pct:g}% and its "
             f"{grade}-grade tolerance"

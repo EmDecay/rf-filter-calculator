@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from ..shared.build_types import resolve_build_config
+
 if TYPE_CHECKING:
     from ..shared.build_types import BuildAnalysisResult, BuildConfig
     from ..shared.eseries import MatchPolicy
@@ -44,6 +46,4 @@ class DesignResult:
     @property
     def realization(self) -> BuildConfig:
         """The build settings a chosen-parts deck or build uses (the defaults when unset)."""
-        from ..shared.build_types import resolve_build_config
-
         return resolve_build_config(self.request.realization)

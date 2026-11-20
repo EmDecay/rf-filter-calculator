@@ -24,6 +24,7 @@ from filter_lib.shared.eseries import (
     MatchPolicy,
     match_component,
 )
+from filter_lib.shared.formatting import format_capacitance
 from tests.capacitor_interval_oracle import best_choice
 from tests.cli_parity_helpers import cli_stdout
 
@@ -65,12 +66,27 @@ def test_criterion_two_example_chooses_the_exhaustive_search_winner(grade, parts
     assert match.status == "recommended" and match.tolerance_sourced is True
 
 
-def test_criterion_two_reaches_the_cli_table_json_csv_build_and_spice(monkeypatch, capsys):
-    """One choice for 13.47 pF in every output, for a non-default grade and override."""
-    argv = ("lp", "bw", "pi", "146MHz", "-n", "5", "--capacitor-grade", "tight")
+@pytest.mark.parametrize(
+    "policy_flags",
+    [
+        ("--capacitor-grade", "tight"),
+        (
+            "--capacitor-grade",
+            "tight",
+            "--capacitor-tolerance",
+            "3",
+            "--stray-capacitance",
+            "0.1pF",
+        ),
+    ],
+    ids=["tight", "tight-override-stray"],
+)
+def test_one_choice_reaches_the_table_json_csv_build_and_spice(monkeypatch, capsys, policy_flags):
+    """The 13.47 pF capacitor gets the same parts in every output of the CLI."""
+    argv = ("lp", "bw", "pi", "146MHz", "-n", "5", *policy_flags)
     table = cli_stdout(monkeypatch, capsys, *argv)
     document = json.loads(cli_stdout(monkeypatch, capsys, *argv, "--format", "json"))
-    csv_text = cli_stdout(monkeypatch, capsys, *argv, "--format", "csv")
+    csv_row = cli_stdout(monkeypatch, capsys, *argv, "--format", "csv").splitlines()[1]
     build = json.loads(
         cli_stdout(
             monkeypatch, capsys, *argv, "--format", "json", "--sim-build", "--analysis-points", "51"
@@ -78,16 +94,24 @@ def test_criterion_two_reaches_the_cli_table_json_csv_build_and_spice(monkeypatc
     )
     deck = cli_stdout(monkeypatch, capsys, *argv, "--format", "spice")
 
-    assert re.search(r"C1 calculated 13\.47 pF\n  Use: +2\.40 pF \|\| 11\.00 pF", table)
-    assert "Tolerance (tight grade, Murata GRM1885C1H…A01)" in table
     selected = document["components"]["capacitors"][0]["standard_match"]["selected"]
-    assert [part["value_farads"] for part in selected["components"]] == [2.4e-12, 1.1e-11]
-    assert "2.40 pF || 11.00 pF" in csv_text.splitlines()[1]
-    assert "grade=tight" in csv_text.splitlines()[1]
-    assert build["nominal_build"]["substitutions"][0]["physical_parts_si"] == [2.4e-12, 1.1e-11]
-    assert re.search(r"^C1A 1 0 2\.4e-12$", deck, re.M)
-    assert re.search(r"^C1B 1 0 1\.1e-11$", deck, re.M)
-    assert re.search(r"^CSTRAY_C1 1 0 2e-13$", deck, re.M)
+    parts = [part["value_farads"] for part in selected["components"]]
+    target = F(document["components"]["capacitors"][0]["value_farads"]) * 10**12
+    override = F(policy_flags[3]) if len(policy_flags) > 2 else None
+    stray = F("0.1") if len(policy_flags) > 2 else F(1, 5)
+    expected, _score = best_choice(target, grade="tight", stray_pf=stray, override_pct=override)
+    assert [F(repr(value)) * 10**12 for value in parts] == list(expected)
+    shown = " || ".join(format_capacitance(value) for value in parts)
+    assert re.search(rf"C1 calculated 13\.47 pF\n  Use: +{re.escape(shown)}", table)
+    assert "tight grade" in table and "Murata GRM1885C1H…A01" in table
+    if override is not None:
+        assert "Tolerance: the larger of ±3% and the tight grade" in table
+    assert shown in csv_row and "grade=tight" in csv_row
+    assert build["nominal_build"]["substitutions"][0]["physical_parts_si"] == parts
+    for suffix, value in zip("AB", parts, strict=False):
+        assert re.search(rf"^C1{suffix if len(parts) > 1 else ''} 1 0 {value:.12g}$", deck, re.M)
+    if len(parts) > 1:
+        assert re.search(rf"^CSTRAY_C1 1 0 {float(stray) * 1e-12:.12g}$", deck, re.M)
 
 
 # -- Agreement with the independent brute force ------------------------------------------
