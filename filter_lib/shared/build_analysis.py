@@ -36,13 +36,19 @@ def _analysis_limitations(
     grid_censored_cases: int,
     unresolved_cases: int,
     disconnected_cases: int,
+    has_pair_stray: bool = False,
 ) -> tuple[str, ...]:
     limitations = list(nominal_limitations)
+    layout = (
+        "layout and wiring (other than the assumed pair stray)"
+        if has_pair_stray
+        else ("layout and wiring")
+    )
     limitations.extend(
         (
             "The tolerance cases do not guarantee the true worst case.",
             RANDOM_CASES_LIMITATION,
-            "The simulation leaves out layout and wiring, self-resonance (SRF), temperature "
+            f"The simulation leaves out {layout}, self-resonance (SRF), temperature "
             "drift, nonlinear effects, and power handling.",
         )
     )
@@ -211,5 +217,6 @@ def analyze_build(
             censored,
             sum(not case.measurement.measurement_converged for case in cases),
             sum(len(case.measurement.threshold_regions) > 1 for case in cases),
+            any(item.stray_capacitance_f for item in nominal.substitutions),
         ),
     )
