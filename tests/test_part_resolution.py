@@ -258,13 +258,50 @@ def test_the_error_budget_refuses_values_outside_its_contract(budget):
         ErrorBudget(**values)
 
 
-def test_a_model_basis_with_its_accuracy_is_a_valid_record():
-    suggestion = design(_ladder()).parts.inductor("L1").best
-    chip = dataclasses.replace(
-        suggestion, kind="chip", srf_basis="model", srf_accuracy="±5% against measurements"
-    )
+def _checked(suggestion, **changes):
+    """A toroid suggestion recast as a chip whose SRF is checked, plus ``changes``."""
+    budget = dataclasses.replace(suggestion.error_budget, srf_drift_pct=(-0.5, 1.5))
+    values = dict(kind="chip", srf_basis="guaranteed_minimum", error_budget=budget)
+    values.update(changes)
+    return dataclasses.replace(suggestion, **values)
 
-    assert chip.srf_basis == "model"
+
+def test_a_checked_srf_with_its_evidence_is_a_valid_record():
+    suggestion = design(_ladder()).parts.inductor("L1").best
+
+    assert _checked(suggestion).srf_basis == "guaranteed_minimum"
+    model = _checked(suggestion, srf_basis="model", srf_accuracy="±5% against measurements")
+    assert model.srf_accuracy == "±5% against measurements"
+
+
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        (dict(srf_basis="model", srf_accuracy=" "), "stated accuracy"),
+        (dict(source=None), "source of its guarantees"),
+        (dict(error_budget=ErrorBudget(1.0, 5.0)), "SRF drift is listed exactly"),
+    ],
+    ids=["blank-accuracy", "no-source", "no-drift"],
+)
+def test_a_checked_srf_needs_its_evidence(changes, message):
+    suggestion = design(_ladder()).parts.inductor("L1").best
+
+    with pytest.raises(ValueError, match=message):
+        _checked(suggestion, **changes)
+
+
+def test_an_unchecked_srf_lists_no_drift():
+    suggestion = design(_ladder()).parts.inductor("L1").best
+    budget = ErrorBudget(1.0, 5.0, (0.0, 1.0))
+
+    with pytest.raises(ValueError, match="SRF drift is listed exactly"):
+        dataclasses.replace(suggestion, error_budget=budget)
+
+
+@pytest.mark.parametrize("drift", [False, [0.0, 1.0], (0.0,)], ids=["bool", "list", "short"])
+def test_the_drift_must_be_a_pair(drift):
+    with pytest.raises(ValueError, match="finite \\(lowest, highest\\) pair"):
+        ErrorBudget(0.0, 0.0, drift)  # type: ignore[arg-type]
 
 
 def test_a_kind_has_either_suggestions_or_a_reason():
@@ -392,6 +429,37 @@ def test_the_resolver_refuses_what_the_request_refuses():
     assert str(error.value) == FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE
     with pytest.raises(ValueError, match="zero-argument callable"):
         resolve_parts_for(result, "lowpass", should_cancel=True)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "settings, message",
+    [
+        (dict(eseries=None, policy=MatchPolicy(grade="tight")), "needs an E-series"),
+        (dict(eseries=None, policy=MatchPolicy(allow_sub_pf=True)), "needs an E-series"),
+        (dict(policy=False), "MatchPolicy"),
+        (dict(eseries="E6"), "E12, E24, or E96"),
+    ],
+    ids=["grade-without-series", "sub-pf-without-series", "not-a-policy", "unknown-series"],
+)
+def test_the_resolver_refuses_a_policy_the_request_refuses(settings, message):
+    result = design(_ladder()).result
+
+    with pytest.raises(ValueError, match=message):
+        resolve_parts_for(result, "lowpass", **settings)
+
+
+def test_a_build_refuses_another_design_s_parts():
+    from filter_lib.shared.build_types import BuildConfig
+    from filter_lib.shared.nominal_realization import realize_nominal_build
+    from filter_lib.shared.resolved_parts import PARTS_FROM_ANOTHER_DESIGN_MESSAGE
+
+    hf = design(_ladder(order=3))
+    vhf = design(_ladder(order=3, frequency_hz=146e6))
+
+    with pytest.raises(ValueError) as error:
+        realize_nominal_build(vhf.result, "lowpass", BuildConfig(), parts=hf.parts)
+    assert str(error.value) == PARTS_FROM_ANOTHER_DESIGN_MESSAGE
+    assert realize_nominal_build(vhf.result, "lowpass", BuildConfig(), parts=vhf.parts)
 
 
 def test_suggestions_off_screen_nothing(monkeypatch):

@@ -21,6 +21,9 @@ from .inductor_suggestion import (
     KindSuggestions,
 )
 
+# A build or deck given another design's parts (the same element names, other values).
+PARTS_FROM_ANOTHER_DESIGN_MESSAGE = "The resolved parts belong to another design"
+
 
 @dataclass(frozen=True)
 class InductorParts:
@@ -97,3 +100,9 @@ class ResolvedParts:
     def inductor(self, name: str) -> InductorParts:
         """The suggestions and build part of inductor ``name`` (a circuit element name)."""
         return self.inductors[name]
+
+    def target(self, name: str) -> float:
+        """The calculated value part ``name`` was chosen for (to check the parts' design)."""
+        if name in self.inductors:
+            return self.inductors[name].target_h
+        return self.capacitor(name).target

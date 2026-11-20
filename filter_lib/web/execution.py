@@ -33,6 +33,18 @@ class CalculationTimeout(Exception):
     """Raised when a calculation exceeds the configured timeout."""
 
 
+def timeout_message(timeout_s: float) -> str:
+    """What a timed-out request says: what can make each kind of calculation shorter.
+
+    A band-pass calibration takes longer with more resonators, the build simulation with
+    more tolerance cases or frequency points; a ladder synthesis is instant.
+    """
+    return (
+        f"Calculation stopped after {timeout_s:g} s. Try fewer resonators, or with the "
+        "build simulation, fewer extra random tolerance cases or frequency points."
+    )
+
+
 class CalculationRunner:
     """Run ``work(should_cancel)`` callables on a bounded pool with a timeout."""
 
@@ -63,10 +75,7 @@ class CalculationRunner:
                 waiter.add_done_callback(_consume_outcome)
                 if isinstance(stop, asyncio.CancelledError):
                     raise
-                raise CalculationTimeout(
-                    f"Calculation stopped after {self.timeout_s:g} s. "
-                    "Try fewer extra random tolerance cases or frequency points."
-                ) from None
+                raise CalculationTimeout(timeout_message(self.timeout_s)) from None
         finally:
             with self._lock:
                 self._flags.discard(flag)

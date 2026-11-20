@@ -15,7 +15,7 @@ from ..shared.cancellation import (
 )
 from ..shared.circuit_builders import build_named_circuit
 from ..shared.circuit_model import CircuitElement
-from ..shared.eseries import DEFAULT_MATCH_POLICY, MatchPolicy, match_component
+from ..shared.eseries import DEFAULT_MATCH_POLICY, E_SERIES, MatchPolicy, match_component
 from ..shared.inductor_suggestion import (
     AIR_COIL_EXCLUSION,
     AUTO,
@@ -34,6 +34,7 @@ from ..shared.inductor_suggestion import (
 from ..shared.resolved_parts import InductorParts, ResolvedParts
 from ..shared.toroid_selection import suggest_toroids
 from .design_request import DesignRequest
+from .render_options import needs_eseries_message
 
 # Why the build uses an inductor's calculated value when suggestions are not used.
 SUGGESTIONS_NOT_USED_NOTE = "Inductor suggestions are not used."
@@ -130,7 +131,14 @@ def resolve_parts_for(
     require_build_inductors(build_inductors)
     require_build_with_suggestions(inductor_detail, build_inductors)
     require_cancellation_check(should_cancel)
+    if eseries is not None and (not isinstance(eseries, str) or eseries not in E_SERIES):
+        raise ValueError("E-series must be E12, E24, or E96")
+    if policy is not None and not isinstance(policy, MatchPolicy):
+        raise ValueError("policy must be a MatchPolicy or None")
     active_policy = DEFAULT_MATCH_POLICY if policy is None else policy
+    if eseries is None and active_policy != DEFAULT_MATCH_POLICY:
+        # The request's rule: every capacitor policy choice needs standard values.
+        raise ValueError(needs_eseries_message("A capacitor match policy"))
     circuit = build_named_circuit(result, category)
     design_freq_hz = _design_frequency(result, category)
     capacitors = {}

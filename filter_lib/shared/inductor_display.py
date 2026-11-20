@@ -33,8 +33,19 @@ from .toroid_display import (
 SECTION_NAME = "Inductor Suggestions"
 NO_SUGGESTION_LINE = "No inductor suggestion qualifies:"
 _INDUCTOR_NOTE = "Inductors: no standard values"
-# One row per inductor: its best suggestion's kind, then each kind's own columns.
-CSV_INDUCTOR_HEADER: list[str] = ["InductorKind", *CSV_TOROID_HEADER]
+# One row per inductor: its best suggestion's generic fields (the error budget's terms in
+# percent of the target, the drift blank when the SRF is not checked), then each kind's own
+# columns.
+CSV_SUGGESTION_HEADER: list[str] = [
+    "InductorKind",
+    "InductorPart",
+    "InductorSRFBasis",
+    "InductorBudgetNominalPct",
+    "InductorBudgetTolerancePct",
+    "InductorBudgetSRFDriftLowPct",
+    "InductorBudgetSRFDriftHighPct",
+]
+CSV_INDUCTOR_HEADER: list[str] = [*CSV_SUGGESTION_HEADER, *CSV_TOROID_HEADER]
 # Reason lines wrap at the width of the section rule plus the indent.
 _WRAP_WIDTH = 88
 
@@ -232,4 +243,14 @@ def inductor_csv_columns(inductor: InductorParts | None) -> list[str]:
     best = None if inductor is None else inductor.best
     if best is None:
         return [""] * len(CSV_INDUCTOR_HEADER)
-    return [best.kind, *toroid_csv_columns(best.build if best.kind == "toroid" else None)]
+    budget = best.error_budget
+    drift = ("", "") if budget.srf_drift_pct is None else budget.srf_drift_pct
+    return [
+        best.kind,
+        best.part_name,
+        best.srf_basis,
+        format_fixed(budget.nominal_mismatch_pct, 2),
+        format_fixed(budget.tolerance_pct, 2),
+        *(value if value == "" else format_fixed(value, 2) for value in drift),
+        *toroid_csv_columns(best.build if best.kind == "toroid" else None),
+    ]

@@ -319,10 +319,28 @@ def test_csv_columns_align_with_header_for_best_candidate(t68_candidate):
         "ToroidWarnings": NOT_ASSESSED_WARNING,
     }
     assert "ToroidQ_DC_Upper" not in CSV_TOROID_HEADER
-    # The inductor row leads with its best suggestion's kind, then that kind's columns.
-    assert CSV_INDUCTOR_HEADER == ["InductorKind", *CSV_TOROID_HEADER]
+    # The inductor row leads with its best suggestion's generic fields (kind, part, SRF
+    # basis, and the error budget in percent of the target, drift blank when not checked),
+    # then that kind's columns. The T68-2 winding is exactly on target, so its ±5% A_L
+    # tolerance is also 5.00% of the target.
+    assert CSV_INDUCTOR_HEADER == [
+        "InductorKind",
+        "InductorPart",
+        "InductorSRFBasis",
+        "InductorBudgetNominalPct",
+        "InductorBudgetTolerancePct",
+        "InductorBudgetSRFDriftLowPct",
+        "InductorBudgetSRFDriftHighPct",
+        *CSV_TOROID_HEADER,
+    ]
     assert inductor_csv_columns(_inductor(0.8208e-6, 5e6)) == [
         "toroid",
+        "T68-2",
+        "not_checked",
+        "0.00",
+        "5.00",
+        "",
+        "",
         *toroid_csv_columns(t68_candidate),
     ]
 

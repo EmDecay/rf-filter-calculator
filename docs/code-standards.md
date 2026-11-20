@@ -332,9 +332,10 @@ Caveats print once where they apply; JSON and CSV keep every warning entry.
   `url`), `build` (the kind's own record; for a toroid the screened record without `rank`,
   `candidate_status`, or `q_dc_upper_bound`), and `warnings`
   (`shared/inductor_display.py::suggestion_payload`).
-- CSV gives each inductor's best suggestion: `InductorKind` precedes the `Toroid*` columns
-  (`CSV_INDUCTOR_HEADER`) and is blank on capacitor rows and on inductors with no suggestion;
-  with `none` the inductor columns are left out.
+- CSV gives each inductor's best suggestion: the generic columns `InductorKind`, `InductorPart`, `InductorSRFBasis`, `InductorBudgetNominalPct`, `InductorBudgetTolerancePct`, `InductorBudgetSRFDriftLowPct` and `InductorBudgetSRFDriftHighPct` (the budget in percent of the
+  target, the drift blank when the SRF is not checked) precede the `Toroid*` columns
+  (`CSV_INDUCTOR_HEADER`); all are blank on capacitor rows and on inductors with no
+  suggestion; with `none` the inductor columns are left out.
 - Build JSON `build_model` gives `build_inductor_choice` (the `--build-inductors` value),
   `suggested_inductors_used`, and `suggested_inductor_elements`. Each substitution carries
   `inductor_kind` and `part_name` (`null` for capacitors and calculated values); an inductor

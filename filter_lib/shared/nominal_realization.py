@@ -18,7 +18,7 @@ from .circuit_display_names import display_component_name, format_name_list
 from .circuit_model import CircuitElement, NamedCircuit
 from .component_realization import _realize_capacitor, _realize_inductor
 from .formatting import format_frequency
-from .resolved_parts import ResolvedParts
+from .resolved_parts import PARTS_FROM_ANOTHER_DESIGN_MESSAGE, ResolvedParts
 
 NOMINAL_PARTS_LIMITATION = (
     "Chosen parts are simulated at their nominal values, without lead or package parasitics."
@@ -75,6 +75,8 @@ def _realize_element(
     capacitor_q_tank_only: bool,
     loss_reference_frequency: float,
 ) -> tuple[list[CircuitElement], ComponentSubstitution, list[str]]:
+    if parts.target(element.name) != element.value:
+        raise ValueError(PARTS_FROM_ANOTHER_DESIGN_MESSAGE)
     if element.kind == "C":
         element_capacitor_q = (
             capacitor_q if not capacitor_q_tank_only or element.name.startswith("CT") else None

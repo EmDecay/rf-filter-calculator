@@ -17,10 +17,11 @@ from .eseries import (
 )
 from .inductor_suggestion import (
     BUILD_INDUCTORS_FLAG,
-    FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE,
-    FORCED_KINDS,
+    DEFAULT_BUILD_INDUCTORS,
+    DEFAULT_INDUCTOR_DETAIL,
     INDUCTOR_SUGGESTIONS_FLAG,
     NON_DEFAULT_TABLE_DETAILS,
+    require_build_with_suggestions,
 )
 
 
@@ -130,8 +131,13 @@ def _validate_primary_output_mode(args: Namespace) -> None:
     no_match = bool(getattr(args, "no_match", False))
     if matching and no_match:
         usage_error(args, f"{', '.join(matching)} cannot be combined with --no-match")
-    if detail == "none" and getattr(args, "build_inductors", None) in FORCED_KINDS:
-        usage_error(args, FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE)
+    try:
+        require_build_with_suggestions(
+            detail or DEFAULT_INDUCTOR_DETAIL,
+            getattr(args, "build_inductors", None) or DEFAULT_BUILD_INDUCTORS,
+        )
+    except ValueError as error:
+        usage_error(args, str(error))
     if explain:
         incompatible = (
             _enabled_explain_design_options(args)

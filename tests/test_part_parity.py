@@ -37,6 +37,7 @@ from filter_lib.design.option_applicability import (
     BUILD,
     BUILD_INDUCTORS,
     CAPACITOR_GRADE,
+    CSV_BUILD_INDUCTORS_MESSAGE,
     EXACT_SPICE_BUILD_INDUCTORS_MESSAGE,
     EXACT_SPICE_MATCHING_MESSAGE,
     OutputChoices,
@@ -150,6 +151,7 @@ class Cell:
 _EXACT_GRADE = (CAPACITOR_GRADE, EXACT_SPICE_MATCHING_MESSAGE)
 _EXACT_FORCED = (BUILD_INDUCTORS, EXACT_SPICE_BUILD_INDUCTORS_MESSAGE)
 _CSV_BUILD = (BUILD, BUILD_NEEDS_TABLE_OR_JSON_MESSAGE)
+_CSV_FORCED = (BUILD_INDUCTORS, CSV_BUILD_INDUCTORS_MESSAGE)
 MATRIX = (
     # Capacitor grade "tight", build off.
     Cell("grade", False, "table", Accept(), Same(GRADE), ScreenText(GRADE)),
@@ -220,7 +222,7 @@ MATRIX = (
         True,
         "csv",
         Refuse(SIM_BUILD_FORMAT),
-        Same((), left_out=_CSV_BUILD),
+        Same((), left_out=_CSV_FORCED),
         Refuse(CSV_WITH_BUILD_MESSAGE),
     ),
     Cell("forced", True, "spice-nominal", Refuse(SIM_BUILD_FORMAT), Same(FORCED), NotOffered()),
@@ -338,6 +340,16 @@ def test_web_cell(monkeypatch, capsys, client, cell):
         monkeypatch, capsys, *cell.base, *OUTPUT_FLAGS[cell.output], *cell.web.flags
     )
     form = _web_form(cell)
+    from filter_lib.web import routes_design, routes_export
+
+    route = routes_design if cell.output == "table" else routes_export
+    requests = []
+    real_design = route.design
+    monkeypatch.setattr(
+        route,
+        "design",
+        lambda request, **kwargs: requests.append(request) or real_design(request, **kwargs),
+    )
     if cell.output == "table":
         response = client.post("/design/lowpass", data=form, headers=HTMX)
         body = output_text(response.text) + "\n"
@@ -347,6 +359,13 @@ def test_web_cell(monkeypatch, capsys, client, cell):
 
     assert response.status_code == 200
     assert body == expected
+    # The policy that reaches part resolution is the one the CLI reference uses.
+    [request] = requests
+    own = document_own_options(cell.output) if cell.output != "table" else frozenset()
+    forced = cell.scenario == "forced" and cell.build and BUILD_INDUCTORS not in own
+    graded = cell.scenario == "grade" and CAPACITOR_GRADE not in own
+    assert request.build_inductors == ("air-coil" if forced else "auto")
+    assert request.capacitor_grade == ("tight" if graded else "standard")
     if cell.scenario == "grade" and cell.output == "spice-nominal":
         _assert_tight_deck(body)
     if cell.web.left_out is not None:

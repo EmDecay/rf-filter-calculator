@@ -108,9 +108,18 @@ def require_build_inductors(value: object) -> str:
     return value
 
 
+def forced_kinds_unavailable(detail: str) -> bool:
+    """Whether a forced kind has nothing to build with: suggestions are off (``none``).
+
+    The one rule behind the CLI's refusal, the request's and resolver's checks, and the
+    wizard and web disabling the forced kinds.
+    """
+    return detail == "none"
+
+
 def require_build_with_suggestions(detail: str, build_inductors: str) -> None:
     """Refuse a forced kind when suggestions are off (``FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE``)."""
-    if detail == "none" and build_inductors in FORCED_KINDS:
+    if build_inductors in FORCED_KINDS and forced_kinds_unavailable(detail):
         raise ValueError(FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE)
 
 
@@ -137,8 +146,11 @@ class ErrorBudget:
         if not is_finite_real(self.tolerance_pct) or self.tolerance_pct < 0:
             raise ValueError("The tolerance must be zero or more and finite")
         drift = self.srf_drift_pct
-        if drift is not None and (
-            len(drift) != 2
+        if drift is None:
+            return
+        if (
+            not isinstance(drift, tuple)
+            or len(drift) != 2
             or not all(is_finite_real(value) for value in drift)
             or drift[0] > drift[1]
         ):
@@ -194,12 +206,23 @@ class InductorSuggestion:
                 raise ValueError("Suggestion inductances must be positive and finite")
         if not is_finite_real(self.tolerance_pct) or not 0 <= self.tolerance_pct < 100:
             raise ValueError("A suggestion's tolerance must be at least 0% and below 100%")
-        # Only a guaranteed limit or a model with its stated accuracy may qualify a part;
-        # "not checked" is kept for the legacy HF toroid windings alone.
-        if self.srf_basis == SRF_MODEL and not self.srf_accuracy:
+        self._require_srf_evidence()
+
+    def _require_srf_evidence(self) -> None:
+        """Only a sourced guaranteed limit or a model with its stated accuracy qualifies a
+        part, and either gives an SRF drift interval; "not checked" is kept for the legacy
+        HF toroid windings alone, which then list no drift."""
+        checked = self.srf_basis != SRF_NOT_CHECKED
+        if self.srf_basis == SRF_MODEL and (
+            not isinstance(self.srf_accuracy, str) or not self.srf_accuracy.strip()
+        ):
             raise ValueError("An SRF model basis needs its stated accuracy")
-        if self.srf_basis == SRF_NOT_CHECKED and self.kind != "toroid":
+        if not checked and self.kind != "toroid":
             raise ValueError("Only toroid windings may leave the SRF not checked")
+        if checked and self.source is None:
+            raise ValueError("A checked SRF basis needs the source of its guarantees")
+        if checked != (self.error_budget.srf_drift_pct is not None):
+            raise ValueError("The SRF drift is listed exactly when the SRF is checked")
 
 
 @dataclass(frozen=True)
