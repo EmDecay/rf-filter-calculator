@@ -201,8 +201,8 @@ def _value_rows(document: dict) -> list[list]:
 
 def _toroid_rows(document: dict, category: str) -> dict[str, list]:
     if category == "bandpass":
-        recommendations = document.get("resonator_toroid_recommendations", [])
-        return {f"L{index + 1}": _toroid_pick(group) for index, group in enumerate(recommendations)}
+        # Every resonator has the same inductance, so one candidate list serves them all.
+        return {"resonators": _toroid_pick(document.get("resonator_toroid_recommendations", []))}
     return {
         row["name"]: _toroid_pick(row.get("toroid_recommendations", []))
         for row in document["components"]["inductors"]
@@ -210,8 +210,6 @@ def _toroid_rows(document: dict, category: str) -> dict[str, list]:
 
 
 def _toroid_pick(recommendations: list) -> list:
-    if isinstance(recommendations, dict):
-        recommendations = recommendations.get("recommendations", [])
     return [
         [
             item["core"]["name"],
@@ -428,7 +426,13 @@ _STRAY_NAME = re.compile(r"^CSTRAY_")
 
 
 def _changed_capacitors(changes: dict[str, tuple], series: str | None) -> list[str]:
-    return [item for item in changes if item.startswith(f"capacitor:{series}:")]
+    """Capacitors of ``series`` whose chosen parts changed (a status change alone does not)."""
+    return [
+        item
+        for item, (before, after) in changes.items()
+        if item.startswith(f"capacitor:{series}:")
+        and (before or {}).get("parts") != (after or {}).get("parts")
+    ]
 
 
 def _build_pairs(parts: list) -> list[str]:
@@ -494,7 +498,18 @@ def classify(
         return kinds, "; ".join(reasons)
     if kind == "build_parts":
         changed = _changed_capacitors(changes, design.build_series)
-        return (["a"], f"chosen parts changed ({', '.join(changed)})") if changed else ([], "")
+        if changed:
+            return ["a"], f"chosen parts changed ({', '.join(changed)})"
+        # Each row ends with the substitution's status.
+        relabelled = sorted(
+            {row[0] for row in after or [] if row[-1] == "tolerance_not_sourced"}
+            - {row[0] for row in before or [] if row[-1] == "tolerance_not_sourced"}
+        )
+        if relabelled and [row[:-1] for row in before] == [row[:-1] for row in after]:
+            return [
+                "a"
+            ], f"parts unchanged, labelled tolerance not sourced ({', '.join(relabelled)})"
+        return [], "not a permitted change"
     if kind in {"build_nominal", "build_summaries", "build_cases"}:
         parts = actual.get("build_parts")
         causes = (
@@ -520,7 +535,16 @@ def current_changes() -> list[dict]:
         changed = changed_items(corpus[design.case_id], actual)
         for item, (before, after) in changed.items():
             kinds, reason = classify(design, item, before, after, changed, actual)
-            changes.append({"case": design.case_id, "item": item, "kinds": kinds, "reason": reason})
+            changes.append(
+                {
+                    "case": design.case_id,
+                    "item": item,
+                    "kinds": kinds,
+                    "reason": reason,
+                    # The reviewed new facts: any later change to the item fails the test.
+                    "after": after,
+                }
+            )
     return changes
 
 
@@ -545,9 +569,13 @@ def main(argv: list[str] | None = None) -> None:
         for change in unexplained:
             print(f"NOT PERMITTED: {change['case']} {change['item']}", file=sys.stderr)
         raise SystemExit(1)
-    ALLOWED_PATH.write_text(
-        json.dumps({"changes": changes}, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    ALLOWED_PATH.write_text(_allowed_text(changes), encoding="utf-8")
+
+
+def _allowed_text(changes: list[dict]) -> str:
+    """The allow-list as JSON with one line per change, so a review reads it entry by entry."""
+    lines = ",\n".join(f"  {json.dumps(change, ensure_ascii=False)}" for change in changes)
+    return '{\n "changes": [\n' + lines + "\n ]\n}\n"
 
 
 if __name__ == "__main__":
