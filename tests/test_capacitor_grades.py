@@ -151,3 +151,21 @@ def _row(data, grade="standard", index=0):
 def test_loader_refuses_malformed_data(monkeypatch, tmp_path, change, message):
     with pytest.raises(RuntimeError, match=message):
         _reload_with(monkeypatch, tmp_path, change)
+
+
+def test_the_tight_grade_scope_is_read_from_the_table():
+    """Tight is tighter for every listed value below 1000 pF and the same J ±5% from there."""
+    from filter_lib.design.capacitor_policy_inputs import GRADE_HELP
+    from filter_lib.shared.capacitor_grades import (
+        CAPACITOR_GRADE_HELP,
+        TIGHT_GRADE_SCOPE,
+        made_values_pf,
+        sourced_tolerance_pf,
+    )
+
+    assert TIGHT_GRADE_SCOPE == "one step tighter below 1000 pF; from 1000 pF both grades are ±5%"
+    for value in made_values_pf():
+        tight = sourced_tolerance_pf(value, "tight")
+        standard = sourced_tolerance_pf(value, "standard")
+        assert (tight < standard) if value < 1000 else (tight == standard), value
+    assert TIGHT_GRADE_SCOPE in CAPACITOR_GRADE_HELP and TIGHT_GRADE_SCOPE in GRADE_HELP

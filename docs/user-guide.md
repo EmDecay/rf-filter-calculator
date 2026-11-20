@@ -645,7 +645,7 @@ chosen-parts SPICE deck, need an E-series, and are refused with `--no-match`, `-
 
 | Option | Wizard and web | Meaning |
 |--------|----------------|---------|
-| `--capacitor-grade standard\|tight` | **Capacitor grade** | The tolerance grade (default standard; tight is one step tighter) |
+| `--capacitor-grade standard\|tight` | **Capacitor grade** | The tolerance grade (default standard; tight is one step tighter below 1000 pF, and from 1000 pF both grades are ±5%) |
 | `--capacitor-tolerance PCT` | **Capacitor tolerance (±%)** | An override that can only loosen the grade: each part uses the larger of this percentage and its grade's tolerance. Blank: the grade's tolerance. A value the sourced table does not list uses it instead of the assumed 5% |
 | `--stray-capacitance CAP` | **Stray capacitance per extra part** | The assumed stray across the second part of a pair, 0 to 10 pF (default 0.2 pF, blank in the wizard and web). An assumption: no source gives a pad-to-pad value for the footprint |
 

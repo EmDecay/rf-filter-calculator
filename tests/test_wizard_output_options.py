@@ -545,7 +545,7 @@ class TestShowResultsStateMapping:
         )
         assert state.build_inductor_tolerance_pct == 7.5
         assert (state.capacitor_grade, state.capacitor_tolerance_pct) == ("tight", 2.5)
-        assert state.stray_capacitance_f == pytest.approx(0.1e-12)
+        assert state.stray_capacitance_f == pytest.approx(0.1e-12, rel=1e-12, abs=0)
         assert (state.build_inductor_q, state.build_capacitor_q) == (120.0, 500.0)
         assert state.build_reference_frequency_hz == 7e6
         assert (state.build_sample_count, state.build_seed, state.build_grid_points) == (7, 42, 301)

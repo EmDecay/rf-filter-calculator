@@ -142,7 +142,27 @@ def _parts_used_lines(analysis: BuildAnalysisResult) -> list[str]:
         row = _format_substitution(substitution, analysis.eseries)
         # Align the values after the names.
         lines.append(row.replace(f"  {name}: ", f"  {name + ':':<{width + 1}} ", 1))
+    note = _stray_note(analysis)
+    if note:
+        lines.append(note)
     return lines
+
+
+def _stray_note(analysis: BuildAnalysisResult) -> str | None:
+    """The assumed pair stray, when no row shows it but it shaped the capacitor choice.
+
+    The stray decides whether a pair can beat a single part, so it is stated even when
+    every pair lost (or the stray is zero); a row shows it only when a pair carries it.
+    """
+    substitutions = analysis.nominal_realization.substitutions
+    chosen = any(item.kind == "C" and item.method != "exact_fallback" for item in substitutions)
+    if not chosen or any(item.stray_capacitance_f for item in substitutions):
+        return None
+    stray = analysis.match_policy.stray_capacitance_f
+    pairs = any(item.kind == "C" and len(item.physical_parts) > 1 for item in substitutions)
+    amount = f"{format_capacitance(stray)} (assumed)" if stray else "none"
+    suffix = "" if pairs else "; no parallel pair chosen"
+    return f"  Stray across a pair's second part: {amount}{suffix}."
 
 
 def _fallback_note(analysis: BuildAnalysisResult) -> str | None:

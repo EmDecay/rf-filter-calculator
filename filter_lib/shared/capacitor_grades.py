@@ -236,18 +236,67 @@ def sourced_tolerance_pf(value_pf: Fraction, grade: str) -> Fraction | None:
     return None if row is None else row.tolerance_at(value_pf)
 
 
-def tolerance_rule_text(grade: str) -> str:
-    """The grade's tolerances by value range, for the output's rule line.
-
-    Consecutive ranges with the same tolerance are joined: the standard grade reads
-    ``±0.1 pF (0.5–0.9 pF), ±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF)``.
-    """
+def _tolerance_spans(grade: str) -> list[list]:
+    """``[tolerance, from_pf, to_pf]`` per range, consecutive equal tolerances joined."""
     spans: list[list] = []
     for row in require_grade(grade).rows:
         if spans and spans[-1][0] == row.describe():
             spans[-1][2] = row.to_pf
         else:
             spans.append([row.describe(), row.from_pf, row.to_pf])
+    return spans
+
+
+def tolerance_rule_text(grade: str) -> str:
+    """The grade's tolerances by value range, for the output's rule line.
+
+    Consecutive ranges with the same tolerance are joined: the standard grade reads
+    ``±0.1 pF (0.5–0.9 pF), ±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF)``.
+    """
     return ", ".join(
-        f"{tolerance} ({_number(low)}–{_number(high)} pF)" for tolerance, low, high in spans
+        f"{tolerance} ({_number(low)}–{_number(high)} pF)"
+        for tolerance, low, high in _tolerance_spans(grade)
     )
+
+
+def tolerance_rule_compact(grade: str) -> str:
+    """The same ranges for the CSV policy, without commas or spaces.
+
+    The standard grade reads ``0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%``.
+    """
+    return "/".join(
+        f"{_number(low)}-{_number(high)}pF:{tolerance.lstrip('±').replace(' ', '')}"
+        for tolerance, low, high in _tolerance_spans(grade)
+    )
+
+
+def _tight_same_from() -> Fraction | None:
+    """The lowest listed value from which the tight grade is no tighter than standard."""
+    same_from = None
+    for value in reversed(made_values_pf()):
+        if sourced_tolerance_pf(value, "tight") != sourced_tolerance_pf(value, "standard"):
+            break
+        same_from = value
+    return same_from
+
+
+def _tight_scope() -> str:
+    same_from = _tight_same_from()
+    if same_from is None:
+        return "one step tighter"
+    row = GRADES["tight"].row_for(same_from)
+    assert row is not None
+    return (
+        f"one step tighter below {_number(same_from)} pF; from {_number(same_from)} pF "
+        f"both grades are {row.describe()}"
+    )
+
+
+# What the tight grade gains, from the data: Murata offers no tighter code from 1 nF.
+TIGHT_GRADE_SCOPE = _tight_scope()
+# CLI help; the wizard and web show the same meaning in their own words.
+CAPACITOR_GRADE_HELP = (
+    "Tolerance grade of the standard capacitors, from the sourced C0G series: standard "
+    f"(the manufacturer's standard tolerance codes) or tight ({TIGHT_GRADE_SCOPE}). Each "
+    "capacitor is chosen by its worst case within tolerance (default: standard)"
+)

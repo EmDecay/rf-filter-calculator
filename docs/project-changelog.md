@@ -55,7 +55,9 @@ compatibility aliases.
   result shown.
 - A choice labelled "tolerance not sourced" gives each part its own tolerance: a part not in
   the table gets the assumed 5% (or the override), a listed part keeps its grade's. CSV
-  `RecommendationPolicy` adds `not-sourced-tolerance=5%(assumed)` and the chosen-parts deck's
+  `RecommendationPolicy` gives the grade's tolerances (`grade-tolerance=…`), the
+  `part-tolerance=larger-of-grade-and-override` rule and `not-sourced-tolerance=5%(assumed)`;
+  the chosen-parts deck's
   `* part used:` comment adds `tolerance-not-sourced=5%-assumed` for such a choice.
 - The deprecated `--sim-matched` refuses `--capacitor-grade`, `--capacitor-tolerance` and
   `--stray-capacitance`, as it already refused `--allow-sub-pf`.

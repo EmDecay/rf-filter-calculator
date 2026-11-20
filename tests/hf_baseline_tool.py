@@ -473,8 +473,8 @@ def classify(
         name = item.split(":", 1)[1]
         if before and after and before["parts"] == after["parts"]:
             return ["a"], (
-                f"{name}: parts unchanged ({_describe_parts(after)}); the sourced series "
-                "does not make them, so the nominal rule is kept and labelled"
+                f"{name}: parts unchanged ({_describe_parts(after)}); at least one is not "
+                "in the sourced table, so the nominal rule is kept and labelled"
             )
         return ["a"], (
             f"{name}: {_describe_parts(before)} -> {_describe_parts(after)} "

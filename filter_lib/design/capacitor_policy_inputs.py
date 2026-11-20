@@ -7,7 +7,7 @@ refuses gets the CLI's message (``--capacitor-grade``, ``--capacitor-tolerance``
 
 from __future__ import annotations
 
-from ..shared.capacitor_grades import GRADE_NAMES, SERIES
+from ..shared.capacitor_grades import GRADE_NAMES, SERIES, TIGHT_GRADE_SCOPE
 from ..shared.eseries import (
     CAPACITOR_GRADE_LABEL,
     CAPACITOR_TOLERANCE_LABEL,
@@ -19,8 +19,8 @@ from ..shared.parsing import parse_stray_capacitance
 GRADE_CHOICES = (("standard", "Standard"), ("tight", "Tight"))
 GRADE_HELP = (
     f"Tolerance grade of the sourced C0G series ({SERIES.title}): Standard is the "
-    "manufacturer's standard tolerance, Tight one step tighter. Each capacitor is chosen "
-    "by its worst case within tolerance."
+    f"manufacturer's standard tolerance, Tight {TIGHT_GRADE_SCOPE}. Each capacitor is "
+    "chosen by its worst case within tolerance."
 )
 TOLERANCE_FIELD_LABEL = f"{CAPACITOR_TOLERANCE_LABEL} (±%)"
 TOLERANCE_FIELD_HELP = (

@@ -12,6 +12,7 @@ import json
 import math
 from importlib.resources import files
 from typing import Any
+from urllib.parse import urlsplit
 
 from .numeric import is_finite_real
 
@@ -44,14 +45,16 @@ def load_packaged_json(
     data_path = files(package).joinpath(filename)
     with data_path.open("r", encoding="utf-8") as data_file:
         raw = json.load(data_file, parse_constant=reject_constant, parse_float=finite_float)
-    if not isinstance(raw, dict) or raw.get("schema_version") != schema_version:
+    version = raw.get("schema_version") if isinstance(raw, dict) else None
+    # ``type(...) is int``: JSON ``true`` loads as a bool, which equals 1.
+    if type(version) is not int or version != schema_version:
         raise RuntimeError(f"Unsupported {label} schema; expected version {schema_version}")
     return raw
 
 
 def require_https_url(url: object, label: str) -> str:
     """Return ``url`` when it is a printable HTTPS URL; ``label`` names its owner."""
-    if not isinstance(url, str) or not url.startswith("https://"):
+    if not isinstance(url, str) or not url.startswith("https://") or not urlsplit(url).hostname:
         raise RuntimeError(f"{label} must use an HTTPS URL")
     return require_printable_line(url, label)
 

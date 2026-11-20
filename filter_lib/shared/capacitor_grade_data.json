@@ -165,7 +165,7 @@
   },
   "tight": {
    "label": "Tight",
-   "description": "The loosest of Murata's narrow tolerance codes, one step tighter than standard",
+   "description": "The loosest of Murata's narrow tolerance codes: one step tighter than standard below 1000 pF, the same J ±5% from 1000 pF",
    "rows": [
     {
      "from_pf": 0.5,

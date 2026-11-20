@@ -52,7 +52,7 @@ def test_blank_fields_are_the_cli_defaults(monkeypatch, capsys, client):
     assert output_text(response.text) + "\n" == expected
     request = parse_design_form("lowpass", blank).request
     assert (request.capacitor_grade, request.capacitor_tolerance_pct) == ("standard", None)
-    assert request.stray_capacitance_f == pytest.approx(0.2e-12)
+    assert request.stray_capacitance_f == pytest.approx(0.2e-12, rel=1e-12, abs=0)
 
 
 @pytest.mark.parametrize(

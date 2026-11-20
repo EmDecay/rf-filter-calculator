@@ -635,7 +635,9 @@ class TestRecommendationPolicy:
 
     def test_policy_summary_describes_thresholds_and_floor(self):
         assert DEFAULT_MATCH_POLICY.summary() == (
-            "worst-case;grade=standard;tolerance-override=none;"
+            "worst-case;grade=standard;"
+            "grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;"
+            "part-tolerance=larger-of-grade-and-override;tolerance-override=none;"
             "not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);"
             "parallel-improvement>=0.5pp;minimum-cap=1pF"
         )
@@ -647,7 +649,10 @@ class TestRecommendationPolicy:
             stray_capacitance_f=0,
         )
         assert expert.summary() == (
-            "worst-case;grade=tight;tolerance-override=3%;not-sourced-tolerance=3%(assumed);"
+            "worst-case;grade=tight;"
+            "grade-tolerance=0.5-0.9pF:0.05pF/1-5pF:0.1pF/5.1-9.9pF:0.25pF/10-910pF:2%/1000-10000pF:5%;"
+            "part-tolerance=larger-of-grade-and-override;"
+            "tolerance-override=3%;not-sourced-tolerance=3%(assumed);"
             "stray=0pF(assumed);parallel-improvement>=0pp;minimum-cap=disabled"
         )
         assert expert.as_dict() == {

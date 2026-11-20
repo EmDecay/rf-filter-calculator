@@ -3,7 +3,7 @@
 from argparse import Action, ArgumentParser, Namespace
 from typing import Any
 
-from .capacitor_grades import GRADE_NAMES
+from .capacitor_grades import CAPACITOR_GRADE_HELP, GRADE_NAMES
 from .cli_aliases import (
     DEFAULT_COMPONENTS,
     DEFAULT_ESERIES,
@@ -12,7 +12,6 @@ from .cli_aliases import (
 )
 from .eseries import (
     CAPACITOR_GRADE_FLAG,
-    CAPACITOR_GRADE_HELP,
     CAPACITOR_TOLERANCE_FLAG,
     CAPACITOR_TOLERANCE_HELP,
     STRAY_CAPACITANCE_FLAG,
