@@ -159,19 +159,32 @@ as they are; human-readable text maps them to the table names with
 ## E-Series Policy
 
 E12/E24/E96 names describe how many standard values there are per decade, not tolerance.
-Automatic standard-value selection applies to capacitors only:
+Automatic standard-value selection applies to capacitors only, by the worst-case interval rule
+in `shared/capacitor_choice.py`:
 
-- keep a single part when absolute error is at most 1%;
-- select a two-part parallel combination only when it improves absolute error by at least
-  0.5 percentage points;
+- tolerances come from one sourced grade table, `shared/capacitor_grade_data.json` (Murata
+  GRM1885C1H…A01, loaded by `shared/capacitor_grades.py` through `shared/packaged_data.py`);
+  a change to it updates `docs/component-data-sources.md` in the same change;
+- a candidate's interval is nominal − tolerance to nominal + tolerance, plus the assumed stray
+  for a pair; its score is the larger endpoint error; the best single and best pair come from
+  an exhaustive search over the E-series values the series makes, in exact `Fraction`
+  arithmetic; a pair wins only by at least 0.5 percentage points (inclusive); ties go to the
+  single, then the smaller ratio, then the lower value; pairs stay within 10:1;
+- an override can only loosen a guarantee: tolerance = max(override % × value, sourced
+  tolerance); a part whose tolerance is not smaller than its value is ineligible;
+- a choice the nominal rule makes from parts the series does not make keeps that rule (single
+  within `LEGACY_SINGLE_WITHIN_PCT`, else a pair 0.5 points closer), with status
+  `tolerance_not_sourced` and an assumed 5% (or the override); never present it as sourced;
 - below 1 pF, choose nothing unless `DesignRequest.allow_sub_pf` is set (CLI `--allow-sub-pf`,
   wizard/web **Allow capacitors below 1 pF**); the warning names that option.
 
-Surfaces set `allow_sub_pf` on `DesignRequest` only; `design()` copies it to the result and
-applies it to every `MatchPolicy`. A Python caller's explicit `BuildConfig.match_policy`
-opt-in is combined with it (either one allows sub-pF parts), never overwritten. Table, JSON, CSV, wizard, web UI, nominal realization, and SPICE must
-agree on the selected result. Inductors remain calculated/wound values or toroid winding
-suggestions.
+Surfaces set the series, the sub-pF switch, the grade, the tolerance override and the stray on
+`DesignRequest` only; `design()` resolves one `MatchPolicy` from them
+(`resolve_match_policy`) and stores it on the `DesignResult`. Nothing else builds a
+`MatchPolicy` or a `DesignResult` (`tests/test_part_policy_carrier.py`). Table, JSON, CSV,
+wizard, web UI, nominal realization, and SPICE must agree on the selected result. Inductors
+remain calculated/wound values or toroid winding suggestions; harmonic E-series matching keeps
+the nominal rule.
 
 ## Toroid Data and Claims
 
@@ -187,9 +200,19 @@ heating, or power handling (`toroid_selection.NOT_ASSESSED_WARNING`).
 ## Build Simulation and SPICE
 
 `BuildConfig`, nominal realization, and tolerance screening are public contracts (shown to users
-as the build simulation, the chosen parts, and the tolerance cases):
+as the build simulation, the chosen parts, and the tolerance cases). `DesignRequest.realization`
+holds the build settings a chosen-parts deck or a build needs; `run_build_analysis` alone runs
+the tolerance cases, so making a SPICE deck never runs them:
 
 - chosen parts and exact fallbacks remain auditable;
+- each part varies by its own tolerance (`CircuitElement.tolerance`): a capacitor by its
+  grade's (or the larger override; the assumed tolerance where not sourced), an inductor by
+  `BuildConfig.inductor_tolerance_pct` (unset: 10% for toroid windings and calculated values);
+- the assumed stray across a pair is a `fixed` capacitor across the pair's terminals named
+  `CSTRAY_<part>` (`circuit_display_names.STRAY_PREFIX`, shown as "<part> stray"); fixed
+  elements are never varied, so they change neither the case list nor the seeded draws, and a
+  stray of 0 adds no element. Every element name starts with the letter of its kind
+  (`CircuitElement` refuses any other), so a SPICE reader sees what the solver sees;
 - Q is converted to constant series resistance at a stated reference frequency;
 - a custom loss reference without an effective Q is rejected;
 - fixed tolerance cases and seeded extra random cases are not measurements, probabilities,
@@ -220,7 +243,13 @@ A rule enforced on more than one surface has one message constant or helper; imp
 of restating the text. Examples: `design/render_options.py` (`BUILD_NEEDS_ESERIES_MESSAGE`,
 `BUILD_NEEDS_TABLE_OR_JSON_MESSAGE`, `BUILD_NOT_WITH_VALUES_ONLY_MESSAGE`,
 `SUB_PF_NEEDS_ESERIES_MESSAGE`, `shows_design_warnings`), `shared/eseries.py`
-(`SUB_PF_OPTION_LABEL`, `SUB_PF_CLI_FLAG`, `sub_pf_warning`), `shared/cli_aliases.py`
+(`SUB_PF_OPTION_LABEL`, `SUB_PF_CLI_FLAG`, `sub_pf_warning`, `CAPACITOR_GRADE_LABEL`,
+`CAPACITOR_TOLERANCE_LABEL`, `STRAY_CAPACITANCE_LABEL`, `CAPACITOR_TOLERANCE_RANGE_MESSAGE`,
+the `*_HELP` texts), `design/capacitor_policy_inputs.py` (the wizard and web labels, help and
+field parsers for the grade, tolerance and stray), `shared/display_helpers.py`
+(`not_sourced_note`), `shared/nominal_realization.py` (`stray_limitation`),
+`shared/physical_input_limits.py` (`STRAY_CAPACITANCE_RANGE_MESSAGE`),
+`shared/capacitor_grades.py` (`require_grade`), `shared/cli_aliases.py`
 (`RIPPLE_RANGE_MESSAGE`, `COMPONENT_COUNT_MESSAGE`, `chebyshev_odd_count_message`),
 `bandpass/input_validation.py` (`RESONATOR_COUNT_MESSAGE`, `BANDWIDTH_NOT_BELOW_CENTER`,
 `fbw_untested_warning`, `fbw_impractical_warning`), `bandpass/resonator_math.py`
@@ -231,7 +260,10 @@ of restating the text. Examples: `design/render_options.py` (`BUILD_NEEDS_ESERIE
 (`require_count`, used with the count messages by all three subcommands, the web, and the
 LP/HP and bandpass calculators),
 `design/option_applicability.py` (the disabled-control reasons, such as
-`TEXT_PLOT_NEEDS_TABLE_MESSAGE` and `LOSS_Q_NOT_SHOWN_MESSAGE`),
+`TEXT_PLOT_NEEDS_TABLE_MESSAGE`, `LOSS_Q_NOT_SHOWN_MESSAGE` and
+`EXACT_SPICE_MATCHING_MESSAGE`; the capacitor grade, tolerance and stray reuse the sub-pF
+wording for their own labels), `design/export.py` (`NOMINAL_SPICE_NEEDS_ESERIES_MESSAGE`),
+`wizard/screens/results.py` (`PREPARING_FILES_MESSAGE`, `not_saved_prefix`),
 `design/q_reference_frequency.py` (`Q_FREQUENCY_LABEL`, `Q_FREQUENCY_HELP`), and
 `wizard/state_design_inputs.py` (`CSV_WITH_BUILD_MESSAGE`). Error text names fields in words,
 never as snake_case.
@@ -239,7 +271,9 @@ never as snake_case.
 Whether a wizard or web control applies to the chosen output is decided only by
 `design/option_applicability.py`, which restates the CLI's accept/refuse rules and is tested
 against them. Extend that rule for a new option or combination; do not add a check, a disabled
-state, or a reason text in one interface.
+state, or a reason text in one interface. A document with rules of its own adds them in
+`_DOCUMENT_REASONS` (the calculated-values SPICE deck leaves out every option in
+`MATCHING_OPTIONS`); `document_reasons` and `document_own_options` expose them.
 Caveats print once where they apply; JSON and CSV keep every warning entry.
 
 ## Machine-Readable Output
@@ -320,6 +354,12 @@ Important regression layers include:
 - analytic and Decimal-fallback nodal-solver cases;
 - strict JSON, rectangular CSV, build, and generic SPICE contracts;
 - toroid provenance and winding math;
+- the HF baseline corpus (`tests/test_hf_baseline.py`, generated by `tests/hf_baseline_tool.py`):
+  45 HF designs whose values, capacitor choices, statuses, toroid picks, SPICE decks and build
+  results may change only as listed, with a permitted kind and a reason, in
+  `tests/fixtures/hf_baseline_allowed_changes.json`; never regenerate the corpus to absorb a
+  change (`uv run python -m tests.hf_baseline_tool --report` lists the differences);
+- capacitor choices against an independent brute force (`tests/capacitor_interval_oracle.py`);
 - Textual unit tests and real `run_test()` pilot flows;
 - source archive, wheel contents, and installed-wheel smoke tests;
 - the oldest and the newest supported Python (see

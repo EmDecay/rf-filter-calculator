@@ -107,10 +107,11 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - **E12 Series**: 12 standard values per decade
 - **E24 Series**: 24 standard values per decade (default)
 - **E96 Series**: 96 standard values per decade
-- **Tolerance**: independent build input; an E-series name is not a tolerance declaration
+- **Tolerance**: from a sourced C0G grade table (standard or tight grade, optional override that can only loosen it); an E-series name is not a tolerance declaration
 - **Matching Strategies**:
-  - Single value: selected when within 1% of target
-  - Parallel combination: selected only when it improves absolute error by at least 0.5 percentage points
+  - Worst case: each single part or parallel pair is scored by the larger error of its tolerance interval (plus an assumed stray for a pair); the best single and best pair come from an exhaustive search
+  - Parallel combination: selected only when its worst case is at least 0.5 percentage points better
+  - Values the sourced series does not make: nominal rule (single within 1%, else a pair), marked "tolerance not sourced"
   - Below 1 pF: no part chosen automatically unless `--allow-sub-pf` (wizard/web: **Allow capacitors below 1 pF**) is on; otherwise the user is told to choose one manually
 - **Acceptance Criteria**:
   - ✓ Exactly one choice per capacitor, or an explicit "none (below 1 pF)" status

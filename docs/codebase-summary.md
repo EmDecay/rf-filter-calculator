@@ -46,10 +46,16 @@ filter_lib/
 `filter_lib/design/` is the orchestration every surface calls; see
 [system-architecture.md](system-architecture.md#shared-design-service) for why.
 
-- `design_request.py` — `DesignRequest` (including `allow_sub_pf`) and the cross-field rules
+- `design_request.py` — `DesignRequest` (synthesis inputs; the part policy: `eseries`,
+  `allow_sub_pf`, `capacitor_grade`, `capacitor_tolerance_pct`, `stray_capacitance_f`; the
+  build settings `realization` and the `run_build_analysis` switch) and the cross-field rules
   every surface enforces
-- `design_service.py` — `design()`, `synthesize()`, `with_build_analysis()`, and
-  `apply_sub_pf_policy` (combines the request and `BuildConfig` sub-pF switches)
+- `design_result.py` — `DesignResult`: the request, the resolved `match_policy`, the result
+  dict and the optional build analysis; only `design()` builds one
+- `design_service.py` — `design()`, `synthesize()`, and `resolve_match_policy` (the one place a
+  request's part policy becomes a `MatchPolicy`)
+- `capacitor_policy_inputs.py` — wizard and web labels, help, and field parsers for the
+  capacitor grade, tolerance override, and stray
 - `render_options.py`, `render.py` — `RenderOptions` and `render_lines` for table, quiet,
   JSON, and CSV; shared surface messages such as `BUILD_NEEDS_ESERIES_MESSAGE`
 - `export.py` — `export_spice`, `export_response_data`, and `response_series`
@@ -107,10 +113,15 @@ lowpass prototype; transformed HP/BP phase is not claimed without external verif
 ## Physical-part realization
 
 `shared/eseries.py` supports E12, E24, and E96 standard capacitor values. The series name
-gives values per decade, not tolerance. Each capacitor gets one choice: a single part within
-1%, otherwise a parallel pair only when it is at least 0.5 percentage points closer. Below
-1 pF no part is chosen unless `DesignRequest.allow_sub_pf` (`--allow-sub-pf`, wizard/web
-**Allow capacitors below 1 pF**) is set; the warning names that option.
+gives values per decade, not tolerance. Each capacitor gets one choice by its worst case
+within tolerance (`shared/capacitor_choice.py`): the single part or parallel pair whose
+interval (nominal ± tolerance, plus the assumed stray for a pair) ends closest to the target,
+a pair only when it is at least 0.5 percentage points better. Tolerances come from the sourced
+grade table (`shared/capacitor_grades.py`, `capacitor_grade_data.json`); a value the series
+does not make keeps the nominal rule (single within 1%, else a pair) and is marked
+`tolerance_not_sourced`. Below 1 pF no part is chosen unless `DesignRequest.allow_sub_pf`
+(`--allow-sub-pf`, wizard/web **Allow capacitors below 1 pF**) is set; the warning names that
+option.
 
 Inductors are not E-series matched. Toroid winding suggestions use only primary-sourced
 T25-6, T50-2, and T68-2 entries. Other vendored legacy records remain inspectable but are
@@ -185,16 +196,22 @@ controls, with the reason, from `design/option_applicability.py`.
 - `lp_hp_base_calculations.py` — shared ladder denormalization
 - `chebyshev_g_calculator.py` — formula-based prototypes
 - `numeric.py` — log-domain finite-result helpers
-- `physical_input_limits.py` — accepted component-Q and port-resistance ranges, with the
-  reasons for them
-- `circuit_model.py`, `circuit_builders.py` — named passive networks
+- `physical_input_limits.py` — accepted component-Q, port-resistance and stray-capacitance
+  ranges, with the reasons for them
+- `packaged_data.py` — the one loader for packaged JSON data files (schema version,
+  non-finite numbers) and their field guards (HTTPS URLs, guarantee types, printable text)
+- `circuit_model.py`, `circuit_builders.py` — named passive networks; each element carries its
+  own tolerance and a `fixed` flag for assumed parasitics
 - `branch_admittance.py`, `nodal_solver.py`, `decimal_nodal_solver.py` — stable AC solver
   and its high-precision fallback
 - `response_measurement.py` — cutoff/passband measurements
 
 ### Realization and analysis
 
-- `component_realization.py`, `nominal_realization.py`
+- `component_realization.py`, `nominal_realization.py` — chosen parts with their own
+  tolerances, and the fixed `CSTRAY_<part>` stray across each pair
+- `capacitor_grades.py`, `capacitor_choice.py` — the sourced grade table and the worst-case
+  capacitor choice
 - `toroid_core_data.py`, `toroid_inductance.py`, `toroid_selection.py`, `toroid_wire.py`
 - `build_loss_models.py`, `tolerance_screening.py`, `build_analysis.py`
 - `build_output*.py`, `spice_export.py`
@@ -222,9 +239,13 @@ or after failure. Component format selection and response-data sidecar selection
 - `uv.lock` — locked resolution
 - `.github/workflows/ci.yml` — Ruff quality, oldest/newest Python test jobs, packaging/smoke job
 - `filter_lib/shared/toroid_core_data.json` — packaged toroid data
+- `filter_lib/shared/capacitor_grade_data.json` — packaged capacitor grade table (evidence in
+  `docs/component-data-sources.md`)
 - `filter_lib/wizard/styles.tcss` — packaged wizard stylesheet
 - `filter_lib/web/templates/`, `filter_lib/web/static/` — packaged web templates and assets
 - `tests/wheel_smoke.py` — isolated installed-wheel smoke check
+- `tests/fixtures/hf_baseline.json`, `tests/fixtures/hf_baseline_allowed_changes.json` — the HF
+  baseline corpus and its list of permitted changes (`tests/hf_baseline_tool.py`)
 - `plans/` — ignored implementation work records when a broad change needs a plan
 
 ## Engineering boundaries

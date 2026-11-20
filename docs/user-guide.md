@@ -85,6 +85,9 @@ uv run filter-calc lp bw pi 10MHz --format json
 # Finer E96 standard capacitor values
 uv run filter-calc lp bw pi 10MHz -e E96
 
+# Tight-grade capacitors, a looser 3% tolerance floor, and a 0.1 pF stray across each pair
+uv run filter-calc lp bw pi 146MHz -n 5 --capacitor-grade tight --capacitor-tolerance 3 --stray-capacitance 0.1pF
+
 # Export frequency response data
 uv run filter-calc lp bw pi 10MHz --plot-data csv > response.csv
 
@@ -102,8 +105,7 @@ uses the chosen parts: the standard capacitor values plus the suggested toroid w
 | Option | Meaning |
 |--------|---------|
 | `--sim-build` | Simulate the ideal values and the chosen parts, at nominal values and across tolerance cases (all parts low, all high, each part low and high alone). Table or JSON output only |
-| `--capacitor-tolerance PCT` (alias `--cap-tolerance`) | Capacitor tolerance in ± percent, 0 to under 100 (default 5) |
-| `--inductor-tolerance PCT` (alias `--ind-tolerance`) | Inductor tolerance in ± percent, 0 to under 100 (default 10) |
+| `--inductor-tolerance PCT` (alias `--ind-tolerance`) | Tolerance of every inductor in ± percent, 0 to under 100 (default 10 for toroid windings and calculated values). Capacitors use their own tolerances; see Standard Capacitor Values |
 | `--inductor-q Q`, `--capacitor-q Q` | Part losses (Q), 0.01 to 1e9, for `--sim-build` and the chosen-parts SPICE deck. Each Q becomes a fixed series resistance at the frequency where the Q values apply. Omit for lossless parts |
 | `--source-resistance`, `--load-resistance` | Simulation source and load resistance (1e-6 to 1e6 times `-z`). Component values are still designed for equal source and load impedance |
 | `--loss-reference-frequency` | Frequency at which the Q values apply (default: cutoff or center frequency); needs a Q option |
@@ -457,12 +459,15 @@ Field names mirror the CLI flags, so a design can move between the two.
 | Format (`output_format`: table, quiet, json, csv) | `--format`; Values only is `-q` | |
 | Standard capacitor values (`eseries`) | `-e`; **None** is `--no-match` | |
 | Allow capacitors below 1 pF (`allow_sub_pf`) | `--allow-sub-pf` | Needs E12, E24, or E96 |
+| Capacitor grade (`capacitor_grade`: standard, tight) | `--capacitor-grade` | Needs E12, E24, or E96 |
+| Capacitor tolerance (±%) (`capacitor_tolerance_pct`) | `--capacitor-tolerance` | Blank by default (the grade's tolerance); needs E12, E24, or E96 |
+| Stray capacitance per extra part (`stray_capacitance`) | `--stray-capacitance` | Blank by default (0.2 pF); needs E12, E24, or E96 |
 | Toroid windings (table detail) (`toroids`: best, full, compact, none) | default, `--toroid-full`, `--toroid-compact`, `--no-toroids` | Best, detailed (default) / Up to 3, detailed / Best, one line / None; the middle two need Table |
 | Text plot in the table (`plot`) | `--plot` | Table only |
 | Raw units (F, H) (`raw`) | `--raw` | Table or Values only |
 | Response graph (`svg_plot`) | none | Web only |
 | Simulate the built filter (`sim_build`) | `--sim-build` | Needs table or JSON output and an E-series |
-| Build fields (`build_capacitor_tolerance_pct`, `build_inductor_tolerance_pct`, `build_inductor_q`, `build_capacitor_q`, `build_reference_frequency`, `build_source_resistance`, `build_load_resistance`, `build_sample_count`, `build_seed`, `build_grid_points`) | `--capacitor-tolerance`, `--inductor-tolerance`, `--inductor-q`, `--capacitor-q`, `--loss-reference-frequency`, `--source-resistance`, `--load-resistance`, `--sample-count`, `--seed`, `--analysis-points` | Labeled Capacitor/Inductor tolerance (±%), Inductor/Capacitor Q, Frequency at which the Q values apply, Simulation source/load resistance (Ω), Extra random tolerance cases, Random seed, Frequency points. Pre-filled with the CLI defaults; a blank takes the default. Read only when the build box is ticked. A nonzero seed needs extra random cases |
+| Build fields (`build_inductor_tolerance_pct`, `build_inductor_q`, `build_capacitor_q`, `build_reference_frequency`, `build_source_resistance`, `build_load_resistance`, `build_sample_count`, `build_seed`, `build_grid_points`) | `--inductor-tolerance`, `--inductor-q`, `--capacitor-q`, `--loss-reference-frequency`, `--source-resistance`, `--load-resistance`, `--sample-count`, `--seed`, `--analysis-points` | Labeled Inductor tolerance (±%), Inductor/Capacitor Q, Frequency at which the Q values apply, Simulation source/load resistance (Ω), Extra random tolerance cases, Random seed, Frequency points. Pre-filled with the CLI defaults (the inductor tolerance is blank: 10% for toroid windings and calculated values); a blank takes the default. Read only when the build box is ticked. A nonzero seed needs extra random cases |
 | Simulate inductors as the suggested toroid windings (`toroid_build`) | unticked is `--no-toroid-build` | Ticked by default; disabled when Toroid windings is None. The 2.2.0 field `no_toroid_build=on` is still accepted |
 
 An option that cannot apply to the chosen output is disabled, with the reason under it, by the
@@ -470,7 +475,9 @@ same rule the wizard uses; a disabled control is not submitted, which matches le
 CLI flag. A hand-made request that sets one anyway is refused with that reason, except two
 that are ignored: the standard capacitor values with Values only or Raw units (a radio choice is
 always submitted), and the toroid box with None (the CLI also accepts `--no-toroid-build` with
-`--no-toroids`). The deprecated `--sim-matched` and `--q-safety` have no web fields.
+`--no-toroids`). The deprecated `--sim-matched` and `--q-safety` have no web fields. The
+**SPICE – calculated values** download uses no standard capacitors, so it leaves out the
+E-series and the capacitor grade, tolerance, stray and sub-pF fields, as if they were disabled.
 
 ### Long calculations
 
@@ -597,27 +604,63 @@ The calculator chooses standard capacitor values for each calculated capacitor.
 | None (`--no-match`) | Show calculated values only |
 
 An E-series sets how many standard values there are per decade; it does not set the part
-tolerance. For example, an E24-valued capacitor may be sold in several tolerances. Enter the
-actual tolerance separately for the build simulation (`--capacitor-tolerance`).
+tolerance. Tolerances come from one sourced C0G series, Murata GRM1885C1H…A01 (0603, 50 V);
+[component-data-sources.md](component-data-sources.md) records each value and its source.
+
+| Value range | Standard grade (default) | Tight grade |
+|---|---|---|
+| 0.5–0.9 pF | ±0.1 pF | ±0.05 pF |
+| 1–5 pF | ±0.25 pF | ±0.1 pF |
+| 5.1–9.9 pF | ±0.5 pF | ±0.25 pF |
+| 10–910 pF | ±5% | ±2% |
+| 1–10 nF | ±5% | ±5% |
 
 ### How a value is chosen
 
-Each capacitor gets one choice, shown on the `Use:` line:
+Each capacitor gets one choice, shown on the `Use:` line, by its worst case within tolerance:
 
-- **Single part**: used when it is within 1% of the calculated value.
-- **Two in parallel**: used only when the pair is at least 0.5 percentage points closer than
-  the best single part. `Nearest single:` then shows that single part for comparison.
+- Each candidate covers an interval: its nominal value minus its tolerance up to its nominal
+  value plus its tolerance, plus, for a pair, the assumed stray across its second part.
+- Its score is the larger distance from the calculated value to either end of that interval.
+- **Single part or two in parallel**: the best single part and the best pair come from an
+  exhaustive search over the values the series makes; the pair is used only when it scores
+  at least 0.5 percentage points better. `Nearest single:` then shows the nearest single part
+  for comparison. Ties go to the single part, then to the pair with the smaller ratio, then
+  to the lower value; a pair's parts are within 10:1.
+- **Tolerance not sourced**: a value the series does not make (most E96 values, and parts above
+  10 nF) is chosen by the nominal rule instead (the nearest single part within 1%, otherwise a
+  pair at least 0.5 points closer). The row adds `Tolerance not sourced (the sourced series
+  does not make it): chosen by nominal value, ±5% assumed.`
 - **Below 1 pF**: no part is chosen automatically. The row reads
   `Use: none (below 1 pF; see warning)`, the nearest single value is shown for reference only,
   and the warning says: `Below 1 pF no part is chosen automatically. Choose one manually, or
   turn on "Allow capacitors below 1 pF" (--allow-sub-pf).`
 
-`--allow-sub-pf` (**Allow capacitors below 1 pF** in the wizard and web UI) applies the same
-single/parallel rule below 1 pF too. It applies to the table, CSV, JSON, `--sim-build`, and the
-chosen-parts (`nominal-build`) SPICE deck, and is reported in JSON as
-`standard_match.policy.allow_sub_pf` and in CSV as `RecommendationPolicy`. It needs an E-series,
-so it is refused with `--no-match`, `--quiet`, `--raw` (unless `--sim-build` is used),
-`--explain`, `--plot-data`, `--spice-realization exact`, and the deprecated `--sim-matched`.
+The section heading states the grade, its tolerances, any override and the stray. Three
+options change the choice; they apply to the table, CSV, JSON, `--sim-build` and the
+chosen-parts SPICE deck, need an E-series, and are refused with `--no-match`, `--quiet`,
+`--raw` (unless `--sim-build` is used), `--explain`, `--plot-data` and
+`--spice-realization exact`:
+
+| Option | Wizard and web | Meaning |
+|--------|----------------|---------|
+| `--capacitor-grade standard\|tight` | **Capacitor grade** | The tolerance grade (default standard; tight is one step tighter) |
+| `--capacitor-tolerance PCT` | **Capacitor tolerance (±%)** | An override that can only loosen the grade: each part uses the larger of this percentage and its grade's tolerance. Blank: the grade's tolerance. A value the series does not make uses it instead of the assumed 5% |
+| `--stray-capacitance CAP` | **Stray capacitance per extra part** | The assumed stray across the second part of a pair, 0 to 10 pF (default 0.2 pF, blank in the wizard and web). An assumption: no source gives a pad-to-pad value for the footprint |
+
+`--allow-sub-pf` (**Allow capacitors below 1 pF** in the wizard and web UI) also chooses parts
+below 1 pF. The series makes no E-series value below 1 pF, so those choices are "tolerance not
+sourced". It applies to the table, CSV, JSON, `--sim-build`, and the chosen-parts
+(`nominal-build`) SPICE deck, and is reported in JSON as `standard_match.policy.allow_sub_pf`
+and in CSV as `RecommendationPolicy`. It needs an E-series, so it is refused with the options
+above and the deprecated `--sim-matched`.
+
+JSON gives each choice's `status` (`recommended`, `tolerance_not_sourced` or
+`expert_override_required`) and `tolerance_basis` (`sourced` or `assumed`), and the rule in
+`standard_match.policy` (`rule`, `capacitor_series`, `capacitor_grade`, `grade_tolerances`,
+`tolerance_override_pct`, `assumed_tolerance_pct_when_not_sourced`, `stray_capacitance_f`,
+`stray_capacitance_basis`, `min_parallel_improvement_pct_points`, `minimum_capacitance_f`,
+`allow_sub_pf`). CSV gives the status and a one-line `RecommendationPolicy`.
 
 **Note**: Standard values are chosen for capacitors only. Inductors are shown at their
 calculated values; they are usually wound by hand (see the toroid winding suggestions below).
@@ -642,8 +685,25 @@ C1 calculated 636.62 fF
            turn on "Allow capacitors below 1 pF" (--allow-sub-pf).
 ```
 
-With `--allow-sub-pf` added, the same capacitor reads
-`Use:            75.00 fF || 560.00 fF (-0.3%)`.
+With `--allow-sub-pf` added, the same capacitor reads:
+
+```text
+C1 calculated 636.62 fF
+  Use:            75.00 fF || 560.00 fF (-0.3%)
+  Nearest single: 620.00 fF (-2.6%)
+  Tolerance not sourced (the sourced series does not make it): chosen by nominal
+    value, ±5% assumed.
+```
+
+From `uv run filter-calc lp bw pi 146MHz -n 5`, a 2 m low-pass: the worst case of 13 pF
+(±0.65 pF) is 1.12 pF from the target, and of 4.3 pF ∥ 9.1 pF (±0.25 and ±0.5 pF, plus the
+0.2 pF stray) 0.88 pF, so the pair is chosen:
+
+```text
+C1 calculated 13.47 pF
+  Use:            4.30 pF || 9.10 pF (-0.6%)
+  Nearest single: 13.00 pF (-3.5%)
+```
 
 ---
 
