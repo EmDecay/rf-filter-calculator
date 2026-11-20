@@ -82,8 +82,9 @@ INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE = (
     "Inductor suggestion detail can be chosen only with Table format"
 )
 RAW_NEEDS_TABLE_MESSAGE = "Raw units can be used only with Table or Values only format"
-# A forced inductor kind needs suggestions (the CLI refuses --build-inductors toroid, air-coil
-# or chip with --inductor-suggestions none in the same words).
+# A forced inductor kind needs suggestions; the rule disables only the forced kinds (Auto
+# and Calculated values stay usable). The CLI refuses --build-inductors toroid, air-coil
+# or chip with --inductor-suggestions none in the same words.
 BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE = FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE
 # The shared message every surface gives when resonator Q is refused, for all three fields.
 LOSS_Q_NOT_SHOWN_MESSAGE = loss_q_not_shown_message(list(RESONATOR_Q_LABELS))
@@ -262,10 +263,24 @@ EXACT_SPICE_MATCHING_MESSAGE = (
 RESPONSE_DATA_MATCHING_MESSAGE = (
     "Standard capacitor choices have no effect on response data, which is the ideal response"
 )
+# Neither uses the chosen inductors either (the CLI refuses --build-inductors with them).
+EXACT_SPICE_BUILD_INDUCTORS_MESSAGE = (
+    "Inductors in the build have no effect on the calculated-values SPICE deck, which uses "
+    "the calculated values"
+)
+RESPONSE_DATA_BUILD_INDUCTORS_MESSAGE = (
+    "Inductors in the build have no effect on response data, which is the ideal response"
+)
 _DOCUMENT_REASONS = {
-    "spice-exact": {option: EXACT_SPICE_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
+    "spice-exact": {
+        **{option: EXACT_SPICE_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
+        BUILD_INDUCTORS: EXACT_SPICE_BUILD_INDUCTORS_MESSAGE,
+    },
     **{
-        document: {option: RESPONSE_DATA_MATCHING_MESSAGE for option in MATCHING_OPTIONS}
+        document: {
+            **{option: RESPONSE_DATA_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
+            BUILD_INDUCTORS: RESPONSE_DATA_BUILD_INDUCTORS_MESSAGE,
+        }
         for document in ("response-json", "response-csv")
     },
 }

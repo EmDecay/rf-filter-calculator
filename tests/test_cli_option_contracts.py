@@ -279,7 +279,7 @@ def test_infeasible_toroid_screen_does_not_abort_valid_extreme_design(monkeypatc
     assert suggestions["best"] is None
     assert [kind["suggestions"] for kind in suggestions["kinds"]] == [[], [], []]
     assert suggestions["kinds"][0]["reason_none"].startswith(
-        "No suitable toroid core in the built-in list."
+        "No suitable toroid core in the built-in list:"
     )
 
 

@@ -17,6 +17,7 @@ from .inductor_suggestion import (
     InductorSuggestion,
     KindSuggestions,
     PartSource,
+    tolerance_of_target,
 )
 from .numeric import require_positive_finite
 from .toroid_core_data import (
@@ -107,12 +108,26 @@ def find_core_candidates(
     never enter this automatic screen.  A manufacturer capacity exceedance is
     a hard exclusion; an unsourced geometric estimate is warning metadata only.
     """
-    require_positive_finite(l_target_h, "l_target_h")
-    require_positive_finite(design_freq_hz, "design_freq_hz")
     if not isinstance(top_n, int) or isinstance(top_n, bool) or top_n < 1:
         raise ValueError("top_n must be >= 1 and an integer")
+    candidates, _rejected = _screen_cores(l_target_h, design_freq_hz)
+    return candidates[:top_n]
 
+
+# Why the screen rejected a rated core: it cannot reach the inductance within its A_L
+# tolerance using whole turns, or the winding does not fit it.
+_MISSES_INDUCTANCE = "inductance"
+_MISSES_FIT = "fit"
+
+
+def _screen_cores(
+    l_target_h: float, design_freq_hz: float
+) -> tuple[list[ToroidRecommendation], frozenset[str]]:
+    """Every qualifying winding, ranked, and the limits that rejected the other rated cores."""
+    require_positive_finite(l_target_h, "l_target_h")
+    require_positive_finite(design_freq_hz, "design_freq_hz")
     candidates: list[ToroidRecommendation] = []
+    rejected: set[str] = set()
     for core in iter_auto_selectable_cores_for_frequency(design_freq_hz):
         ideal_turns = compute_ideal_turns(l_target_h, core.al_nh_per_turn2)
         if ideal_turns < 1:
@@ -120,16 +135,20 @@ def find_core_candidates(
                 math.log(core.al_nh_per_turn2) + math.log(1e-9) - math.log(l_target_h)
             )
             if one_turn_log_ratio > math.log1p(core.al_tolerance_pct / 100.0):
+                rejected.add(_MISSES_INDUCTANCE)
                 continue
         if core.winding_table and max(1, math.floor(ideal_turns)) > max(
             row.full_winding_turns for row in core.winding_table
         ):
+            rejected.add(_MISSES_FIT)
             continue
         winding = solve_winding(l_target_h, core)
         if abs(winding.error_pct) > core.al_tolerance_pct:
+            rejected.add(_MISSES_INDUCTANCE)
             continue
         mechanical = fit_wire(core, winding.n_turns)
         if mechanical.capacity_status == "manufacturer_exceeded":
+            rejected.add(_MISSES_FIT)
             continue
 
         warnings = [NOT_ASSESSED_WARNING]
@@ -154,7 +173,7 @@ def find_core_candidates(
         )
 
     candidates.sort(key=_sort_key)
-    return candidates[:top_n]
+    return candidates, frozenset(rejected)
 
 
 def recommend_cores(
@@ -164,13 +183,24 @@ def recommend_cores(
     return find_core_candidates(l_target_h, design_freq_hz, top_n=top_n)
 
 
-# Why no toroid winding qualifies when some core is rated for the frequency: a core is
-# rejected for either of the other checked reasons, so the message names all three.
-NO_SUITABLE_CORE_REASON = (
-    "No suitable toroid core in the built-in list. A core must be rated for this frequency, "
-    "reach this inductance within its A_L tolerance using whole turns, and fit the winding. "
-    "Choose a core manually."
-)
+def no_suitable_core_reason(rejected: frozenset[str]) -> str:
+    """Why no toroid qualifies when some core is rated: the limits that rejected them."""
+    if rejected == {_MISSES_INDUCTANCE}:
+        limit = (
+            "no core rated for this frequency reaches this inductance within its A_L "
+            "tolerance using whole turns"
+        )
+    elif rejected == {_MISSES_FIT}:
+        limit = (
+            "the winding that reaches this inductance does not fit any core rated for this "
+            "frequency"
+        )
+    else:
+        limit = (
+            "each core rated for this frequency either misses this inductance by more than "
+            "its A_L tolerance using whole turns or cannot fit the winding"
+        )
+    return f"No suitable toroid core in the built-in list: {limit}. Choose a core manually."
 
 
 def no_rated_core_reason(design_freq_hz: float) -> str:
@@ -199,10 +229,12 @@ def suggest_toroids(l_target_h: float, design_freq_hz: float) -> KindSuggestions
     Legacy HF windings keep their "SRF not checked" basis: the core maker publishes no
     self-resonance data, so the error budget lists no SRF drift.
     """
-    candidates = find_core_candidates(l_target_h, design_freq_hz, top_n=MAX_SUGGESTIONS_PER_KIND)
+    screened, rejected = _screen_cores(l_target_h, design_freq_hz)
+    candidates = screened[:MAX_SUGGESTIONS_PER_KIND]
     if not candidates:
-        rated = any(True for _core in iter_auto_selectable_cores_for_frequency(design_freq_hz))
-        reason = NO_SUITABLE_CORE_REASON if rated else no_rated_core_reason(design_freq_hz)
+        reason = (
+            no_suitable_core_reason(rejected) if rejected else no_rated_core_reason(design_freq_hz)
+        )
         return KindSuggestions("toroid", reason_none=reason)
     return KindSuggestions(
         "toroid",
@@ -217,7 +249,9 @@ def suggest_toroids(l_target_h: float, design_freq_hz: float) -> KindSuggestions
                 srf_basis=SRF_NOT_CHECKED,
                 error_budget=ErrorBudget(
                     nominal_mismatch_pct=candidate.winding.error_pct,
-                    tolerance_pct=candidate.core.al_tolerance_pct,
+                    tolerance_pct=tolerance_of_target(
+                        candidate.core.al_tolerance_pct, candidate.winding.l_actual_h, l_target_h
+                    ),
                 ),
                 source=_part_source(candidate.core),
                 build=candidate,

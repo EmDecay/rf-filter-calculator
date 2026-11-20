@@ -48,11 +48,11 @@ CHECKED_LINE = (
 TOROID_HEADING = "Toroid windings (iron-powder T-series):"
 TURN_ERROR_NOTE = "% vs target: error from rounding to whole turns."
 COMPACT_TURN_ERROR_NOTE = "% in parentheses: error vs target from rounding to whole turns."
-# Names all three rejection reasons: frequency rating, whole-turn accuracy, winding fit.
+# 10 nH needs less than one turn on every rated core: the whole-turn limit failed.
 NO_SUITABLE_CORE = [
-    "  - No suitable toroid core in the built-in list. A core must be rated for this",
-    "    frequency, reach this inductance within its A_L tolerance using whole turns, and fit",
-    "    the winding. Choose a core manually.",
+    "  - No suitable toroid core in the built-in list: no core rated for this frequency",
+    "    reaches this inductance within its A_L tolerance using whole turns. Choose a core",
+    "    manually.",
 ]
 NO_RATED_CORE = [
     "  - No built-in toroid core is rated for 500 MHz. VHF toroids are not offered: the core",
@@ -118,7 +118,7 @@ def test_full_block_reports_hand_computed_winding_values():
         SUB_RULE,
         "  1. Toroid winding T68-2  (mix 2, red/clear, 95 ppm/°C)",
         *T68_DETAIL_LINES,
-        "     Error budget: +0.00% nominal, ±5% tolerance, SRF drift not checked",
+        "     Error budget: +0.00% nominal, ±5.00% tolerance, SRF drift not checked",
     ]
 
 
@@ -227,7 +227,9 @@ def test_suggestion_json_carries_values_provenance_and_assessments(t68_suggestio
     assert (record["srf_basis"], record["srf_accuracy"]) == ("not_checked", None)
     budget = record["error_budget"]
     assert budget["nominal_mismatch_pct"] == pytest.approx(0.0, abs=1e-9)
-    assert (budget["tolerance_pct"], budget["srf_drift_pct"]) == (5.0, None)
+    # The core's ±5 % applies to the achieved inductance, here the target itself.
+    assert budget["tolerance_pct"] == pytest.approx(5.0, rel=1e-12, abs=0)
+    assert budget["srf_drift_pct"] is None
     assert record["source"]["url"] == T68_DATASHEET
     assert record["warnings"] == [NOT_ASSESSED_WARNING]
     build = record["build"]
@@ -380,7 +382,9 @@ def test_accuracy_note_is_derived_from_the_candidates_shown(t68_suggestion, tole
     toroids = (
         KindSuggestions("toroid", shown)
         if shown
-        else KindSuggestions("toroid", reason_none=toroid_selection.NO_SUITABLE_CORE_REASON)
+        else KindSuggestions(
+            "toroid", reason_none=toroid_selection.no_suitable_core_reason(frozenset({"fit"}))
+        )
     )
     inductor = dataclasses.replace(base, kinds=(toroids, *base.kinds[1:]), build_pick=None)
 
@@ -417,16 +421,16 @@ def test_near_zero_negative_turn_error_prints_unsigned_zero(t68_candidate):
     assert "(+0.00%)" in compact
     assert columns[CSV_TOROID_HEADER.index("ToroidErrorPct")] == "0.00"
     assert format_error_budget(ErrorBudget(-0.001, 5.0)) == (
-        "Error budget: +0.00% nominal, ±5% tolerance, SRF drift not checked"
+        "Error budget: +0.00% nominal, ±5.00% tolerance, SRF drift not checked"
     )
 
 
 def test_error_budget_states_each_term_and_a_checked_srf_drift():
     assert format_error_budget(ErrorBudget(-0.4, 5.0)) == (
-        "Error budget: -0.40% nominal, ±5% tolerance, SRF drift not checked"
+        "Error budget: -0.40% nominal, ±5.00% tolerance, SRF drift not checked"
     )
     assert format_error_budget(ErrorBudget(1.234, 2.0, (0.1, 1.5))) == (
-        "Error budget: +1.23% nominal, ±2% tolerance, SRF drift +0.10% to +1.50%"
+        "Error budget: +1.23% nominal, ±2.00% tolerance, SRF drift +0.10% to +1.50%"
     )
 
 

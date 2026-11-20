@@ -121,7 +121,16 @@ def _screen(
         "#build-analysis-options": Mock(display=build_enabled, disabled=False),
         "#results-btn": Mock(spec=Button, disabled=False),
     }
-    for button_id in ("#inductor-full", "#inductor-compact", "#export-json", "#export-csv"):
+    forced_kind_buttons = tuple(
+        f"#build-inductors-{kind}" for kind in ("toroid", "air-coil", "chip")
+    )
+    for button_id in (
+        "#inductor-full",
+        "#inductor-compact",
+        "#export-json",
+        "#export-csv",
+        *forced_kind_buttons,
+    ):
         widgets[button_id] = Mock(spec=RadioButton, disabled=False)
     for option in (*OPTION_WIDGETS, LOSS_Q):
         widgets[reason_id(option)] = Mock(spec=Static, display=False)
@@ -593,7 +602,7 @@ class TestShowResultsStateMapping:
         assert form.state.runs_build is True
 
     def test_no_inductor_suggestions_simulate_calculated_inductances(self, monkeypatch):
-        """Suggestions None disables "Inductors in the build"; a forced kind is left out."""
+        """Suggestions None disables the forced kinds; a forced kind is left out."""
         form = _screen(
             monkeypatch,
             inductor_detail="inductor-none",
@@ -604,7 +613,10 @@ class TestShowResultsStateMapping:
 
         form.screen._show_results()
 
-        assert form.w["#build-inductors"].disabled is True
+        for kind in ("toroid", "air-coil", "chip"):
+            assert form.w[f"#build-inductors-{kind}"].disabled is True
+        # Auto and Calculated values stay usable, so the set itself keeps focus.
+        assert form.w["#build-inductors"].disabled is False
         assert (
             _shown_reason(form, reason_id(BUILD_INDUCTORS))
             == BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE
@@ -613,6 +625,21 @@ class TestShowResultsStateMapping:
         assert BUILD_INDUCTORS not in form.state.applied_options()
         request = form.state.to_design_request()
         assert (request.inductor_suggestions, request.build_inductors) == ("none", "auto")
+
+    def test_no_inductor_suggestions_keep_calculated_values(self, monkeypatch):
+        """Calculated values is what None builds anyway, so it stays chosen and recorded."""
+        form = _screen(
+            monkeypatch,
+            inductor_detail="inductor-none",
+            build_enabled=True,
+            build_inductors="calculated",
+        )
+        form.screen._refresh_options()
+
+        form.screen._show_results()
+
+        request = form.state.to_design_request()
+        assert (request.inductor_suggestions, request.build_inductors) == ("none", "calculated")
 
 
 class TestSubPicofaradOption:

@@ -288,7 +288,7 @@ field parsers for the grade, tolerance and stray), `shared/display_helpers.py`
 `design/option_applicability.py` names `BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE`;
 `VHF_TOROID_EXCLUSION`, `AIR_COIL_EXCLUSION`, `CHIP_NOT_AVAILABLE`; the CLI help
 `INDUCTOR_SUGGESTIONS_HELP` and `BUILD_INDUCTORS_HELP`), `shared/toroid_selection.py`
-(`NO_SUITABLE_CORE_REASON`, `no_rated_core_reason`, `NOT_ASSESSED_WARNING`),
+(`no_suitable_core_reason`, which names the limit that rejected the rated cores; `no_rated_core_reason`; `NOT_ASSESSED_WARNING`),
 `design/part_resolution.py` (`NO_SUGGESTION_NOTE`, `SUGGESTIONS_NOT_USED_NOTE`),
 `design/inductor_option_inputs.py` (the wizard and web `INDUCTOR_DETAIL_LABEL`,
 `INDUCTOR_DETAIL_CHOICES`, `INDUCTOR_DETAIL_HELP`, `BUILD_INDUCTORS_LABEL`,
@@ -298,8 +298,9 @@ field parsers for the grade, tolerance and stray), `shared/display_helpers.py`
 LP/HP and bandpass calculators),
 `design/option_applicability.py` (the disabled-control reasons, such as
 `TEXT_PLOT_NEEDS_TABLE_MESSAGE`, `INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE`,
-`LOSS_Q_NOT_SHOWN_MESSAGE` and `EXACT_SPICE_MATCHING_MESSAGE`; the capacitor grade, tolerance and stray reuse the sub-pF
-wording for their own labels), `design/export.py` (`NOMINAL_SPICE_NEEDS_ESERIES_MESSAGE`),
+`LOSS_Q_NOT_SHOWN_MESSAGE`, `EXACT_SPICE_MATCHING_MESSAGE`,
+`EXACT_SPICE_BUILD_INDUCTORS_MESSAGE` and `RESPONSE_DATA_BUILD_INDUCTORS_MESSAGE`; the
+capacitor grade, tolerance and stray reuse the sub-pF wording for their own labels), `design/export.py` (`NOMINAL_SPICE_NEEDS_ESERIES_MESSAGE`),
 `wizard/screens/results.py` (`PREPARING_FILES_MESSAGE`, `not_saved_prefix`),
 `design/q_reference_frequency.py` (`Q_FREQUENCY_LABEL`, `Q_FREQUENCY_HELP`), and
 `wizard/state_design_inputs.py` (`CSV_WITH_BUILD_MESSAGE`). Error text names fields in words,

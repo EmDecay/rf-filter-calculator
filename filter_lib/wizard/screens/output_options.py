@@ -54,6 +54,7 @@ from ...shared.inductor_suggestion import (
     DEFAULT_BUILD_INDUCTORS,
     DEFAULT_INDUCTOR_DETAIL,
     INDUCTOR_DETAILS,
+    INDUCTOR_KINDS,
 )
 from ..build_options import (
     BUILD_FIELDS,
@@ -114,7 +115,8 @@ RAW_UNITS_HELP = (
     "The table then leaves out the standard capacitor values."
 )
 
-# The widgets each option disables; the inductor detail disables only its two choices.
+# The widgets each option disables; the inductor detail disables only its two table-only
+# choices and the build inductors only the three forced kinds.
 OPTION_WIDGETS = {
     ESERIES: ("#eseries",),
     ALLOW_SUB_PF: ("#allow-sub-pf",),
@@ -125,7 +127,8 @@ OPTION_WIDGETS = {
     TEXT_PLOT: ("#plot",),
     RAW_UNITS: ("#raw",),
     BUILD: ("#build-analysis-enabled",),
-    BUILD_INDUCTORS: ("#build-inductors",),
+    # Only the forced kinds conflict with Inductor suggestions None.
+    BUILD_INDUCTORS: tuple(f"#build-inductors-{kind}" for kind in INDUCTOR_KINDS),
 }
 # Enter moves through the controls in the web form's order, skipping any that are
 # disabled or hidden (the build fields show only while the build applies).
