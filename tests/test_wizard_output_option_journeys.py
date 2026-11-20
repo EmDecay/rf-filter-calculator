@@ -12,13 +12,13 @@ from textual.widgets import Checkbox, Input, RadioButton, RadioSet, Static
 
 from filter_lib.design import band_from_edges
 from filter_lib.design.option_applicability import (
+    BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE,
     ESERIES_VALUES_ONLY_MESSAGE,
+    INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE,
     LOSS_Q_DISABLED_MESSAGE,
     RAW_NEEDS_TABLE_MESSAGE,
     SUB_PF_VALUES_ONLY_MESSAGE,
     TEXT_PLOT_NEEDS_TABLE_MESSAGE,
-    TOROID_BUILD_NEEDS_TOROIDS_MESSAGE,
-    TOROID_DETAIL_NEEDS_TABLE_MESSAGE,
 )
 from filter_lib.design.render_options import BUILD_NEEDS_TABLE_OR_JSON_MESSAGE
 from filter_lib.wizard.app import FilterWizardApp
@@ -60,11 +60,11 @@ def test_output_options_disable_what_cannot_apply_and_say_why() -> None:
             # The web's defaults: Table, E24, Best detailed, text plot off, build off.
             assert fmt.pressed_button.id == "table"
             assert eseries.pressed_button.id == "E24"
-            detail = screen.query_one("#toroid-detail", RadioSet)
-            assert detail.pressed_button.id == "toroid-best"
+            detail = screen.query_one("#inductor-detail", RadioSet)
+            assert detail.pressed_button.id == "inductor-best"
             assert [str(button.label).split(" - ")[0] for button in detail.query(RadioButton)] == [
                 "Best, detailed",
-                "Up to 3, detailed",
+                "Up to 3 per kind, detailed",
                 "Best, one line",
                 "None",
             ]
@@ -80,7 +80,7 @@ def test_output_options_disable_what_cannot_apply_and_say_why() -> None:
             assert _reason(screen, "eseries") == ESERIES_VALUES_ONLY_MESSAGE
             assert _reason(screen, "allow_sub_pf") == SUB_PF_VALUES_ONLY_MESSAGE
             assert eseries.pressed_button.id == "E24"  # the visible choice is kept
-            # Enter skips the disabled controls and lands on the toroid choice.
+            # Enter skips the disabled controls and lands on the inductor choice.
             await pilot.press("enter")
             assert detail.has_focus
 
@@ -90,11 +90,11 @@ def test_output_options_disable_what_cannot_apply_and_say_why() -> None:
             assert not eseries.disabled and _reason(screen, "eseries") is None
             assert screen.query_one("#plot", Checkbox).disabled
             assert screen.query_one("#raw", Checkbox).disabled
-            assert screen.query_one("#toroid-full", RadioButton).disabled
-            assert not screen.query_one("#toroid-none", RadioButton).disabled
+            assert screen.query_one("#inductor-full", RadioButton).disabled
+            assert not screen.query_one("#inductor-none", RadioButton).disabled
             assert _reason(screen, "plot") == TEXT_PLOT_NEEDS_TABLE_MESSAGE
             assert _reason(screen, "raw") == RAW_NEEDS_TABLE_MESSAGE
-            assert _reason(screen, "toroid_detail") == TOROID_DETAIL_NEEDS_TABLE_MESSAGE
+            assert _reason(screen, "inductor_detail") == INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE
 
             # CSV: the build cannot apply; its fields stay hidden even when ticked.
             build = screen.query_one("#build-analysis-enabled", Checkbox)
@@ -110,11 +110,14 @@ def test_output_options_disable_what_cannot_apply_and_say_why() -> None:
             await pilot.pause()
             assert not build.disabled and _reason(screen, "build") is None
             assert screen.query_one("#build-analysis-options").display is True
-            # Toroid windings None: nothing for the build to simulate as windings.
-            _choose(detail, "toroid-none")
+            build_inductors = screen.query_one("#build-inductors", RadioSet)
+            assert build_inductors.pressed_button.id == "build-inductors-auto"
+            assert not build_inductors.disabled
+            # Inductor suggestions None: no suggestion for the build to use.
+            _choose(detail, "inductor-none")
             await pilot.pause()
-            assert screen.query_one("#build-use-toroids", Checkbox).disabled
-            assert _reason(screen, "toroid_build") == TOROID_BUILD_NEEDS_TOROIDS_MESSAGE
+            assert build_inductors.disabled
+            assert _reason(screen, "build_inductors") == BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE
 
             # Values only with the default E24 shows results; nothing is refused (C-3).
             build.value = False
@@ -154,7 +157,7 @@ def test_enter_reaches_every_output_control_in_the_web_order() -> None:
                 "capacitor-grade",
                 "capacitor-tolerance",
                 "stray-capacitance",
-                "toroid-detail",
+                "inductor-detail",
                 "plot",
                 "raw",
                 "export",
@@ -261,7 +264,7 @@ def test_results_say_why_csv_cannot_be_saved_with_a_build() -> None:
     asyncio.run(exercise())
 
 
-def test_a_disabled_toroid_choice_cannot_be_pressed_from_a_stale_highlight() -> None:
+def test_a_disabled_inductor_choice_cannot_be_pressed_from_a_stale_highlight() -> None:
     """The arrow highlight stays on a choice that becomes disabled; Space must not press it."""
 
     async def exercise() -> None:
@@ -272,21 +275,21 @@ def test_a_disabled_toroid_choice_cannot_be_pressed_from_a_stale_highlight() -> 
             app.push_screen(OutputOptionsScreen())
             await pilot.pause()
             screen = app.screen
-            detail = screen.query_one("#toroid-detail", RadioSet)
+            detail = screen.query_one("#inductor-detail", RadioSet)
             detail.focus()
-            await pilot.press("down")  # highlights "Up to 3", without pressing it
+            await pilot.press("down")  # highlights "Up to 3 per kind", without pressing it
             await pilot.pause()
-            assert detail.pressed_button.id == "toroid-best"
+            assert detail.pressed_button.id == "inductor-best"
 
             _choose(screen.query_one("#format", RadioSet), "json")
             await pilot.pause()
-            assert screen.query_one("#toroid-full", RadioButton).disabled
+            assert screen.query_one("#inductor-full", RadioButton).disabled
 
             detail.focus()
             await pilot.press("space")
             await pilot.pause()
-            assert detail.pressed_button.id == "toroid-best"
-            assert app.filter_state.toroid_detail == "best"
+            assert detail.pressed_button.id == "inductor-best"
+            assert app.filter_state.inductor_detail == "best"
 
     asyncio.run(exercise())
 

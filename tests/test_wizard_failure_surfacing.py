@@ -196,7 +196,7 @@ def test_realized_build_exception_becomes_an_error_outcome(monkeypatch):
 def test_calculator_that_stores_no_result_is_an_error_outcome(monkeypatch):
     monkeypatch.setattr(
         "filter_lib.wizard.filter_type_calculators.calculate_highpass",
-        lambda _state: ["a table with no stored result"],
+        lambda _state, _should_cancel=None: ["a table with no stored result"],
     )
 
     outcome = calculate_and_format(_state("highpass"))

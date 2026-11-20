@@ -9,6 +9,7 @@ import pytest
 
 from filter_lib.bandpass.calculations import calculate_bandpass_filter
 from filter_lib.bandpass.formatters import format_csv, format_json
+from tests.parts_helpers import parts_for
 
 
 @pytest.fixture(scope="module")
@@ -31,9 +32,9 @@ def result(_reference_result) -> dict:
     return copy.deepcopy(_reference_result)
 
 
-def test_json_exposes_validation_q_and_candidate_semantics(result) -> None:
+def test_json_exposes_validation_q_and_suggestion_semantics(result) -> None:
     data = json.loads(
-        format_json(result, eseries="E24"),
+        format_json(result, parts_for(result, "bandpass")),
         parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
     )
 
@@ -43,7 +44,13 @@ def test_json_exposes_validation_q_and_candidate_semantics(result) -> None:
     assert data["q_model"]["combination"] == "reciprocal_component_loss_sum"
     assert data["q_min_is_heuristic"] is True
     assert data["q_safety_compatibility_only"] is True
-    assert data["resonator_toroid_candidates"] == data["resonator_toroid_recommendations"]
+    # Suggestions sit on each inductor; equal resonator inductances share the same ones.
+    assert "resonator_toroid_candidates" not in data
+    assert "resonator_toroid_recommendations" not in data
+    suggestions = [item["inductor_suggestions"] for item in data["components"]["inductors"]]
+    assert len(suggestions) == 3
+    assert all(item == suggestions[0] for item in suggestions)
+    assert [group["kind"] for group in suggestions[0]["kinds"]] == ["toroid", "air-coil", "chip"]
 
     for group in (
         "tank_capacitors",
@@ -63,14 +70,15 @@ def test_json_exposes_validation_q_and_candidate_semantics(result) -> None:
     [("f0", "center_frequency_hz"), ("bw", "bandwidth_hz"), ("z0", "impedance_ohms")],
 )
 def test_json_rejects_non_finite_numeric_fields(result, field: str, json_path: str) -> None:
+    parts = parts_for(result, "bandpass", eseries=None, inductor_detail="none")
     result[field] = float("nan")
 
     with pytest.raises(ValueError, match=rf"\$\.{json_path} must be finite"):
-        format_json(result, include_toroids=False)
+        format_json(result, parts)
 
 
 def test_csv_is_rectangular_and_emits_only_selected_parallel_pairs(result) -> None:
-    rows = list(csv.reader(io.StringIO(format_csv(result, eseries="E24"))))
+    rows = list(csv.reader(io.StringIO(format_csv(result, parts_for(result, "bandpass")))))
     header = rows[0]
     assert all(len(row) == len(header) for row in rows)
 

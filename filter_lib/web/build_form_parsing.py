@@ -14,15 +14,15 @@ from ..shared.build_types import (
     BuildConfig,
     require_seed_with_samples,
 )
+from ..shared.inductor_suggestion import DEFAULT_BUILD_INDUCTORS
 from ..shared.parsing import parse_impedance
-from .form_values import FormData, flag, int_or, optional_float, text
+from .form_values import FormData, int_or, optional_float, text
 
 # The Q frequency label is shared with the wizard; the template reads it from here.
 __all__ = [
     "BUILD_FIELD_DEFAULTS",
     "Q_FREQUENCY_LABEL",
     "parse_build_config",
-    "simulate_toroid_windings",
 ]
 
 # The CLI's build defaults (``BuildConfig``'s), shown in the fields of a fresh form.
@@ -31,26 +31,12 @@ BUILD_FIELD_DEFAULTS = {
     "build_sample_count": str(_DEFAULTS.sample_count),
     "build_seed": str(_DEFAULTS.seed),
     "build_grid_points": str(_DEFAULTS.grid_points),
-    # "Simulate inductors as the suggested toroid windings", ticked as in the CLI.
-    "toroid_build": "on",
+    # "Inductors in the build": the CLI's --build-inductors default.
+    "build_inductors": DEFAULT_BUILD_INDUCTORS,
 }
 
 
-def simulate_toroid_windings(form: FormData) -> bool:
-    """Whether the build simulates inductors as their toroid windings (CLI default: yes).
-
-    The box is ticked by default, and an unticked box sends nothing, so the form sends
-    a hidden ``toroid_build=off`` before it and the box's ``on`` replaces it when
-    ticked. A request without the field gets the CLI default. ``no_toroid_build=on``
-    (the 2.2.0 field) still means ``--no-toroid-build``.
-    """
-    ticked = flag(form, "toroid_build") if text(form, "toroid_build") else True
-    return ticked and not flag(form, "no_toroid_build")
-
-
-def parse_build_config(
-    form: FormData, *, use_toroids: bool, resonator_q_supplied: bool
-) -> BuildConfig:
+def parse_build_config(form: FormData, *, resonator_q_supplied: bool) -> BuildConfig:
     """Return the ``BuildConfig`` for the submitted build controls."""
     inductor_q = optional_float(form, "build_inductor_q", "Inductor Q")
     capacitor_q = optional_float(form, "build_capacitor_q", "Capacitor Q")
@@ -77,7 +63,6 @@ def parse_build_config(
         ),
         seed=int_or(form, "build_seed", "Random seed", _DEFAULTS.seed),
         grid_points=int_or(form, "build_grid_points", "Frequency points", _DEFAULTS.grid_points),
-        use_toroid_candidates=use_toroids and simulate_toroid_windings(form),
     )
     # After each field is checked, as in the wizard (the CLI's --seed rule, in labels).
     require_seed_with_samples(config.seed, config.sample_count)

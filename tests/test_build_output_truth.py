@@ -7,6 +7,7 @@ from filter_lib.highpass.calculations import calculate_butterworth as calculate_
 from filter_lib.lowpass.calculations import calculate_butterworth
 from filter_lib.shared.build_output import build_analysis_fields
 from filter_lib.shared.build_simulation import BuildConfig, analyze_build
+from tests.parts_helpers import parts_for
 
 
 def _lowpass_result() -> dict:
@@ -37,18 +38,23 @@ def _highpass_result() -> dict:
     }
 
 
+def _calculated_inductor_parts(result: dict, category: str):
+    """E24 capacitors with every inductor built at its calculated value."""
+    return parts_for(result, category, build_inductors="calculated")
+
+
 @pytest.mark.parametrize(
-    "inductance_override, use_toroids, used, fallbacks",
+    "inductance_override, build_inductors, used, fallbacks",
     [
-        (None, True, True, []),
+        (None, "auto", True, []),
         # 10 nH has no acceptable integer-turn winding on the qualified cores.
-        (10e-9, True, False, ["L1"]),
-        (None, False, False, ["L1"]),
+        (10e-9, "auto", False, ["L1"]),
+        (None, "calculated", False, ["L1"]),
     ],
-    ids=["verified-candidate", "no-verified-candidate", "screen-disabled"],
+    ids=["suggestion-used", "no-qualifying-suggestion", "suggestions-not-used"],
 )
-def test_realization_summary_separates_toroid_screen_setting_from_actual_use(
-    inductance_override, use_toroids, used, fallbacks
+def test_realization_summary_separates_build_inductor_choice_from_actual_use(
+    inductance_override, build_inductors, used, fallbacks
 ) -> None:
     result = _lowpass_result()
     if inductance_override is not None:
@@ -56,17 +62,17 @@ def test_realization_summary_separates_toroid_screen_setting_from_actual_use(
     analysis = analyze_build(
         result,
         "lowpass",
-        BuildConfig(grid_points=51, use_toroid_candidates=use_toroids),
+        BuildConfig(grid_points=51),
+        parts=parts_for(result, "lowpass", build_inductors=build_inductors),
     )
 
     fields = build_analysis_fields(result, analysis)
     nominal = fields["nominal_build"]
     model = fields["build_model"]
 
-    assert model["toroid_candidate_screen_enabled"] is use_toroids
-    assert model["verified_toroid_candidate_used"] is used
-    assert model["uses_verified_toroid_candidates"] is used
-    assert model["verified_toroid_elements"] == (["L1"] if used else [])
+    assert model["build_inductor_choice"] == build_inductors
+    assert model["suggested_inductors_used"] is used
+    assert model["suggested_inductor_elements"] == (["L1"] if used else [])
     assert nominal["has_calculated_exact_fallbacks"] is bool(fallbacks)
     assert nominal["calculated_exact_fallback_elements"] == fallbacks
     assert nominal["realization"] == (
@@ -81,7 +87,8 @@ def test_bandpass_complete_resonator_q_is_in_effective_loss_model() -> None:
     analysis = analyze_build(
         result,
         "bandpass",
-        BuildConfig(grid_points=51, use_toroid_candidates=False),
+        BuildConfig(grid_points=51),
+        parts=_calculated_inductor_parts(result, "bandpass"),
     )
 
     model = build_analysis_fields(result, analysis)["build_model"]
@@ -112,7 +119,8 @@ def test_bandpass_separate_component_q_preserves_tank_only_semantics() -> None:
     analysis = analyze_build(
         result,
         "bandpass",
-        BuildConfig(grid_points=51, use_toroid_candidates=False),
+        BuildConfig(grid_points=51),
+        parts=_calculated_inductor_parts(result, "bandpass"),
     )
 
     effective = build_analysis_fields(result, analysis)["build_model"]["effective_loss_model"]
@@ -138,7 +146,10 @@ def test_ladder_measurement_does_not_invent_center_or_opposite_skirt(
 ) -> None:
     result = make_result()
     analysis = analyze_build(
-        result, category, BuildConfig(grid_points=51, use_toroid_candidates=False)
+        result,
+        category,
+        BuildConfig(grid_points=51),
+        parts=_calculated_inductor_parts(result, category),
     )
 
     measurement = build_analysis_fields(result, analysis)["simulated"]["measurement"]

@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from ..design.design_request import CATEGORIES
-from ..shared.build_types import BuildAnalysisCancelled
+from ..shared.cancellation import DesignCancelled
 from .execution import CalculationRunner, CalculationTimeout
 from .form_parsing import form_defaults
 from .form_values import FormData
@@ -37,8 +37,7 @@ def is_htmx(request: Request) -> bool:
 async def form_fields(request: Request) -> FormData:
     """Return the submitted text fields; file parts are ignored.
 
-    A repeated name keeps its last value: the form's hidden ``toroid_build=off`` is
-    replaced by the box's ``on`` when the box is ticked.
+    A repeated name keeps its last value.
     """
     # Bound actual bytes before the form parser buffers or decodes them. Do not
     # rely on Content-Length: streamed requests may omit or misstate it.
@@ -94,13 +93,13 @@ def failure_status(exc: Exception) -> int | None:
     """Return the HTTP status for an expected failure, or ``None`` for a bug."""
     if isinstance(exc, ValueError):
         return 400
-    if isinstance(exc, (CalculationTimeout, BuildAnalysisCancelled)):
+    if isinstance(exc, (CalculationTimeout, DesignCancelled)):
         return 503
     return None
 
 
 def failure_message(exc: Exception) -> str:
-    if isinstance(exc, BuildAnalysisCancelled):
+    if isinstance(exc, DesignCancelled):
         return "Calculation stopped"
     return str(exc).strip() or type(exc).__name__
 

@@ -3,6 +3,7 @@
 import math
 from collections.abc import Callable
 
+from ..shared.cancellation import CancellationCheck, raise_if_cancelled
 from .design_constants import (
     CALIBRATION_MAX_ITERATIONS,
     CALIBRATION_POINTS,
@@ -118,10 +119,16 @@ def _calibrate_top_c(
     g_values: list[float],
     resonator_impedance: float | None,
     resonator_inductance: float | None,
+    should_cancel: CancellationCheck | None = None,
 ) -> tuple[BandpassResult, int]:
-    """Calibrate tank frequency and prototype FBW to both requested skirts."""
+    """Calibrate tank frequency and prototype FBW to both requested skirts.
+
+    ``should_cancel`` is polled before each circuit evaluation (the unit of work);
+    ``DesignCancelled`` is not a ``ValueError``, so the step search never swallows it.
+    """
 
     def evaluate(log_f_tank: float, log_fbw: float) -> tuple[BandpassResult, _Residual]:
+        raise_if_cancelled(should_cancel)
         candidate = _synthesize_top_c_raw(
             math.exp(log_f_tank),
             math.exp(log_fbw),

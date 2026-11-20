@@ -17,11 +17,13 @@ from textual.widgets import Button, Checkbox, Input, RadioButton, RadioSet, Stat
 from filter_lib.design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    BUILD_INDUCTORS,
+    BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE,
     ESERIES,
     ESERIES_VALUES_ONLY_MESSAGE,
+    INDUCTOR_DETAIL,
     LOSS_Q,
     LOSS_Q_DISABLED_MESSAGE,
-    TOROID_DETAIL,
     OutputChoices,
     inapplicable_options,
 )
@@ -84,12 +86,12 @@ def _screen(
     focus: str = "",
     eseries: str = "E24",
     output_format: str = "table",
-    toroid_detail: str = "toroid-best",
+    inductor_detail: str = "inductor-best",
     export: str = "no-export",
     plot: bool = False,
     raw: bool = False,
     build_enabled: bool = False,
-    use_toroids: bool = True,
+    build_inductors: str = "auto",
     allow_sub_pf: bool = False,
     capacitor_grade: str = "standard",
     capacitor_tolerance: str = "",
@@ -106,18 +108,20 @@ def _screen(
     widgets = {
         "#format": _radio_set(output_format, focus == "format"),
         "#eseries": _radio_set(eseries, focus == "eseries"),
-        "#toroid-detail": _radio_set(toroid_detail, focus == "toroid-detail"),
+        "#inductor-detail": _radio_set(inductor_detail, focus == "inductor-detail"),
         "#export": _radio_set(export, focus == "export"),
         "#allow-sub-pf": _checkbox("allow-sub-pf", allow_sub_pf, focus),
         "#capacitor-grade": _radio_set(f"grade-{capacitor_grade}", focus == "capacitor-grade"),
         "#plot": _checkbox("plot", plot, focus),
         "#raw": _checkbox("raw", raw, focus),
         "#build-analysis-enabled": _checkbox("build-analysis-enabled", build_enabled, focus),
-        "#build-use-toroids": _checkbox("build-use-toroids", use_toroids, focus),
+        "#build-inductors": _radio_set(
+            f"build-inductors-{build_inductors}", focus == "build-inductors"
+        ),
         "#build-analysis-options": Mock(display=build_enabled, disabled=False),
         "#results-btn": Mock(spec=Button, disabled=False),
     }
-    for button_id in ("#toroid-full", "#toroid-compact", "#export-json", "#export-csv"):
+    for button_id in ("#inductor-full", "#inductor-compact", "#export-json", "#export-csv"):
         widgets[button_id] = Mock(spec=RadioButton, disabled=False)
     for option in (*OPTION_WIDGETS, LOSS_Q):
         widgets[reason_id(option)] = Mock(spec=Static, display=False)
@@ -167,13 +171,13 @@ class TestEnterNavigation:
             ("eseries", "#allow-sub-pf"),
             ("allow-sub-pf", "#capacitor-grade"),
             ("capacitor-grade", "#capacitor-tolerance"),
-            ("toroid-detail", "#plot"),
+            ("inductor-detail", "#plot"),
             ("plot", "#raw"),
             ("raw", "#export"),
             ("export", "#build-analysis-enabled"),
             # The build fields are hidden while the build is unticked.
             ("build-analysis-enabled", "#results-btn"),
-            ("build-use-toroids", "#results-btn"),
+            ("build-inductors", "#results-btn"),
         ],
     )
     def test_enter_advances_through_every_control(self, monkeypatch, focus, next_focus):
@@ -191,9 +195,9 @@ class TestEnterNavigation:
         "output_format, focus, next_focus",
         [
             # Values only disables the standard values and the sub-pF box.
-            ("quiet", "format", "#toroid-detail"),
+            ("quiet", "format", "#inductor-detail"),
             # JSON disables the text plot and raw units.
-            ("json", "toroid-detail", "#export"),
+            ("json", "inductor-detail", "#export"),
         ],
     )
     def test_enter_skips_disabled_controls(self, monkeypatch, output_format, focus, next_focus):
@@ -212,7 +216,7 @@ class TestEnterNavigation:
 
         form.w[f"#{BUILD_INPUT_FLOW[0]}"].focus.assert_called_once_with()
 
-    def test_build_fields_advance_in_form_order_then_reach_the_toroid_box(self, monkeypatch):
+    def test_build_fields_advance_in_form_order_then_reach_the_build_inductors(self, monkeypatch):
         form = _screen(monkeypatch, build_enabled=True)
         form.screen._refresh_options()
 
@@ -221,7 +225,7 @@ class TestEnterNavigation:
             form.w[f"#{following}"].focus.assert_called_once_with()
         form.screen._on_build_input_submitted(Mock(input=Mock(id=BUILD_INPUT_FLOW[-1])))
 
-        form.w["#build-use-toroids"].focus.assert_called_once_with()
+        form.w["#build-inductors"].focus.assert_called_once_with()
 
     def test_other_keys_are_left_alone(self, monkeypatch):
         form = _screen(monkeypatch, focus="eseries")
@@ -265,11 +269,11 @@ class TestLiveApplicability:
     """Controls are disabled, with the shared rule's reason, exactly when it says so (D7)."""
 
     @pytest.mark.parametrize(
-        "output_format, eseries, raw, build, toroids",
+        "output_format, eseries, raw, build, detail",
         list(product(FORMATS, ("E24", "none"), (False, True), (False, True), ("best", "none"))),
     )
     def test_disabled_controls_and_reasons_follow_the_shared_rule(
-        self, monkeypatch, output_format, eseries, raw, build, toroids
+        self, monkeypatch, output_format, eseries, raw, build, detail
     ):
         form = _screen(
             monkeypatch,
@@ -277,7 +281,7 @@ class TestLiveApplicability:
             eseries=eseries,
             raw=raw,
             build_enabled=build,
-            toroid_detail=f"toroid-{toroids}",
+            inductor_detail=f"inductor-{detail}",
         )
 
         form.screen._refresh_options()
@@ -288,7 +292,7 @@ class TestLiveApplicability:
                 eseries=None if eseries == "none" else eseries,
                 raw=raw,
                 build=build,
-                include_toroids=toroids != "none",
+                inductor_detail=detail,
             )
         )
         for option, selectors in OPTION_WIDGETS.items():
@@ -314,16 +318,16 @@ class TestLiveApplicability:
         assert (state.output_format, state.eseries) == ("quiet", "E24")
         assert ESERIES not in state.applied_options()
 
-    def test_toroid_detail_disables_only_its_table_choices(self, monkeypatch):
-        form = _screen(monkeypatch, output_format="json", toroid_detail="toroid-full")
+    def test_inductor_detail_disables_only_its_table_choices(self, monkeypatch):
+        form = _screen(monkeypatch, output_format="json", inductor_detail="inductor-full")
 
         form.screen._refresh_options()
 
-        assert form.w["#toroid-full"].disabled is True
-        assert form.w["#toroid-compact"].disabled is True
-        assert form.w["#toroid-detail"].disabled is False
-        assert form.state.toroid_detail == "full"
-        assert TOROID_DETAIL not in form.state.applied_options()
+        assert form.w["#inductor-full"].disabled is True
+        assert form.w["#inductor-compact"].disabled is True
+        assert form.w["#inductor-detail"].disabled is False
+        assert form.state.inductor_detail == "full"
+        assert INDUCTOR_DETAIL not in form.state.applied_options()
 
     @pytest.mark.parametrize(
         "output_format, shown", [("table", None), ("json", None), ("quiet", True), ("csv", True)]
@@ -394,20 +398,40 @@ class TestShowResultsStateMapping:
     @pytest.mark.parametrize(
         "choice, expected",
         [
-            ("toroid-best", "best"),
-            ("toroid-full", "full"),
-            ("toroid-compact", "compact"),
-            ("toroid-none", "none"),
+            ("inductor-best", "best"),
+            ("inductor-full", "full"),
+            ("inductor-compact", "compact"),
+            ("inductor-none", "none"),
             ("", "best"),
         ],
     )
-    def test_toroid_detail_choice(self, monkeypatch, choice, expected):
-        form = _screen(monkeypatch, toroid_detail=choice)
+    def test_inductor_detail_choice(self, monkeypatch, choice, expected):
+        form = _screen(monkeypatch, inductor_detail=choice)
 
         form.screen._show_results()
 
-        assert form.state.toroid_detail == expected
-        assert form.state.include_toroids is (expected != "none")
+        assert form.state.inductor_detail == expected
+        assert form.state.option_choices().inductor_detail == expected
+
+    @pytest.mark.parametrize(
+        "choice, expected",
+        [
+            ("auto", "auto"),
+            ("toroid", "toroid"),
+            ("air-coil", "air-coil"),
+            ("chip", "chip"),
+            ("calculated", "calculated"),
+            ("unknown", "auto"),
+        ],
+    )
+    def test_build_inductors_choice(self, monkeypatch, choice, expected):
+        form = _screen(monkeypatch, build_inductors=choice)
+        # A stale value from an earlier pass must be overwritten.
+        form.state.build_inductors = "auto" if expected == "chip" else "chip"
+
+        form.screen._show_results()
+
+        assert form.state.build_inductors == expected
 
     @pytest.mark.parametrize(
         "export_id, expected", [("export-json", "json"), ("export-csv", "csv"), ("no-export", None)]
@@ -482,6 +506,7 @@ class TestShowResultsStateMapping:
         state.build_reference_frequency_hz = 5e6
         state.build_sample_count = 9
         state.build_grid_points = 101
+        state.build_inductors = "calculated"
         revision = state.begin_calculation()
         state.publish_success(revision, "old", {"old": True}, {"analysis": True})
 
@@ -499,7 +524,7 @@ class TestShowResultsStateMapping:
         assert state.build_inductor_tolerance_pct == defaults.inductor_tolerance_pct
         assert (state.capacitor_grade, state.capacitor_tolerance_pct) == ("standard", None)
         assert state.stray_capacitance_f == DEFAULT_STRAY_CAPACITANCE_F
-        assert state.build_use_toroid_candidates is True
+        assert state.build_inductors == "auto"
         assert state.calculation_revision == revision + 1
         assert (state.result, state.build_analysis) == ({}, None)
 
@@ -517,7 +542,7 @@ class TestShowResultsStateMapping:
             monkeypatch,
             eseries="E96",
             build_enabled=True,
-            use_toroids=False,
+            build_inductors="calculated",
             capacitor_grade="tight",
             capacitor_tolerance="2.5",
             stray_capacitance="0.1pF",
@@ -549,10 +574,11 @@ class TestShowResultsStateMapping:
         assert (state.build_inductor_q, state.build_capacitor_q) == (120.0, 500.0)
         assert state.build_reference_frequency_hz == 7e6
         assert (state.build_sample_count, state.build_seed, state.build_grid_points) == (7, 42, 301)
-        assert state.build_use_toroid_candidates is False
+        assert state.build_inductors == "calculated"
         assert state.make_build_config().reference_frequency_hz == 7e6
         request = state.to_design_request()
         assert (request.eseries, request.realization.reference_frequency_hz) == ("E96", 7e6)
+        assert request.build_inductors == "calculated"
         assert (request.capacitor_grade, request.capacitor_tolerance_pct) == ("tight", 2.5)
 
     def test_raw_units_are_allowed_with_build_analysis_because_the_series_is_used(
@@ -566,16 +592,27 @@ class TestShowResultsStateMapping:
         assert (form.state.raw_units, form.state.eseries) == (True, "E12")
         assert form.state.runs_build is True
 
-    def test_toroid_none_simulates_calculated_inductances(self, monkeypatch):
-        """--no-toroids also means --no-toroid-build: the box is disabled and left out."""
-        form = _screen(monkeypatch, toroid_detail="toroid-none", build_enabled=True)
+    def test_no_inductor_suggestions_simulate_calculated_inductances(self, monkeypatch):
+        """Suggestions None disables "Inductors in the build"; a forced kind is left out."""
+        form = _screen(
+            monkeypatch,
+            inductor_detail="inductor-none",
+            build_enabled=True,
+            build_inductors="toroid",
+        )
         form.screen._refresh_options()
 
         form.screen._show_results()
 
-        assert form.w["#build-use-toroids"].disabled is True
-        assert form.state.build_use_toroid_candidates is True
-        assert form.state.make_build_config().use_toroid_candidates is False
+        assert form.w["#build-inductors"].disabled is True
+        assert (
+            _shown_reason(form, reason_id(BUILD_INDUCTORS))
+            == BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE
+        )
+        assert form.state.build_inductors == "toroid"
+        assert BUILD_INDUCTORS not in form.state.applied_options()
+        request = form.state.to_design_request()
+        assert (request.inductor_suggestions, request.build_inductors) == ("none", "auto")
 
 
 class TestSubPicofaradOption:
@@ -1108,7 +1145,6 @@ class TestParseBuildConfig:
                 sample_count="8",
                 seed="3",
                 grid_points="201",
-                use_toroid_candidates=False,
             ),
         )
 
@@ -1119,7 +1155,6 @@ class TestParseBuildConfig:
             sample_count=8,
             seed=3,
             grid_points=201,
-            use_toroid_candidates=False,
         )
 
 

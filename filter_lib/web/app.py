@@ -26,6 +26,14 @@ from ..design.capacitor_policy_inputs import (
     TOLERANCE_FIELD_HELP,
     TOLERANCE_FIELD_LABEL,
 )
+from ..design.inductor_option_inputs import (
+    BUILD_INDUCTORS_CHOICES,
+    BUILD_INDUCTORS_HELP,
+    BUILD_INDUCTORS_LABEL,
+    INDUCTOR_DETAIL_CHOICES,
+    INDUCTOR_DETAIL_HELP,
+    INDUCTOR_DETAIL_LABEL,
+)
 from ..shared.cli_bandpass_output_validation import CAPACITOR_Q_LABEL, INDUCTOR_Q_LABEL
 from ..shared.eseries import SUB_PF_OPTION_LABEL
 from . import routes_design, routes_export, routes_pages
@@ -84,8 +92,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         "q_frequency": Q_FREQUENCY_LABEL,
         "inductor_q": INDUCTOR_Q_LABEL,
         "capacitor_q": CAPACITOR_Q_LABEL,
+        "inductor_detail": INDUCTOR_DETAIL_LABEL,
+        "inductor_detail_choices": INDUCTOR_DETAIL_CHOICES,
+        "inductor_detail_help": INDUCTOR_DETAIL_HELP,
+        "build_inductors": BUILD_INDUCTORS_LABEL,
+        "build_inductors_choices": BUILD_INDUCTORS_CHOICES,
+        "build_inductors_help": BUILD_INDUCTORS_HELP,
     }
-    # Which options apply to each Format/E-series/Raw/build/toroid combination.
+    # Which options apply to each Format/E-series/Raw/build/suggestions combination.
     templates.env.globals["option_states"] = OPTION_STATES_JSON
     app.state.templates = templates
     app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
@@ -98,10 +112,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise exc
         return json_error(failure_message(exc), status)
 
-    from ..shared.build_types import BuildAnalysisCancelled
+    from ..shared.cancellation import DesignCancelled
     from .execution import CalculationTimeout
 
-    for exc_type in (ValueError, CalculationTimeout, BuildAnalysisCancelled):
+    for exc_type in (ValueError, CalculationTimeout, DesignCancelled):
         app.add_exception_handler(exc_type, handle_expected_failure)
 
     # Unexpected errors are answered by Starlette's outermost error middleware, outside

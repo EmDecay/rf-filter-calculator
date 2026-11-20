@@ -8,8 +8,23 @@ loss, SRF, saturation, thermal rise, or power handling.
 import math
 from dataclasses import dataclass
 
+from .formatting import format_frequency
+from .inductor_suggestion import (
+    MAX_SUGGESTIONS_PER_KIND,
+    SRF_NOT_CHECKED,
+    VHF_TOROID_EXCLUSION,
+    ErrorBudget,
+    InductorSuggestion,
+    KindSuggestions,
+    PartSource,
+)
 from .numeric import require_positive_finite
-from .toroid_core_data import ToroidCore, iter_auto_selectable_cores_for_frequency
+from .toroid_core_data import (
+    ToroidCore,
+    get_source,
+    iter_auto_selectable_cores_for_frequency,
+    list_cores,
+)
 from .toroid_inductance import WindingSolution, compute_ideal_turns, solve_winding
 from .toroid_wire import MechanicalFit, fit_wire
 
@@ -147,3 +162,68 @@ def recommend_cores(
 ) -> list[ToroidRecommendation]:
     """Compatibility wrapper returning screened candidates, not suitability claims."""
     return find_core_candidates(l_target_h, design_freq_hz, top_n=top_n)
+
+
+# Why no toroid winding qualifies when some core is rated for the frequency: a core is
+# rejected for either of the other checked reasons, so the message names all three.
+NO_SUITABLE_CORE_REASON = (
+    "No suitable toroid core in the built-in list. A core must be rated for this frequency, "
+    "reach this inductance within its A_L tolerance using whole turns, and fit the winding. "
+    "Choose a core manually."
+)
+
+
+def no_rated_core_reason(design_freq_hz: float) -> str:
+    """Why no toroid qualifies when no built-in core is rated for ``design_freq_hz``.
+
+    Above every automatic core's rated range the VHF exclusion says why no other core
+    is offered there.
+    """
+    reason = f"No built-in toroid core is rated for {format_frequency(design_freq_hz)}."
+    highest = max(core.freq_max_hz for core in list_cores() if core.is_auto_selectable)
+    if design_freq_hz > highest:
+        reason = f"{reason} {VHF_TOROID_EXCLUSION}"
+    return reason
+
+
+def _part_source(core: ToroidCore) -> PartSource | None:
+    if core.core_source_id is None:
+        return None
+    source = get_source(core.core_source_id)
+    return PartSource(publisher=source.publisher, title=source.title, url=source.url)
+
+
+def suggest_toroids(l_target_h: float, design_freq_hz: float) -> KindSuggestions:
+    """Return up to three toroid winding suggestions, or the limit that failed.
+
+    Legacy HF windings keep their "SRF not checked" basis: the core maker publishes no
+    self-resonance data, so the error budget lists no SRF drift.
+    """
+    candidates = find_core_candidates(l_target_h, design_freq_hz, top_n=MAX_SUGGESTIONS_PER_KIND)
+    if not candidates:
+        rated = any(True for _core in iter_auto_selectable_cores_for_frequency(design_freq_hz))
+        reason = NO_SUITABLE_CORE_REASON if rated else no_rated_core_reason(design_freq_hz)
+        return KindSuggestions("toroid", reason_none=reason)
+    return KindSuggestions(
+        "toroid",
+        tuple(
+            InductorSuggestion(
+                kind="toroid",
+                rank=rank,
+                part_name=candidate.core.name,
+                target_h=l_target_h,
+                achieved_h=candidate.winding.l_actual_h,
+                tolerance_pct=candidate.core.al_tolerance_pct,
+                srf_basis=SRF_NOT_CHECKED,
+                error_budget=ErrorBudget(
+                    nominal_mismatch_pct=candidate.winding.error_pct,
+                    tolerance_pct=candidate.core.al_tolerance_pct,
+                ),
+                source=_part_source(candidate.core),
+                build=candidate,
+                status=candidate.candidate_status,
+                warnings=candidate.warnings,
+            )
+            for rank, candidate in enumerate(candidates, start=1)
+        ),
+    )

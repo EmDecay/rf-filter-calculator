@@ -380,15 +380,14 @@ class ResultsScreen(Screen):
         Each document is designed on its own, so one failure does not lose the others;
         a failure is returned as its exception.
         """
-        from filter_lib.design import design
-        from filter_lib.shared.build_types import BuildAnalysisCancelled
+        from filter_lib.design import DesignCancelled, design
 
         worker = get_current_worker()
         designs = {}
         for document, request in requests.items():
             try:
                 designs[document] = design(request, should_cancel=lambda: worker.is_cancelled)
-            except BuildAnalysisCancelled:
+            except DesignCancelled:
                 raise
             except Exception as error:  # reported per file, like a calculation error
                 designs[document] = error

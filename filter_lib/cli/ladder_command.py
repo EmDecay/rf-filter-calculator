@@ -20,7 +20,6 @@ from ..shared.parsing import parse_frequency, parse_impedance
 from .design_output_args import (
     part_policy_args,
     render_options_from_args,
-    run_deprecated_matched_simulation,
     spice_realization_from_args,
 )
 
@@ -92,28 +91,8 @@ def run_ladder(args: Namespace, category: str, explanations: dict, example: str)
         print(export_spice(outcome, spice_realization_from_args(args)), end="")
         return
 
-    if getattr(args, "sim_matched", False):
-        _run_deprecated_matched_simulation(args, category, outcome.result)
-        return
-
     if args.plot_data:
         print(export_response_data(outcome, args.plot_data))
         return
 
     print("\n".join(render_lines(outcome, render_options_from_args(args))))
-
-
-def _run_deprecated_matched_simulation(args: Namespace, category: str, result: dict) -> None:
-    if category == "lowpass":
-        from ..lowpass import display_results
-    else:
-        from ..highpass import display_results
-
-    run_deprecated_matched_simulation(
-        args,
-        category,
-        result,
-        display_results,
-        eseries=args.eseries,
-        show_match=not args.no_match,
-    )

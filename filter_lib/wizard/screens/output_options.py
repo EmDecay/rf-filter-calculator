@@ -27,29 +27,40 @@ from ...design.capacitor_policy_inputs import (
     parse_stray_field,
     parse_tolerance_field,
 )
+from ...design.inductor_option_inputs import (
+    BUILD_INDUCTORS_CHOICES,
+    BUILD_INDUCTORS_HELP,
+    BUILD_INDUCTORS_LABEL,
+    INDUCTOR_DETAIL_HELP,
+    INDUCTOR_DETAIL_LABEL,
+)
 from ...design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    BUILD_INDUCTORS,
     CAPACITOR_GRADE,
     CAPACITOR_TOLERANCE,
     ESERIES,
+    INDUCTOR_DETAIL,
     LOSS_Q,
     RAW_UNITS,
     STRAY_CAPACITANCE,
     TEXT_PLOT,
-    TOROID_BUILD,
-    TOROID_DETAIL,
 )
 from ...shared.cli_aliases import DEFAULT_ESERIES
 from ...shared.eseries import DEFAULT_STRAY_CAPACITANCE_F, SUB_PF_OPTION_LABEL
+from ...shared.inductor_suggestion import BUILD_INDUCTOR_CHOICES as BUILD_INDUCTOR_VALUES
+from ...shared.inductor_suggestion import (
+    DEFAULT_BUILD_INDUCTORS,
+    DEFAULT_INDUCTOR_DETAIL,
+    INDUCTOR_DETAILS,
+)
 from ..build_options import (
     BUILD_FIELDS,
     BUILD_INPUT_FLOW,
     BUILD_OPTION_HELP,
     BUILD_OPTION_LABEL,
     BUILD_OPTION_PREFIX,
-    TOROID_BUILD_HELP,
-    TOROID_BUILD_LABEL,
     BuildOptionError,
     BuildOptionValues,
     apply_build_config,
@@ -72,11 +83,16 @@ ESERIES_CHOICES = (
     ("E96", "E96 - 96 standard values per decade"),
     ("none", "None - show calculated values only"),
 )
-TOROID_CHOICES = (
-    ("best", "Best, detailed - the best core with wire length, DCR, and size (default)"),
-    ("full", "Up to 3, detailed - up to three cores, each with wire length, DCR, and size"),
-    ("compact", "Best, one line - turns, AWG, and inductance"),
-    ("none", "None - no toroid windings in any output"),
+INDUCTOR_CHOICES = (
+    ("best", "Best, detailed - the part the build uses, with its details (default)"),
+    ("full", "Up to 3 per kind, detailed - and why a kind has none"),
+    ("compact", "Best, one line"),
+    ("none", "None - no inductor suggestions in any output"),
+)
+# The web's labels; Auto is the default, as in the CLI.
+BUILD_INDUCTOR_CHOICES = tuple(
+    (value, f"{label} (default)" if value == DEFAULT_BUILD_INDUCTORS else label)
+    for value, label in BUILD_INDUCTORS_CHOICES
 )
 RESPONSE_CHOICES = (
     ("no-export", None, "None"),
@@ -86,10 +102,6 @@ RESPONSE_CHOICES = (
 SUB_PF_HELP = (
     "Also choose standard values for capacitors below 1 pF. When off, no part is chosen "
     "below 1 pF and you choose one manually. Needs E12, E24, or E96."
-)
-TOROID_HELP = (
-    "JSON lists up to three cores and CSV the best, whatever is chosen here. None also "
-    "leaves the toroid windings out of JSON, CSV, and the build simulation."
 )
 TEXT_PLOT_LABEL = "Text plot in the table"
 TEXT_PLOT_HELP = (
@@ -102,18 +114,18 @@ RAW_UNITS_HELP = (
     "The table then leaves out the standard capacitor values."
 )
 
-# The widgets each option disables; the toroid detail disables only its two choices.
+# The widgets each option disables; the inductor detail disables only its two choices.
 OPTION_WIDGETS = {
     ESERIES: ("#eseries",),
     ALLOW_SUB_PF: ("#allow-sub-pf",),
     CAPACITOR_GRADE: ("#capacitor-grade",),
     CAPACITOR_TOLERANCE: ("#capacitor-tolerance",),
     STRAY_CAPACITANCE: ("#stray-capacitance",),
-    TOROID_DETAIL: ("#toroid-full", "#toroid-compact"),
+    INDUCTOR_DETAIL: ("#inductor-full", "#inductor-compact"),
     TEXT_PLOT: ("#plot",),
     RAW_UNITS: ("#raw",),
     BUILD: ("#build-analysis-enabled",),
-    TOROID_BUILD: ("#build-use-toroids",),
+    BUILD_INDUCTORS: ("#build-inductors",),
 }
 # Enter moves through the controls in the web form's order, skipping any that are
 # disabled or hidden (the build fields show only while the build applies).
@@ -124,22 +136,20 @@ FOCUS_FLOW = (
     "#capacitor-grade",
     "#capacitor-tolerance",
     "#stray-capacitance",
-    "#toroid-detail",
+    "#inductor-detail",
     "#plot",
     "#raw",
     "#export",
     "#build-analysis-enabled",
     *(f"#{input_id}" for input_id in BUILD_INPUT_FLOW),
-    "#build-use-toroids",
+    "#build-inductors",
     "#results-btn",
 )
-BUILD_SECTION = frozenset(
-    {*(f"#{input_id}" for input_id in BUILD_INPUT_FLOW), "#build-use-toroids"}
-)
+BUILD_SECTION = frozenset({*(f"#{input_id}" for input_id in BUILD_INPUT_FLOW), "#build-inductors"})
 # The capacitor text fields advance on Enter like the build fields (Input.Submitted).
 POLICY_INPUTS = ("#capacitor-tolerance", "#stray-capacitance")
 ENTER_ADVANCES = frozenset(FOCUS_FLOW) - BUILD_SECTION - set(POLICY_INPUTS) - {"#results-btn"} | {
-    "#build-use-toroids"
+    "#build-inductors"
 }
 
 
@@ -162,6 +172,11 @@ def _radio_set(set_id: str, choices, selected: str, prefix: str = "") -> RadioSe
         ),
         id=set_id,
     )
+
+
+def _selected_value(screen: Screen, set_id: str, prefix: str) -> str:
+    """The value of the button selected in a ``_radio_set`` made with ``prefix``."""
+    return (get_selected_radio(screen, set_id) or "").removeprefix(prefix)
 
 
 class OutputOptionsScreen(Screen):
@@ -203,10 +218,12 @@ class OutputOptionsScreen(Screen):
                 yield Static(STRAY_FIELD_HELP, classes="field-help")
                 yield _reason(STRAY_CAPACITANCE)
 
-                yield Static("Toroid windings (table detail)", classes="field-label")
-                yield _radio_set("toroid-detail", TOROID_CHOICES, state.toroid_detail, "toroid-")
-                yield Static(TOROID_HELP, classes="field-help")
-                yield _reason(TOROID_DETAIL)
+                yield Static(INDUCTOR_DETAIL_LABEL, classes="field-label")
+                yield _radio_set(
+                    "inductor-detail", INDUCTOR_CHOICES, state.inductor_detail, "inductor-"
+                )
+                yield Static(INDUCTOR_DETAIL_HELP, classes="field-help")
+                yield _reason(INDUCTOR_DETAIL)
 
                 yield Checkbox(TEXT_PLOT_LABEL, state.show_plot, id="plot")
                 yield Static(TEXT_PLOT_HELP, classes="field-help")
@@ -237,13 +254,15 @@ class OutputOptionsScreen(Screen):
                         yield Static(build_field.label, classes="field-label")
                         yield Input(values[build_field.input_id], id=build_field.input_id)
                         yield Static(build_field.help, classes="field-help")
-                    yield Checkbox(
-                        TOROID_BUILD_LABEL,
-                        state.build_use_toroid_candidates,
-                        id="build-use-toroids",
+                    yield Static(BUILD_INDUCTORS_LABEL, classes="field-label")
+                    yield _radio_set(
+                        "build-inductors",
+                        BUILD_INDUCTOR_CHOICES,
+                        state.build_inductors,
+                        "build-inductors-",
                     )
-                    yield Static(TOROID_BUILD_HELP, classes="field-help")
-                    yield _reason(TOROID_BUILD)
+                    yield Static(BUILD_INDUCTORS_HELP, classes="field-help")
+                    yield _reason(BUILD_INDUCTORS)
 
             with Horizontal(classes="button-row"):
                 yield Button("Show results", id="results-btn", variant="primary")
@@ -270,19 +289,22 @@ class OutputOptionsScreen(Screen):
         state.quiet = output_format == "quiet"
         state.eseries = get_selected_radio(self, "eseries") or DEFAULT_ESERIES
         state.allow_sub_pf = self.query_one("#allow-sub-pf", Checkbox).value
-        grade = (get_selected_radio(self, "capacitor-grade") or "").removeprefix("grade-")
+        grade = _selected_value(self, "capacitor-grade", "grade-")
         state.capacitor_grade = grade if grade == "tight" else "standard"
         state.capacitor_tolerance_text = self.query_one("#capacitor-tolerance", Input).value
         state.stray_capacitance_text = self.query_one("#stray-capacitance", Input).value
-        toroid = get_selected_radio(self, "toroid-detail").removeprefix("toroid-")
-        state.toroid_detail = toroid if toroid in ("full", "compact", "none") else "best"
+        detail = _selected_value(self, "inductor-detail", "inductor-")
+        state.inductor_detail = detail if detail in INDUCTOR_DETAILS else DEFAULT_INDUCTOR_DETAIL
         state.show_plot = self.query_one("#plot", Checkbox).value
         state.raw_units = self.query_one("#raw", Checkbox).value
         # None (not a string) means "no response-data file".
         export = get_selected_radio(self, "export")
         state.export_format = {"export-json": "json", "export-csv": "csv"}.get(export)
         state.build_analysis_enabled = self.query_one("#build-analysis-enabled", Checkbox).value
-        state.build_use_toroid_candidates = self.query_one("#build-use-toroids", Checkbox).value
+        build_inductors = _selected_value(self, "build-inductors", "build-inductors-")
+        state.build_inductors = (
+            build_inductors if build_inductors in BUILD_INDUCTOR_VALUES else DEFAULT_BUILD_INDUCTORS
+        )
 
     def _show_reason(self, selector: str, reason: str | None) -> None:
         static = self.query_one(selector, Static)
@@ -396,7 +418,6 @@ class OutputOptionsScreen(Screen):
                 return
             # Not used by the result: a saved JSON that uses the build reports it.
             state.build_input_error = f"{BUILD_OPTION_PREFIX}{error}"
-            state.build_use_toroid_candidates = values.use_toroid_candidates
         else:
             state.build_input_error = None
             apply_build_config(state, state.build_analysis_enabled, build_config)
@@ -460,5 +481,4 @@ class OutputOptionsScreen(Screen):
             sample_count=text("build-sample-count"),
             seed=text("build-seed"),
             grid_points=text("build-grid-points"),
-            use_toroid_candidates=self.query_one("#build-use-toroids", Checkbox).value,
         )

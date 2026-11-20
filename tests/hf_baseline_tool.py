@@ -20,6 +20,12 @@ Each changed item is listed in ``tests/fixtures/hf_baseline_allowed_changes.json
 its kind and reason; ``tests/test_hf_baseline.py`` fails on any change that is not listed,
 and on any listed change that no longer happens.
 
+The corpus predates the 3.0.0 names. The recorder reads the toroid picks from the
+generic ``inductor_suggestions`` record (toroid kind) and maps the renamed build method
+``suggested_inductor`` (kind ``toroid``) back to the recorded
+``verified_toroid_integer_turns``, so a rename is never a recorded change and only the
+physical facts are compared.
+
 Usage (from the repository root)::
 
     uv run python -m tests.hf_baseline_tool --write-corpus     # only from the old release
@@ -200,25 +206,34 @@ def _value_rows(document: dict) -> list[list]:
 
 
 def _toroid_rows(document: dict, category: str) -> dict[str, list]:
+    inductors = document["components"]["inductors"]
     if category == "bandpass":
         # Every resonator has the same inductance, so one candidate list serves them all.
-        return {"resonators": _toroid_pick(document.get("resonator_toroid_recommendations", []))}
-    return {
-        row["name"]: _toroid_pick(row.get("toroid_recommendations", []))
-        for row in document["components"]["inductors"]
-    }
+        return {"resonators": _toroid_pick(inductors[0])}
+    return {row["name"]: _toroid_pick(row) for row in inductors}
 
 
-def _toroid_pick(recommendations: list) -> list:
+def _toroid_pick(inductor: dict) -> list:
+    """The toroid kind's suggestions of one inductor, as the corpus recorded them."""
+    kinds = inductor["inductor_suggestions"]["kinds"]
+    [toroids] = [group for group in kinds if group["kind"] == "toroid"]
     return [
         [
-            item["core"]["name"],
-            item["winding"]["turns"],
-            item["winding"]["l_actual_henries"],
-            item["candidate_status"],
+            item["part_name"],
+            item["build"]["winding"]["turns"],
+            item["build"]["winding"]["l_actual_henries"],
+            item["status"],
         ]
-        for item in recommendations
+        for item in toroids["suggestions"]
     ]
+
+
+# The build method's 3.0.0 name, mapped back to the name the corpus recorded.
+_RECORDED_METHODS = {("suggested_inductor", "toroid"): "verified_toroid_integer_turns"}
+
+
+def _recorded_method(part: dict) -> str:
+    return _RECORDED_METHODS.get((part["method"], part.get("inductor_kind")), part["method"])
 
 
 def _measurement(measurement: dict) -> dict:
@@ -286,7 +301,7 @@ def record(design: Design) -> dict[str, object]:
                 part["physical_parts_si"],
                 part["core_name"],
                 part["turns"],
-                part["method"],
+                _recorded_method(part),
                 part["status"],
             ]
             for part in build["nominal_build"]["substitutions"]

@@ -71,57 +71,72 @@ def _document(lines: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-# (id, CLI flags, render options, the request's standard capacitor series)
+# (id, CLI flags, render options, request fields that differ from ``_request``)
 RENDER_CASES = [
-    ("table", (), RenderOptions(), "E24"),
+    ("table", (), RenderOptions(), {}),
     (
         "table-plot-full-e96",
-        ("--plot", "--toroid-full", "-e", "E96"),
-        RenderOptions(show_plot=True, toroid_full=True),
-        "E96",
+        ("--plot", "--inductor-suggestions", "full", "-e", "E96"),
+        RenderOptions(show_plot=True),
+        {"inductor_suggestions": "full", "eseries": "E96"},
     ),
-    ("table-raw-no-match", ("--raw", "--no-match"), RenderOptions(raw=True), None),
+    ("table-raw-no-match", ("--raw", "--no-match"), RenderOptions(raw=True), {"eseries": None}),
     (
         "table-compact",
-        ("--toroid-compact", "-e", "E12"),
-        RenderOptions(toroid_compact=True),
-        "E12",
+        ("--inductor-suggestions", "compact", "-e", "E12"),
+        RenderOptions(),
+        {"inductor_suggestions": "compact", "eseries": "E12"},
     ),
-    ("table-no-toroids", ("--no-toroids",), RenderOptions(include_toroids=False), "E24"),
-    ("quiet", ("-q",), RenderOptions(output_format="quiet"), "E24"),
-    ("quiet-raw", ("-q", "--raw"), RenderOptions(output_format="quiet", raw=True), "E24"),
-    ("json-e12", ("--format", "json", "-e", "E12"), RenderOptions(output_format="json"), "E12"),
+    (
+        "table-no-suggestions",
+        ("--inductor-suggestions", "none"),
+        RenderOptions(),
+        {"inductor_suggestions": "none"},
+    ),
+    ("quiet", ("-q",), RenderOptions(output_format="quiet"), {}),
+    ("quiet-raw", ("-q", "--raw"), RenderOptions(output_format="quiet", raw=True), {}),
+    (
+        "json-e12",
+        ("--format", "json", "-e", "E12"),
+        RenderOptions(output_format="json"),
+        {"eseries": "E12"},
+    ),
     (
         "json-no-match",
         ("--format", "json", "--no-match"),
         RenderOptions(output_format="json"),
-        None,
+        {"eseries": None},
     ),
     (
-        "json-no-toroids",
-        ("--format", "json", "--no-toroids"),
-        RenderOptions(output_format="json", include_toroids=False),
-        "E24",
+        "json-no-suggestions",
+        ("--format", "json", "--inductor-suggestions", "none"),
+        RenderOptions(output_format="json"),
+        {"inductor_suggestions": "none"},
     ),
-    ("csv", ("--format", "csv"), RenderOptions(output_format="csv"), "E24"),
-    ("csv-e96", ("--format", "csv", "-e", "E96"), RenderOptions(output_format="csv"), "E96"),
+    ("csv", ("--format", "csv"), RenderOptions(output_format="csv"), {}),
+    (
+        "csv-e96",
+        ("--format", "csv", "-e", "E96"),
+        RenderOptions(output_format="csv"),
+        {"eseries": "E96"},
+    ),
 ]
 
 
 @pytest.mark.parametrize("category", list(ARGV))
 @pytest.mark.parametrize(
-    "flags, options, eseries",
+    "flags, options, request_fields",
     [case[1:] for case in RENDER_CASES],
     ids=[case[0] for case in RENDER_CASES],
 )
 def test_render_lines_is_the_cli_output(
-    monkeypatch, capsys, outcomes, category, flags, options, eseries
+    monkeypatch, capsys, outcomes, category, flags, options, request_fields
 ):
     expected = cli_stdout(monkeypatch, capsys, *ARGV[category], *flags)
     outcome = (
-        outcomes[category]
-        if eseries == "E24"
-        else design(dataclasses.replace(_request(category), eseries=eseries))
+        design(dataclasses.replace(_request(category), **request_fields))
+        if request_fields
+        else outcomes[category]
     )
 
     assert _document(render_lines(outcome, options)) == expected
@@ -200,11 +215,14 @@ def test_render_lines_rejects_an_analysis_the_format_cannot_carry(outcomes):
         render_lines(outcome, RenderOptions(output_format="csv"))
 
 
-def test_render_options_reject_unknown_formats_and_both_toroid_details():
+def test_render_options_reject_unknown_formats_and_requests_unknown_suggestion_detail():
     with pytest.raises(ValueError, match="^Unknown output format: spice$"):
         RenderOptions(output_format="spice")
-    with pytest.raises(ValueError, match="^Choose either compact or full toroid detail, not both$"):
-        RenderOptions(toroid_compact=True, toroid_full=True)
+    # The suggestion detail is one request field, so "compact and full" cannot be asked for.
+    with pytest.raises(
+        ValueError, match="^Inductor suggestions must be best, full, compact, or none$"
+    ):
+        dataclasses.replace(_request("lowpass"), inductor_suggestions="compact+full")
 
 
 def test_unknown_category_is_rejected(outcomes):

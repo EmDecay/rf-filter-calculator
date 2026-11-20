@@ -5,6 +5,7 @@ from dataclasses import replace
 
 import pytest
 
+from filter_lib.design import design
 from filter_lib.shared.build_simulation import BuildConfig
 from filter_lib.wizard.state import FilterState
 
@@ -29,7 +30,7 @@ class TestFilterState:
         assert state.export_format is None
         assert state.raw_units is False
         assert state.quiet is False
-        assert state.toroid_detail == "best"
+        assert state.inductor_detail == "best"
         assert state.build_analysis_enabled is False
         defaults = BuildConfig()
         assert state.build_inductor_tolerance_pct == defaults.inductor_tolerance_pct is None
@@ -45,7 +46,7 @@ class TestFilterState:
         assert state.build_sample_count == 0
         assert state.build_seed == 0
         assert state.build_grid_points == 601
-        assert state.build_use_toroid_candidates is True
+        assert state.build_inductors == "auto"
         assert state.build_analysis is None
         assert state.resonator_impedance is None
         assert state.resonator_inductance is None
@@ -186,14 +187,17 @@ class TestFilterState:
             build_sample_count=7,
             build_seed=42,
             build_grid_points=301,
-            build_use_toroid_candidates=False,
+            build_inductors="calculated",
         )
 
         config = state.make_build_config()
 
         assert isinstance(config, BuildConfig)
-        request = replace(state, category="lowpass", frequency_hz=10e6).to_design_request()
+        request = replace(
+            state, category="lowpass", frequency_hz=10e6, build_analysis_enabled=True
+        ).to_design_request()
         assert (request.eseries, request.capacitor_tolerance_pct) == ("E96", 2.0)
+        assert (request.realization, request.build_inductors) == (config, "calculated")
         assert config.inductor_tolerance_pct == 7.5
         assert config.inductor_q == 120.0
         assert config.capacitor_q == 500.0
@@ -202,7 +206,6 @@ class TestFilterState:
         assert config.sample_count == 7
         assert config.seed == 42
         assert config.grid_points == 301
-        assert config.use_toroid_candidates is False
 
     def test_build_config_carries_the_q_reference_frequency(self):
         state = FilterState(eseries="E12", build_reference_frequency_hz=7e6)
@@ -213,15 +216,34 @@ class TestFilterState:
         assert config.resonator_q is None
 
     @pytest.mark.parametrize(
-        "toroid_detail, ticked, expected",
-        [("best", True, True), ("best", False, False), ("none", True, False)],
+        "detail, build_inductors, requested, kind",
+        [
+            ("best", "auto", "auto", "toroid"),
+            ("best", "calculated", "calculated", None),
+            ("none", "auto", "auto", None),
+            # A forced kind is disabled while suggestions are None (CLI refusal).
+            ("none", "toroid", "auto", None),
+        ],
     )
-    def test_toroid_none_also_leaves_the_windings_out_of_the_build(
-        self, toroid_detail, ticked, expected
+    def test_no_inductor_suggestions_also_leave_them_out_of_the_build(
+        self, detail, build_inductors, requested, kind
     ):
-        state = FilterState(toroid_detail=toroid_detail, build_use_toroid_candidates=ticked)
+        state = FilterState(
+            category="lowpass",
+            frequency_hz=10e6,
+            inductor_detail=detail,
+            build_analysis_enabled=True,
+            build_inductors=build_inductors,
+            build_grid_points=51,
+        )
 
-        assert state.make_build_config().use_toroid_candidates is expected
+        request = state.to_design_request()
+        inductors = design(request).parts.inductors.values()
+
+        assert (request.inductor_suggestions, request.build_inductors) == (detail, requested)
+        assert inductors
+        for part in inductors:
+            assert (None if part.build_pick is None else part.build_pick.kind) == kind
 
     def test_resonator_q_reaches_only_a_bandpass_request_whose_output_shows_it(self):
         state = FilterState(
@@ -233,28 +255,21 @@ class TestFilterState:
         assert state.to_design_request().qu is None
         assert state.document_request("json").qu == 200.0
 
-    @pytest.mark.parametrize(
-        "detail, compact, full, include",
-        [
-            ("best", False, False, True),
-            ("full", False, True, True),
-            ("compact", True, False, True),
-            ("none", False, False, False),
-        ],
-    )
-    def test_toroid_choices_map_to_the_cli_flags(self, detail, compact, full, include):
-        options = FilterState(toroid_detail=detail).to_render_options()
+    @pytest.mark.parametrize("detail", ["best", "full", "compact", "none"])
+    def test_inductor_choices_map_to_the_cli_values(self, detail):
+        state = FilterState(category="lowpass", frequency_hz=10e6, inductor_detail=detail)
 
-        assert (options.toroid_compact, options.toroid_full, options.include_toroids) == (
-            compact,
-            full,
-            include,
-        )
+        assert state.to_design_request().inductor_suggestions == detail
 
     def test_a_detail_the_output_cannot_show_falls_back_to_the_cli_default(self):
-        options = FilterState(toroid_detail="full", output_format="json").to_render_options()
+        state = FilterState(
+            category="lowpass", frequency_hz=10e6, inductor_detail="full", output_format="json"
+        )
 
-        assert (options.toroid_compact, options.toroid_full) == (False, False)
+        assert state.to_design_request().inductor_suggestions == "best"
+        # None is not a table detail: it leaves the suggestions out of every output.
+        state.inductor_detail = "none"
+        assert state.to_design_request().inductor_suggestions == "none"
 
     def test_build_analysis_is_required_for_exportable_build_success(self):
         state = FilterState(build_analysis_enabled=True)

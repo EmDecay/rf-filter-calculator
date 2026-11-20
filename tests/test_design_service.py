@@ -10,12 +10,14 @@ from __future__ import annotations
 import dataclasses
 import math
 import re
+from collections.abc import Callable
 
 import pytest
 
 from filter_lib import highpass, lowpass
 from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.design import (
+    DesignCancelled,
     DesignRequest,
     DesignResult,
     band_from_edges,
@@ -175,18 +177,51 @@ def test_build_settings_alone_do_not_run_the_build_analysis():
     assert design(_ladder("highpass", "chebyshev")).realization == BuildConfig()
 
 
+def _counting_check(cancel_after: int | None = None) -> tuple[list[int], Callable[[], bool]]:
+    """A cancellation check that counts its polls and cancels after ``cancel_after`` of them."""
+    polls = [0]
+
+    def check() -> bool:
+        polls[0] += 1
+        return cancel_after is not None and polls[0] > cancel_after
+
+    return polls, check
+
+
 def test_cancellation_check_stops_the_build_analysis():
-    request = dataclasses.replace(_ladder("lowpass", "bessel"), run_build_analysis=True)
+    request = _ladder("lowpass", "bessel")
+    # Synthesis and part resolution poll first; cancel at the build's first poll.
+    before_build, check = _counting_check()
+    design(request, should_cancel=check)
+    _polls, check = _counting_check(cancel_after=before_build[0])
 
     with pytest.raises(BuildAnalysisCancelled):
+        design(
+            dataclasses.replace(request, run_build_analysis=True, realization=FAST_BUILD),
+            should_cancel=check,
+        )
+
+
+def test_cancellation_check_stops_the_design_before_synthesis():
+    request = dataclasses.replace(_ladder("lowpass", "bessel"), run_build_analysis=True)
+
+    with pytest.raises(DesignCancelled) as raised:
         design(request, should_cancel=lambda: True)
 
+    assert not isinstance(raised.value, BuildAnalysisCancelled)
 
-def test_cancellation_check_is_not_consulted_without_build():
-    def never_called() -> bool:
-        raise AssertionError("synthesis must not poll the cancellation check")
 
-    assert design(_ladder("lowpass", "bessel"), should_cancel=never_called).result
+def test_check_that_never_cancels_leaves_a_design_without_build_unchanged():
+    request = _ladder("lowpass", "bessel")
+    polls, check = _counting_check()
+
+    outcome = design(request, should_cancel=check)
+
+    # Synthesis and part resolution poll the check; no build runs.
+    assert polls[0] > 0
+    assert outcome.build_analysis is None
+    assert outcome.result == design(request).result
+    assert outcome.parts == design(request).parts
 
 
 def test_design_result_carries_the_request_and_its_part_policy():

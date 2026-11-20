@@ -7,6 +7,7 @@ from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.circuit_display_names import display_component_name, format_name_list
 from filter_lib.shared.eseries import MatchPolicy
 from filter_lib.shared.spice_export import export_spice_deck
+from tests.parts_helpers import parts_for
 
 
 @pytest.mark.parametrize(
@@ -57,7 +58,9 @@ def _deck_element_names(deck: str) -> list[str]:
 def test_bandpass_deck_maps_every_element_name_once(realization):
     result = calculate_bandpass_filter(10e6, 0.5e6, 50.0, 3, "butterworth", "top")
 
-    deck = export_spice_deck(result, "bandpass", realization=realization)
+    deck = export_spice_deck(
+        result, "bandpass", realization=realization, parts=parts_for(result, "bandpass")
+    )
 
     (names_line,) = [line for line in deck.splitlines() if line.startswith("* names: ")]
     mapped = [
@@ -83,7 +86,7 @@ def test_parallel_sub_pf_parts_are_grouped_under_one_table_name():
         "bandpass",
         realization="nominal_build",
         config=BuildConfig(),
-        policy=MatchPolicy(allow_sub_pf=True),
+        parts=parts_for(result, "bandpass", policy=MatchPolicy(allow_sub_pf=True)),
     )
 
     assert "CK1A+CK1B=Cs12" in deck
@@ -104,4 +107,8 @@ def test_ladder_deck_has_no_name_map():
         "topology": "pi",
     }
 
-    assert "* names:" not in export_spice_deck(result, "lowpass", realization="nominal_build")
+    deck = export_spice_deck(
+        result, "lowpass", realization="nominal_build", parts=parts_for(result, "lowpass")
+    )
+
+    assert "* names:" not in deck

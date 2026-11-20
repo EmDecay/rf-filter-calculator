@@ -5,7 +5,6 @@ Provides JSON, CSV, and quiet text formatting.
 
 import csv
 import io
-from collections.abc import Callable
 from typing import Any
 
 from ..shared.display_common import (
@@ -14,72 +13,37 @@ from ..shared.display_common import (
     json_component,
 )
 from ..shared.display_helpers import format_component_value, split_value_unit
-from ..shared.display_helpers import format_eseries_match as _shared_format_eseries
-from ..shared.eseries import MatchPolicy
 from ..shared.formatting import format_capacitance, format_inductance
+from ..shared.inductor_display import CSV_INDUCTOR_HEADER, inductor_csv_columns
+from ..shared.resolved_parts import ResolvedParts
 from ..shared.strict_json import dumps_strict, validate_finite_tree
-from ..shared.toroid_display import (
-    CSV_TOROID_HEADER,
-    build_json_recommendations,
-    csv_columns_for_best,
-)
-from ..shared.toroid_selection import recommend_cores
 
 # Type alias for filter result dict
 BandpassResult = dict[str, Any]
 
-
-def format_eseries_match(
-    value: float,
-    series: str,
-    unit_formatter: Callable[[float], str],
-    policy: MatchPolicy | None = None,
-) -> list[str]:
-    """Format E-series match for a component value.
-
-    Uses additive parallel mode for consistency with lowpass/highpass.
-
-    Args:
-        value: Component value
-        series: E-series name (E12, E24, E96)
-        unit_formatter: Function to format value with units
-        policy: Match policy (None selects the default policy)
-
-    Returns:
-        List of formatted match strings
-    """
-    return _shared_format_eseries(
-        value, series, unit_formatter, parallel_mode="additive", policy=policy
-    )
+# Every resonator has the same inductance, so the first one's resolved part speaks for all.
+RESONATOR_INDUCTOR = "LT1"
 
 
 def format_json(
     result: BandpassResult,
-    eseries: str | None = None,
-    include_toroids: bool = True,
-    matched_sim: dict[str, Any] | None = None,
+    parts: ResolvedParts,
     build_analysis=None,
-    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format results as JSON.
 
     Args:
         result: Dict from calculate_bandpass_filter()
-        eseries: E-series name (None disables matching)
-        include_toroids: Attach resonator_toroid_recommendations top-level field
-        matched_sim: Optional matched-value simulation summary (additive
-            top-level ``matched_sim`` key when present)
+        parts: The parts ``design()`` resolved: capacitor choices (when the design has
+            an E-series) and the inductor suggestions (unless they are off)
         build_analysis: Optional realized-build analysis result
-        match_policy: E-series match policy (None selects the default policy)
 
     Returns:
         JSON formatted string
     """
 
-    def component(name: str, value: float, unit_key: str, parallel_mode: str) -> dict[str, Any]:
-        return json_component(
-            name, value, unit_key, eseries, parallel_mode, match_policy=match_policy
-        )
+    def component(name: str, value: float, circuit_name: str) -> dict[str, Any]:
+        return json_component(name, value, parts, circuit_name)
 
     output = {
         "filter_type": result["filter_type"],
@@ -107,15 +71,14 @@ def format_json(
         "warnings": list(result.get("warnings", [])),
         "components": {
             "tank_capacitors": [
-                component(f"Cp{i + 1}", v, "value_farads", "additive")
-                for i, v in enumerate(result["c_tank"])
+                component(f"Cp{i + 1}", v, f"CT{i + 1}") for i, v in enumerate(result["c_tank"])
             ],
             "inductors": [
-                component(f"L{i + 1}", result["L_resonant"], "value_henries", "harmonic")
+                component(f"L{i + 1}", result["L_resonant"], f"LT{i + 1}")
                 for i in range(result["n_resonators"])
             ],
             "coupling_capacitors": [
-                component(f"Cs{i + 1}{i + 2}", v, "value_farads", "additive")
+                component(f"Cs{i + 1}{i + 2}", v, f"CK{i + 1}")
                 for i, v in enumerate(result["c_coupling"])
             ],
         },
@@ -127,20 +90,11 @@ def format_json(
     # present whenever the synthesis emits end caps.
     if result.get("c_end_in") is not None and result.get("c_end_out") is not None:
         output["components"]["end_coupling_capacitors"] = [
-            component("Ce_in", result["c_end_in"], "value_farads", "additive"),
-            component("Ce_out", result["c_end_out"], "value_farads", "additive"),
+            component("Ce_in", result["c_end_in"], "CIN"),
+            component("Ce_out", result["c_end_out"], "COUT"),
         ]
     if result.get("ripple_db") is not None:
         output["ripple_db"] = result["ripple_db"]
-    if include_toroids:
-        recs = recommend_cores(result["L_resonant"], result["f0"])
-        candidates = build_json_recommendations(recs)
-        output["resonator_toroid_candidates"] = candidates
-        # Additive compatibility alias for consumers of the pre-2.1 schema.
-        # Candidate records themselves explicitly deny RF suitability claims.
-        output["resonator_toroid_recommendations"] = candidates
-    if matched_sim is not None:
-        output["matched_sim"] = matched_sim
     if build_analysis is not None:
         from ..shared.build_output import build_analysis_fields
 
@@ -148,19 +102,13 @@ def format_json(
     return dumps_strict(output, indent=2)
 
 
-def format_csv(
-    result: BandpassResult,
-    eseries: str | None = None,
-    include_toroids: bool = True,
-    match_policy: MatchPolicy | None = None,
-) -> str:
+def format_csv(result: BandpassResult, parts: ResolvedParts) -> str:
     """Format results as CSV.
 
     Args:
         result: Dict from calculate_bandpass_filter()
-        eseries: E-series name (None disables matching)
-        include_toroids: Append toroid best-match columns and populate inductor rows
-        match_policy: E-series match policy (None selects the default policy)
+        parts: The parts ``design()`` resolved; the E-series columns appear when the
+            design has an E-series, the inductor columns unless suggestions are off
 
     Returns:
         CSV rows separated by LF, without a final line terminator (the caller
@@ -178,62 +126,76 @@ def format_csv(
     )
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\n")
+    eseries = parts.eseries
+    emit_inductors = parts.shows_suggestions
     header = ["Component", "Value", "Unit"]
     if eseries:
         header.extend(ESERIES_CSV_HEADER)
-    if include_toroids:
-        header.extend(CSV_TOROID_HEADER)
+    if emit_inductors:
+        header.extend(CSV_INDUCTOR_HEADER)
     writer.writerow(header)
-    n_toroid_cols = len(CSV_TOROID_HEADER)
 
-    # Toroid columns apply only to inductor rows (inductors are wound on
-    # cores; capacitors are purchased parts). All resonators share L_resonant,
-    # so one recommendation is computed and repeated per L row; capacitor
-    # rows get blank padding to keep the CSV rectangular.
-    toroid_cols: list[str] = []
-    if include_toroids:
-        recs = recommend_cores(result["L_resonant"], result["f0"])
-        toroid_cols = csv_columns_for_best(recs)
-
-    def write_capacitor(name: str, value: float) -> None:
+    # Inductor columns apply only to inductor rows; capacitor rows get blank padding,
+    # and inductor rows blank E-series columns, to keep the CSV rectangular.
+    def write_capacitor(name: str, circuit_name: str, value: float) -> None:
         row = [name, *split_value_unit(format_capacitance(value))]
-        row.extend(csv_match_fields(value, format_capacitance, eseries, "additive", match_policy))
-        if include_toroids:
-            row.extend([""] * n_toroid_cols)
+        match = parts.capacitor(circuit_name) if eseries else None
+        row.extend(csv_match_fields(match, format_capacitance, eseries))
+        if emit_inductors:
+            row.extend(inductor_csv_columns(None))
         writer.writerow(row)
 
     for i, v in enumerate(result["c_tank"]):
-        write_capacitor(f"Cp{i + 1}", v)
+        write_capacitor(f"Cp{i + 1}", f"CT{i + 1}", v)
     for i in range(result["n_resonators"]):
         row = [f"L{i + 1}", *split_value_unit(format_inductance(result["L_resonant"]))]
-        if eseries:
-            row.extend([""] * len(ESERIES_CSV_HEADER))
-        if include_toroids:
-            row.extend(toroid_cols)
+        row.extend(csv_match_fields(None, format_inductance, eseries))
+        if emit_inductors:
+            row.extend(inductor_csv_columns(parts.inductor(f"LT{i + 1}")))
         writer.writerow(row)
     for i, v in enumerate(result["c_coupling"]):
-        write_capacitor(f"Cs{i + 1}{i + 2}", v)
-    for name, value in _end_cap_items(result):
-        write_capacitor(name, value)
+        write_capacitor(f"Cs{i + 1}{i + 2}", f"CK{i + 1}", v)
+    for name, circuit_name, value in _end_cap_items(result):
+        write_capacitor(name, circuit_name, value)
     return output.getvalue().removesuffix("\n")
 
 
-def _end_cap_items(result: BandpassResult) -> list[tuple[str, float]]:
-    """End-coupling capacitors as (name, value) pairs; empty when absent."""
+def _end_cap_items(result: BandpassResult) -> list[tuple[str, str, float]]:
+    """End-coupling capacitors as (name, circuit name, value); empty when absent."""
     if result.get("c_end_in") is None or result.get("c_end_out") is None:
         return []
-    return [("Ce_in", result["c_end_in"]), ("Ce_out", result["c_end_out"])]
+    return [("Ce_in", "CIN", result["c_end_in"]), ("Ce_out", "COUT", result["c_end_out"])]
+
+
+def capacitor_parts(result: BandpassResult) -> list[tuple[str, str, float]]:
+    """Every capacitor in table order as (table name, circuit name, value).
+
+    Tank capacitors first, then the coupling capacitors; the circuit name keys the part
+    in ``ResolvedParts``.
+    """
+    tank = [(f"Cp{i + 1}", f"CT{i + 1}", v) for i, v in enumerate(result["c_tank"])]
+    return tank + _coupling_capacitor_parts(result)
+
+
+def _coupling_capacitor_parts(result: BandpassResult) -> list[tuple[str, str, float]]:
+    """Coupling capacitors in table order as (table name, circuit name, value).
+
+    Ce_in (when present), Cs12…, then Ce_out (when present).
+    """
+    rows = []
+    if result.get("c_end_in") is not None:
+        rows.append(("Ce_in", "CIN", result["c_end_in"]))
+    rows.extend(
+        (f"Cs{i + 1}{i + 2}", f"CK{i + 1}", cs) for i, cs in enumerate(result["c_coupling"])
+    )
+    if result.get("c_end_out") is not None:
+        rows.append(("Ce_out", "COUT", result["c_end_out"]))
+    return rows
 
 
 def coupling_capacitor_rows(result: BandpassResult) -> list[tuple[str, float]]:
     """Coupling capacitors in table order: Ce_in (when present), Cs12…, then Ce_out."""
-    rows: list[tuple[str, float]] = []
-    if result.get("c_end_in") is not None:
-        rows.append(("Ce_in", result["c_end_in"]))
-    rows.extend((f"Cs{i + 1}{i + 2}", cs) for i, cs in enumerate(result["c_coupling"]))
-    if result.get("c_end_out") is not None:
-        rows.append(("Ce_out", result["c_end_out"]))
-    return rows
+    return [(label, value) for label, _circuit_name, value in _coupling_capacitor_parts(result)]
 
 
 def format_quiet(result: BandpassResult, raw: bool = False) -> str:

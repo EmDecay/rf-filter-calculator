@@ -9,6 +9,7 @@ from filter_lib.shared.display_helpers import (
     format_eseries_match,
     split_value_unit,
 )
+from filter_lib.shared.eseries import match_component
 from filter_lib.shared.formatting import (
     format_capacitance,
     format_frequency,
@@ -202,22 +203,29 @@ class TestComponentValue:
         assert format_component_value(name, value, formatter, raw=raw) == text
 
 
+def _match_lines(target: float, series: str, formatter, parallel_mode: str) -> list[str]:
+    """The lines for the standard-value choice ``match_component`` makes for ``target``."""
+    return format_eseries_match(
+        match_component(target, series, parallel_mode=parallel_mode), formatter
+    )
+
+
 class TestEseriesMatchLines:
     def test_exact_standard_value_shows_only_the_chosen_single_part(self):
-        lines = format_eseries_match(100e-12, "E12", format_capacitance, "additive")
+        lines = _match_lines(100e-12, "E12", format_capacitance, "additive")
 
         assert lines == ["  Use:            100.00 pF (0.0%)"]
 
     def test_single_part_chosen_when_no_pair_is_half_a_point_closer(self):
         """237.41 nF (not sourced, nominal rule): no pair improves 240 nF by 0.5 points."""
-        lines = format_eseries_match(237.41e-9, "E24", format_capacitance, "additive")
+        lines = _match_lines(237.41e-9, "E24", format_capacitance, "additive")
 
         assert lines[0] == "  Use:            240.00 nF (+1.1%)"
         assert lines[1].startswith("  Tolerance not sourced")
 
     def test_worst_case_rule_can_prefer_a_pair_over_a_closer_single(self):
         """237.41 pF: 56 + 180 pF (±11.8 pF + stray) beats 240 pF (±12 pF) on worst case."""
-        lines = format_eseries_match(237.41e-12, "E24", format_capacitance, "additive")
+        lines = _match_lines(237.41e-12, "E24", format_capacitance, "additive")
 
         assert lines == [
             "  Use:            56.00 pF || 180.00 pF (-0.6%)",
@@ -225,7 +233,7 @@ class TestEseriesMatchLines:
         ]
 
     def test_inductor_uses_harmonic_parallel_pair(self):
-        lines = format_eseries_match(1.457e-6, "E24", format_inductance, "harmonic")
+        lines = _match_lines(1.457e-6, "E24", format_inductance, "harmonic")
 
         assert lines == [
             "  Use:            2.20 µH || 4.30 µH (-0.1%)",
@@ -234,7 +242,7 @@ class TestEseriesMatchLines:
 
     def test_parallel_pair_keeps_units_on_both_values(self):
         """A decade-spanning pair must not print a bare first number."""
-        lines = format_eseries_match(2.9e-9, "E12", format_capacitance, "additive")
+        lines = _match_lines(2.9e-9, "E12", format_capacitance, "additive")
 
         assert lines == [
             "  Use:            680.00 pF || 2.20 nF (-0.7%)",
@@ -242,7 +250,7 @@ class TestEseriesMatchLines:
         ]
 
     def test_sub_pf_target_chooses_no_part_and_shows_nearest_for_reference(self):
-        lines = format_eseries_match(1e-15, "E12", format_capacitance, "additive")
+        lines = _match_lines(1e-15, "E12", format_capacitance, "additive")
 
         assert lines[:2] == [
             "  Use:            none (below 1 pF; see warning)",
@@ -253,6 +261,6 @@ class TestEseriesMatchLines:
             '           turn on "Allow capacitors below 1 pF" (--allow-sub-pf).',
         ]
 
-    def test_non_positive_target_is_rejected(self):
+    def test_non_positive_target_is_rejected_before_any_line_is_formatted(self):
         with pytest.raises(ValueError, match="positive and finite"):
-            format_eseries_match(0, "E12", format_capacitance, "additive")
+            match_component(0, "E12", parallel_mode="additive")

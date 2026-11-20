@@ -23,7 +23,8 @@ def calculate_and_format(
 
     Args:
         state: FilterState with all parameters configured
-        should_cancel: Optional zero-argument check passed to the build
+        should_cancel: Optional zero-argument check passed to ``design()`` on every
+            path (synthesis, part resolution, and the build poll it)
             simulation, the only step whose run time the user controls. The Results
             worker passes its own cancellation flag so leaving the screen or quitting
             stops the analysis instead of leaving a thread running.
@@ -33,8 +34,7 @@ def calculate_and_format(
     """
     # Deferred so the wizard UI can start without loading the calculation
     # stack; it's only paid when the user actually reaches the results screen.
-    from filter_lib.design import render_lines
-    from filter_lib.shared.build_types import BuildAnalysisCancelled
+    from filter_lib.design import DesignCancelled, render_lines
 
     from .filter_type_calculators import (
         calculate_bandpass,
@@ -72,11 +72,11 @@ def calculate_and_format(
     # runs for it; a saved JSON that uses one is calculated when it is saved.
     try:
         if snapshot.runs_build:
-            # The build is part of the request; only it polls the cancellation check.
+            # The build is part of the request.
             lines = render_lines(design_from_state(snapshot, should_cancel), options)
         else:
-            lines = calculators[snapshot.category](snapshot)
-    except BuildAnalysisCancelled:
+            lines = calculators[snapshot.category](snapshot, should_cancel)
+    except DesignCancelled:
         # Only a cancelled worker sees this, and its revision can no longer publish.
         return CalculationOutcome(status="error", error=CALCULATION_STOPPED_MESSAGE)
     except Exception as e:

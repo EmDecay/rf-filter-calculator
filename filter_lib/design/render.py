@@ -35,14 +35,7 @@ def _table_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
         from ..bandpass.display import format_table_lines
 
         return format_table_lines(
-            outcome.result,
-            raw=options.raw,
-            eseries=outcome.eseries,
-            show_plot=options.show_plot,
-            include_toroids=options.include_toroids,
-            toroid_compact=options.toroid_compact,
-            toroid_full=options.toroid_full,
-            match_policy=outcome.match_policy,
+            outcome.result, outcome.parts, raw=options.raw, show_plot=options.show_plot
         )
 
     from ..shared.lp_hp_display import CAPACITOR_MATCH, LpHpRenderOptions, render_results_lines
@@ -57,16 +50,11 @@ def _table_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
         outcome.result,
         LpHpRenderOptions(
             config=config,
+            parts=outcome.parts,
             raw=options.raw,
-            eseries=outcome.eseries,
-            show_match=outcome.eseries is not None,
             show_plot=options.show_plot,
-            include_toroids=options.include_toroids,
-            toroid_compact=options.toroid_compact,
-            toroid_full=options.toroid_full,
             match=CAPACITOR_MATCH,
             trailing_blank=False,
-            match_policy=outcome.match_policy,
         ),
     )
 
@@ -75,7 +63,9 @@ def render_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
     """Render ``outcome`` as output lines; join with ``\\n`` to get the document.
 
     Machine formats return one element without a trailing newline. Table output
-    appends the realized-build block when the outcome carries one.
+    appends the realized-build block when the outcome carries one. Every format reads
+    the outcome's resolved parts; how much of the inductor suggestions the table shows
+    is the request's ``inductor_suggestions``.
     """
     build_analysis = outcome.build_analysis
     if build_analysis is not None:
@@ -84,24 +74,9 @@ def render_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
     result = outcome.result
 
     if options.output_format == "json":
-        return [
-            display.format_json(
-                result,
-                eseries=outcome.eseries,
-                include_toroids=options.include_toroids,
-                build_analysis=build_analysis,
-                match_policy=outcome.match_policy,
-            )
-        ]
+        return [display.format_json(result, outcome.parts, build_analysis=build_analysis)]
     if options.output_format == "csv":
-        return [
-            display.format_csv(
-                result,
-                eseries=outcome.eseries,
-                include_toroids=options.include_toroids,
-                match_policy=outcome.match_policy,
-            )
-        ]
+        return [display.format_csv(result, outcome.parts)]
     if options.output_format == "quiet":
         return [display.format_quiet(result, options.raw)]
 

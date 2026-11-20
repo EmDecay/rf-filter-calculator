@@ -26,6 +26,7 @@ from filter_lib.wizard.filter_type_calculators import (
 )
 from filter_lib.wizard.radio_button_helpers import get_selected_radio
 from filter_lib.wizard.state import JSON_DOCUMENT, FilterState
+from tests.parts_helpers import parts_for
 
 LP_HP = {"lowpass": calculate_lowpass, "highpass": calculate_highpass}
 CALCULATORS = {**LP_HP, "bandpass": calculate_bandpass}
@@ -145,10 +146,7 @@ class TestLowpassHighpassCalculators:
 
         assert "E12 Standard Capacitor Values" in matched
         assert "Standard Inductor Values" not in matched
-        assert (
-            "Inductors: no standard values; wind to the calculated value "
-            "(see Toroid Winding Suggestions)."
-        ) in matched
+        assert "Inductors: no standard values; see Inductor Suggestions." in matched
         assert "Standard Capacitor Values" not in unmatched
 
     @pytest.mark.parametrize("category", ["lowpass", "highpass"])
@@ -245,9 +243,17 @@ class TestBandpassCalculator:
 
 
 def test_bandpass_recommendations_choose_no_part_below_one_picofarad():
-    result = {"c_tank": [1e-15], "c_coupling": [], "c_end_in": None, "c_end_out": None}
+    result = {
+        "n_resonators": 1,
+        "f0": 14.175e6,
+        "L_resonant": 1e-6,
+        "c_tank": [1e-15],
+        "c_coupling": [],
+        "c_end_in": None,
+        "c_end_out": None,
+    }
 
-    output = "\n".join(format_eseries_lines(result, "E24"))
+    output = "\n".join(format_eseries_lines(result, parts_for(result, "bandpass")))
 
     assert "Each capacitor gets the single part or parallel pair" in output
     assert "  Use:            none (below 1 pF; see warning)" in output
@@ -261,18 +267,20 @@ def test_bandpass_recommendations_choose_no_part_below_one_picofarad():
 def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
     """The band-pass table for ``result`` with the wizard's table options.
 
-    Synthetic results never pass through ``design()``, so this calls the one band-pass
-    table renderer the wizard's Results path uses, with the wizard's choices.
+    Synthetic results never pass through ``design()``, so this resolves their parts with
+    the wizard's choices and calls the one band-pass table renderer the wizard's Results
+    path uses.
     """
     from filter_lib.bandpass.display import format_table_lines
 
-    return format_table_lines(
+    parts = parts_for(
         result,
-        raw=state.raw_units,
-        eseries=None if state.eseries == "none" else state.eseries,
-        show_plot=state.show_plot,
-        match_policy=MatchPolicy(allow_sub_pf=state.allow_sub_pf),
+        "bandpass",
+        None if state.eseries == "none" else state.eseries,
+        MatchPolicy(allow_sub_pf=state.allow_sub_pf),
+        inductor_detail=state.inductor_detail,
     )
+    return format_table_lines(result, parts, raw=state.raw_units, show_plot=state.show_plot)
 
 
 class TestFormatBandpassTable:
@@ -400,7 +408,7 @@ class TestCalculateAndFormat:
             eseries="E24",
             build_analysis_enabled=True,
             build_grid_points=51,
-            build_use_toroid_candidates=False,
+            build_inductors="calculated",
         )
 
         outcome = calculate_and_format(state)
@@ -423,7 +431,7 @@ class TestCalculateAndFormat:
             eseries="E24",
             build_analysis_enabled=True,
             build_grid_points=51,
-            build_use_toroid_candidates=False,
+            build_inductors="calculated",
         )
 
         outcome = calculate_and_format(state, should_cancel=lambda: True)
@@ -440,7 +448,7 @@ class TestCalculateAndFormat:
             eseries="E24",
             build_analysis_enabled=True,
             build_grid_points=51,
-            build_use_toroid_candidates=False,
+            build_inductors="calculated",
         )
 
         outcome = calculate_and_format(state)

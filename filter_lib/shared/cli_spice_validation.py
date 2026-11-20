@@ -1,13 +1,14 @@
 """Cross-option validation specific to SPICE export.
 
-``--sim-build`` and ``--sim-matched`` never reach this check: both are rejected with
-``--format spice`` earlier, because they need table or JSON output.
+``--sim-build`` never reaches this check: it is rejected with ``--format spice``
+earlier, because it needs table or JSON output.
 """
 
 from argparse import Namespace
 
 from .cli_output_validation import join_flags, matching_options, tolerance_analysis_options
 from .cli_validation_error import usage_error
+from .inductor_suggestion import BUILD_INDUCTORS_FLAG
 
 
 def validate_spice_mode(args: Namespace) -> None:
@@ -31,7 +32,7 @@ def validate_spice_mode(args: Namespace) -> None:
                     getattr(args, "build_reference_frequency", None) is not None,
                     "--loss-reference-frequency",
                 ),
-                (bool(getattr(args, "no_toroid_build", False)), "--no-toroid-build"),
+                (getattr(args, "build_inductors", None) is not None, BUILD_INDUCTORS_FLAG),
             )
             if enabled
         ] + matching_options(args)

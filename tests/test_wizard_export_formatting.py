@@ -26,6 +26,7 @@ from filter_lib.wizard.filter_type_calculators import (
     calculate_lowpass,
 )
 from filter_lib.wizard.state import FilterState
+from tests.parts_helpers import parts_for
 
 CALCULATORS = {
     "lowpass": calculate_lowpass,
@@ -142,7 +143,9 @@ class TestComponentExports:
         """The band-pass CSV formatter the wizard's saved CSV uses tolerates no end caps."""
         from filter_lib.bandpass.formatters import format_csv
 
-        rows = list(csv.reader(io.StringIO(format_csv(bandpass_result, eseries=None))))
+        parts = parts_for(bandpass_result, "bandpass", None)
+
+        rows = list(csv.reader(io.StringIO(format_csv(bandpass_result, parts))))
 
         assert [row[0] for row in rows[1:]] == [
             "Cp1",
@@ -174,7 +177,7 @@ class TestComponentExports:
             eseries="E24",
             build_analysis_enabled=True,
             build_grid_points=51,
-            build_use_toroid_candidates=False,
+            build_inductors="calculated",
         )
         outcome = calculate_and_format(state)
         revision = state.begin_calculation()

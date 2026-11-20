@@ -2,10 +2,12 @@
 
 Every calculation runs on a small dedicated thread pool. A request waits at most
 ``calculation_timeout_s``; on expiry its cancellation flag is set and the request
-fails with ``CalculationTimeout``. Only the build simulation polls that flag,
-so a synthesis already in progress finishes in the background (input limits bound
-its run time) and its result is discarded. Shutdown cancels queued work, flags
-running work, and joins the pool threads so none outlive the app.
+fails with ``CalculationTimeout``. ``design()`` polls that flag before synthesis,
+before each circuit evaluation of a band-pass calibration and its response check,
+before each part it resolves, and before each build case, so running work stops at
+its next check (a ladder synthesis is one closed-form step) and its result is
+discarded. Shutdown cancels queued work, flags running work, and joins the pool
+threads so none outlive the app.
 """
 
 from __future__ import annotations

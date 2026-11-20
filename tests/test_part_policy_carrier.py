@@ -1,7 +1,8 @@
 """One carrier for the part policy: ``DesignRequest`` in, ``DesignResult`` out.
 
-Only ``design()`` builds a ``DesignResult`` or resolves a ``MatchPolicy``; every output
-reads its parts from the result. A chosen-parts SPICE deck uses the build settings but
+Only ``design()`` builds a ``DesignResult`` or resolves a ``MatchPolicy`` and the
+``ResolvedParts`` (through ``design/part_resolution.py``); every output reads its parts
+from the result. A chosen-parts SPICE deck uses the build settings but
 never runs the tolerance cases, and the wizard reuses a result only for an equal request.
 """
 
@@ -19,10 +20,12 @@ from tests.cli_parity_helpers import cli_stdout
 
 PACKAGE = Path(__file__).resolve().parents[1] / "filter_lib"
 # Where each constructor may be called: the result only in design(), the policy only where
-# it is defined (its default) and in design()'s resolution of the request.
+# it is defined (its default) and in design()'s part resolution, and the resolved parts
+# only there too.
 ALLOWED_CALLERS = {
     "DesignResult": {"design/design_service.py"},
-    "MatchPolicy": {"shared/eseries.py", "design/design_service.py"},
+    "MatchPolicy": {"shared/eseries.py", "design/part_resolution.py"},
+    "ResolvedParts": {"design/part_resolution.py"},
 }
 
 

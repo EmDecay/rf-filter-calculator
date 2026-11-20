@@ -3,7 +3,6 @@
 import sys
 from argparse import SUPPRESS, ArgumentParser, Namespace
 
-from ..bandpass import display_results
 from ..bandpass.input_validation import RESONATOR_COUNT_MESSAGE
 from ..design import (
     DesignRequest,
@@ -43,9 +42,9 @@ from ..shared.cli_helpers import (
     FREQ_SUFFIX_HELP,
     add_build_analysis_args,
     add_eseries_args,
+    add_inductor_suggestions_arg,
     add_output_args,
     add_plot_args,
-    add_sim_matched_arg,
     get_filter_type_arg,
     resolve_alternative_arg,
     resolve_ripple_arg,
@@ -56,10 +55,8 @@ from ..shared.parsing import parse_frequency, parse_impedance, parse_inductance
 from .design_output_args import (
     part_policy_args,
     render_options_from_args,
-    run_deprecated_matched_simulation,
     spice_realization_from_args,
 )
-from .toroid_flags import add_toroid_flags
 
 BP_EXAMPLE = "try: filter-calc bp bw top -f 14.2MHz -b 500kHz"
 COUPLING_CHOICES = ["top", "t"]
@@ -195,10 +192,9 @@ def setup_parser(parser: ArgumentParser) -> None:
 
     add_output_args(parser)
     add_eseries_args(parser)
-    add_sim_matched_arg(parser)
     add_build_analysis_args(parser)
     add_plot_args(parser)
-    add_toroid_flags(parser)
+    add_inductor_suggestions_arg(parser)
     parser.epilog = "Note: the bandwidth must be less than the center frequency (bw < f0)."
     # Make the subparser reachable from run() so missing-argument problems
     # exit with a usage line (argparse error) instead of a raw traceback.
@@ -289,7 +285,6 @@ def run(args: Namespace) -> None:
         # The build can run for seconds, so its usage problems come first.
         validate_bandpass_output_args(args)
     outcome = design(request)
-    result = outcome.result
     validate_bandpass_output_args(args)
 
     # The table prints the design warnings in its own Warnings section; every other
@@ -300,16 +295,6 @@ def run(args: Namespace) -> None:
 
     if args.format == "spice":
         print(export_spice(outcome, spice_realization_from_args(args)), end="")
-        return
-
-    if getattr(args, "sim_matched", False):
-        run_deprecated_matched_simulation(
-            args,
-            "bandpass",
-            result,
-            display_results,
-            eseries=None if args.no_match else args.eseries,
-        )
         return
 
     if args.plot_data:

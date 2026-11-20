@@ -18,6 +18,7 @@ from filter_lib.shared.plot_threshold_analysis import find_db_thresholds, format
 from filter_lib.shared.response_refinement import refine_crossing, refine_response
 from filter_lib.shared.spice_export import export_spice_deck
 from filter_lib.shared.tolerance_screening import perturb_circuit, summarize_cases
+from tests.parts_helpers import parts_for
 
 
 def _bp(bw=200e3, order=9, family="butterworth", **kwargs):
@@ -92,7 +93,9 @@ def test_high_order_worst_gain_includes_exact_endpoints_and_refined_skirts(point
 
 def test_perturbed_high_order_filter_reports_separate_regions_and_local_reference():
     result = _bp()
-    nominal = realize_nominal_build(result, "bandpass", BuildConfig()).circuit
+    nominal = realize_nominal_build(
+        result, "bandpass", BuildConfig(), parts=parts_for(result, "bandpass")
+    ).circuit
     # LT1 20 % low splits the response; the region holding the center is not the peak's.
     perturbed = perturb_circuit(
         nominal,
@@ -118,7 +121,8 @@ def test_lossy_unequal_port_measurements_agree_with_independent_circuit(family, 
     circuit = realize_nominal_build(
         result,
         "bandpass",
-        BuildConfig(inductor_q=100, capacitor_q=500, use_toroid_candidates=False),
+        BuildConfig(inductor_q=100, capacitor_q=500),
+        parts=parts_for(result, "bandpass", build_inductors="calculated"),
     ).circuit
     measured = measure_circuit(
         circuit, result, "bandpass", build_frequency_grid(result, "bandpass", 51), 25, 100
@@ -340,7 +344,8 @@ def test_harmonic_response_exposes_actual_top_c_rejection_without_changing_gate(
     )
     # Equal terminations and lossless parts: the attenuation is exactly minus the gain.
     assert "  Attenuation at 2×f₀: 47.66 dB; at 3×f₀: " in scope
-    assert '"harmonic_response"' in format_json(result, include_toroids=False)
+    parts = parts_for(result, "bandpass", eseries=None, inductor_detail="none")
+    assert '"harmonic_response"' in format_json(result, parts)
 
 
 @pytest.mark.parametrize(

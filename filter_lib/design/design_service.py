@@ -9,10 +9,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from ..shared.cancellation import (
+    CancellationCheck,
+    raise_if_cancelled,
+    require_cancellation_check,
+)
 from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
-from ..shared.eseries import MatchPolicy
 from .design_request import DesignRequest
 from .design_result import DesignResult
+from .part_resolution import resolve_parts
 
 
 def _ladder_calculator(category: str, filter_type: str) -> Callable:
@@ -67,7 +72,9 @@ def _synthesize_ladder(request: DesignRequest) -> dict:
     }
 
 
-def _synthesize_bandpass(request: DesignRequest) -> dict:
+def _synthesize_bandpass(
+    request: DesignRequest, should_cancel: CancellationCheck | None = None
+) -> dict:
     from ..bandpass import calculate_bandpass_filter
 
     result = calculate_bandpass_filter(
@@ -86,6 +93,7 @@ def _synthesize_bandpass(request: DesignRequest) -> dict:
         qc=request.qc,
         resonator_impedance=request.resonator_impedance,
         resonator_inductance=request.resonator_inductance,
+        should_cancel=should_cancel,
     )
     if request.requested_f_low_hz is not None:
         result["requested_parameters"].update(
@@ -98,32 +106,31 @@ def _synthesize_bandpass(request: DesignRequest) -> dict:
     return result
 
 
-def synthesize(request: DesignRequest) -> dict:
-    """Return the calculator result dict for ``request`` without build analysis."""
+def synthesize(request: DesignRequest, should_cancel: CancellationCheck | None = None) -> dict:
+    """Return the calculator result dict for ``request`` without parts or build analysis.
+
+    ``should_cancel`` is polled before synthesis and, for band-pass, before each circuit
+    evaluation of the calibration and before the response check; it raises
+    ``DesignCancelled``. Ladder synthesis is a closed-form calculation and is checked
+    only before it starts.
+    """
+    require_cancellation_check(should_cancel)
+    raise_if_cancelled(should_cancel)
     if request.category == "bandpass":
-        return _synthesize_bandpass(request)
+        return _synthesize_bandpass(request, should_cancel)
     return _synthesize_ladder(request)
 
 
-def resolve_match_policy(request: DesignRequest) -> MatchPolicy:
-    """The capacitor match policy for ``request``; ``design()`` is its only caller."""
-    return MatchPolicy(
-        allow_sub_pf=request.allow_sub_pf,
-        grade=request.capacitor_grade,
-        tolerance_override_pct=request.capacitor_tolerance_pct,
-        stray_capacitance_f=request.stray_capacitance_f,
-    )
+def design(request: DesignRequest, should_cancel: CancellationCheck | None = None) -> DesignResult:
+    """Synthesize ``request``, resolve its parts, and run the build when asked.
 
-
-def design(request: DesignRequest, should_cancel: Callable[[], bool] | None = None) -> DesignResult:
-    """Synthesize ``request``, resolve its part policy, and run the build when asked.
-
-    The build simulation runs only when ``request.run_build_analysis`` is set;
-    ``should_cancel`` is polled by it, which raises ``BuildAnalysisCancelled`` when the
-    check reports true.
+    The build simulation runs only when ``request.run_build_analysis`` is set.
+    ``should_cancel`` is polled by synthesis, part resolution and the build; when it
+    reports true the design stops by raising ``DesignCancelled`` (the build raises its
+    subclass ``BuildAnalysisCancelled``).
     """
-    result = synthesize(request)
-    policy = resolve_match_policy(request)
+    result = synthesize(request, should_cancel)
+    parts = resolve_parts(request, result, should_cancel)
     analysis = None
     if request.run_build_analysis:
         from ..shared.build_simulation import analyze_build
@@ -132,15 +139,14 @@ def design(request: DesignRequest, should_cancel: Callable[[], bool] | None = No
             result,
             request.category,
             request.realization,
-            eseries=request.eseries,
-            policy=policy,
+            parts=parts,
             should_cancel=should_cancel,
         )
     return DesignResult(
         category=request.category,
         result=result,
         request=request,
-        match_policy=policy,
+        parts=parts,
         warnings=tuple(result.get("warnings", ())),
         build_analysis=analysis,
     )

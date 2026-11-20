@@ -11,6 +11,8 @@ import pytest
 from filter_lib.highpass import calculations as hp
 from filter_lib.lowpass import calculations as lp
 from filter_lib.shared.display_common import format_json_result
+from filter_lib.shared.eseries import DEFAULT_MATCH_POLICY
+from filter_lib.shared.resolved_parts import ResolvedParts
 
 _CALCULATORS = {
     ("lowpass", "butterworth"): (lp.calculate_butterworth, (), range(2, 10)),
@@ -71,5 +73,7 @@ def test_json_output_omits_topology_when_result_has_none():
         "inductors": [1e-6],
         "ripple": None,
     }
-    data = json.loads(format_json_result(result, primary_component="capacitors"))
+    # No circuit can be resolved without a topology: no standard values, no suggestions.
+    parts = ResolvedParts(eseries=None, match_policy=DEFAULT_MATCH_POLICY, inductor_detail="none")
+    data = json.loads(format_json_result(result, parts, primary_component="capacitors"))
     assert "topology" not in data

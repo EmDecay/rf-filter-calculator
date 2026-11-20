@@ -17,12 +17,16 @@ from filter_lib.cli.lowpass_cmd import setup_parser as lowpass_setup
 from filter_lib.design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    BUILD_INDUCTORS,
+    BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE,
     CAPACITOR_GRADE,
     CAPACITOR_TOLERANCE,
     ESERIES,
     ESERIES_RAW_MESSAGE,
     ESERIES_VALUES_ONLY_MESSAGE,
     EXACT_SPICE_MATCHING_MESSAGE,
+    INDUCTOR_DETAIL,
+    INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE,
     LOSS_Q,
     LOSS_Q_DISABLED_MESSAGE,
     LOSS_Q_NOT_SHOWN_MESSAGE,
@@ -36,10 +40,6 @@ from filter_lib.design.option_applicability import (
     SUB_PF_VALUES_ONLY_MESSAGE,
     TEXT_PLOT,
     TEXT_PLOT_NEEDS_TABLE_MESSAGE,
-    TOROID_BUILD,
-    TOROID_BUILD_NEEDS_TOROIDS_MESSAGE,
-    TOROID_DETAIL,
-    TOROID_DETAIL_NEEDS_TABLE_MESSAGE,
     OutputChoices,
     document_own_options,
     document_reason,
@@ -59,10 +59,14 @@ from filter_lib.shared.cli_bandpass_output_validation import (
     validate_bandpass_output_args,
 )
 from filter_lib.shared.cli_output_validation import validate_output_mode_args
+from filter_lib.shared.inductor_suggestion import (
+    FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE,
+    FORCED_KINDS,
+)
 
 TABLE_ONLY = {
     TEXT_PLOT: TEXT_PLOT_NEEDS_TABLE_MESSAGE,
-    TOROID_DETAIL: TOROID_DETAIL_NEEDS_TABLE_MESSAGE,
+    INDUCTOR_DETAIL: INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE,
 }
 # The capacitor grade, tolerance and stray follow the sub-pF option's rule, in its words.
 POLICY_LABELS = {
@@ -212,14 +216,16 @@ def test_values_only_is_reported_before_raw_units():
     assert RAW_UNITS not in reasons
 
 
-def test_without_toroid_windings_there_are_none_to_simulate():
-    reasons = inapplicable_options(OutputChoices(build=True, include_toroids=False))
+def test_without_inductor_suggestions_the_build_has_none_to_use():
+    reasons = inapplicable_options(OutputChoices(build=True, inductor_detail="none"))
 
-    assert reasons == {TOROID_BUILD: TOROID_BUILD_NEEDS_TOROIDS_MESSAGE}
+    assert reasons == {BUILD_INDUCTORS: BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE}
+    # The CLI refuses a forced kind with --inductor-suggestions none in the same words.
+    assert BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE == FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE
 
 
 def test_reasons_come_in_option_order_and_name_their_subject():
-    reasons = inapplicable_options(OutputChoices(output_format="quiet", include_toroids=False))
+    reasons = inapplicable_options(OutputChoices(output_format="quiet", inductor_detail="none"))
 
     assert list(reasons) == [option for option in OPTIONS if option in reasons]
     assert all(reason and not reason.endswith(".") for reason in reasons.values())
@@ -251,6 +257,11 @@ def test_unknown_output_format_is_refused():
         OutputChoices(output_format="spice")
 
 
+def test_unknown_inductor_detail_is_refused():
+    with pytest.raises(ValueError, match="^Inductor suggestions must be best, full, compact"):
+        OutputChoices(inductor_detail="most")
+
+
 FORMAT_FLAGS = {
     "table": (),
     "quiet": ("--quiet",),
@@ -266,7 +277,18 @@ POLICY_FLAGS = {
     "tolerance": (CAPACITOR_TOLERANCE, ("--capacitor-tolerance", "3")),
     "stray": (STRAY_CAPACITANCE, ("--stray-capacitance", "0.1pF")),
 }
-TOROIDS_FLAGS = {"best": (), "full": ("--toroid-full",), "none": ("--no-toroids",)}
+INDUCTOR_FLAGS = {
+    "best": (),
+    "full": ("--inductor-suggestions", "full"),
+    "compact": ("--inductor-suggestions", "compact"),
+    "none": ("--inductor-suggestions", "none"),
+}
+# "Inductors in the build" is read only while the build is ticked.
+BUILD_INDUCTORS_FLAGS = {
+    "auto": (),
+    "toroid": ("--build-inductors", "toroid"),
+    "calculated": ("--build-inductors", "calculated"),
+}
 
 
 # Per category: the design arguments, the parser, and whether resonator Q exists.
@@ -291,61 +313,67 @@ def _cli_accepts(category: str, argv: list[str]) -> bool:
 
 @pytest.mark.parametrize("category", list(CATEGORIES))
 def test_the_rule_accepts_exactly_what_the_cli_accepts(capsys, category):
-    """Every Format/E-series/toroid choice with every on/off box, against the CLI.
+    """Every Format/E-series/inductor choice with every on/off box, against the CLI.
 
     An option counts as selected when its CLI flag is given; ``--no-match`` and
-    ``--no-toroids`` are choices of the E-series and toroid controls, not selections
-    the rule refuses, as in the CLI. Band-pass adds resonator Q (``--qu``).
+    ``--inductor-suggestions best`` or ``none`` are choices of the E-series and
+    inductor controls, not selections the rule refuses, as in the CLI; ``full`` and
+    ``compact`` select the table-only detail. "Inductors in the build" is read only
+    with the build ticked, and only a forced kind counts as selected ("Calculated
+    values" is what None means anyway). Band-pass adds resonator Q (``--qu``).
     """
     design_argv, _setup, loss_q_values = CATEGORIES[category]
     disagreements = []
-    for fmt, series, toroids, loss_q, policy, raw, plot, build in product(
+    for fmt, series, detail, loss_q, policy, raw, plot, build in product(
         FORMAT_FLAGS,
         ESERIES_FLAGS,
-        TOROIDS_FLAGS,
+        INDUCTOR_FLAGS,
         loss_q_values,
         POLICY_FLAGS,
         *[(False, True)] * 3,
     ):
-        policy_option, policy_flags = POLICY_FLAGS[policy]
-        argv = [*design_argv, *FORMAT_FLAGS[fmt], *ESERIES_FLAGS[series]]
-        argv += [*TOROIDS_FLAGS[toroids], *(("--qu", "200") if loss_q else ()), *policy_flags]
-        argv += [
-            flag
-            for on, flag in (
-                (raw, "--raw"),
-                (plot, "--plot"),
-                (build, "--sim-build"),
+        for build_inductors in BUILD_INDUCTORS_FLAGS if build else ("auto",):
+            policy_option, policy_flags = POLICY_FLAGS[policy]
+            argv = [*design_argv, *FORMAT_FLAGS[fmt], *ESERIES_FLAGS[series]]
+            argv += [*INDUCTOR_FLAGS[detail], *(("--qu", "200") if loss_q else ()), *policy_flags]
+            argv += [
+                flag
+                for on, flag in (
+                    (raw, "--raw"),
+                    (plot, "--plot"),
+                    (build, "--sim-build"),
+                )
+                if on
+            ]
+            argv += BUILD_INDUCTORS_FLAGS[build_inductors]
+            choices = OutputChoices(
+                output_format=fmt,
+                eseries=None if series == "none" else "E24",
+                raw=raw,
+                build=build,
+                inductor_detail=detail,
             )
-            if on
-        ]
-        choices = OutputChoices(
-            output_format=fmt,
-            eseries=None if series == "none" else "E24",
-            raw=raw,
-            build=build,
-            include_toroids=toroids != "none",
-        )
-        selected = [
-            option
-            for on, option in (
-                (series == "E12", ESERIES),
-                (policy_option is not None, policy_option),
-                (toroids == "full", TOROID_DETAIL),
-                (plot, TEXT_PLOT),
-                (raw, RAW_UNITS),
-                (build, BUILD),
-                (loss_q, LOSS_Q),
-            )
-            if on
-        ]
-        try:
-            require_applicable(choices, selected)
-            rule_accepts = True
-        except ValueError:
-            rule_accepts = False
-        if rule_accepts != _cli_accepts(category, argv):
-            disagreements.append((argv, rule_accepts))
+            selected = [
+                option
+                for on, option in (
+                    (series == "E12", ESERIES),
+                    (policy_option is not None, policy_option),
+                    (detail in ("full", "compact"), INDUCTOR_DETAIL),
+                    (plot, TEXT_PLOT),
+                    (raw, RAW_UNITS),
+                    (build, BUILD),
+                    (build_inductors in FORCED_KINDS, BUILD_INDUCTORS),
+                    (loss_q, LOSS_Q),
+                )
+                if on
+            ]
+            try:
+                require_applicable(choices, selected)
+                rule_accepts = True
+            except ValueError:
+                rule_accepts = False
+            if rule_accepts != _cli_accepts(category, argv):
+                disagreements.append((argv, rule_accepts))
     capsys.readouterr()
 
     assert disagreements == []

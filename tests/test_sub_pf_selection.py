@@ -37,6 +37,8 @@ from tests.cli_parity_helpers import cli_stderr, cli_stdout
 SUB_PF_LOWPASS = ("lp", "bw", "pi", "5GHz", "-n", "3")
 # A 500 MHz, 10 MHz wide bandpass has sub-pF coupling (90 fF) and end (909 fF) capacitors.
 SUB_PF_BANDPASS = ("bp", "bw", "top", "-f", "500MHz", "-b", "10MHz")
+# Leaves inductor suggestions out, so the table shows only the capacitor choices.
+NO_SUGGESTIONS = ("--inductor-suggestions", "none")
 SUB_PF_WARNING = (
     "Below 1 pF no part is chosen automatically. Choose one manually, or turn on "
     '"Allow capacitors below 1 pF" (--allow-sub-pf).'
@@ -90,7 +92,7 @@ class TestParser:
 
 class TestDefaultChoosesNoSubPfPart:
     def test_table_names_both_ways_to_turn_selection_on(self, monkeypatch, capsys):
-        out = cli_stdout(monkeypatch, capsys, *SUB_PF_LOWPASS, "--no-toroids")
+        out = cli_stdout(monkeypatch, capsys, *SUB_PF_LOWPASS, *NO_SUGGESTIONS)
 
         assert "  Use:            none (below 1 pF; see warning)" in out
         assert (
@@ -135,7 +137,7 @@ class TestDefaultChoosesNoSubPfPart:
 
 class TestFlagChoosesSubPfParts:
     def test_table_csv_json_build_and_spice_choose_the_same_parts(self, monkeypatch, capsys):
-        table = cli_stdout(monkeypatch, capsys, *SUB_PF_LOWPASS, "--no-toroids", SUB_PF_CLI_FLAG)
+        table = cli_stdout(monkeypatch, capsys, *SUB_PF_LOWPASS, *NO_SUGGESTIONS, SUB_PF_CLI_FLAG)
         match = _first_capacitor_match(
             cli_stdout(monkeypatch, capsys, *SUB_PF_LOWPASS, "--format", "json", SUB_PF_CLI_FLAG)
         )
@@ -181,8 +183,10 @@ class TestFlagChoosesSubPfParts:
         assert SUB_PF_WARNING not in deck
 
     def test_bandpass_coupling_capacitors_follow_the_flag(self, monkeypatch, capsys):
-        default = cli_stdout(monkeypatch, capsys, *SUB_PF_BANDPASS, "--no-toroids")
-        allowed = cli_stdout(monkeypatch, capsys, *SUB_PF_BANDPASS, "--no-toroids", SUB_PF_CLI_FLAG)
+        default = cli_stdout(monkeypatch, capsys, *SUB_PF_BANDPASS, *NO_SUGGESTIONS)
+        allowed = cli_stdout(
+            monkeypatch, capsys, *SUB_PF_BANDPASS, *NO_SUGGESTIONS, SUB_PF_CLI_FLAG
+        )
         deck = cli_stdout(
             monkeypatch, capsys, *SUB_PF_BANDPASS, "--format", "spice", SUB_PF_CLI_FLAG
         )
@@ -193,7 +197,7 @@ class TestFlagChoosesSubPfParts:
         assert re.search(r"^CIN 4 1 9\.1e-13$", deck, re.M)
 
     def test_capacitors_above_one_picofarad_are_unchanged(self, monkeypatch, capsys):
-        design_args = ("lp", "bw", "pi", "10MHz", "--format", "json", "--no-toroids")
+        design_args = ("lp", "bw", "pi", "10MHz", "--format", "json", *NO_SUGGESTIONS)
 
         assert cli_stdout(monkeypatch, capsys, *design_args).replace(
             '"allow_sub_pf": false', '"allow_sub_pf": true'
@@ -219,10 +223,7 @@ class TestCliRejectsTheFlagWhereItHasNoEffect:
                 "--allow-sub-pf has no effect with --raw, which skips standard-value matching; "
                 "remove --allow-sub-pf",
             ),
-            (
-                ("--sim-matched",),
-                "--allow-sub-pf cannot be used with the deprecated --sim-matched; use --sim-build",
-            ),
+            (("--sim-matched",), "unrecognized arguments: --sim-matched"),
             (
                 ("--plot-data", "json"),
                 "--plot-data prints only frequency-response data; remove --allow-sub-pf",

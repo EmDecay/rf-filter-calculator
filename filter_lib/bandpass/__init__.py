@@ -5,7 +5,6 @@ Supports Butterworth, Chebyshev, and Bessel filter types.
 """
 
 from .calculations import calculate_bandpass_filter, compute_bandpass_3db_edges
-from .display import display_results
 from .g_values import (
     calculate_butterworth_g_values,
     get_bessel_g_values,
@@ -30,5 +29,4 @@ __all__ = [
     "netlist_frequency_sweep",
     "generate_frequency_points",
     "frequency_response",
-    "display_results",
 ]

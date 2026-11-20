@@ -4,6 +4,7 @@ from argparse import Action, ArgumentParser, Namespace
 from typing import Any
 
 from .cli_aliases import SPICE_REALIZATION_CHOICES, resolve_spice_realization
+from .inductor_suggestion import BUILD_INDUCTOR_CHOICES, BUILD_INDUCTORS_FLAG, BUILD_INDUCTORS_HELP
 
 
 class _StoreSpiceRealization(Action):
@@ -26,7 +27,7 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         "--sim-build",
         action="store_true",
         help="Build simulation: simulate the filter with the chosen parts (standard "
-        "capacitor values and suggested toroid windings) at nominal values and across "
+        "capacitor values and suggested inductors) at nominal values and across "
         "tolerance cases (all parts low, all high, each part alone low and high). Add part "
         "losses (Q) with the Q options. Table or JSON output only",
     )
@@ -109,10 +110,11 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         "refined between points automatically (default: 601)",
     )
     parser.add_argument(
-        "--no-toroid-build",
-        action="store_true",
-        help="In --sim-build and nominal-build SPICE, use the calculated inductances "
-        "instead of the inductance of the suggested whole-turn toroid windings",
+        BUILD_INDUCTORS_FLAG,
+        dest="build_inductors",
+        choices=BUILD_INDUCTOR_CHOICES,
+        default=None,
+        help=BUILD_INDUCTORS_HELP,
     )
     parser.add_argument(
         "--spice-realization",
@@ -120,7 +122,7 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         default=None,
         action=_StoreSpiceRealization,
         help="Values in the --format spice deck: nominal-build (or chosen-parts) uses the "
-        "chosen parts (standard capacitor values and suggested toroid windings) with any Q "
+        "chosen parts (standard capacitor values and suggested inductors) with any Q "
         "losses; exact (or calculated) uses the calculated values without losses "
         "(default: nominal-build)",
     )
@@ -175,9 +177,5 @@ def make_build_config(args: Namespace):
             getattr(args, "build_grid_points", None)
             if getattr(args, "build_grid_points", None) is not None
             else 601
-        ),
-        use_toroid_candidates=not (
-            bool(getattr(args, "no_toroid_build", False))
-            or bool(getattr(args, "no_toroids", False))
         ),
     )

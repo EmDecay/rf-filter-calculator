@@ -10,6 +10,10 @@ import sys
 import pytest
 
 from filter_lib.cli import bandpass_cmd, highpass_cmd, lowpass_cmd, main
+from filter_lib.shared.inductor_suggestion import FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE
+
+# Leaves inductor suggestions out of every output.
+_NO_SUGGESTIONS = ("--inductor-suggestions", "none")
 
 
 def _run(monkeypatch, *arguments: str) -> None:
@@ -87,7 +91,7 @@ def test_raw_build_analysis_can_use_explicit_eseries(monkeypatch, capsys) -> Non
         "-e",
         "E96",
         "--sim-build",
-        "--no-toroids",
+        *_NO_SUGGESTIONS,
         "--analysis-points",
         "51",
     )
@@ -112,7 +116,7 @@ def test_nominal_spice_can_use_explicit_eseries(monkeypatch, capsys) -> None:
         "spice",
         "--spice-realization",
         "nominal-build",
-        "--no-toroids",
+        *_NO_SUGGESTIONS,
     )
 
     deck = capsys.readouterr().out
@@ -132,24 +136,24 @@ def test_explicit_eseries_conflicts_with_no_match(monkeypatch, capsys) -> None:
     ("flags", "message"),
     [
         (
-            ("--quiet", "--toroid-compact"),
-            "--toroid-compact/--toroid-full cannot be used with --quiet",
+            ("--quiet", "--inductor-suggestions", "compact"),
+            "--inductor-suggestions compact cannot be used with --quiet",
         ),
         (
-            ("--quiet", "--toroid-full"),
-            "--toroid-compact/--toroid-full cannot be used with --quiet",
+            ("--quiet", "--inductor-suggestions", "full"),
+            "--inductor-suggestions full cannot be used with --quiet",
         ),
         (
-            ("--toroid-compact", "--toroid-full"),
-            "use only one of --toroid-compact or --toroid-full",
+            ("--format", "json", "--inductor-suggestions", "compact"),
+            "--inductor-suggestions compact cannot be used with --format json",
         ),
         (
-            ("--no-toroids", "--toroid-full"),
-            "--no-toroids cannot be combined with --toroid-compact or --toroid-full",
+            ("--sim-build", *_NO_SUGGESTIONS, "--build-inductors", "toroid"),
+            FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE,
         ),
     ],
 )
-def test_contradictory_toroid_display_controls_are_rejected(
+def test_contradictory_inductor_suggestion_controls_are_rejected(
     monkeypatch, capsys, flags, message
 ) -> None:
     with pytest.raises(SystemExit) as exc_info:
@@ -170,7 +174,7 @@ def test_contradictory_toroid_display_controls_are_rejected(
 def test_sim_build_table_appends_realized_build_block(
     monkeypatch, capsys, command, first_capacitor
 ) -> None:
-    _run(monkeypatch, *command, "--sim-build", "--no-toroids", "--analysis-points", "51")
+    _run(monkeypatch, *command, "--sim-build", *_NO_SUGGESTIONS, "--analysis-points", "51")
 
     output = capsys.readouterr().out
     component_table = output.index(f"│ {first_capacitor}: ")
@@ -182,7 +186,7 @@ def test_sim_build_table_appends_realized_build_block(
     "command",
     [
         ("lp", "bw", "pi", "10MHz", "--format", "csv"),
-        ("hp", "ch", "t", "10MHz", "--format", "csv", "--no-match", "--no-toroids"),
+        ("hp", "ch", "t", "10MHz", "--format", "csv", "--no-match", *_NO_SUGGESTIONS),
         ("bp", "bw", "top", "-f", "14.175MHz", "-b", "350kHz", "--format", "csv"),
         ("bp", "bs", "top", "-f", "10MHz", "-b", "1MHz", "--format", "csv", "--no-match"),
         ("lp", "bw", "pi", "10MHz", "--plot-data", "csv"),
@@ -242,7 +246,7 @@ def test_extreme_finite_csv_values_never_render_as_inf_or_zero(
         "3",
         "--format",
         "csv",
-        "--no-toroids",
+        *_NO_SUGGESTIONS,
         "--no-match",
     )
 
@@ -256,7 +260,7 @@ def test_extreme_finite_csv_values_never_render_as_inf_or_zero(
 def test_oversized_values_print_scientific_base_units_instead_of_hundreds_of_digits(
     monkeypatch, capsys, output_flags
 ) -> None:
-    _run(monkeypatch, "lp", "bw", "pi", "1e-300", "--no-toroids", "--no-match", *output_flags)
+    _run(monkeypatch, "lp", "bw", "pi", "1e-300", *_NO_SUGGESTIONS, "--no-match", *output_flags)
 
     output = capsys.readouterr().out
     # C = 1/(2*pi*f*Z) and L = 2*Z/(2*pi*f) for 1e-300 Hz and 50 ohms.
@@ -271,7 +275,12 @@ def test_infeasible_toroid_screen_does_not_abort_valid_extreme_design(monkeypatc
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["components"]["inductors"][0]["value_henries"] == 5e-324
-    assert payload["components"]["inductors"][0]["toroid_recommendations"] == []
+    suggestions = payload["components"]["inductors"][0]["inductor_suggestions"]
+    assert suggestions["best"] is None
+    assert [kind["suggestions"] for kind in suggestions["kinds"]] == [[], [], []]
+    assert suggestions["kinds"][0]["reason_none"].startswith(
+        "No suitable toroid core in the built-in list."
+    )
 
 
 def test_subnormal_capacitor_matching_reports_expert_action_in_default_json(
@@ -285,7 +294,7 @@ def test_subnormal_capacitor_matching_reports_expert_action_in_default_json(
         "1e307",
         "-z",
         "5e15",
-        "--no-toroids",
+        *_NO_SUGGESTIONS,
         "--format",
         "json",
     )
@@ -307,7 +316,7 @@ def test_subnormal_capacitor_table_does_not_present_nearest_as_recommendation(
         "1e307",
         "-z",
         "5e15",
-        "--no-toroids",
+        *_NO_SUGGESTIONS,
     )
 
     output = capsys.readouterr().out
@@ -348,17 +357,18 @@ def test_explain_names_each_single_design_control_it_would_ignore(
     )
 
 
-@pytest.mark.parametrize("toroid_flag", ["--toroid-compact", "--toroid-full"])
+@pytest.mark.parametrize("detail", ["compact", "full"])
 @pytest.mark.parametrize(
     "command", [("lp", "bw", "pi", "10MHz"), ("bp", "bw", "top", "-f", "10MHz", "-b", "1MHz")]
 )
-def test_plot_data_rejects_each_toroid_table_detail_flag(monkeypatch, capsys, command, toroid_flag):
+def test_plot_data_rejects_each_table_only_inductor_detail(monkeypatch, capsys, command, detail):
     with pytest.raises(SystemExit) as exc_info:
-        _run(monkeypatch, *command, "--plot-data", "json", toroid_flag)
+        _run(monkeypatch, *command, "--plot-data", "json", "--inductor-suggestions", detail)
 
     assert exc_info.value.code == 2
     assert capsys.readouterr().err.endswith(
-        "error: --plot-data prints only frequency-response data; remove --toroid-compact/--toroid-full\n"
+        "error: --plot-data prints only frequency-response data; "
+        f"remove --inductor-suggestions {detail}\n"
     )
 
 
