@@ -249,7 +249,7 @@ def test_bandpass_recommendations_choose_no_part_below_one_picofarad():
 
     output = "\n".join(format_eseries_lines(result, "E24"))
 
-    assert "Each capacitor gets one choice" in output
+    assert "Each capacitor gets the single part or parallel pair" in output
     assert "  Use:            none (below 1 pF; see warning)" in output
     assert ", for reference only" in output
     assert (

@@ -17,6 +17,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .. import __version__
+from ..design.capacitor_policy_inputs import (
+    CAPACITOR_GRADE_LABEL,
+    GRADE_HELP,
+    STRAY_FIELD_HELP,
+    STRAY_FIELD_LABEL,
+    TOLERANCE_FIELD_HELP,
+    TOLERANCE_FIELD_LABEL,
+)
 from ..shared.cli_bandpass_output_validation import CAPACITOR_Q_LABEL, INDUCTOR_Q_LABEL
 from ..shared.eseries import SUB_PF_OPTION_LABEL
 from . import routes_design, routes_export, routes_pages
@@ -65,6 +73,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     # Labels whose text error messages repeat; one definition keeps them identical.
     templates.env.globals["labels"] = {
         "allow_sub_pf": SUB_PF_OPTION_LABEL,
+        "capacitor_grade": CAPACITOR_GRADE_LABEL,
+        "capacitor_tolerance": TOLERANCE_FIELD_LABEL,
+        "capacitor_tolerance_help": TOLERANCE_FIELD_HELP,
+        "capacitor_grade_help": GRADE_HELP,
+        "stray_capacitance": STRAY_FIELD_LABEL,
+        "stray_capacitance_help": STRAY_FIELD_HELP,
         "q_frequency": Q_FREQUENCY_LABEL,
         "inductor_q": INDUCTOR_Q_LABEL,
         "capacitor_q": CAPACITOR_Q_LABEL,

@@ -10,7 +10,8 @@ the circuit names; the SPICE deck carries a ``* names:`` comment that maps them.
 
 Low-pass and high-pass names (``C1``, ``L1``) are the same in both places and pass
 through unchanged. A physical part of a parallel pair has a one-letter suffix
-(``CK1A``, ``CK1B``); it reads as ``Cs12 (part A)``.
+(``CK1A``, ``CK1B``); it reads as ``Cs12 (part A)``. The assumed stray across a pair is
+``CSTRAY_`` plus the pair's name (``CSTRAY_CK1``); it reads as ``Cs12 stray``.
 """
 
 import re
@@ -22,6 +23,8 @@ _INDEXED = re.compile(r"^(CT|LT|CK)(\d+)([A-Z]?)$")
 _END = re.compile(r"^(CIN|COUT)([A-Z]?)$")
 _END_NAMES = {"CIN": "Ce_in", "COUT": "Ce_out"}
 _NUMBERED = re.compile(r"^([A-Za-z_]+?)(\d+)$")
+# Name prefix of the assumed stray capacitor across a parallel pair.
+STRAY_PREFIX = "CSTRAY_"
 
 
 def _with_part_suffix(name: str, suffix: str) -> str:
@@ -30,6 +33,8 @@ def _with_part_suffix(name: str, suffix: str) -> str:
 
 def display_component_name(name: str) -> str:
     """Return the component-table name for a circuit element name."""
+    if name.startswith(STRAY_PREFIX):
+        return f"{display_component_name(name.removeprefix(STRAY_PREFIX))} stray"
     match = _INDEXED.match(name)
     if match:
         prefix, index_text, suffix = match.groups()
@@ -79,6 +84,9 @@ def spice_names_comment(circuit: NamedCircuit) -> str | None:
     """
     groups: dict[str, list[str]] = {}
     for element in circuit.elements:
+        if element.fixed:
+            # Assumed parasitics are named in their own comment, not as a part.
+            continue
         logical = element.logical_name or element.name
         groups.setdefault(logical, []).append(element.name)
     if all(display_component_name(logical) == logical for logical in groups):

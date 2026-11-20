@@ -3,11 +3,22 @@
 from dataclasses import replace
 
 from .build_loss_models import _with_loss
-from .build_types import BuildConfig, ComponentSubstitution
-from .circuit_display_names import display_component_name
+from .build_types import DEFAULT_INDUCTOR_TOLERANCE_PCT, BuildConfig, ComponentSubstitution
+from .capacitor_choice import assumed_tolerance_pct
+from .circuit_display_names import STRAY_PREFIX, display_component_name
 from .circuit_model import CircuitElement
 from .eseries import MatchPolicy, match_component
 from .toroid_selection import find_core_candidates
+
+
+def inductor_case_tolerance_pct(config: BuildConfig) -> float:
+    """The ± percent the tolerance cases give an inductor."""
+    entered = config.inductor_tolerance_pct
+    return entered if entered is not None else DEFAULT_INDUCTOR_TOLERANCE_PCT
+
+
+def _inductor_tolerance(config: BuildConfig) -> float:
+    return inductor_case_tolerance_pct(config) / 100.0
 
 
 def _realize_capacitor(
@@ -25,7 +36,14 @@ def _realize_capacitor(
             f"{display_component_name(element.name)}: No standard part chosen; "
             "the simulation uses the calculated value."
         )
-        physical = [_with_loss(element, quality_factor, reference_frequency_hz)]
+        physical = [
+            _with_loss(
+                # No part is chosen; the calculated value varies by the assumed tolerance.
+                replace(element, tolerance=assumed_tolerance_pct(policy) / 100.0),
+                quality_factor,
+                reference_frequency_hz,
+            )
+        ]
         substitution = ComponentSubstitution(
             logical_name=element.name,
             kind="C",
@@ -51,13 +69,17 @@ def _realize_capacitor(
                 series_resistance_ohm=0.0,
                 quality_factor=None,
                 loss_reference_frequency_hz=None,
+                tolerance=fraction,
             ),
             quality_factor,
             reference_frequency_hz,
         )
-        for suffix, value in zip(suffixes, selected)
+        for suffix, value, fraction in zip(suffixes, selected, match.part_tolerance_fractions)
     ]
     method = "e_series_parallel" if len(selected) > 1 else "e_series_single"
+    stray = policy.stray_capacitance_f if len(selected) > 1 and policy.stray_capacitance_f else None
+    if stray is not None:
+        physical.append(stray_element(element, stray))
     substitution = ComponentSubstitution(
         logical_name=element.name,
         kind="C",
@@ -67,8 +89,26 @@ def _realize_capacitor(
         method=method,
         status=match.status,
         warnings=match.warnings,
+        stray_capacitance_f=stray,
     )
     return physical, substitution, list(match.warnings)
+
+
+def stray_element(element: CircuitElement, value: float) -> CircuitElement:
+    """The assumed stray across a pair: a lossless capacitor across the pair's terminals.
+
+    It keeps its value in every tolerance case (``fixed``) and is named with a ``C``
+    prefix so a SPICE reader sees a capacitor (``CSTRAY_C1``, shown as "C1 stray").
+    """
+    return CircuitElement(
+        name=f"{STRAY_PREFIX}{element.name}",
+        node1=element.node1,
+        node2=element.node2,
+        kind="C",
+        value=value,
+        logical_name=f"{STRAY_PREFIX}{element.name}",
+        fixed=True,
+    )
 
 
 def _realize_inductor(
@@ -93,6 +133,7 @@ def _realize_inductor(
             series_resistance_ohm=0.0,
             quality_factor=None,
             loss_reference_frequency_hz=None,
+            tolerance=_inductor_tolerance(config),
         )
         realized = _with_loss(realized, quality_factor, loss_reference_frequency_hz)
         substitution = ComponentSubstitution(
@@ -125,7 +166,11 @@ def _realize_inductor(
             f"{display_component_name(element.name)}: Toroid windings are off; "
             "the simulation uses the calculated value."
         )
-    realized = _with_loss(element, quality_factor, loss_reference_frequency_hz)
+    realized = _with_loss(
+        replace(element, tolerance=_inductor_tolerance(config)),
+        quality_factor,
+        loss_reference_frequency_hz,
+    )
     substitution = ComponentSubstitution(
         logical_name=element.name,
         kind="L",

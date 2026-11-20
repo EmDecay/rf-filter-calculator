@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Literal
 
 from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.cli_aliases import DEFAULT_ESERIES, DEFAULT_RIPPLE_DB
+from filter_lib.shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
 
 from .state_design_inputs import (
     CSV_DOCUMENT,
@@ -116,6 +117,16 @@ class FilterState(DesignInputsMixin):
     eseries: str = DEFAULT_ESERIES  # E12, E24, E96, or "none"
     # "Allow capacitors below 1 pF" (CLI --allow-sub-pf).
     allow_sub_pf: bool = False
+    # Capacitor grade (CLI --capacitor-grade), tolerance override (--capacitor-tolerance,
+    # None = the grade's) and the assumed stray (--stray-capacitance). The two typed
+    # fields are kept as typed; ``capacitor_input_error`` says why one cannot be read
+    # when the result did not use it (a saved file that uses it reports it).
+    capacitor_grade: str = "standard"
+    capacitor_tolerance_pct: float | None = None
+    stray_capacitance_f: float = DEFAULT_STRAY_CAPACITANCE_F
+    capacitor_tolerance_text: str = ""
+    stray_capacitance_text: str = ""
+    capacitor_input_error: str | None = None
     # "table", "quiet" (Values only), "json", or "csv".
     output_format: str = "table"
     # Text plot in the table (CLI --plot), off by default as in the CLI and web.
@@ -132,8 +143,7 @@ class FilterState(DesignInputsMixin):
     # Optional build simulation, off by default; the other values are the CLI's
     # defaults (``BuildConfig``) and map one-to-one onto it.
     build_analysis_enabled: bool = False
-    build_capacitor_tolerance_pct: float = _BUILD_DEFAULTS.capacitor_tolerance_pct
-    build_inductor_tolerance_pct: float = _BUILD_DEFAULTS.inductor_tolerance_pct
+    build_inductor_tolerance_pct: float | None = _BUILD_DEFAULTS.inductor_tolerance_pct
     build_inductor_q: float | None = None
     build_capacitor_q: float | None = None
     build_reference_frequency_hz: float | None = None

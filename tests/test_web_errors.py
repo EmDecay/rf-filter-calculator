@@ -378,9 +378,15 @@ def test_outputs_that_show_the_loss_model_accept_loss_q(client, path, extra):
     "form, message",
     [
         (
-            {**LP, "sim_build": "on", "build_capacitor_tolerance_pct": "100"},
+            {**LP, "capacitor_tolerance_pct": "100"},
             "Capacitor tolerance must be at least 0% and less than 100%",
         ),
+        (
+            {**LP, "sim_build": "on", "build_inductor_tolerance_pct": "100"},
+            "Inductor tolerance must be at least 0% and less than 100%",
+        ),
+        ({**LP, "stray_capacitance": "20pF"}, "Stray capacitance must be from 0 to 10 pF"),
+        ({**LP, "capacitor_grade": "loose"}, "Capacitor grade must be one of: standard, tight"),
         (
             {**LP, "sim_build": "on", "build_inductor_q": "0"},
             "Inductor Q must be between 0.01 and 1e9",
@@ -410,6 +416,9 @@ def test_outputs_that_show_the_loss_model_accept_loss_q(client, path, extra):
     ],
     ids=[
         "capacitor-tolerance",
+        "inductor-tolerance",
+        "stray-capacitance",
+        "capacitor-grade",
         "inductor-q",
         "random-cases",
         "frequency-points",

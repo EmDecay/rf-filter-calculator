@@ -31,22 +31,14 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         "losses (Q) with the Q options. Table or JSON output only",
     )
     parser.add_argument(
-        "--capacitor-tolerance",
-        "--cap-tolerance",
-        dest="build_capacitor_tolerance_pct",
-        type=float,
-        default=None,
-        metavar="PCT",
-        help="Capacitor tolerance in ± percent for --sim-build, 0 to under 100 (default: 5)",
-    )
-    parser.add_argument(
         "--inductor-tolerance",
         "--ind-tolerance",
         dest="build_inductor_tolerance_pct",
         type=float,
         default=None,
         metavar="PCT",
-        help="Inductor tolerance in ± percent for --sim-build, 0 to under 100 (default: 10)",
+        help="Inductor tolerance in ± percent for every inductor in --sim-build, 0 to under "
+        "100 (default: 10 for toroid windings and calculated values)",
     )
     parser.add_argument(
         "--inductor-q",
@@ -151,16 +143,7 @@ def make_build_config(args: Namespace):
     load_arg = getattr(args, "build_load_resistance", None)
     reference_arg = getattr(args, "build_reference_frequency", None)
     return BuildConfig(
-        capacitor_tolerance_pct=(
-            getattr(args, "build_capacitor_tolerance_pct", None)
-            if getattr(args, "build_capacitor_tolerance_pct", None) is not None
-            else 5.0
-        ),
-        inductor_tolerance_pct=(
-            getattr(args, "build_inductor_tolerance_pct", None)
-            if getattr(args, "build_inductor_tolerance_pct", None) is not None
-            else 10.0
-        ),
+        inductor_tolerance_pct=getattr(args, "build_inductor_tolerance_pct", None),
         inductor_q=getattr(args, "build_inductor_q", None),
         capacitor_q=getattr(args, "build_capacitor_q", None),
         source_resistance_ohm=(

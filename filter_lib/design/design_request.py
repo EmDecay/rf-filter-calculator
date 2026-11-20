@@ -22,9 +22,21 @@ from ..shared.cli_aliases import (
     resolve_filter_type,
 )
 from ..shared.cli_bandpass_output_validation import RESONATOR_Q_LABELS, loss_q_not_shown_message
-from ..shared.eseries import E_SERIES, SUB_PF_OPTION_LABEL
+from ..shared.eseries import (
+    CAPACITOR_GRADE_LABEL,
+    CAPACITOR_TOLERANCE_LABEL,
+    DEFAULT_STRAY_CAPACITANCE_F,
+    E_SERIES,
+    STRAY_CAPACITANCE_LABEL,
+    SUB_PF_OPTION_LABEL,
+    require_capacitor_tolerance_pct,
+)
 from ..shared.numeric import is_finite_real, positive_geometric_mean, require_positive_finite
-from .render_options import BUILD_NEEDS_ESERIES_MESSAGE, SUB_PF_NEEDS_ESERIES_MESSAGE
+from .render_options import (
+    BUILD_NEEDS_ESERIES_MESSAGE,
+    SUB_PF_NEEDS_ESERIES_MESSAGE,
+    needs_eseries_message,
+)
 
 if TYPE_CHECKING:
     from ..shared.build_types import BuildConfig
@@ -71,6 +83,10 @@ class DesignRequest:
     choosing capacitors below 1 pF (``--allow-sub-pf``; "Allow capacitors below 1 pF"
     in the wizard and web). Together they decide the standard capacitors of the table,
     CSV, JSON, the build simulation, and the chosen-parts SPICE deck.
+    ``capacitor_grade`` picks the sourced tolerance grade (``standard`` or ``tight``),
+    ``capacitor_tolerance_pct`` an optional percentage that can only loosen it (``None``
+    for none), and ``stray_capacitance_f`` the assumed capacitance across the second part
+    of a parallel pair.
 
     ``realization`` holds what a chosen-parts deck or a build simulation needs (ports,
     Q and its frequency, tolerances, grid, toroid windings); ``None`` uses the CLI's
@@ -96,6 +112,9 @@ class DesignRequest:
     resonator_inductance: float | None = None
     eseries: str | None = DEFAULT_ESERIES
     allow_sub_pf: bool = False
+    capacitor_grade: str = "standard"
+    capacitor_tolerance_pct: float | None = None
+    stray_capacitance_f: float = DEFAULT_STRAY_CAPACITANCE_F
     realization: BuildConfig | None = None
     run_build_analysis: bool = False
 
@@ -119,12 +138,30 @@ class DesignRequest:
             raise ValueError(f'"{SUB_PF_OPTION_LABEL}" must be on or off')
         if self.allow_sub_pf and self.eseries is None:
             raise ValueError(SUB_PF_NEEDS_ESERIES_MESSAGE)
+        self._validate_capacitor_policy()
         if self.realization is not None and not isinstance(self.realization, BuildConfig):
             raise ValueError("realization must be a BuildConfig or None")
         if not isinstance(self.run_build_analysis, bool):
             raise ValueError("run_build_analysis must be on or off")
         if self.run_build_analysis and self.eseries is None:
             raise ValueError(BUILD_NEEDS_ESERIES_MESSAGE)
+
+    def _validate_capacitor_policy(self) -> None:
+        from ..shared.capacitor_grades import DEFAULT_GRADE, require_grade
+        from ..shared.physical_input_limits import require_stray_capacitance
+
+        require_grade(self.capacitor_grade)
+        require_capacitor_tolerance_pct(self.capacitor_tolerance_pct)
+        require_stray_capacitance(self.stray_capacitance_f)
+        if self.eseries is not None:
+            return
+        for chosen, label in (
+            (self.capacitor_grade != DEFAULT_GRADE, CAPACITOR_GRADE_LABEL),
+            (self.capacitor_tolerance_pct is not None, CAPACITOR_TOLERANCE_LABEL),
+            (self.stray_capacitance_f != DEFAULT_STRAY_CAPACITANCE_F, STRAY_CAPACITANCE_LABEL),
+        ):
+            if chosen:
+                raise ValueError(needs_eseries_message(f'"{label}"'))
 
     @property
     def is_chebyshev(self) -> bool:

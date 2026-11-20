@@ -3,13 +3,22 @@
 from argparse import Action, ArgumentParser, Namespace
 from typing import Any
 
+from .capacitor_grades import GRADE_NAMES
 from .cli_aliases import (
     DEFAULT_COMPONENTS,
     DEFAULT_ESERIES,
     DEFAULT_IMPEDANCE,
     DEFAULT_RIPPLE_DB,
 )
-from .eseries import SUB_PF_CLI_FLAG
+from .eseries import (
+    CAPACITOR_GRADE_FLAG,
+    CAPACITOR_GRADE_HELP,
+    CAPACITOR_TOLERANCE_FLAG,
+    CAPACITOR_TOLERANCE_HELP,
+    STRAY_CAPACITANCE_FLAG,
+    STRAY_CAPACITANCE_HELP,
+    SUB_PF_CLI_FLAG,
+)
 from .numeric import require_count  # noqa: F401  (re-exported for the CLI and web)
 
 FILTER_TYPE_CHOICES = ["butterworth", "chebyshev", "bessel", "bw", "ch", "bs", "b", "c"]
@@ -178,7 +187,7 @@ def add_eseries_args(parser: ArgumentParser) -> None:
         action=_StoreExplicitValue,
         help="Standard capacitor values to choose from: E12, E24, or E96 (12, 24, or 96 "
         "values per decade). It sets how many values there are, not part tolerance (see "
-        f"--capacitor-tolerance) (default: {DEFAULT_ESERIES})",
+        f"{CAPACITOR_GRADE_FLAG}) (default: {DEFAULT_ESERIES})",
     )
     parser.add_argument(
         "--no-match",
@@ -192,6 +201,29 @@ def add_eseries_args(parser: ArgumentParser) -> None:
         help="Also choose standard values for capacitors below 1 pF. Without it no part is "
         "chosen below 1 pF and you choose one manually. Applies to the E-series list, CSV "
         "and JSON, --sim-build, and the nominal-build SPICE deck",
+    )
+    parser.add_argument(
+        CAPACITOR_GRADE_FLAG,
+        dest="capacitor_grade",
+        choices=GRADE_NAMES,
+        default=None,
+        help=CAPACITOR_GRADE_HELP.replace("%", "%%"),
+    )
+    parser.add_argument(
+        CAPACITOR_TOLERANCE_FLAG,
+        "--cap-tolerance",
+        dest="capacitor_tolerance_pct",
+        type=float,
+        default=None,
+        metavar="PCT",
+        help=CAPACITOR_TOLERANCE_HELP.replace("%", "%%"),
+    )
+    parser.add_argument(
+        STRAY_CAPACITANCE_FLAG,
+        dest="stray_capacitance",
+        default=None,
+        metavar="CAP",
+        help=STRAY_CAPACITANCE_HELP.replace("%", "%%"),
     )
 
 

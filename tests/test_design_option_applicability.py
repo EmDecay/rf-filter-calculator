@@ -17,15 +17,20 @@ from filter_lib.cli.lowpass_cmd import setup_parser as lowpass_setup
 from filter_lib.design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    CAPACITOR_GRADE,
+    CAPACITOR_TOLERANCE,
     ESERIES,
     ESERIES_RAW_MESSAGE,
     ESERIES_VALUES_ONLY_MESSAGE,
+    EXACT_SPICE_MATCHING_MESSAGE,
     LOSS_Q,
     LOSS_Q_DISABLED_MESSAGE,
     LOSS_Q_NOT_SHOWN_MESSAGE,
+    MATCHING_OPTIONS,
     OPTIONS,
     RAW_NEEDS_TABLE_MESSAGE,
     RAW_UNITS,
+    STRAY_CAPACITANCE,
     SUB_PF_RAW_MESSAGE,
     SUB_PF_VALUES_ONLY_MESSAGE,
     TEXT_PLOT,
@@ -35,7 +40,9 @@ from filter_lib.design.option_applicability import (
     TOROID_DETAIL,
     TOROID_DETAIL_NEEDS_TABLE_MESSAGE,
     OutputChoices,
+    document_own_options,
     document_reason,
+    document_reasons,
     inapplicable_options,
     option_reason,
     require_applicable,
@@ -56,6 +63,24 @@ TABLE_ONLY = {
     TEXT_PLOT: TEXT_PLOT_NEEDS_TABLE_MESSAGE,
     TOROID_DETAIL: TOROID_DETAIL_NEEDS_TABLE_MESSAGE,
 }
+# The capacitor grade, tolerance and stray follow the sub-pF option's rule, in its words.
+POLICY_LABELS = {
+    CAPACITOR_GRADE: "Capacitor grade",
+    CAPACITOR_TOLERANCE: "Capacitor tolerance",
+    STRAY_CAPACITANCE: "Stray capacitance",
+}
+POLICY_VALUES_ONLY = {
+    option: f'"{label}" has no effect with Values only, which shows only calculated values'
+    for option, label in POLICY_LABELS.items()
+}
+POLICY_RAW = {
+    option: f'"{label}" has no effect with Raw units unless the build simulation is on'
+    for option, label in POLICY_LABELS.items()
+}
+POLICY_NEEDS_ESERIES = {
+    option: f'"{label}" needs an E-series (E12, E24, or E96) to choose standard capacitor values'
+    for option, label in POLICY_LABELS.items()
+}
 
 
 def test_the_default_table_output_takes_every_option():
@@ -66,6 +91,7 @@ def test_values_only_takes_raw_units_but_no_standard_values_plot_detail_or_build
     assert inapplicable_options(OutputChoices(output_format="quiet")) == {
         ESERIES: ESERIES_VALUES_ONLY_MESSAGE,
         ALLOW_SUB_PF: SUB_PF_VALUES_ONLY_MESSAGE,
+        **POLICY_VALUES_ONLY,
         **TABLE_ONLY,
         BUILD: BUILD_NOT_WITH_VALUES_ONLY_MESSAGE,
         LOSS_Q: LOSS_Q_DISABLED_MESSAGE,
@@ -126,9 +152,23 @@ def test_document_reason_judges_each_document_by_its_own_format(document, expect
         document_reason("pdf", LOSS_Q)
 
 
+def test_the_calculated_values_deck_has_its_own_rule_for_capacitor_choices():
+    """Exact SPICE uses no standard capacitors: every matching option is left out of it."""
+    assert set(MATCHING_OPTIONS) == {ESERIES, ALLOW_SUB_PF, *POLICY_LABELS}
+    assert document_own_options("spice-exact") == frozenset(MATCHING_OPTIONS)
+    for document in ("json", "csv", "spice-nominal", "response-json", "response-csv"):
+        assert document_own_options(document) == frozenset()
+    reasons = document_reasons(OutputChoices(), "spice-exact")
+    for option in MATCHING_OPTIONS:
+        assert reasons[option] == EXACT_SPICE_MATCHING_MESSAGE
+        assert document_reason("spice-exact", option) == EXACT_SPICE_MATCHING_MESSAGE
+        assert document_reason("spice-nominal", option) is None
+
+
 def test_no_standard_values_rules_out_sub_pf_and_the_build():
     assert inapplicable_options(OutputChoices(eseries=None)) == {
         ALLOW_SUB_PF: SUB_PF_NEEDS_ESERIES_MESSAGE,
+        **POLICY_NEEDS_ESERIES,
         BUILD: BUILD_NEEDS_ESERIES_MESSAGE,
     }
 
@@ -137,6 +177,7 @@ def test_raw_units_rule_out_standard_values_unless_the_build_uses_them():
     assert inapplicable_options(OutputChoices(raw=True)) == {
         ESERIES: ESERIES_RAW_MESSAGE,
         ALLOW_SUB_PF: SUB_PF_RAW_MESSAGE,
+        **POLICY_RAW,
     }
     assert inapplicable_options(OutputChoices(raw=True, build=True)) == {}
 
@@ -150,6 +191,7 @@ def test_with_raw_units_a_build_waiting_for_an_eseries_keeps_the_choice_open():
     """Choosing None with Raw units and the build ticked must be reversible."""
     assert inapplicable_options(OutputChoices(eseries=None, raw=True, build=True)) == {
         ALLOW_SUB_PF: SUB_PF_NEEDS_ESERIES_MESSAGE,
+        **POLICY_NEEDS_ESERIES,
         BUILD: BUILD_NEEDS_ESERIES_MESSAGE,
     }
     # A build the format rules out does not need the E-series.

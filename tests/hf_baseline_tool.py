@@ -427,37 +427,87 @@ def _describe_parts(facts: dict | None) -> str:
 _STRAY_NAME = re.compile(r"^CSTRAY_")
 
 
-def classify(item: str, before: Any, after: Any) -> tuple[list[str], str]:
-    """Return the permitted kinds that explain a change, and a reason, by item type."""
+def _changed_capacitors(changes: dict[str, tuple], series: str | None) -> list[str]:
+    return [item for item in changes if item.startswith(f"capacitor:{series}:")]
+
+
+def _build_pairs(parts: list) -> list[str]:
+    """Names of the capacitors the build realized as a parallel pair."""
+    return [row[0] for row in parts or [] if row[1] == "C" and len(row[2]) > 1]
+
+
+def _parts_not_at_five_percent(parts: list) -> list[str]:
+    """Capacitors with a part whose own tolerance differs from the old uniform 5%."""
+    from fractions import Fraction
+
+    from filter_lib.shared.capacitor_choice import part_pf, part_tolerance_pf
+    from filter_lib.shared.eseries import DEFAULT_MATCH_POLICY
+
+    names = []
+    for name, kind, values, *_rest in parts or []:
+        if kind != "C":
+            continue
+        for value in values:
+            tolerance = part_tolerance_pf(part_pf(value), DEFAULT_MATCH_POLICY)
+            if tolerance is not None and tolerance != part_pf(value) * Fraction(5, 100):
+                names.append(name)
+                break
+    return names
+
+
+def classify(
+    design: Design, item: str, before: Any, after: Any, changes: dict[str, tuple], actual: dict
+) -> tuple[list[str], str]:
+    """Return the permitted kinds that explain a change, and a reason, by item type.
+
+    A build change is explained by the causes present in that build: capacitor choices
+    of its series that changed (a), a stray capacitor added across a pair (c), and parts
+    whose own tolerance is not the old uniform 5% (e).
+    """
     kind = item_type(item)
     if kind == "capacitor":
+        name = item.split(":", 1)[1]
+        if before and after and before["parts"] == after["parts"]:
+            return ["a"], (
+                f"{name}: parts unchanged ({_describe_parts(after)}); the sourced series "
+                "does not make them, so the nominal rule is kept and labelled"
+            )
         return ["a"], (
-            f"{item.split(':', 1)[1]}: {_describe_parts(before)} -> {_describe_parts(after)} "
+            f"{name}: {_describe_parts(before)} -> {_describe_parts(after)} "
             "(worst-case interval rule)"
         )
     if kind == "spice_nominal":
         kinds, reasons = [], []
         names_before = {row[0] for row in before or []}
         names_after = {row[0] for row in after or []}
-        added_strays = sorted(
-            name for name in names_after - names_before if _STRAY_NAME.match(name)
-        )
-        if added_strays:
+        added = sorted(name for name in names_after - names_before if _STRAY_NAME.match(name))
+        if added:
             kinds.append("c")
-            reasons.append(f"stray capacitor across each pair ({', '.join(added_strays)})")
+            reasons.append(f"stray capacitor across each pair ({', '.join(added)})")
         other_before = [row for row in before or [] if not _STRAY_NAME.match(str(row[0]))]
         other_after = [row for row in after or [] if not _STRAY_NAME.match(str(row[0]))]
         if not _close(other_before, other_after, MEASUREMENT_REL_TOL):
-            kinds.append("a")
-            reasons.append("chosen capacitor parts changed")
+            changed = _changed_capacitors(changes, SPICE_SERIES)
+            if changed:
+                kinds.append("a")
+                reasons.append(f"chosen parts changed ({', '.join(changed)})")
         return kinds, "; ".join(reasons)
     if kind == "build_parts":
-        return ["a"], "chosen capacitor parts changed"
+        changed = _changed_capacitors(changes, design.build_series)
+        return (["a"], f"chosen parts changed ({', '.join(changed)})") if changed else ([], "")
     if kind in {"build_nominal", "build_summaries", "build_cases"}:
-        return ["a", "c", "e"], (
-            "build follows the new capacitor choices (a), the fixed stray capacitor across "
-            "each pair (c), and each part's own tolerance in the tolerance cases (e)"
+        parts = actual.get("build_parts")
+        causes = (
+            ("a", _changed_capacitors(changes, design.build_series), "new capacitor choices"),
+            ("c", _build_pairs(parts), "a fixed stray across each pair"),
+            ("e", _parts_not_at_five_percent(parts), "parts at their own tolerance"),
         )
+        if kind == "build_nominal":
+            # The nominal build has no tolerance cases.
+            causes = causes[:2]
+        kinds = [code for code, names, _text in causes if names]
+        reason = "; ".join(f"{text} ({', '.join(names)})" for _code, names, text in causes if names)
+        return kinds, reason
     return [], "not a permitted change"
 
 
@@ -467,8 +517,9 @@ def current_changes() -> list[dict]:
     changes = []
     for design in designs():
         actual = record(design)
-        for item, (before, after) in changed_items(corpus[design.case_id], actual).items():
-            kinds, reason = classify(item, before, after)
+        changed = changed_items(corpus[design.case_id], actual)
+        for item, (before, after) in changed.items():
+            kinds, reason = classify(design, item, before, after, changed, actual)
             changes.append({"case": design.case_id, "item": item, "kinds": kinds, "reason": reason})
     return changes
 

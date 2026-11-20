@@ -108,7 +108,13 @@ def synthesize(request: DesignRequest) -> dict:
 
 def resolve_match_policy(request: DesignRequest) -> MatchPolicy:
     """The capacitor match policy for ``request``; ``design()`` is its only caller."""
-    return replace(DEFAULT_MATCH_POLICY, allow_sub_pf=request.allow_sub_pf)
+    return replace(
+        DEFAULT_MATCH_POLICY,
+        allow_sub_pf=request.allow_sub_pf,
+        grade=request.capacitor_grade,
+        tolerance_override_pct=request.capacitor_tolerance_pct,
+        stray_capacitance_f=request.stray_capacitance_f,
+    )
 
 
 def design(request: DesignRequest, should_cancel: Callable[[], bool] | None = None) -> DesignResult:

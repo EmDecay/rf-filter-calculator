@@ -13,7 +13,7 @@ from .build_types import (
     resolve_build_config,
 )
 from .circuit_builders import build_named_circuit
-from .circuit_display_names import spice_names_comment
+from .circuit_display_names import STRAY_PREFIX, spice_names_comment
 from .circuit_model import CircuitElement
 from .eseries import DEFAULT_MATCH_POLICY, MatchPolicy
 from .nominal_realization import (
@@ -106,7 +106,14 @@ def _nominal_comments(realization: NominalRealization, eseries: str) -> list[str
             details.append(f"core={substitution.core_name}")
         if substitution.turns is not None:
             details.append(f"turns={substitution.turns}")
+        if substitution.stray_capacitance_f:
+            details.append(f"stray={_number(substitution.stray_capacitance_f)}")
         comments.append("* part used: " + " ".join(details))
+        if substitution.stray_capacitance_f:
+            comments.append(
+                f"* stray: {STRAY_PREFIX}{substitution.logical_name} is the assumed stray "
+                "across this pair, the same in every tolerance case"
+            )
     # Same rules as the table's build block: each warning once with the parts it names,
     # and the toroid caveat only when a toroid winding was used.
     comments.extend(
@@ -118,6 +125,22 @@ def _nominal_comments(realization: NominalRealization, eseries: str) -> list[str
         for limitation in applicable_part_limitations(realization)
     )
     return comments
+
+
+def _limitations_comment(nominal: NominalRealization | None) -> str:
+    if nominal is None:
+        return (
+            "* limitations: ideal values; no layout, parasitic, SRF, temperature, or power effects"
+        )
+    if any(item.stray_capacitance_f for item in nominal.substitutions):
+        return (
+            "* limitations: chosen parts at nominal values plus the assumed stray across each "
+            "pair; no other layout, parasitic, SRF, temperature, or power effects"
+        )
+    return (
+        "* limitations: chosen parts at nominal values; no layout, parasitic, SRF, "
+        "temperature, or power effects"
+    )
 
 
 def export_spice_deck(
@@ -170,12 +193,7 @@ def export_spice_deck(
         f"* values: {realization_label}",
         f"* printed trace: vm({circuit.out_node}) is load-node voltage, not gain in dB",
         f"* transducer gain: Gt=4*Rs/Rl*|V({circuit.out_node})/V(NSOURCE)|^2",
-        (
-            "* limitations: ideal values; no layout, parasitic, SRF, temperature, or power effects"
-            if nominal is None
-            else "* limitations: chosen parts at nominal values; no layout, parasitic, SRF, "
-            "temperature, or power effects"
-        ),
+        _limitations_comment(nominal),
         f"* ports: input={circuit.in_node} output={circuit.out_node} ground=0 source=NSOURCE",
     ]
     names = spice_names_comment(circuit)

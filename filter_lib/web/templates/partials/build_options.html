@@ -3,8 +3,7 @@
   <legend class="group__title">Build simulation (optional)</legend>
   {{ checkbox("sim_build", "Simulate the built filter", "Simulates the filter with the parts you would actually fit: standard capacitor values, the suggested toroid windings, optional part Q, and component tolerances. Choose Table or JSON format and E12, E24, or E96 first. The “SPICE – chosen parts” download then also uses the Q and source/load values below.", option="build") }}
   <div class="build__fields fields">
-    {{ text_field("build_capacitor_tolerance_pct", "Capacitor tolerance (±%)", help="Blank = 5.") }}
-    {{ text_field("build_inductor_tolerance_pct", "Inductor tolerance (±%)", help="Blank = 10.") }}
+    {{ text_field("build_inductor_tolerance_pct", "Inductor tolerance (±%)", help="Applies to every inductor. Blank = 10 for toroid windings and calculated values.") }}
     {{ text_field("build_inductor_q", "Inductor Q", help="Q of each inductor; blank = lossless. For band-pass, enter Q here or in the resonator Q fields, not both.") }}
     {{ text_field("build_capacitor_q", "Capacitor Q", help="Q of each capacitor; blank = lossless.") }}
     {{ text_field("build_reference_frequency", labels.q_frequency, help="Blank = the cutoff frequency (low-pass, high-pass) or the center frequency (band-pass).", wide=true) }}

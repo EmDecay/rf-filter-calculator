@@ -4,8 +4,8 @@ The table strings are exact layout snapshots. Their component values are not mer
 whatever the code emitted: ``test_golden_component_values_match_published_prototypes``
 re-derives every tabulated value from published g-values without calling production code.
 The JSON and CSV strings predate the recommendation fields; those fields are checked
-against the documented selection policy (single part within 1 %, otherwise a parallel
-pair only when it improves the error by at least 0.5 percentage points).
+against an independent statement of the worst-case rule
+(``tests/capacitor_interval_oracle.py``), not against production code.
 """
 
 import csv
@@ -14,6 +14,7 @@ import math
 import re
 from contextlib import redirect_stdout
 from copy import deepcopy
+from fractions import Fraction
 from io import StringIO
 
 import pytest
@@ -24,6 +25,8 @@ from filter_lib.highpass.calculations import calculate_chebyshev as hp_chebyshev
 from filter_lib.lowpass import display as lp_display
 from filter_lib.lowpass.calculations import calculate_butterworth as lp_butterworth
 from filter_lib.lowpass.calculations import calculate_chebyshev as lp_chebyshev
+from filter_lib.shared.formatting import format_capacitance
+from tests.capacitor_interval_oracle import best_choice
 
 
 def _make_result(category: str, filter_type: str, topology: str) -> dict:
@@ -107,8 +110,12 @@ GOLDENS = {
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
         "E24 = 24 standard values per decade; it does not set the part tolerance.\n"
-        "Each capacitor gets one choice: a single part if within 1%, otherwise two in\n"
-        "parallel if that is at least 0.5 percentage points closer.\n"
+        "Each capacitor gets the single part or parallel pair whose worst case (each part at\n"
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to\n"
+        "the calculated value; a pair only if it is at least 0.5 percentage points closer.\n"
+        "Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),\n"
+        "±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).\n"
+        "Stray: 0.2 pF across the second part of a pair (an assumption).\n"
         "\n"
         "C1 calculated 318.31 pF\n"
         "  Use:            47.00 pF || 270.00 pF (-0.4%)\n"
@@ -217,8 +224,12 @@ GOLDENS = {
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
         "E24 = 24 standard values per decade; it does not set the part tolerance.\n"
-        "Each capacitor gets one choice: a single part if within 1%, otherwise two in\n"
-        "parallel if that is at least 0.5 percentage points closer.\n"
+        "Each capacitor gets the single part or parallel pair whose worst case (each part at\n"
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to\n"
+        "the calculated value; a pair only if it is at least 0.5 percentage points closer.\n"
+        "Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),\n"
+        "±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).\n"
+        "Stray: 0.2 pF across the second part of a pair (an assumption).\n"
         "\n"
         "C1 calculated 636.62 pF\n"
         "  Use:            75.00 pF || 560.00 pF (-0.3%)\n"
@@ -308,8 +319,12 @@ GOLDENS = {
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
         "E24 = 24 standard values per decade; it does not set the part tolerance.\n"
-        "Each capacitor gets one choice: a single part if within 1%, otherwise two in\n"
-        "parallel if that is at least 0.5 percentage points closer.\n"
+        "Each capacitor gets the single part or parallel pair whose worst case (each part at\n"
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to\n"
+        "the calculated value; a pair only if it is at least 0.5 percentage points closer.\n"
+        "Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),\n"
+        "±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).\n"
+        "Stray: 0.2 pF across the second part of a pair (an assumption).\n"
         "\n"
         "C1 calculated 508.11 pF\n"
         "  Use:            510.00 pF (+0.4%)\n"
@@ -421,8 +436,12 @@ GOLDENS = {
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
         "E24 = 24 standard values per decade; it does not set the part tolerance.\n"
-        "Each capacitor gets one choice: a single part if within 1%, otherwise two in\n"
-        "parallel if that is at least 0.5 percentage points closer.\n"
+        "Each capacitor gets the single part or parallel pair whose worst case (each part at\n"
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to\n"
+        "the calculated value; a pair only if it is at least 0.5 percentage points closer.\n"
+        "Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),\n"
+        "±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).\n"
+        "Stray: 0.2 pF across the second part of a pair (an assumption).\n"
         "\n"
         "C1 calculated 349.09 pF\n"
         "  Use:            150.00 pF || 200.00 pF (+0.3%)\n"
@@ -510,8 +529,12 @@ GOLDENS = {
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
         "E24 = 24 standard values per decade; it does not set the part tolerance.\n"
-        "Each capacitor gets one choice: a single part if within 1%, otherwise two in\n"
-        "parallel if that is at least 0.5 percentage points closer.\n"
+        "Each capacitor gets the single part or parallel pair whose worst case (each part at\n"
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to\n"
+        "the calculated value; a pair only if it is at least 0.5 percentage points closer.\n"
+        "Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),\n"
+        "±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).\n"
+        "Stray: 0.2 pF across the second part of a pair (an assumption).\n"
         "\n"
         "C1 calculated 1.59 nF\n"
         "  Use:            1.60 nF (+0.5%)\n"
@@ -597,8 +620,12 @@ GOLDENS = {
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
         "E24 = 24 standard values per decade; it does not set the part tolerance.\n"
-        "Each capacitor gets one choice: a single part if within 1%, otherwise two in\n"
-        "parallel if that is at least 0.5 percentage points closer.\n"
+        "Each capacitor gets the single part or parallel pair whose worst case (each part at\n"
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to\n"
+        "the calculated value; a pair only if it is at least 0.5 percentage points closer.\n"
+        "Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),\n"
+        "±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).\n"
+        "Stray: 0.2 pF across the second part of a pair (an assumption).\n"
         "\n"
         "C1 calculated 3.18 nF\n"
         "  Use:            470.00 pF || 2.70 nF (-0.4%)\n"
@@ -711,8 +738,12 @@ GOLDENS = {
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
         "E24 = 24 standard values per decade; it does not set the part tolerance.\n"
-        "Each capacitor gets one choice: a single part if within 1%, otherwise two in\n"
-        "parallel if that is at least 0.5 percentage points closer.\n"
+        "Each capacitor gets the single part or parallel pair whose worst case (each part at\n"
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to\n"
+        "the calculated value; a pair only if it is at least 0.5 percentage points closer.\n"
+        "Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),\n"
+        "±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).\n"
+        "Stray: 0.2 pF across the second part of a pair (an assumption).\n"
         "\n"
         "C1 calculated 2.90 nF\n"
         "  Use:            1.30 nF || 1.60 nF (-0.1%)\n"
@@ -803,8 +834,12 @@ GOLDENS = {
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
         "E24 = 24 standard values per decade; it does not set the part tolerance.\n"
-        "Each capacitor gets one choice: a single part if within 1%, otherwise two in\n"
-        "parallel if that is at least 0.5 percentage points closer.\n"
+        "Each capacitor gets the single part or parallel pair whose worst case (each part at\n"
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to\n"
+        "the calculated value; a pair only if it is at least 0.5 percentage points closer.\n"
+        "Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),\n"
+        "±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).\n"
+        "Stray: 0.2 pF across the second part of a pair (an assumption).\n"
         "\n"
         "C1 calculated 1.99 nF\n"
         "  Use:            2.00 nF (+0.3%)\n"
@@ -916,22 +951,18 @@ def test_lp_hp_json_output_matches_golden(case: dict) -> None:
         expected_match = expected_cap["standard_match"]
         assert actual_match["series"] == expected_match["series"]
         assert actual_match["nearest"] == pytest.approx(expected_match["nearest"], rel=1e-9, abs=0)
-        assert actual_match["policy"] == {
-            "prefer_single_within_pct": 1.0,
-            "min_parallel_improvement_pct_points": 0.5,
-            "minimum_capacitance_f": 1e-12,
-            "allow_sub_pf": False,
-        }
+        assert actual_match["policy"] == EXPECTED_POLICY
         assert actual_match["status"] == "recommended"
+        assert actual_match["tolerance_basis"] == "sourced"
         assert actual_match["warnings"] == []
 
-        parallel = expected_match.get("parallel")
-        expected_kind = _policy_kind(
-            expected_match["nearest"]["error_pct"],
-            parallel["error_pct"] if parallel is not None else None,
-        )
+        expected_parts = _oracle_parts(actual_cap["value_farads"])
+        expected_kind = "single" if len(expected_parts) == 1 else "parallel"
         selected = actual_match["selected"]
         assert selected["kind"] == expected_kind
+        assert [part["value_farads"] for part in selected["components"]] == pytest.approx(
+            expected_parts, rel=1e-12, abs=0
+        )
         assert selected["value_farads"] == pytest.approx(
             sum(component["value_farads"] for component in selected["components"]), rel=1e-9, abs=0
         )
@@ -941,16 +972,10 @@ def test_lp_hp_json_output_matches_golden(case: dict) -> None:
 
         if expected_kind == "single":
             assert "parallel" not in actual_match
-            assert selected["value_farads"] == pytest.approx(
-                expected_match["nearest"]["value_farads"], rel=1e-9, abs=0
-            )
-            assert actual_match["reason"] == "single_within_preferred_error"
+            assert actual_match["reason"] in SINGLE_REASONS
         else:
-            assert actual_match["parallel"] == pytest.approx(parallel, rel=1e-9, abs=0)
-            assert selected["value_farads"] == pytest.approx(
-                parallel["value_farads"], rel=1e-9, abs=0
-            )
-            assert actual_match["reason"] == "parallel_materially_improves_error"
+            assert actual_match["parallel"]["components"] == selected["components"]
+            assert actual_match["reason"] == "parallel_worst_case_materially_better"
 
 
 @pytest.mark.parametrize("case", GOLDENS.values(), ids=GOLDENS.keys())
@@ -1009,39 +1034,53 @@ def test_lp_hp_csv_output_matches_golden(case: dict) -> None:
 
         assert actual_row["RecommendationStatus"] == "recommended"
         assert actual_row["RecommendationWarnings"] == ""
-        assert (
-            actual_row["RecommendationPolicy"]
-            == "single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF"
-        )
-        parallel_error = expected_row["ParallelStdErrorPct"]
-        expected_kind = _policy_kind(
-            float(expected_row["NearestStdErrorPct"]),
-            float(parallel_error) if parallel_error else None,
-        )
-        if expected_kind == "single":
+        assert actual_row["RecommendationPolicy"] == EXPECTED_POLICY_SUMMARY
+        # The CSV value is rounded for display; the oracle needs the calculated value.
+        value = result["capacitors"][int(actual_row["Component"].removeprefix("C")) - 1]
+        expected_parts = _oracle_parts(value)
+        formatted = " || ".join(format_capacitance(part) for part in expected_parts)
+        assert actual_row["RecommendedStdValues"] == formatted
+        if len(expected_parts) == 1:
             assert actual_row["RecommendedStdKind"] == "single"
             assert actual_row["ParallelStdValues"] == ""
             assert actual_row["ParallelStdErrorPct"] == ""
-            assert actual_row["RecommendedStdValues"] == (
-                f"{actual_row['NearestStdValue']} {actual_row['NearestStdUnit']}"
-            )
-            assert actual_row["RecommendedStdErrorPct"] == actual_row["NearestStdErrorPct"]
-            assert actual_row["RecommendationReason"] == "single_within_preferred_error"
+            assert actual_row["RecommendationReason"] in SINGLE_REASONS
         else:
             assert actual_row["RecommendedStdKind"] == "parallel"
-            assert actual_row["ParallelStdValues"] == expected_row["ParallelStdValues"]
-            assert actual_row["ParallelStdErrorPct"] == expected_row["ParallelStdErrorPct"]
-            assert actual_row["RecommendedStdValues"] == actual_row["ParallelStdValues"]
+            assert actual_row["ParallelStdValues"] == formatted
             assert actual_row["RecommendedStdErrorPct"] == actual_row["ParallelStdErrorPct"]
-            assert actual_row["RecommendationReason"] == "parallel_materially_improves_error"
+            assert actual_row["RecommendationReason"] == "parallel_worst_case_materially_better"
 
 
-def _policy_kind(nearest_error_pct: float, parallel_error_pct: float | None) -> str:
-    """Documented selection policy: single within 1 %, else a pair improving >= 0.5 pp."""
-    nearest_error = abs(nearest_error_pct)
-    if nearest_error <= 1.0 or parallel_error_pct is None:
-        return "single"
-    return "parallel" if nearest_error - abs(parallel_error_pct) >= 0.5 else "single"
+# The worst-case rule's policy as the JSON and CSV state it (standard grade, defaults).
+EXPECTED_POLICY = {
+    "rule": "worst_case_interval",
+    "capacitor_series": "Murata GRM1885C1H…A01",
+    "capacitor_grade": "standard",
+    "grade_tolerances": "±0.1 pF (0.5–0.9 pF), ±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), "
+    "±5% (10–10000 pF)",
+    "tolerance_override_pct": None,
+    "assumed_tolerance_pct_when_not_sourced": 5.0,
+    "stray_capacitance_f": 2e-13,
+    "stray_capacitance_basis": "assumption",
+    "min_parallel_improvement_pct_points": 0.5,
+    "minimum_capacitance_f": 1e-12,
+    "allow_sub_pf": False,
+}
+EXPECTED_POLICY_SUMMARY = (
+    "worst-case;grade=standard;tolerance-override=none;stray=0.2pF(assumed);"
+    "parallel-improvement>=0.5pp;minimum-cap=1pF"
+)
+SINGLE_REASONS = {
+    "single_worst_case_is_best",
+    "parallel_worst_case_improvement_below_policy_threshold",
+}
+
+
+def _oracle_parts(value_farads: float) -> list[float]:
+    """The independent oracle's choice, in farads, for a capacitor of ``value_farads``."""
+    parts, _score = best_choice(Fraction(value_farads) * 10**12)
+    return [float(part) * 1e-12 for part in parts]
 
 
 # Published normalized prototypes (Matthaei/Zverev), equal terminations, n=3.

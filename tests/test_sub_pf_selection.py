@@ -165,7 +165,7 @@ class TestFlagChoosesSubPfParts:
 
         assert "  Use:            75.00 fF || 560.00 fF (-0.3%)" in table
         assert "Warning" not in table
-        assert match["status"] == "recommended"
+        assert match["status"] == "tolerance_not_sourced"  # no sub-pF E24 value is sourced
         assert match["policy"]["allow_sub_pf"] is True
         assert [part["value_farads"] for part in match["selected"]["components"]] == [
             7.5e-14,

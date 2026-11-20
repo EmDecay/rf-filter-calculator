@@ -311,7 +311,7 @@ def test_subnormal_capacitor_table_does_not_present_nearest_as_recommendation(
     )
 
     output = capsys.readouterr().out
-    assert "Each capacitor gets one choice" in output
+    assert "Each capacitor gets the single part or parallel pair" in output
     assert "  Use:            none (below 1 pF; see warning)" in output
     assert ", for reference only" in output
     assert (

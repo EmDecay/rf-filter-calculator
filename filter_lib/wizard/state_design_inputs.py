@@ -14,12 +14,15 @@ from typing import TYPE_CHECKING
 from filter_lib.design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    CAPACITOR_GRADE,
+    CAPACITOR_TOLERANCE,
     ESERIES,
     LOSS_Q,
     LOSS_Q_NOT_SHOWN_MESSAGE,
     OPTIONS,
     RAW_UNITS,
     RESPONSE_DOCUMENTS,
+    STRAY_CAPACITANCE,
     TEXT_PLOT,
     TOROID_BUILD,
     TOROID_DETAIL,
@@ -30,6 +33,7 @@ from filter_lib.design.option_applicability import (
 )
 from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.cli_aliases import DEFAULT_ESERIES
+from filter_lib.shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
 
 if TYPE_CHECKING:
     from filter_lib.design import DesignRequest, DesignResult, RenderOptions
@@ -85,6 +89,9 @@ class DesignInputsMixin:
         chosen = {
             ESERIES: True,
             ALLOW_SUB_PF: self.allow_sub_pf,
+            CAPACITOR_GRADE: self.capacitor_grade != "standard",
+            CAPACITOR_TOLERANCE: bool(self.capacitor_tolerance_text.strip()),
+            STRAY_CAPACITANCE: bool(self.stray_capacitance_text.strip()),
             TOROID_DETAIL: self.toroid_detail in ("full", "compact"),
             TEXT_PLOT: self.show_plot,
             RAW_UNITS: self.raw_units,
@@ -150,7 +157,6 @@ class DesignInputsMixin:
         """Return the shared engine configuration for the current controls."""
         options = self.applied_options() if options is None else options
         return BuildConfig(
-            capacitor_tolerance_pct=self.build_capacitor_tolerance_pct,
             inductor_tolerance_pct=self.build_inductor_tolerance_pct,
             inductor_q=self.build_inductor_q,
             capacitor_q=self.build_capacitor_q,
@@ -187,6 +193,15 @@ class DesignInputsMixin:
             resonator_inductance=self.resonator_inductance if bandpass else None,
             eseries=self._eseries_for(options),
             allow_sub_pf=ALLOW_SUB_PF in options,
+            capacitor_grade=self.capacitor_grade if CAPACITOR_GRADE in options else "standard",
+            capacitor_tolerance_pct=(
+                self.capacitor_tolerance_pct if CAPACITOR_TOLERANCE in options else None
+            ),
+            stray_capacitance_f=(
+                self.stray_capacitance_f
+                if STRAY_CAPACITANCE in options
+                else DEFAULT_STRAY_CAPACITANCE_F
+            ),
             # The wizard has no SPICE output, so the build settings matter only to a build.
             realization=self.make_build_config(options) if include_build else None,
             run_build_analysis=include_build,
@@ -212,6 +227,9 @@ class DesignInputsMixin:
         include_build = document == JSON_DOCUMENT and BUILD in options
         if include_build and self.build_input_error is not None:
             raise ValueError(self.build_input_error)
+        typed = {CAPACITOR_TOLERANCE, STRAY_CAPACITANCE} & options
+        if typed and self.capacitor_input_error is not None:
+            raise ValueError(self.capacitor_input_error)
         return self._design_request(options, include_build=include_build)
 
     def needs_own_design(self, document: str) -> bool:
