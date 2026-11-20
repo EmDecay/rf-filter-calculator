@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from filter_lib.design import design
 from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.cli_aliases import (
     DEFAULT_COMPONENTS,
@@ -12,6 +13,7 @@ from filter_lib.shared.cli_aliases import (
     DEFAULT_RESONATORS,
     DEFAULT_RIPPLE_DB,
 )
+from filter_lib.shared.inductor_suggestion import INDUCTOR_DETAILS, SUGGESTIONS_NOT_USED
 from filter_lib.web.form_parsing import form_defaults, parse_design_form
 
 
@@ -26,7 +28,7 @@ def test_blank_fields_take_the_cli_defaults():
     assert request.run_build_analysis is False
     assert request.eseries == DEFAULT_ESERIES
     assert parsed.options.output_format == "table"
-    assert (parsed.options.include_toroids, parsed.options.toroid_full) == (True, False)
+    assert (request.inductor_suggestions, request.build_inductors) == ("best", "auto")
     assert parsed.svg_plot is False
 
 
@@ -53,23 +55,11 @@ def test_band_edges_set_center_width_and_requested_edges():
     assert request.frequency_hz == pytest.approx((14e6 * 14.35e6) ** 0.5)
 
 
-@pytest.mark.parametrize(
-    "toroids, include, compact, full",
-    [
-        ("best", True, False, False),
-        ("full", True, False, True),
-        ("compact", True, True, False),
-        ("none", False, False, False),
-    ],
-)
-def test_toroid_choices_map_to_render_options(toroids, include, compact, full):
-    options = parse_design_form("highpass", {"frequency": "1MHz", "toroids": toroids}).options
+@pytest.mark.parametrize("detail", INDUCTOR_DETAILS)
+def test_inductor_suggestion_choices_map_to_the_request(detail):
+    form = {"frequency": "1MHz", "inductor_suggestions": detail}
 
-    assert (options.include_toroids, options.toroid_compact, options.toroid_full) == (
-        include,
-        compact,
-        full,
-    )
+    assert parse_design_form("highpass", form).request.inductor_suggestions == detail
 
 
 @pytest.mark.parametrize("value", ["on", "true", "1", "yes", "ON"])
@@ -80,13 +70,19 @@ def test_checked_boxes_are_recognized(value):
 
 
 def test_build_fields_are_ignored_until_the_build_section_is_enabled():
-    form = {"frequency": "1MHz", "build_inductor_tolerance_pct": "not a number", "eseries": "E96"}
+    form = {
+        "frequency": "1MHz",
+        "build_inductor_tolerance_pct": "not a number",
+        "eseries": "E96",
+        "build_inductors": "toroid",
+    }
 
     parsed = parse_design_form("lowpass", form)
 
     assert parsed.request.run_build_analysis is False
     assert parsed.request.eseries == "E96"
     assert parsed.request.realization == BuildConfig()
+    assert parsed.request.build_inductors == "auto"
 
 
 def test_build_fields_follow_make_build_config():
@@ -102,12 +98,13 @@ def test_build_fields_follow_make_build_config():
         "build_sample_count": "4",
         "build_seed": "9",
         "build_grid_points": "201",
-        "toroid_build": "off",
+        "build_inductors": "calculated",
     }
 
     request = parse_design_form("lowpass", form).request
 
     assert (request.eseries, request.run_build_analysis) == ("E12", True)
+    assert request.build_inductors == "calculated"
     assert request.capacitor_tolerance_pct == 2.0
     assert request.realization == BuildConfig(
         inductor_tolerance_pct=None,
@@ -117,14 +114,19 @@ def test_build_fields_follow_make_build_config():
         sample_count=4,
         seed=9,
         grid_points=201,
-        use_toroid_candidates=False,
     )
 
 
-def test_no_toroids_also_disables_toroid_substitution():
-    form = {"frequency": "10MHz", "sim_build": "on", "toroids": "none"}
+def test_no_inductor_suggestions_also_leave_them_out_of_the_build():
+    form = {"frequency": "10MHz", "sim_build": "on", "inductor_suggestions": "none"}
+    request = parse_design_form("lowpass", form).request
 
-    assert parse_design_form("lowpass", form).request.realization.use_toroid_candidates is False
+    inductors = design(request).parts.inductors.values()
+
+    assert (request.inductor_suggestions, request.build_inductors) == ("none", "auto")
+    assert inductors
+    assert all(part.build_pick is None for part in inductors)
+    assert {part.build_status for part in inductors} == {SUGGESTIONS_NOT_USED}
 
 
 @pytest.mark.parametrize("category", ["lowpass", "highpass", "bandpass"])

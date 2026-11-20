@@ -15,7 +15,7 @@ import pytest
 from filter_lib import __version__
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "2.3.0"
+EXPECTED_VERSION = "3.0.0"
 RUNTIME_RESOURCES = (
     "filter_lib/shared/capacitor_grade_data.json",
     "filter_lib/shared/toroid_core_data.json",

@@ -27,6 +27,9 @@ from filter_lib.shared.formatting import (
     format_restated_value,
 )
 
+# Leaves inductor suggestions out of every output, so only the calculated values remain.
+_NO_SUGGESTIONS = ("--inductor-suggestions", "none")
+
 _SCALE = {
     "fF": 1e-15,
     "pF": 1e-12,
@@ -142,7 +145,7 @@ def ladder(request):
 
 class TestLadderOutputsCarryTheCalculatedValues:
     def test_json_is_the_exact_api_result(self, ladder):
-        payload = _strict_json(_cli(*ladder["command"], "--format", "json", "--no-toroids"))
+        payload = _strict_json(_cli(*ladder["command"], "--format", "json", *_NO_SUGGESTIONS))
 
         assert _json_components(payload) == ladder["expected"]
         assert [name for name in _json_components(payload)] == ladder["names"]
@@ -163,10 +166,10 @@ class TestLadderOutputsCarryTheCalculatedValues:
     def test_quiet_and_table_print_the_csv_text(self, ladder):
         rows = list(csv.DictReader(io.StringIO(_cli(*ladder["command"], "--format", "csv"))))
         csv_text = [f"{row['Component']}: {row['Value']} {row['Unit']}" for row in rows]
-        quiet = _cli(*ladder["command"], "-q", "--no-match", "--no-toroids").splitlines()
+        quiet = _cli(*ladder["command"], "-q", "--no-match", *_NO_SUGGESTIONS).splitlines()
         table_cells = {
             cell.strip()
-            for line in _cli(*ladder["command"], "--no-match", "--no-toroids").splitlines()
+            for line in _cli(*ladder["command"], "--no-match", *_NO_SUGGESTIONS).splitlines()
             if line.startswith("│ ")
             for cell in line.strip("│").split("│")
         }
@@ -175,8 +178,8 @@ class TestLadderOutputsCarryTheCalculatedValues:
         assert set(csv_text) <= table_cells
 
     def test_raw_text_keeps_seven_significant_figures(self, ladder):
-        quiet = _cli(*ladder["command"], "-q", "--raw", "--no-toroids", "--no-match").splitlines()
-        table = _cli(*ladder["command"], "--raw", "--no-toroids", "--no-match")
+        quiet = _cli(*ladder["command"], "-q", "--raw", *_NO_SUGGESTIONS, "--no-match").splitlines()
+        table = _cli(*ladder["command"], "--raw", *_NO_SUGGESTIONS, "--no-match")
 
         assert [line.split(":")[0] for line in quiet] == ladder["names"]
         for line in quiet:
@@ -187,7 +190,7 @@ class TestLadderOutputsCarryTheCalculatedValues:
             assert f"│ {line}" in table
 
     def test_table_header_restates_the_requested_design(self, ladder):
-        lines = _cli(*ladder["command"], "--no-match", "--no-toroids").splitlines()
+        lines = _cli(*ladder["command"], "--no-match", *_NO_SUGGESTIONS).splitlines()
 
         assert f"Cutoff Frequency:    {format_restated_frequency(ladder['frequency'])}" in lines
         assert f"Impedance Z₀:        {format_restated_value(ladder['impedance'])} Ω" in lines
@@ -200,7 +203,7 @@ class TestLadderOutputsCarryTheCalculatedValues:
 
 
 def _preferred_value_rows(command: tuple[str, ...], series: str):
-    payload = _strict_json(_cli(*command, "--format", "json", "-e", series, "--no-toroids"))
+    payload = _strict_json(_cli(*command, "--format", "json", "-e", series, *_NO_SUGGESTIONS))
     matches = {
         item["name"]: item["standard_match"]
         for group in payload["components"].values()
@@ -223,7 +226,7 @@ def _preferred_value_rows(command: tuple[str, ...], series: str):
 )
 def test_csv_and_table_preferred_values_restate_the_json_selection(command, series):
     matches, rows = _preferred_value_rows(command, series)
-    table = _cli(*command, "-e", series, "--no-toroids").splitlines()
+    table = _cli(*command, "-e", series, *_NO_SUGGESTIONS).splitlines()
 
     assert len(rows) == len(matches) > 0
     for row in rows:
@@ -293,7 +296,7 @@ def bandpass(request):
 
 class TestBandpassOutputsCarryTheCalculatedValues:
     def test_json_is_the_exact_api_result(self, bandpass):
-        payload = _strict_json(_cli(*bandpass["command"], "--format", "json", "--no-toroids"))
+        payload = _strict_json(_cli(*bandpass["command"], "--format", "json", *_NO_SUGGESTIONS))
         result = bandpass["result"]
 
         assert _json_components(payload) == bandpass["expected"]
@@ -305,10 +308,10 @@ class TestBandpassOutputsCarryTheCalculatedValues:
     def test_csv_quiet_raw_and_table_agree_with_the_api_result(self, bandpass):
         command, expected = bandpass["command"], bandpass["expected"]
         rows = list(csv.DictReader(io.StringIO(_cli(*command, "--format", "csv"))))
-        quiet = _cli(*command, "-q", "--no-match", "--no-toroids").splitlines()
-        raw = _cli(*command, "-q", "--raw", "--no-match", "--no-toroids").splitlines()
-        table = _cli(*command, "--no-match", "--no-toroids")
-        raw_table = _cli(*command, "--raw", "--no-match", "--no-toroids")
+        quiet = _cli(*command, "-q", "--no-match", *_NO_SUGGESTIONS).splitlines()
+        raw = _cli(*command, "-q", "--raw", "--no-match", *_NO_SUGGESTIONS).splitlines()
+        table = _cli(*command, "--no-match", *_NO_SUGGESTIONS)
+        raw_table = _cli(*command, "--raw", "--no-match", *_NO_SUGGESTIONS)
 
         assert sorted(row["Component"] for row in rows) == sorted(expected)
         # Values-only output follows the component table: tanks, inductors, then the
@@ -334,8 +337,8 @@ class TestBandpassOutputsCarryTheCalculatedValues:
             assert f"│ {raw_line} " in raw_table
 
     def test_table_header_restates_calculated_band(self, bandpass):
-        payload = _strict_json(_cli(*bandpass["command"], "--format", "json", "--no-toroids"))
-        lines = _cli(*bandpass["command"], "--no-match", "--no-toroids").splitlines()
+        payload = _strict_json(_cli(*bandpass["command"], "--format", "json", *_NO_SUGGESTIONS))
+        lines = _cli(*bandpass["command"], "--no-match", *_NO_SUGGESTIONS).splitlines()
 
         for label, key in (
             ("Center Frequency f₀: ", "center_frequency_hz"),
@@ -362,11 +365,11 @@ class TestBandpassOutputsCarryTheCalculatedValues:
 
 def test_edge_specified_bandpass_reports_the_requested_edges_in_every_format():
     command = ("bp", "ch", "top", "--fl", "7MHz", "--fh", "7.3MHz", "-n", "5", "-r", "0.5")
-    payload = _strict_json(_cli(*command, "--format", "json", "--no-toroids"))
+    payload = _strict_json(_cli(*command, "--format", "json", *_NO_SUGGESTIONS))
     values = _json_components(payload)
     rows = list(csv.DictReader(io.StringIO(_cli(*command, "--format", "csv", "--no-match"))))
-    quiet = _cli(*command, "-q", "--no-match", "--no-toroids").splitlines()
-    table = _cli(*command, "--no-match", "--no-toroids").splitlines()
+    quiet = _cli(*command, "-q", "--no-match", *_NO_SUGGESTIONS).splitlines()
+    table = _cli(*command, "--no-match", *_NO_SUGGESTIONS).splitlines()
 
     # Edges reconstructed from the geometric center reproduce the request to rounding.
     assert payload["f_low_hz"] == pytest.approx(7e6, rel=1e-14, abs=0)
@@ -399,8 +402,8 @@ def test_edge_specified_bandpass_reports_the_requested_edges_in_every_format():
     ],
 )
 def test_documented_frequency_spellings_design_the_same_filter(spelling):
-    payload = _strict_json(_cli("lp", "bw", "pi", spelling, "--format", "json", "--no-toroids"))
-    reference = _strict_json(_cli("lp", "bw", "pi", "10MHz", "--format", "json", "--no-toroids"))
+    payload = _strict_json(_cli("lp", "bw", "pi", spelling, "--format", "json", *_NO_SUGGESTIONS))
+    reference = _strict_json(_cli("lp", "bw", "pi", "10MHz", "--format", "json", *_NO_SUGGESTIONS))
 
     assert payload["cutoff_frequency_hz"] == 10e6
     assert payload == reference
@@ -411,7 +414,7 @@ def test_documented_frequency_spellings_design_the_same_filter(spelling):
 )
 def test_documented_impedance_spellings_design_the_same_filter(spelling):
     payload = _strict_json(
-        _cli("hp", "bw", "t", "1MHz", "-z", spelling, "--format", "json", "--no-toroids")
+        _cli("hp", "bw", "t", "1MHz", "-z", spelling, "--format", "json", *_NO_SUGGESTIONS)
     )
 
     assert payload["impedance_ohms"] == 1000.0
@@ -457,7 +460,7 @@ class TestResponseDataAgreesAcrossFormats:
 
     def test_bandpass_samples_include_the_calculated_edges_at_half_power(self):
         command = ("bp", "ch", "top", "-f", "14.2MHz", "-b", "500kHz", "-n", "5", "-r", "0.5")
-        design = _strict_json(_cli(*command, "--format", "json", "--no-toroids"))
+        design = _strict_json(_cli(*command, "--format", "json", *_NO_SUGGESTIONS))
         response = _strict_json(_cli(*command, "--plot-data", "json"))
         samples = {p["frequency_hz"]: p["magnitude_db"] for p in response["data"]}
 

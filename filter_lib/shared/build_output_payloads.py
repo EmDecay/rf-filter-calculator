@@ -57,6 +57,8 @@ def _substitution_payload(substitution: ComponentSubstitution) -> dict[str, Any]
         "physical_parts_si": list(substitution.physical_parts),
         "method": substitution.method,
         "status": substitution.status,
+        "inductor_kind": substitution.inductor_kind,
+        "part_name": substitution.part_name,
         "core_name": substitution.core_name,
         "turns": substitution.turns,
         "wire_awg": substitution.wire_awg,

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Literal
 from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.cli_aliases import DEFAULT_ESERIES, DEFAULT_RIPPLE_DB
 from filter_lib.shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
+from filter_lib.shared.inductor_suggestion import DEFAULT_BUILD_INDUCTORS
 
 from .state_design_inputs import (
     CSV_DOCUMENT,
@@ -39,7 +40,7 @@ __all__ = [
     "CalculationOutcome",
     "CalculationStatus",
     "FilterState",
-    "ToroidDetail",
+    "InductorDetail",
 ]
 
 CalculationStatus = Literal["idle", "pending", "success", "error"]
@@ -52,9 +53,9 @@ INTERNAL_NO_BUILD_MESSAGE = (
     "Internal error: the calculation returned no build simulation. Please report this."
 )
 CALCULATION_STOPPED_MESSAGE = "Calculation stopped"
-# "Best, detailed" (CLI default) · "Up to 3, detailed" (--toroid-full) ·
-# "Best, one line" (--toroid-compact) · "None" (--no-toroids).
-ToroidDetail = Literal["best", "full", "compact", "none"]
+# Inductor suggestions (CLI --inductor-suggestions): "Best, detailed" (best, the
+# default) · "Up to 3 per kind, detailed" (full) · "Best, one line" (compact) · "None".
+InductorDetail = Literal["best", "full", "compact", "none"]
 _BUILD_DEFAULTS = BuildConfig()
 
 
@@ -136,9 +137,9 @@ class FilterState(DesignInputsMixin):
     raw_units: bool = False
     # Earlier name for Values only; ``output_format="quiet"`` is the same choice.
     quiet: bool = False
-    # Toroid windings: "best" (CLI default), "full", "compact", or "none".
-    # JSON always carries up to three candidates and CSV the best one.
-    toroid_detail: ToroidDetail = "best"
+    # Inductor suggestions: "best" (CLI default), "full", "compact", or "none".
+    # JSON always carries up to three per kind and CSV the best one.
+    inductor_detail: InductorDetail = "best"
 
     # Optional build simulation, off by default; the other values are the CLI's
     # defaults (``BuildConfig``) and map one-to-one onto it.
@@ -152,8 +153,8 @@ class FilterState(DesignInputsMixin):
     build_sample_count: int = _BUILD_DEFAULTS.sample_count
     build_seed: int = _BUILD_DEFAULTS.seed
     build_grid_points: int = _BUILD_DEFAULTS.grid_points
-    # "Simulate inductors as the suggested toroid windings" (unticked = --no-toroid-build).
-    build_use_toroid_candidates: bool = True
+    # "Inductors in the build" (CLI --build-inductors): auto, a kind, or calculated.
+    build_inductors: str = DEFAULT_BUILD_INDUCTORS
     # The build fields as typed ({input id: text}), shown again when the output screen
     # reopens, so values survive unticking the build and going Back.
     build_field_text: dict[str, str] = field(default_factory=dict)

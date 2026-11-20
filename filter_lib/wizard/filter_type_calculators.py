@@ -39,27 +39,33 @@ def design_from_state(
     return outcome
 
 
-def _calculate(state: FilterState) -> list[str]:
+def _calculate(state: FilterState, should_cancel: Callable[[], bool] | None) -> list[str]:
     """Design the result shown, store it, and render it."""
     from filter_lib.design import render_lines
 
-    return render_lines(design_from_state(state), state.to_render_options())
+    return render_lines(design_from_state(state, should_cancel), state.to_render_options())
 
 
-def calculate_lowpass(state: FilterState) -> list[str]:
+def calculate_lowpass(
+    state: FilterState, should_cancel: Callable[[], bool] | None = None
+) -> list[str]:
     """Calculate a lowpass filter and return output lines for `state.output_format`."""
-    return _calculate(state)
+    return _calculate(state, should_cancel)
 
 
-def calculate_highpass(state: FilterState) -> list[str]:
+def calculate_highpass(
+    state: FilterState, should_cancel: Callable[[], bool] | None = None
+) -> list[str]:
     """Calculate a highpass filter and return output lines for `state.output_format`."""
-    return _calculate(state)
+    return _calculate(state, should_cancel)
 
 
-def calculate_bandpass(state: FilterState) -> list[str]:
+def calculate_bandpass(
+    state: FilterState, should_cancel: Callable[[], bool] | None = None
+) -> list[str]:
     """Calculate a bandpass filter and return output lines for `state.output_format`.
 
     `state.topology` carries the coupling id ("top") and `state.order` the resonator
     count.
     """
-    return _calculate(state)
+    return _calculate(state, should_cancel)

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass
 
+from .cancellation import CancellationCheck, DesignCancelled
 from .circuit_model import NamedCircuit
 from .eseries import MatchPolicy
 from .numeric import is_finite_real, positive_geometric_mean
@@ -44,7 +44,8 @@ class BuildConfig:
     """
 
     # None: each part's own tolerance; the toroid windings and calculated values use
-    # ``DEFAULT_INDUCTOR_TOLERANCE_PCT``. A value applies to every inductor.
+    # ``DEFAULT_INDUCTOR_TOLERANCE_PCT``. A value applies to every inductor. Which part
+    # each inductor is built as is a design input (``DesignRequest.build_inductors``).
     inductor_tolerance_pct: float | None = None
     inductor_q: float | None = None
     capacitor_q: float | None = None
@@ -55,7 +56,6 @@ class BuildConfig:
     sample_count: int = 0
     seed: int = 0
     grid_points: int = 601
-    use_toroid_candidates: bool = True
 
     def __post_init__(self) -> None:
         # Messages use plain labels, not field names: the wizard and web show them as-is.
@@ -103,8 +103,6 @@ class BuildConfig:
             raise ValueError(
                 "The frequency at which the Q values apply must be positive and finite"
             )
-        if not isinstance(self.use_toroid_candidates, bool):
-            raise ValueError("use_toroid_candidates must be boolean")
 
 
 def resolve_build_config(config: object) -> BuildConfig:
@@ -116,15 +114,12 @@ def resolve_build_config(config: object) -> BuildConfig:
     return config
 
 
-class BuildAnalysisCancelled(Exception):
+class BuildAnalysisCancelled(DesignCancelled):
     """Raised when the caller's cancellation check stops a realized-build analysis.
 
-    Deliberately not a ``ValueError``: cancellation is not an input error, so a
-    caller that reports rejected input never presents it as one.
+    A ``DesignCancelled``, so a caller that stops any part of ``design()`` catches one
+    exception; never a ``ValueError`` (cancellation is not an input error).
     """
-
-
-CancellationCheck = Callable[[], bool]
 
 
 def raise_if_cancelled(should_cancel: CancellationCheck | None) -> None:
@@ -149,6 +144,10 @@ class ComponentSubstitution:
     method: str
     status: str
     warnings: tuple[str, ...] = ()
+    # The suggestion an inductor was built as: its kind (``toroid``, ``air-coil``,
+    # ``chip``) and part; None for capacitors and calculated values.
+    inductor_kind: str | None = None
+    part_name: str | None = None
     core_name: str | None = None
     turns: int | None = None
     # Screened winding wire for toroid substitutions; None for capacitors and
@@ -238,6 +237,8 @@ class BuildAnalysisResult:
     config: BuildConfig
     eseries: str
     match_policy: MatchPolicy
+    # What the build used for each inductor (``--build-inductors``).
+    build_inductors: str
     source_resistance_ohm: float
     load_resistance_ohm: float
     gain_metric: str

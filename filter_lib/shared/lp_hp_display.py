@@ -18,10 +18,10 @@ from .display_common import (
     format_quiet_result,
 )
 from .display_helpers import eseries_section_lines, format_eseries_match
-from .eseries import MatchPolicy
 from .formatting import format_capacitance
+from .inductor_display import has_suggestion, suggestion_section_lines
 from .plotting import find_db_thresholds, format_threshold_table, render_plot_pair
-from .toroid_display import format_winding_candidate_section, has_winding_suggestion
+from .resolved_parts import ResolvedParts
 
 # Injection points supplied by each filter module's display config:
 #   ComponentFormatter: value in F/H -> display string
@@ -63,7 +63,6 @@ class MatchConfig:
     prefix: str
     display_name: str
     formatter: ComponentFormatter
-    parallel_mode: str
 
 
 @dataclass(frozen=True)
@@ -82,22 +81,22 @@ class LpHpDisplayConfig:
 
 @dataclass(frozen=True)
 class LpHpRenderOptions:
-    """Runtime display options for LP/HP text rendering."""
+    """Runtime display options for LP/HP text rendering.
+
+    ``parts`` are the parts ``design()`` resolved: the standard-value section shows
+    their capacitor choices (when the design has an E-series and ``raw`` is off), and
+    the suggestion section their inductor suggestions at their detail.
+    """
 
     config: LpHpDisplayConfig
+    parts: ResolvedParts
     raw: bool = False
-    eseries: str | None = "E24"
-    show_match: bool = True
     show_plot: bool = False
-    include_toroids: bool = True
-    toroid_compact: bool = False
-    toroid_full: bool = False
     match: MatchConfig | None = None
     trailing_blank: bool = True
-    match_policy: MatchPolicy | None = None
 
 
-CAPACITOR_MATCH = MatchConfig("capacitors", "C", "Capacitor", format_capacitance, "additive")
+CAPACITOR_MATCH = MatchConfig("capacitors", "C", "Capacitor", format_capacitance)
 
 # Header spelling for every LP/HP surface (CLI, wizard, web share this renderer).
 TOPOLOGY_LABELS = {"pi": "Pi", "t": "T"}
@@ -127,41 +126,21 @@ def primary_component(result: dict, config: LpHpDisplayConfig) -> str:
 def format_json_for_config(
     result: dict,
     config: LpHpDisplayConfig,
-    eseries: str | None = None,
-    include_toroids: bool = True,
-    matched_sim: dict | None = None,
+    parts: ResolvedParts,
     build_analysis=None,
-    match_policy: MatchPolicy | None = None,
 ) -> str:
     """Format an LP/HP result as JSON."""
     return format_json_result(
         result,
+        parts,
         primary_component=primary_component(result, config),
-        eseries=eseries,
-        toroid_freq_hz=result["freq_hz"],
-        include_toroids=include_toroids,
-        matched_sim=matched_sim,
         build_analysis=build_analysis,
-        match_policy=match_policy,
     )
 
 
-def format_csv_for_config(
-    result: dict,
-    config: LpHpDisplayConfig,
-    eseries: str | None = None,
-    include_toroids: bool = True,
-    match_policy: MatchPolicy | None = None,
-) -> str:
+def format_csv_for_config(result: dict, config: LpHpDisplayConfig, parts: ResolvedParts) -> str:
     """Format an LP/HP result as CSV."""
-    return format_csv_result(
-        result,
-        primary_component=primary_component(result, config),
-        eseries=eseries,
-        toroid_freq_hz=result["freq_hz"],
-        include_toroids=include_toroids,
-        match_policy=match_policy,
-    )
+    return format_csv_result(result, parts, primary_component=primary_component(result, config))
 
 
 def format_quiet_for_config(result: dict, config: LpHpDisplayConfig, raw: bool = False) -> str:
@@ -172,6 +151,7 @@ def format_quiet_for_config(result: dict, config: LpHpDisplayConfig, raw: bool =
 def render_results_lines(result: dict, options: LpHpRenderOptions) -> list[str]:
     """Render LP/HP table output as lines."""
     config = options.config
+    parts = options.parts
     match = options.match or CAPACITOR_MATCH
     topology = str(result.get("topology", config.default_topology)).lower()
     primary = primary_component(result, config)
@@ -191,16 +171,16 @@ def render_results_lines(result: dict, options: LpHpRenderOptions) -> list[str]:
             result,
             raw=options.raw,
             primary_component=primary,
-            mention_toroids=options.include_toroids
-            and has_winding_suggestion(result["inductors"], result["freq_hz"]),
+            mention_suggestions=parts.shows_suggestions
+            and has_suggestion([parts.inductor(name) for name in _inductor_names(result)]),
         ),
     ]
 
-    if options.show_match and not options.raw and options.eseries:
-        _extend_match_lines(lines, result, match, options.eseries, options.match_policy)
+    if parts.eseries and not options.raw:
+        _extend_match_lines(lines, result, match, parts)
 
-    if options.include_toroids:
-        lines.extend(_toroid_lines(result, options.toroid_compact, 3 if options.toroid_full else 1))
+    if parts.shows_suggestions:
+        lines.extend(_suggestion_lines(result, parts))
 
     if options.show_plot:
         lines.extend(_plot_lines(result, config))
@@ -210,88 +190,25 @@ def render_results_lines(result: dict, options: LpHpRenderOptions) -> list[str]:
     return lines
 
 
-def display_results_for_config(
-    result: dict,
-    config: LpHpDisplayConfig,
-    raw: bool = False,
-    output_format: str = "table",
-    quiet: bool = False,
-    eseries: str = "E24",
-    show_match: bool = True,
-    show_plot: bool = False,
-    include_toroids: bool = True,
-    toroid_compact: bool = False,
-    toroid_full: bool = False,
-    matched_sim: dict | None = None,
-    build_analysis=None,
-) -> None:
-    """Print LP/HP result output."""
-    if output_format == "json":
-        print(
-            format_json_for_config(
-                result,
-                config,
-                eseries=eseries if show_match else None,
-                include_toroids=include_toroids,
-                matched_sim=matched_sim,
-                build_analysis=build_analysis,
-            )
-        )
-        return
-    if output_format == "csv":
-        print(
-            format_csv_for_config(
-                result,
-                config,
-                eseries=eseries if show_match else None,
-                include_toroids=include_toroids,
-            )
-        )
-        return
-    if quiet:
-        print(format_quiet_for_config(result, config, raw))
-        return
-
-    options = LpHpRenderOptions(
-        config=config,
-        raw=raw,
-        eseries=eseries,
-        show_match=show_match,
-        show_plot=show_plot,
-        include_toroids=include_toroids,
-        toroid_compact=toroid_compact,
-        toroid_full=toroid_full,
-        match=CAPACITOR_MATCH,
-    )
-    print("\n".join(render_results_lines(result, options)))
+def _inductor_names(result: dict) -> list[str]:
+    return [f"L{i + 1}" for i in range(len(result["inductors"]))]
 
 
 def _extend_match_lines(
-    lines: list[str],
-    result: dict,
-    match: MatchConfig,
-    eseries: str,
-    policy: MatchPolicy | None = None,
+    lines: list[str], result: dict, match: MatchConfig, parts: ResolvedParts
 ) -> None:
-    """Append the E-series standard-value recommendation section in place."""
-    lines.extend(eseries_section_lines(eseries, match.display_name, policy))
+    """Append the E-series standard-value section from the resolved choices, in place."""
+    lines.extend(eseries_section_lines(parts.eseries, match.display_name, parts.match_policy))
     for i, value in enumerate(result[match.component_key]):
-        lines.append(f"{match.prefix}{i + 1} calculated {match.formatter(value)}")
-        lines.extend(
-            format_eseries_match(
-                value,
-                eseries,
-                match.formatter,
-                parallel_mode=match.parallel_mode,
-                policy=policy,
-            )
-        )
+        name = f"{match.prefix}{i + 1}"
+        lines.append(f"{name} calculated {match.formatter(value)}")
+        lines.extend(format_eseries_match(parts.capacitor(name), match.formatter))
 
 
-def _toroid_lines(result: dict, compact: bool, top_n: int) -> list[str]:
-    """Build the toroid winding recommendation section (one block per inductor)."""
-    targets = [(f"L{i + 1}", value) for i, value in enumerate(result["inductors"])]
-    return format_winding_candidate_section(targets, result["freq_hz"], compact, top_n)
+def _suggestion_lines(result: dict, parts: ResolvedParts) -> list[str]:
+    """Build the inductor suggestion section (one block per inductor)."""
+    targets = [(name, parts.inductor(name)) for name in _inductor_names(result)]
+    return suggestion_section_lines(targets, result["freq_hz"], parts.inductor_detail)
 
 
 def _plot_lines(result: dict, config: LpHpDisplayConfig) -> list[str]:

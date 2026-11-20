@@ -10,28 +10,34 @@ from ..shared.build_types import resolve_build_config
 if TYPE_CHECKING:
     from ..shared.build_types import BuildAnalysisResult, BuildConfig
     from ..shared.eseries import MatchPolicy
+    from ..shared.resolved_parts import ResolvedParts
     from .design_request import DesignRequest
 
 
 @dataclass(frozen=True)
 class DesignResult:
-    """Synthesis result, the resolved part policy, and the optional build analysis.
+    """Synthesis result, the resolved parts, and the optional build analysis.
 
     Only ``design()`` builds one. ``result`` is the unchanged calculator dict that every
     formatter consumes. ``warnings`` repeats the bandpass design warnings (always empty
     for ladders) so a surface can show them without knowing the dict layout.
-    ``request`` is the request it answers, and ``match_policy`` the capacitor match
-    policy ``design()`` resolved from it; every output (table, JSON, CSV, the build
-    simulation, the chosen-parts SPICE deck) reads its parts from these, never from
-    its own settings.
+    ``request`` is the request it answers, and ``parts`` every part ``design()`` chose
+    for it: the capacitor match policy and choices, and each inductor's suggestions and
+    build part. Every output (table, JSON, CSV, the build simulation, the chosen-parts
+    SPICE deck) reads its parts from ``parts``, never from its own settings.
     """
 
     category: str
     result: dict
     request: DesignRequest
-    match_policy: MatchPolicy
+    parts: ResolvedParts
     warnings: tuple[str, ...] = field(default_factory=tuple)
     build_analysis: BuildAnalysisResult | None = None
+
+    @property
+    def match_policy(self) -> MatchPolicy:
+        """The capacitor match policy ``design()`` resolved from the request."""
+        return self.parts.match_policy
 
     @property
     def eseries(self) -> str | None:

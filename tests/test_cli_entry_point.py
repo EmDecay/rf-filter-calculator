@@ -16,7 +16,7 @@ from filter_lib import __version__, cli
 # HP T:  C = 1/(g*Z*w) = 318.31 pF, L = Z/(g*w) = 397.89 nH.
 _LP_QUIET = "C1: 318.31 pF\nC2: 318.31 pF\nL1: 1.59 µH\n"
 _HP_QUIET = "C1: 318.31 pF\nC2: 318.31 pF\nL1: 397.89 nH\n"
-_QUIET_FLAGS = ("-q", "--no-match", "--no-toroids")
+_QUIET_FLAGS = ("-q", "--no-match", "--inductor-suggestions", "none")
 
 
 def _main(monkeypatch, *arguments: str) -> None:

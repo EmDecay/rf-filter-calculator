@@ -69,8 +69,8 @@ def _assert_structurally_valid(command: str, out: str) -> None:
         assert all(payload["components"].values())
         if "--sim-build" in argv:
             assert {"target", "simulated", "nominal_build", "tolerance_analysis"} <= set(payload)
-        if "--sim-matched" in argv:
-            assert payload["matched_sim"]["deprecated"] is True
+            build_inductors = _option(argv, "--build-inductors") or "auto"
+            assert payload["build_model"]["build_inductor_choice"] == build_inductors
     elif output_format == "csv":
         rows = list(csv.reader(io.StringIO(out)))
         header = rows[0]
@@ -96,9 +96,8 @@ def _assert_structurally_valid(command: str, out: str) -> None:
         assert "Component Values" in out
         assert ("Frequencies at -3 / -10 / -20 dB" in out) is ("--plot" in argv)
         assert ("Build Simulation (chosen parts;" in out) is ("--sim-build" in argv)
-        assert ("--sim-matched is deprecated" in out) is ("--sim-matched" in argv)
-        toroids_shown = "Toroid Winding Suggestions (" in out or " target: " in out
-        assert toroids_shown is ("--no-toroids" not in argv)
+        suggestions_shown = "Inductor Suggestions" in out.splitlines()
+        assert suggestions_shown is (_option(argv, "--inductor-suggestions") != "none")
 
 
 # Every ladder spelling, topology form, order bound, output format, and option appears at
@@ -108,37 +107,38 @@ _LADDER_VALID = [
     "{cmd} bw t 10MHz -n 2",
     "{cmd} b -T pi -f 7.1M -n 9 -q",
     "{cmd} --type bessel --topology t --freq 455kHz -n 6 --raw",
-    "{cmd} bs pi 1.8m -n 9 --raw -q --no-toroids --no-match",
+    "{cmd} bs pi 1.8m -n 9 --raw -q --inductor-suggestions none --no-match",
     "{cmd} chebyshev pi 28MHz -n 7 -r 1.0 --plot",
-    "{cmd} ch t 3.5MHz -n 9 -r 0.01 --plot --toroid-compact -e E96",
-    "{cmd} c pi '10 MHz' -n 3 -r 3.0 --toroid-full -e E12",
+    "{cmd} ch t 3.5MHz -n 9 -r 0.01 --plot --inductor-suggestions compact -e E96",
+    "{cmd} c pi '10 MHz' -n 3 -r 3.0 --inductor-suggestions full -e E12",
     "{cmd} bw pi 2.4GHz -n 5 -z 12.5 --no-match",
-    "{cmd} bs t 1kHz -n 4 -z 1k --no-toroids",
+    "{cmd} bs t 1kHz -n 4 -z 1k --inductor-suggestions none",
     "{cmd} bw pi 10e6 -z 300ohm --format json",
-    "{cmd} ch t 14MHz -r 0.5 -n 5 --format json -e E12 --no-toroids",
+    "{cmd} ch t 14MHz -r 0.5 -n 5 --format json -e E12 --inductor-suggestions none",
     "{cmd} bw t 10000000 -n 3 --format json --no-match",
     "{cmd} bs pi 50MHz -n 7 --format csv",
-    "{cmd} ch pi 7MHz -n 3 -r 0.1 --format csv --no-match --no-toroids",
+    "{cmd} ch pi 7MHz -n 3 -r 0.1 --format csv --no-match --inductor-suggestions none",
     "{cmd} bw pi 10MHz --format csv -e E12",
     "{cmd} bw pi 10MHz --format spice",
     "{cmd} ch t 14MHz -r 0.5 -n 5 --format spice --spice-realization exact --no-match",
     "{cmd} bs pi 10MHz --format spice --spice-realization nominal-build -e E12 "
     "--inductor-q 100 --capacitor-q 500 --source-resistance 25 --load-resistance 100 "
-    "--loss-reference-frequency 3MHz --no-toroid-build",
+    "--loss-reference-frequency 3MHz --build-inductors calculated",
     "{cmd} bw pi 10MHz --plot-data json",
-    "{cmd} ch t 10MHz -r 0.5 -n 5 --plot-data csv --no-match --no-toroids",
-    f"{{cmd}} bw pi 10MHz {_FAST_BUILD} --no-toroids",
+    "{cmd} ch t 10MHz -r 0.5 -n 5 --plot-data csv --no-match --inductor-suggestions none",
+    f"{{cmd}} bw pi 10MHz {_FAST_BUILD} --inductor-suggestions none",
     f"{{cmd}} ch pi 10MHz -r 0.5 {_FAST_BUILD} --format json -e E96 --cap-tolerance 2 "
     "--ind-tolerance 7.5 --inductor-q 50 --capacitor-q 400 --source-resistance 25ohm "
     "--load-resistance 1k --loss-reference-frequency 5MHz --samples 2 --seed 7",
-    f"{{cmd}} bw t 10MHz {_FAST_BUILD} --raw -e E12 --no-toroid-build --sample-count 1 --seed 3",
-    "{cmd} bw pi 10MHz --sim-matched --no-toroids",
-    "{cmd} bs t 10MHz --sim-matched --format json",
+    f"{{cmd}} bw t 10MHz {_FAST_BUILD} --raw -e E12 --build-inductors calculated --sample-count 1 "
+    "--seed 3",
+    f"{{cmd}} bw pi 10MHz {_FAST_BUILD} --build-inductors toroid --inductor-suggestions best",
+    f"{{cmd}} bs t 10MHz {_FAST_BUILD} --format json --build-inductors air-coil",
     # Extreme but representable magnitudes stay finite in every format.
-    "{cmd} bw pi 1e-3 --format csv --no-toroids",
-    "{cmd} bw t 1e15 --no-toroids",
+    "{cmd} bw pi 1e-3 --format csv --inductor-suggestions none",
+    "{cmd} bw t 1e15 --inductor-suggestions none",
     "{cmd} bw pi 10MHz -z 1e-300 --format json",
-    "{cmd} bw pi 1e300 --plot --no-toroids",
+    "{cmd} bw pi 1e300 --plot --inductor-suggestions none",
     "{cmd} ch pi 10MHz -r 1e-320 --format spice --spice-realization exact --no-match",
 ]
 
@@ -147,15 +147,15 @@ _BANDPASS_VALID = [
     "bp bw t --fl 14MHz --fh 14.35MHz -n 2",
     "bp --type chebyshev -c top -f 7.15MHz -b 200kHz -n 9 -r 0.5 -q",
     "bp c top -f 10MHz -b 500kHz -n 3 -r 3.0 --raw",
-    "bp bessel top -f 455kHz -b 10kHz -n 9 --raw -q --no-toroids --no-match",
+    "bp bessel top -f 455kHz -b 10kHz -n 9 --raw -q --inductor-suggestions none --no-match",
     "bp bs t -f 100MHz -b 5MHz -n 4 --plot",
-    "bp b top -f 14.2MHz -b 500kHz --plot --toroid-compact -e E96 --qu 150",
-    "bp ch top -f 14.2MHz -b 500kHz -n 5 --toroid-full -e E12 --ql 180 --qc 500",
+    "bp b top -f 14.2MHz -b 500kHz --plot --inductor-suggestions compact -e E96 --qu 150",
+    "bp ch top -f 14.2MHz -b 500kHz -n 5 --inductor-suggestions full -e E12 --ql 180 --qc 500",
     "bp bw top -f 10MHz -b 500kHz -z 75 --no-match --resonator-impedance 100",
-    "bp bw top -f 14.2MHz -b 500kHz --tank-impedance 200ohm --format csv --no-toroids",
+    "bp bw top -f 14.2MHz -b 500kHz --tank-impedance 200ohm --format csv --inductor-suggestions none",
     "bp bw top -f 14.2MHz -b 500kHz --resonator-inductance 1.2uH --format json --qc 300",
     "bp bw top -f 14.2MHz -b 500kHz --tank-inductance 800nH --plot-data csv",
-    "bp ch top --fl 144MHz --fh 148MHz -n 5 -r 0.1 --format json -e E12 --no-toroids",
+    "bp ch top --fl 144MHz --fh 148MHz -n 5 -r 0.1 --format json -e E12 --inductor-suggestions none",
     "bp bw top -f 14.175MHz -b 350kHz --format json --no-match --q-safety 3",
     "bp bs top -f 7MHz -b 300kHz --format csv -e E96",
     "bp bw top -f 10MHz -b 500kHz --format spice",
@@ -163,18 +163,18 @@ _BANDPASS_VALID = [
     "bp bw top -f 10MHz -b 500kHz --format spice --spice-realization nominal-build --qu 200 "
     "-e E12 --source-resistance 25 --load-resistance 100 --loss-reference-frequency 9MHz",
     "bp bw top -f 10MHz -b 500kHz --format spice --inductor-q 100 --capacitor-q 500 "
-    "--no-toroid-build",
+    "--build-inductors calculated",
     "bp bw top -f 10MHz -b 500kHz --plot-data json",
-    "bp ch top -f 10MHz -b 500kHz -n 3 --plot-data csv --no-match --no-toroids",
-    f"bp bw top -f 10MHz -b 300kHz -n 2 {_FAST_BUILD} --no-toroids",
+    "bp ch top -f 10MHz -b 500kHz -n 3 --plot-data csv --no-match --inductor-suggestions none",
+    f"bp bw top -f 10MHz -b 300kHz -n 2 {_FAST_BUILD} --inductor-suggestions none",
     f"bp bs top --fl 14MHz --fh 14.35MHz -n 2 {_FAST_BUILD} --format json --qu 120 "
     "--cap-tolerance 2 --ind-tolerance 5 --source-resistance 25 --load-resistance 100 "
     "--loss-reference-frequency 14.1MHz --samples 1 --seed 5",
     f"bp bw top -f 10MHz -b 300kHz -n 2 {_FAST_BUILD} --raw -e E96 --inductor-q 80 "
-    "--no-toroid-build",
-    "bp bw top -f 10MHz -b 300kHz -n 2 --sim-matched --no-toroids",
-    "bp bw top -f 10MHz -b 300kHz -n 2 --sim-matched --format json --no-toroids",
-    "bp bw top -f 1e-3 -b 1e-4 --format csv --no-toroids",
+    "--build-inductors calculated",
+    f"bp bw top -f 10MHz -b 300kHz -n 2 {_FAST_BUILD} --build-inductors toroid",
+    f"bp bw top -f 10MHz -b 300kHz -n 2 {_FAST_BUILD} --format json --build-inductors chip",
+    "bp bw top -f 1e-3 -b 1e-4 --format csv --inductor-suggestions none",
     "bp bw top -f 1e300 -b 1e299 --format json",
 ]
 
@@ -303,9 +303,19 @@ _INVALID = [
         "Error: Loss reference frequency must be positive: nan",
     ),
     (
-        "lp bw pi 10MHz --toroid-compact --toroid-full",
+        "lp bw pi 10MHz --sim-build --inductor-suggestions none --build-inductors toroid",
         2,
-        "filter-calc lowpass: error: use only one of --toroid-compact or --toroid-full",
+        "filter-calc lowpass: error: There are no inductor suggestions to build with when "
+        "Inductor suggestions is None; the build uses the calculated inductances",
+    ),
+    (
+        "hp bw t 10MHz --build-inductors calculated",
+        2,
+        "filter-calc highpass: error: --build-inductors requires --sim-build or --format spice",
+    ),
+    *(
+        (f"{command} --sim-matched", 2, "filter-calc: error: unrecognized arguments: --sim-matched")
+        for command in ("lp bw pi 10MHz", "hp bw t 10MHz", "bp bw top -f 10MHz -b 300kHz -n 2")
     ),
     (
         "hp bw t 10MHz --format json --plot",

@@ -50,12 +50,9 @@ def _lp_args(**overrides):
         explain=False,
         eseries="E24",
         no_match=True,
-        sim_matched=False,
         plot=False,
         plot_data=None,
-        no_toroids=True,
-        toroid_compact=False,
-        toroid_full=False,
+        inductor_suggestions="none",
         _parser=ArgumentParser(prog="filter-calc lowpass"),
     )
     defaults.update(overrides)
@@ -80,12 +77,9 @@ def _hp_args(**overrides):
         explain=False,
         eseries="E24",
         no_match=True,
-        sim_matched=False,
         plot=False,
         plot_data=None,
-        no_toroids=True,
-        toroid_compact=False,
-        toroid_full=False,
+        inductor_suggestions="none",
         _parser=ArgumentParser(prog="filter-calc highpass"),
     )
     defaults.update(overrides)
@@ -114,12 +108,9 @@ def _bp_args(**overrides):
         explain=False,
         eseries="E24",
         no_match=True,
-        sim_matched=False,
         plot=False,
         plot_data=None,
-        no_toroids=True,
-        toroid_compact=False,
-        toroid_full=False,
+        inductor_suggestions="none",
         _parser=ArgumentParser(prog="filter-calc bandpass"),
     )
     defaults.update(overrides)
@@ -160,12 +151,17 @@ def test_namespace_helpers_mirror_real_parser_defaults(category, setup, argv):
     setup(parser)
     parsed = vars(parser.parse_args(argv))
     helper = vars(_ARGS[category]())
-    deliberate = {"quiet": True, "no_match": True, "no_toroids": True}
+    deliberate = {"quiet": True, "no_match": True, "inductor_suggestions": "none"}
 
     fields = set(helper) - {"_parser"} - set(deliberate)
     assert set(helper) - {"_parser"} <= set(parsed)
     assert {key: helper[key] for key in fields} == {key: parsed[key] for key in fields}
-    assert {key: parsed[key] for key in deliberate} == dict.fromkeys(deliberate, False)
+    assert {key: helper[key] for key in deliberate} == deliberate
+    assert {key: parsed[key] for key in deliberate} == {
+        "quiet": False,
+        "no_match": False,
+        "inductor_suggestions": None,
+    }
 
 
 # --- validate_filter_args / export_plot_data ---
@@ -309,7 +305,7 @@ class TestDesignDispatch:
             explain=True,
             quiet=False,
             no_match=False,
-            no_toroids=False,
+            inductor_suggestions=None,
             **design_fields,
         )
 

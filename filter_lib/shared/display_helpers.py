@@ -8,7 +8,7 @@ from collections.abc import Callable
 
 from .capacitor_choice import assumed_tolerance_pct
 from .capacitor_grades import SERIES, require_grade, tolerance_rule_text
-from .eseries import DEFAULT_MATCH_POLICY, TOLERANCE_NOT_SOURCED, MatchPolicy, match_component
+from .eseries import DEFAULT_MATCH_POLICY, TOLERANCE_NOT_SOURCED, ESeriesMatch, MatchPolicy
 from .formatting import format_fixed
 
 
@@ -18,7 +18,7 @@ def _signed_error_pct(error_pct: float) -> str:
     return f"+{rendered}" if float(rendered) > 0 else rendered
 
 
-# Rule under every table-output section heading (E-series, toroid). One width and
+# Rule under every table-output section heading (E-series, inductor suggestions). One width and
 # one character keep the sections visually consistent across LP/HP and bandpass.
 SECTION_RULE = "\u2500" * 50
 
@@ -95,31 +95,20 @@ def _wrap_pieces(lead: str, pieces: list[str]) -> list[str]:
     return lines
 
 
-def format_eseries_match(
-    value: float,
-    series: str,
-    unit_formatter: Callable[[float], str],
-    parallel_mode: str | None = None,
-    policy: MatchPolicy | None = None,
-) -> list[str]:
-    """Format the E-series choice for one component.
+def format_eseries_match(match: ESeriesMatch, unit_formatter: Callable[[float], str]) -> list[str]:
+    """Format the standard-value choice ``design()`` resolved for one capacitor.
 
     ``Use:`` names the chosen option. ``Nearest single:`` appears only when the
     choice is a parallel pair, or as a reference value when no part is chosen
     (targets below the automatic-selection floor).
 
     Args:
-        value: Component value to match
-        series: E-series name (E12, E24, E96)
+        match: The resolved choice (``ResolvedParts.capacitor``)
         unit_formatter: Function to format value with units (e.g., format_capacitance)
-        parallel_mode: 'additive' for capacitors, 'harmonic' for inductors/resistors.
-                       Required — must match the component physics.
-        policy: Match policy (None selects the default, which chooses no part below 1 pF)
 
     Returns:
         List of indented lines: the chosen option, then any reference or warning lines
     """
-    match = match_component(value, series, parallel_mode=parallel_mode, policy=policy)
     single = f"{unit_formatter(match.single_value)} ({_signed_error_pct(match.single_error_pct)}%)"
     nearest = (
         f"{unit_formatter(match.nearest_value)} ({_signed_error_pct(match.nearest_error_pct)}%)"

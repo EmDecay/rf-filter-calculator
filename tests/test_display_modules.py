@@ -11,6 +11,7 @@ import re
 import pytest
 
 from filter_lib.bandpass.diagrams import format_top_c_diagram
+from filter_lib.design import DesignRequest, RenderOptions, design, render_lines
 from filter_lib.highpass import display as hp_display
 from filter_lib.lowpass import display as lp_display
 from filter_lib.shared.display_common import (
@@ -25,18 +26,28 @@ from filter_lib.shared.display_common import (
     print_header,
 )
 from filter_lib.shared.display_helpers import format_eseries_match
-from filter_lib.shared.eseries import DEFAULT_MATCH_POLICY
+from filter_lib.shared.eseries import DEFAULT_MATCH_POLICY, match_component
 from filter_lib.shared.formatting import format_capacitance
+from filter_lib.shared.resolved_parts import ResolvedParts
 from filter_lib.shared.topology_diagrams import (
     format_pi_topology_diagram,
     format_t_topology_diagram,
 )
+from tests.parts_helpers import parts_for
 
 # Fixtures lowpass_result, highpass_result, lowpass_t_result, and highpass_pi_result
 # come from conftest.py.
 
 _ORDERS = range(2, 10)
 _LABELINGS = [("L", "C"), ("C", "L")]  # (series, shunt): lowpass, highpass
+# Parts of a bare result dict that has no circuit to resolve: no standard values and no
+# inductor suggestions, so only the component values are formatted.
+NO_PARTS = ResolvedParts(eseries=None, match_policy=DEFAULT_MATCH_POLICY, inductor_detail="none")
+
+
+def _capacitor_match(value: float, eseries: str):
+    """The standard-value choice ``design()`` resolves for one capacitor of ``value``."""
+    return match_component(value, eseries, parallel_mode="additive")
 
 
 def _centered_label(line: str, column: int, label: str) -> str:
@@ -197,7 +208,8 @@ class TestQuietOutput:
 
 
 def test_csv_without_preferred_values_has_only_value_columns(lowpass_t_result):
-    output = lp_display.format_csv(lowpass_t_result, include_toroids=False)
+    parts = parts_for(lowpass_t_result, "lowpass", eseries=None, inductor_detail="none")
+    output = lp_display.format_csv(lowpass_t_result, parts)
 
     assert output.splitlines() == [
         "Component,Value,Unit",
@@ -210,16 +222,17 @@ def test_csv_without_preferred_values_has_only_value_columns(lowpass_t_result):
 
 
 def test_json_rejects_non_finite_component_instead_of_emitting_nan(lowpass_result):
+    parts = parts_for(lowpass_result, "lowpass", eseries=None, inductor_detail="none")
     lowpass_result["capacitors"][0] = float("nan")
 
     with pytest.raises(ValueError, match=r"\$\.components\.capacitors\[0\]"):
-        format_json_result(lowpass_result, primary_component="capacitors")
+        format_json_result(lowpass_result, parts, primary_component="capacitors")
 
 
 class TestStandardMatchRecommendationMetadata:
     def test_single_within_one_percent_is_the_explicit_selection(self):
         """Above 10 nF the series makes no part, so the nominal rule's 1 % window applies."""
-        data = build_standard_match(100.9e-9, "E24", "value_farads", "additive")
+        data = build_standard_match(_capacitor_match(100.9e-9, "E24"), "E24", "value_farads")
 
         assert data["status"] == "tolerance_not_sourced"
         assert data["tolerance_basis"] == "assumed"
@@ -229,7 +242,7 @@ class TestStandardMatchRecommendationMetadata:
         assert data["policy"] == DEFAULT_MATCH_POLICY.as_dict()
 
     def test_sourced_choice_is_marked_sourced(self):
-        data = build_standard_match(13.4744e-12, "E24", "value_farads", "additive")
+        data = build_standard_match(_capacitor_match(13.4744e-12, "E24"), "E24", "value_farads")
 
         assert (data["status"], data["tolerance_basis"]) == ("recommended", "sourced")
         assert [part["value_farads"] for part in data["selected"]["components"]] == pytest.approx(
@@ -239,7 +252,7 @@ class TestStandardMatchRecommendationMetadata:
         assert data["nearest"]["value_farads"] == pytest.approx(13e-12, rel=1e-12, abs=0)
 
     def test_material_parallel_pair_is_the_explicit_selection(self):
-        data = build_standard_match(138.8e-12, "E24", "value_farads", "additive")
+        data = build_standard_match(_capacitor_match(138.8e-12, "E24"), "E24", "value_farads")
 
         assert data["selected"]["kind"] == "parallel"
         assert data["parallel"]["components"] == data["selected"]["components"]
@@ -248,7 +261,7 @@ class TestStandardMatchRecommendationMetadata:
         )
 
     def test_sub_pf_target_exports_warning_without_selection(self):
-        data = build_standard_match(0.62e-12, "E24", "value_farads", "additive")
+        data = build_standard_match(_capacitor_match(0.62e-12, "E24"), "E24", "value_farads")
 
         assert data["status"] == "expert_override_required"
         assert data["selected"] is None
@@ -260,22 +273,22 @@ class TestNegativeZeroErrorText:
 
     def test_csv_single_error_cells_are_unsigned_zero(self):
         # 35.71 pF -> E96 35.7 pF is -0.028 %, which rounds to zero at one decimal.
-        fields = csv_match_fields(35.71e-12, format_capacitance, "E96", "additive")
+        fields = csv_match_fields(_capacitor_match(35.71e-12, "E96"), format_capacitance, "E96")
 
         assert fields[2] == "0.0"
         assert fields[6:9] == ["single", "35.70 pF", "0.0"]
 
     def test_csv_parallel_error_cells_are_unsigned_zero(self):
         # 184.91 pF -> 184.9 pF (E96 54.9 pF || 130 pF, tied with 30.9 || 154) is -0.005 %.
-        fields = csv_match_fields(184.91e-12, format_capacitance, "E96", "additive")
+        fields = csv_match_fields(_capacitor_match(184.91e-12, "E96"), format_capacitance, "E96")
 
         assert fields[4] == "0.0"
         assert fields[6] == "parallel"
         assert fields[8] == "0.0"
 
     def test_table_nearest_and_parallel_errors_are_unsigned_zero(self):
-        single = format_eseries_match(35.71e-12, "E96", format_capacitance, "additive")
-        parallel = format_eseries_match(184.91e-12, "E96", format_capacitance, "additive")
+        single = format_eseries_match(_capacitor_match(35.71e-12, "E96"), format_capacitance)
+        parallel = format_eseries_match(_capacitor_match(184.91e-12, "E96"), format_capacitance)
 
         # E96 35.7 pF is not a value the sourced series makes, hence the note lines.
         assert single[0] == "  Use:            35.70 pF (0.0%)"
@@ -285,47 +298,62 @@ class TestNegativeZeroErrorText:
 
     def test_table_positive_error_that_rounds_to_zero_is_also_unsigned(self):
         # 35.69 pF -> E96 35.7 pF is +0.028 %; a sign is shown only on a nonzero rendering.
-        assert format_eseries_match(35.69e-12, "E96", format_capacitance, "additive")[0] == (
+        assert format_eseries_match(_capacitor_match(35.69e-12, "E96"), format_capacitance)[0] == (
             "  Use:            35.70 pF (0.0%)"
         )
-        assert format_eseries_match(318.31e-12, "E24", format_capacitance, "additive")[1] == (
+        assert format_eseries_match(_capacitor_match(318.31e-12, "E24"), format_capacitance)[1] == (
             "  Nearest single: 330.00 pF (+3.7%)"
         )
 
 
-class TestDisplayResultsRouting:
+def _ladder_design(category: str, topology: str, eseries: str | None = "E24"):
+    """An order-5 Butterworth ladder at 10 MHz without inductor suggestions."""
+    return design(
+        DesignRequest(
+            category=category,
+            filter_type="butterworth",
+            topology=topology,
+            frequency_hz=10e6,
+            impedance=50.0,
+            order=5,
+            eseries=eseries,
+            inductor_suggestions="none",
+        )
+    )
+
+
+class TestRenderLinesRouting:
     @pytest.mark.parametrize(
-        ("module", "fixture"),
-        [(lp_display, "lowpass_result"), (hp_display, "highpass_pi_result")],
+        ("module", "category", "topology"),
+        [(lp_display, "lowpass", "pi"), (hp_display, "highpass", "pi")],
     )
     @pytest.mark.parametrize("show_match", [True, False])
-    def test_machine_formats_print_formatter_output(
-        self, module, fixture, show_match, request, capsys
-    ):
-        result = request.getfixturevalue(fixture)
-        eseries = "E24" if show_match else None
+    def test_machine_formats_render_formatter_output(self, module, category, topology, show_match):
+        outcome = _ladder_design(category, topology, eseries="E24" if show_match else None)
         expected = {
-            "json": module.format_json(result, eseries=eseries, include_toroids=False) + "\n",
-            "csv": module.format_csv(result, eseries=eseries, include_toroids=False) + "\n",
+            "json": module.format_json(outcome.result, outcome.parts),
+            "csv": module.format_csv(outcome.result, outcome.parts),
         }
 
         for output_format, text in expected.items():
-            module.display_results(
-                result, output_format=output_format, show_match=show_match, include_toroids=False
-            )
-            assert capsys.readouterr().out == text
+            assert render_lines(outcome, RenderOptions(output_format=output_format)) == [text]
         payload = json.loads(expected["json"])
         assert ("standard_match" in payload["components"]["capacitors"][0]) is show_match
 
-    def test_quiet_table_prints_quiet_listing(self, highpass_pi_result, capsys):
-        hp_display.display_results(highpass_pi_result, quiet=True)
-        assert capsys.readouterr().out == hp_display.format_quiet(highpass_pi_result) + "\n"
+    def test_quiet_output_renders_quiet_listing(self):
+        outcome = _ladder_design("highpass", "pi")
 
-    def test_raw_table_omits_preferred_value_selection(self, lowpass_result, capsys):
-        lp_display.display_results(lowpass_result, raw=True, show_match=True, include_toroids=False)
-        out = capsys.readouterr().out
+        assert render_lines(outcome, RenderOptions(output_format="quiet")) == [
+            hp_display.format_quiet(outcome.result)
+        ]
 
-        assert "│ C1: 1.000000e-10 F     │ L1: 1.000000e-06 H     │" in out.splitlines()
+    def test_raw_table_omits_preferred_value_selection(self):
+        outcome = _ladder_design("lowpass", "pi")
+        c1, l1 = outcome.result["capacitors"][0], outcome.result["inductors"][0]
+
+        out = "\n".join(render_lines(outcome, RenderOptions(raw=True)))
+
+        assert f"│ {f'C1: {c1:.6e} F':<22} │ {f'L1: {l1:.6e} H':<22} │" in out.splitlines()
         assert "Standard Capacitor Values" not in out
 
 
@@ -340,7 +368,7 @@ class TestJsonResultComponentValues:
             "inductors": [],
             "ripple": None,
         }
-        data = json.loads(format_json_result(result_dict))
+        data = json.loads(format_json_result(result_dict, NO_PARTS))
         assert data["components"]["capacitors"] == []
         assert data["components"]["inductors"] == []
 
@@ -354,7 +382,7 @@ class TestJsonResultComponentValues:
             "inductors": [1e-12, 1],  # picohenry to henry
             "ripple": None,
         }
-        data = json.loads(format_json_result(result_dict))
+        data = json.loads(format_json_result(result_dict, NO_PARTS))
         assert data["components"]["capacitors"][0]["value_farads"] == 1e-15
         assert data["components"]["capacitors"][1]["value_farads"] == 1e-3
         assert data["components"]["inductors"][0]["value_henries"] == 1e-12
@@ -363,11 +391,11 @@ class TestJsonResultComponentValues:
 
 class TestCsvResultRows:
     def test_empty_components_produce_header_only(self):
-        output = format_csv_result({"capacitors": [], "inductors": []})
+        output = format_csv_result({"capacitors": [], "inductors": []}, NO_PARTS)
         assert output.strip().split("\n") == ["Component,Value,Unit"]
 
     def test_extreme_capacitances_split_into_value_and_unit_columns(self):
-        output = format_csv_result({"capacitors": [1e-15, 1e-3], "inductors": []})
+        output = format_csv_result({"capacitors": [1e-15, 1e-3], "inductors": []}, NO_PARTS)
         assert output.strip().split("\n") == [
             "Component,Value,Unit",
             "C1,1.00,fF",
@@ -375,7 +403,9 @@ class TestCsvResultRows:
         ]
 
     def test_sub_nanohenry_inductance_uses_the_picohenry_unit_column(self):
-        output = format_csv_result({"capacitors": [], "inductors": [1e-12, 1.5915e-11, 1e-13, 1.0]})
+        output = format_csv_result(
+            {"capacitors": [], "inductors": [1e-12, 1.5915e-11, 1e-13, 1.0]}, NO_PARTS
+        )
         assert output.strip().split("\n") == [
             "Component,Value,Unit",
             "L1,1.00,pH",

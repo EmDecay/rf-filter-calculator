@@ -7,7 +7,7 @@ function, bandpass simulates the synthesized circuit.
 
 from __future__ import annotations
 
-from ..shared.cli_aliases import DEFAULT_ESERIES, DEFAULT_RIPPLE_DB
+from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from .design_result import DesignResult
 from .render_options import needs_eseries_message
 
@@ -63,8 +63,8 @@ def export_spice(outcome: DesignResult, realization: str) -> str:
     """Return the SPICE deck for ``realization`` (``exact`` or ``nominal_build``).
 
     The deck ends with its own newline, so callers write it unchanged. The chosen-parts
-    deck uses the outcome's standard values, match policy, and build settings, so it
-    picks the same capacitors as every other output; it never runs the build
+    deck uses the outcome's resolved parts and build settings, so it has the same
+    capacitors and inductors as every other output; it never runs the build
     simulation's tolerance cases.
     """
     from ..shared.spice_export import export_spice_deck
@@ -76,6 +76,5 @@ def export_spice(outcome: DesignResult, realization: str) -> str:
         outcome.category,
         realization=realization,
         config=outcome.realization,
-        eseries=outcome.eseries or DEFAULT_ESERIES,
-        policy=outcome.match_policy,
+        parts=outcome.parts,
     )

@@ -1,7 +1,7 @@
 """Everything the web UI shows or downloads is byte-identical to ``filter-calc`` output.
 
 Each design moves its fields off the web defaults (impedance, order, ripple, E-series,
-toroid detail, tank settings), so a form field the web drops or misreads changes the
+inductor suggestion detail, tank settings), so a form field the web drops or misreads changes the
 document and fails the comparison against live CLI stdout.
 """
 
@@ -16,7 +16,11 @@ pytest.importorskip("fastapi")
 from tests.cli_parity_helpers import cli_stdout  # noqa: E402
 from tests.web_helpers import HTMX, output_text, web_client  # noqa: E402
 
-TOROID_FLAG = {"best": (), "full": ("--toroid-full",), "compact": ("--toroid-compact",)}
+INDUCTOR_FLAG = {
+    "best": (),
+    "full": ("--inductor-suggestions", "full"),
+    "compact": ("--inductor-suggestions", "compact"),
+}
 EXPORT_FLAGS = {
     "json": ("--format", "json"),
     "csv": ("--format", "csv"),
@@ -44,10 +48,15 @@ class Design:
     argv: tuple[str, ...]
     fields: dict = field(default_factory=dict)
     eseries: str = "E24"
-    toroids: str = "best"
+    inductor_suggestions: str = "best"
 
     def form(self, **extra) -> dict:
-        return {**self.fields, "eseries": self.eseries, "toroids": self.toroids, **extra}
+        return {
+            **self.fields,
+            "eseries": self.eseries,
+            "inductor_suggestions": self.inductor_suggestions,
+            **extra,
+        }
 
     def cli_argv(self, mode: str, *flags: str) -> tuple[str, ...]:
         """CLI arguments for ``mode`` (an export kind or ``table``)."""
@@ -55,7 +64,7 @@ class Design:
         if mode in ESERIES_MODES:
             argv += ["--no-match"] if self.eseries == "none" else ["-e", self.eseries]
         if mode == "table":
-            argv += TOROID_FLAG[self.toroids]
+            argv += INDUCTOR_FLAG[self.inductor_suggestions]
         else:
             argv += EXPORT_FLAGS[mode]
         return (*argv, *flags)
@@ -75,7 +84,7 @@ DESIGNS = [
             ripple="0.25",
         ),
         eseries="E96",
-        toroids="full",
+        inductor_suggestions="full",
     ),
     Design(
         "hp-bessel-pi",
@@ -83,7 +92,7 @@ DESIGNS = [
         ("hp", "bs", "pi", "3.5MHz", "-n", "4", "-z", "50"),
         dict(filter_type="bessel", topology="pi", frequency="3.5MHz", components="4"),
         eseries="E12",
-        toroids="compact",
+        inductor_suggestions="compact",
     ),
     Design(
         "bp-butterworth-tank",
@@ -129,7 +138,7 @@ DESIGNS = [
             ripple="0.25",
             resonator_inductance="1.5uH",
         ),
-        toroids="full",
+        inductor_suggestions="full",
     ),
 ]
 IDS = [design.id for design in DESIGNS]
@@ -187,16 +196,16 @@ TABLE_VARIANTS = [
 def test_design_view_shows_the_cli_text(monkeypatch, capsys, client, design, extra, flags):
     mode = extra.get("output_format", "table")
     if mode == "quiet" or extra.get("raw"):
-        # The CLI rejects explicit E-series and toroid-detail flags in these modes.
+        # The CLI rejects explicit E-series and inductor-detail flags in these modes.
         argv = (*design.argv, *flags)
-        form = design.form(**extra, eseries="E24", toroids="best")
+        form = design.form(**extra, eseries="E24", inductor_suggestions="best")
         if extra.get("raw"):
-            argv = (*design.argv, *TOROID_FLAG[design.toroids], *flags)
+            argv = (*design.argv, *INDUCTOR_FLAG[design.inductor_suggestions], *flags)
             form = design.form(**extra, eseries="E24")
     elif mode in ("json", "csv"):
-        # Toroid detail is table-only: the page disables it, so it is not sent.
+        # Inductor suggestion detail is table-only: the page disables it, so it is not sent.
         argv = design.cli_argv(mode)
-        form = {k: v for k, v in design.form(**extra).items() if k != "toroids"}
+        form = {k: v for k, v in design.form(**extra).items() if k != "inductor_suggestions"}
     else:
         argv = design.cli_argv("table", *flags)
         form = design.form(**extra)
@@ -261,13 +270,18 @@ def test_realized_build_output_is_the_cli_output(
 def test_nominal_spice_uses_the_submitted_loss_and_ports(monkeypatch, capsys, client):
     design = DESIGNS[1]
     form = design.form(
-        sim_build="on", build_capacitor_q="500", build_load_resistance="75", toroid_build="off"
+        sim_build="on",
+        build_capacitor_q="500",
+        build_load_resistance="75",
+        build_inductors="calculated",
     )
     expected = cli_stdout(
         monkeypatch,
         capsys,
         *design.cli_argv(
-            "spice-nominal", "--capacitor-q", "500", "--load-resistance", "75", "--no-toroid-build"
+            "spice-nominal",
+            *("--capacitor-q", "500", "--load-resistance", "75"),
+            *("--build-inductors", "calculated"),
         ),
     )
 

@@ -18,6 +18,11 @@ from .eseries import (
     STRAY_CAPACITANCE_HELP,
     SUB_PF_CLI_FLAG,
 )
+from .inductor_suggestion import (
+    INDUCTOR_DETAILS,
+    INDUCTOR_SUGGESTIONS_FLAG,
+    INDUCTOR_SUGGESTIONS_HELP,
+)
 from .numeric import require_count  # noqa: F401  (re-exported for the CLI and web)
 
 FILTER_TYPE_CHOICES = ["butterworth", "chebyshev", "bessel", "bw", "ch", "bs", "b", "c"]
@@ -226,13 +231,14 @@ def add_eseries_args(parser: ArgumentParser) -> None:
     )
 
 
-def add_sim_matched_arg(parser: ArgumentParser) -> None:
-    """Add the deprecated matched-value compatibility flag."""
+def add_inductor_suggestions_arg(parser: ArgumentParser) -> None:
+    """Add --inductor-suggestions (how much of the inductor suggestions outputs show)."""
     parser.add_argument(
-        "--sim-matched",
-        action="store_true",
-        help="Deprecated; use --sim-build. Compares the calculated design with the "
-        "chosen-parts build",
+        INDUCTOR_SUGGESTIONS_FLAG,
+        dest="inductor_suggestions",
+        choices=INDUCTOR_DETAILS,
+        default=None,
+        help=INDUCTOR_SUGGESTIONS_HELP,
     )
 
 

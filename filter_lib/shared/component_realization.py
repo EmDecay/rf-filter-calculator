@@ -7,8 +7,9 @@ from .build_types import DEFAULT_INDUCTOR_TOLERANCE_PCT, BuildConfig, ComponentS
 from .capacitor_choice import assumed_tolerance_pct
 from .circuit_display_names import STRAY_PREFIX, display_component_name
 from .circuit_model import CircuitElement
-from .eseries import MatchPolicy, match_component
-from .toroid_selection import find_core_candidates
+from .eseries import ESeriesMatch, MatchPolicy
+from .inductor_suggestion import SUGGESTED_INDUCTOR_METHOD
+from .resolved_parts import InductorParts
 
 
 def inductor_case_tolerance_pct(config: BuildConfig) -> float:
@@ -23,12 +24,12 @@ def _inductor_tolerance(config: BuildConfig) -> float:
 
 def _realize_capacitor(
     element: CircuitElement,
-    eseries: str,
+    match: ESeriesMatch,
     policy: MatchPolicy,
     quality_factor: float | None,
     reference_frequency_hz: float,
 ) -> tuple[list[CircuitElement], ComponentSubstitution, list[str]]:
-    match = match_component(element.value, eseries, parallel_mode="additive", policy=policy)
+    """Realize one capacitor as the parts ``design()`` chose for it (``match``)."""
     selected = match.selected_components
     if selected is None:
         warnings = list(match.warnings)
@@ -114,19 +115,16 @@ def stray_element(element: CircuitElement, value: float) -> CircuitElement:
 
 def _realize_inductor(
     element: CircuitElement,
+    parts: InductorParts,
     config: BuildConfig,
     quality_factor: float | None,
-    design_frequency_hz: float,
     loss_reference_frequency_hz: float,
 ) -> tuple[CircuitElement, ComponentSubstitution, list[str]]:
-    candidates = (
-        find_core_candidates(element.value, design_frequency_hz, top_n=1)
-        if config.use_toroid_candidates
-        else []
-    )
-    if candidates:
-        candidate = candidates[0]
-        value = candidate.winding.l_actual_h
+    """Realize one inductor as its build pick, or at its calculated value with the reason."""
+    name = display_component_name(element.name)
+    pick = parts.build_pick
+    if pick is not None:
+        value = pick.achieved_h
         realized = replace(
             element,
             value=value,
@@ -137,36 +135,27 @@ def _realize_inductor(
             tolerance=_inductor_tolerance(config),
         )
         realized = _with_loss(realized, quality_factor, loss_reference_frequency_hz)
+        # A toroid winding also records its core, turns, and wire.
+        toroid = pick.build if pick.kind == "toroid" else None
         substitution = ComponentSubstitution(
             logical_name=element.name,
             kind="L",
             calculated_value=element.value,
             nominal_value=value,
             physical_parts=(value,),
-            method="verified_toroid_integer_turns",
-            status=candidate.candidate_status,
-            warnings=candidate.warnings,
-            core_name=candidate.core.name,
-            turns=candidate.winding.n_turns,
-            wire_awg=candidate.mechanical.awg,
-            wire_length_mm=candidate.mechanical.wire_length_mm,
+            method=SUGGESTED_INDUCTOR_METHOD,
+            status=pick.status,
+            warnings=pick.warnings,
+            inductor_kind=pick.kind,
+            part_name=pick.part_name,
+            core_name=toroid.core.name if toroid is not None else None,
+            turns=toroid.winding.n_turns if toroid is not None else None,
+            wire_awg=toroid.mechanical.awg if toroid is not None else None,
+            wire_length_mm=toroid.mechanical.wire_length_mm if toroid is not None else None,
         )
-        name = display_component_name(element.name)
-        warnings = [f"{name}: {warning}" for warning in candidate.warnings]
-        return realized, substitution, warnings
+        return realized, substitution, [f"{name}: {warning}" for warning in pick.warnings]
 
-    if config.use_toroid_candidates:
-        status = "no_verified_candidate"
-        warning = (
-            f"{display_component_name(element.name)}: No suitable toroid; "
-            "the simulation uses the calculated value."
-        )
-    else:
-        status = "candidate_screen_disabled"
-        warning = (
-            f"{display_component_name(element.name)}: Toroid windings are off; "
-            "the simulation uses the calculated value."
-        )
+    warning = f"{name}: {parts.build_note} The simulation uses the calculated value."
     realized = _with_loss(
         replace(element, tolerance=_inductor_tolerance(config)),
         quality_factor,
@@ -179,7 +168,7 @@ def _realize_inductor(
         nominal_value=element.value,
         physical_parts=(element.value,),
         method="exact_fallback",
-        status=status,
+        status=parts.build_status,
         warnings=(warning,),
     )
     return realized, substitution, [warning]

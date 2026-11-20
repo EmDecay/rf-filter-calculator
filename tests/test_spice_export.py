@@ -9,6 +9,7 @@ from filter_lib.shared.build_simulation import BuildConfig, realize_nominal_buil
 from filter_lib.shared.netlist_builders import build_named_circuit
 from filter_lib.shared.spice_export import export_spice_deck
 from tests.cli_parity_helpers import cli_stdout
+from tests.parts_helpers import parts_for
 
 
 def _netlist(deck: str) -> dict[str, tuple[str, str, float]]:
@@ -94,11 +95,7 @@ class TestExactSpiceDecks:
             _lp_result(),
             "lowpass",
             realization="exact",
-            config=BuildConfig(
-                source_resistance_ohm=50,
-                load_resistance_ohm=75,
-                use_toroid_candidates=False,
-            ),
+            config=BuildConfig(source_resistance_ohm=50, load_resistance_ohm=75),
         )
         assert (
             deck
@@ -160,17 +157,16 @@ class TestDeckMatchesNamedCircuit:
         self, category, result, realization
     ):
         config = BuildConfig(
-            inductor_q=100,
-            capacitor_q=400,
-            source_resistance_ohm=25,
-            load_resistance_ohm=100,
-            use_toroid_candidates=False,
+            inductor_q=100, capacitor_q=400, source_resistance_ohm=25, load_resistance_ohm=100
         )
-        deck = export_spice_deck(result, category, realization=realization, config=config)
+        parts = parts_for(result, category, build_inductors="calculated")
+        deck = export_spice_deck(
+            result, category, realization=realization, config=config, parts=parts
+        )
         circuit = (
             build_named_circuit(result, category)
             if realization == "exact"
-            else realize_nominal_build(result, category, config).circuit
+            else realize_nominal_build(result, category, config, parts=parts).circuit
         )
 
         netlist = _netlist(deck)
@@ -236,10 +232,8 @@ class TestNominalSpiceDecks:
             result,
             "lowpass",
             realization="nominal_build",
-            config=BuildConfig(
-                capacitor_q=200,
-                use_toroid_candidates=False,
-            ),
+            config=BuildConfig(capacitor_q=200),
+            parts=parts_for(result, "lowpass", build_inductors="calculated"),
         )
 
         netlist = _netlist(deck)
@@ -263,9 +257,10 @@ class TestNominalSpiceDecks:
 
     def test_missing_toroid_candidate_fallback_is_visible_in_comments(self):
         deck = self._fallback_toroid_deck()
-        assert "* part used: L1 calculated value (no suitable toroid) calculated=" in deck
+        assert "* part used: L1 calculated value (no inductor suggestion used) calculated=" in deck
         assert (
-            "* warning: L1: No suitable toroid; the simulation uses the calculated value." in deck
+            "* warning: L1: No inductor suggestion qualifies. The simulation uses the calculated "
+            "value." in deck
         )
 
     def test_toroid_caveat_only_when_a_toroid_winding_was_used(self):
@@ -276,20 +271,20 @@ class TestNominalSpiceDecks:
         assert TOROID_LIMITATION not in without
         assert "* limitation: Chosen parts are simulated at their nominal values" in without
 
+        result = {
+            "filter_type": "butterworth",
+            "freq_hz": 10e6,
+            "impedance": 50.0,
+            "capacitors": [3.18309886184e-10, 3.18309886184e-10],
+            "inductors": [1.59154943092e-06],
+            "order": 3,
+            "topology": "pi",
+        }
         with_toroid = export_spice_deck(
-            {
-                "filter_type": "butterworth",
-                "freq_hz": 10e6,
-                "impedance": 50.0,
-                "capacitors": [3.18309886184e-10, 3.18309886184e-10],
-                "inductors": [1.59154943092e-06],
-                "order": 3,
-                "topology": "pi",
-            },
-            "lowpass",
-            realization="nominal_build",
+            result, "lowpass", realization="nominal_build", parts=parts_for(result, "lowpass")
         )
-        assert "core=T50-2" in with_toroid
+        assert "* part used: L1 toroid winding" in with_toroid
+        assert "part=T50-2" in with_toroid
         assert f"* limitation: {TOROID_LIMITATION}" in with_toroid
         assert with_toroid.count(TOROID_LIMITATION) == 1
 
@@ -304,15 +299,25 @@ class TestNominalSpiceDecks:
             "order": 1,
             "topology": "t",
         }
-        return export_spice_deck(result, "lowpass", realization="nominal_build")
+        return export_spice_deck(
+            result, "lowpass", realization="nominal_build", parts=parts_for(result, "lowpass")
+        )
 
     def test_nominal_deck_is_deterministic(self):
         config = BuildConfig(inductor_q=100, capacitor_q=200)
         first = export_spice_deck(
-            _lp_result(), "lowpass", realization="nominal_build", config=config
+            _lp_result(),
+            "lowpass",
+            realization="nominal_build",
+            config=config,
+            parts=parts_for(_lp_result(), "lowpass"),
         )
         second = export_spice_deck(
-            _lp_result(), "lowpass", realization="nominal_build", config=config
+            _lp_result(),
+            "lowpass",
+            realization="nominal_build",
+            config=config,
+            parts=parts_for(_lp_result(), "lowpass"),
         )
         assert first == second
 

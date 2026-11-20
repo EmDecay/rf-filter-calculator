@@ -5,15 +5,14 @@ supplies the highpass-specific configuration (labels, topology-to-component
 mapping, diagram builders, and response functions).
 """
 
-from ..shared.eseries import MatchPolicy
 from ..shared.lp_hp_display import (
     DiagramConfig,
     LpHpDisplayConfig,
-    display_results_for_config,
     format_csv_for_config,
     format_json_for_config,
     format_quiet_for_config,
 )
+from ..shared.resolved_parts import ResolvedParts
 from ..shared.topology_diagrams import format_pi_topology_diagram, format_t_topology_diagram
 from ..shared.transfer_response_dispatch import make_hp_response_db
 from .transfer import frequency_response, generate_frequency_points
@@ -47,85 +46,16 @@ HIGHPASS_DISPLAY_CONFIG = LpHpDisplayConfig(
 )
 
 
-def format_json(
-    result: dict,
-    eseries: str | None = None,
-    include_toroids: bool = True,
-    matched_sim: dict | None = None,
-    build_analysis=None,
-    match_policy: MatchPolicy | None = None,
-) -> str:
-    """Format results as JSON."""
-    return format_json_for_config(
-        result,
-        HIGHPASS_DISPLAY_CONFIG,
-        eseries,
-        include_toroids,
-        matched_sim,
-        build_analysis,
-        match_policy,
-    )
+def format_json(result: dict, parts: ResolvedParts, build_analysis=None) -> str:
+    """Format results as JSON with the parts ``design()`` resolved."""
+    return format_json_for_config(result, HIGHPASS_DISPLAY_CONFIG, parts, build_analysis)
 
 
-def format_csv(
-    result: dict,
-    eseries: str | None = None,
-    include_toroids: bool = True,
-    match_policy: MatchPolicy | None = None,
-) -> str:
-    """Format results as CSV."""
-    return format_csv_for_config(
-        result, HIGHPASS_DISPLAY_CONFIG, eseries, include_toroids, match_policy
-    )
+def format_csv(result: dict, parts: ResolvedParts) -> str:
+    """Format results as CSV with the parts ``design()`` resolved."""
+    return format_csv_for_config(result, HIGHPASS_DISPLAY_CONFIG, parts)
 
 
 def format_quiet(result: dict, raw: bool = False) -> str:
     """Format minimal output."""
     return format_quiet_for_config(result, HIGHPASS_DISPLAY_CONFIG, raw)
-
-
-def display_results(
-    result: dict,
-    raw: bool = False,
-    output_format: str = "table",
-    quiet: bool = False,
-    eseries: str = "E24",
-    show_match: bool = True,
-    show_plot: bool = False,
-    include_toroids: bool = True,
-    toroid_compact: bool = False,
-    toroid_full: bool = False,
-    matched_sim: dict | None = None,
-    build_analysis=None,
-) -> None:
-    """Display calculated filter component values.
-
-    Args:
-        result: Dict from the highpass calculation functions (inductors in
-            Henries, capacitors in Farads, plus freq/impedance/topology
-            metadata)
-        raw: If True, display values in scientific notation
-        output_format: 'table', 'json', or 'csv'
-        quiet: If True, output only component values
-        eseries: E-series name for capacitor matching (E12/E24/E96)
-        show_match: Include E-series matching section in table output
-        show_plot: Show ASCII frequency response
-        include_toroids: Include toroid winding recommendations
-        toroid_compact: Use compact 1-line-per-rec toroid text format
-        toroid_full: Show up to three qualified cores in table output (default top-1)
-    """
-    display_results_for_config(
-        result,
-        HIGHPASS_DISPLAY_CONFIG,
-        raw=raw,
-        output_format=output_format,
-        quiet=quiet,
-        eseries=eseries,
-        show_match=show_match,
-        show_plot=show_plot,
-        include_toroids=include_toroids,
-        toroid_compact=toroid_compact,
-        toroid_full=toroid_full,
-        matched_sim=matched_sim,
-        build_analysis=build_analysis,
-    )

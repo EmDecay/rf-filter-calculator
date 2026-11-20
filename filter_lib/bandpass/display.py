@@ -9,8 +9,7 @@ import textwrap
 from typing import Any
 
 from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
-from ..shared.display_helpers import eseries_section_lines
-from ..shared.eseries import MatchPolicy
+from ..shared.display_helpers import eseries_section_lines, format_eseries_match
 from ..shared.formatting import (
     band_edge_digits,
     format_capacitance,
@@ -20,25 +19,19 @@ from ..shared.formatting import (
     format_restated_frequency,
     format_restated_value,
 )
+from ..shared.inductor_display import (
+    has_suggestion,
+    inductor_note_line,
+    suggestion_section_lines,
+)
 from ..shared.plotting import (
     find_db_thresholds,
     format_threshold_table,
     render_bandpass_plot_pair,
 )
-from ..shared.response_export import export_response_csv, export_response_json, response_meta
-from ..shared.toroid_display import (
-    format_winding_candidate_section,
-    has_winding_suggestion,
-    inductor_note_line,
-)
+from ..shared.resolved_parts import ResolvedParts
 from .diagrams import format_top_c_diagram
-from .formatters import (
-    coupling_capacitor_rows,
-    format_csv,
-    format_eseries_match,
-    format_json,
-    format_quiet,
-)
+from .formatters import RESONATOR_INDUCTOR, capacitor_parts, coupling_capacitor_rows
 from .transfer import netlist_frequency_sweep
 
 # Type alias for filter result dict
@@ -61,118 +54,22 @@ _VALIDATION_STATUS_TEXT = {
 }
 
 
-def display_results(
-    result: BandpassResult,
-    raw: bool = False,
-    output_format: str = "table",
-    quiet: bool = False,
-    eseries: str | None = "E24",
-    show_plot: bool = False,
-    plot_data: str | None = None,
-    include_toroids: bool = True,
-    toroid_compact: bool = False,
-    toroid_full: bool = False,
-    matched_sim: dict[str, Any] | None = None,
-    build_analysis=None,
-) -> None:
-    """Display calculated filter component values.
-
-    Args:
-        result: Dict from calculate_bandpass_filter()
-        raw: If True, display values in scientific notation
-        output_format: 'table', 'json', or 'csv'
-        quiet: If True, output only component values
-        eseries: E-series for matching (None to disable)
-        show_plot: Show ASCII frequency response
-        plot_data: Export plot data as 'json' or 'csv'
-        include_toroids: Include toroid recommendations in output
-        toroid_compact: Use compact 1-line-per-rec text format
-        toroid_full: Show up to three qualified cores in table output (default top-1;
-            JSON carries up to three and CSV the best available)
-        matched_sim: Optional matched-value simulation summary attached to
-            JSON output as an additive ``matched_sim`` key
-        build_analysis: Optional realized-build analysis result attached to
-            JSON output; table rendering is handled by the command/wizard
-    """
-    # Handle plot data export (simulated from the synthesized circuit)
-    if plot_data:
-        sweep = netlist_frequency_sweep(result, points=PLOT_POINTS)
-        freqs = [f for f, _ in sweep]
-        response_db = [db for _, db in sweep]
-        if plot_data == "json":
-            print(export_response_json(freqs, response_db, response_meta("bandpass", result)))
-        else:
-            print(export_response_csv(freqs, response_db))
-        return
-
-    if output_format == "json":
-        print(
-            format_json(
-                result,
-                eseries=eseries,
-                include_toroids=include_toroids,
-                matched_sim=matched_sim,
-                build_analysis=build_analysis,
-            )
-        )
-        return
-    if output_format == "csv":
-        print(format_csv(result, eseries=eseries, include_toroids=include_toroids))
-        return
-    if quiet:
-        print(format_quiet(result, raw))
-        return
-
-    _print_table_output(
-        result, raw, eseries, show_plot, include_toroids, toroid_compact, toroid_full
-    )
-
-
-def _print_table_output(
-    result: BandpassResult,
-    raw: bool,
-    eseries: str | None,
-    show_plot: bool,
-    include_toroids: bool = True,
-    toroid_compact: bool = False,
-    toroid_full: bool = False,
-) -> None:
-    """Print full table output with diagram and component values."""
-    lines = format_table_lines(
-        result,
-        raw=raw,
-        eseries=eseries,
-        show_plot=show_plot,
-        include_toroids=include_toroids,
-        toroid_compact=toroid_compact,
-        toroid_full=toroid_full,
-    )
-    print("\n".join(lines))
-    print()
-
-
 def format_table_lines(
     result: BandpassResult,
+    parts: ResolvedParts,
     *,
     raw: bool = False,
-    eseries: str | None = "E24",
     show_plot: bool = False,
-    include_toroids: bool = True,
-    toroid_compact: bool = False,
-    toroid_full: bool = False,
-    match_policy: MatchPolicy | None = None,
 ) -> list[str]:
-    """Render the bandpass table output as lines, for the CLI and the wizard.
+    """Render the bandpass table output as lines, for the CLI, the wizard, and the web.
 
     Args:
         result: Dict from calculate_bandpass_filter()
+        parts: The parts ``design()`` resolved: the standard-value section shows their
+            capacitor choices (when the design has an E-series), the suggestion
+            section the shared resonator inductance's suggestions at their detail
         raw: Print SI values in scientific notation and skip preferred values
-        eseries: E-series for the preferred-value section (None to omit it)
         show_plot: Append the simulated response plot and threshold table
-        include_toroids: Append the shared-inductance winding candidates
-        toroid_compact: One line per winding candidate
-        toroid_full: Up to three candidates instead of the best one
-        match_policy: E-series match policy (None selects the default policy)
     """
     lines = format_header_lines(result)
 
@@ -196,14 +93,19 @@ def format_table_lines(
     lines.extend(format_validation_scope_lines(result))
 
     lines.extend(["\nTopology:", format_top_c_diagram(result["n_resonators"])])
-    lines.extend(_component_table_lines(result, raw, mention_toroids=include_toroids))
+    resonator = parts.inductor(RESONATOR_INDUCTOR) if parts.shows_suggestions else None
+    lines.extend(
+        _component_table_lines(
+            result, raw, mention_suggestions=resonator is not None and has_suggestion([resonator])
+        )
+    )
     lines.extend(_external_q_lines(result))
 
-    if eseries and not raw:
-        lines.extend(format_eseries_lines(result, eseries, match_policy))
+    if parts.eseries and not raw:
+        lines.extend(format_eseries_lines(result, parts))
 
-    if include_toroids:
-        lines.extend(format_toroid_block_lines(result, toroid_compact, 3 if toroid_full else 1))
+    if resonator is not None:
+        lines.extend(format_suggestion_block_lines(result, parts))
 
     if show_plot:
         lines.extend(_frequency_response_lines(result))
@@ -351,21 +253,21 @@ def format_q_model_lines(result: BandpassResult) -> list[str]:
     return ["", f"Your Qu: {qu_text}{source}"]
 
 
-def format_toroid_block_lines(
-    result: BandpassResult, compact: bool = False, top_n: int = 1
-) -> list[str]:
-    """Shared-L_resonant toroid section as lines for the CLI and wizard.
+def format_suggestion_block_lines(result: BandpassResult, parts: ResolvedParts) -> list[str]:
+    """Shared-L_resonant suggestion section as lines for every surface.
 
     Every resonator uses the same inductance, so one block labelled for
     L1…Ln replaces per-inductor repetition.
     """
     label = f"L1–L{result['n_resonators']} (all equal)"
-    return format_winding_candidate_section(
-        [(label, result["L_resonant"])], result["f0"], compact, top_n
+    return suggestion_section_lines(
+        [(label, parts.inductor(RESONATOR_INDUCTOR))], result["f0"], parts.inductor_detail
     )
 
 
-def _component_table_lines(result: BandpassResult, raw: bool, mention_toroids: bool) -> list[str]:
+def _component_table_lines(
+    result: BandpassResult, raw: bool, mention_suggestions: bool
+) -> list[str]:
     """Tank capacitor / inductor table followed by the coupling capacitor table.
 
     Rules are 24 box-drawing characters; each cell is padded to 22 characters plus
@@ -387,11 +289,7 @@ def _component_table_lines(result: BandpassResult, raw: bool, mention_toroids: b
             ind_str = f"L{i + 1}: {format_inductance(result['L_resonant'])}"
         lines.append(f"│ {cap_str:<22} │ {ind_str:<22} │")
     lines.append(f"└{rule}┴{rule}┘")
-    lines.append(
-        inductor_note_line(
-            mention_toroids and has_winding_suggestion([result["L_resonant"]], result["f0"])
-        )
-    )
+    lines.append(inductor_note_line(mention_suggestions))
 
     lines += [f"\n┌{rule}┐", f"│{'Coupling Capacitors':^24}│", f"├{rule}┤"]
     for label, value in coupling_capacitor_rows(result):
@@ -411,18 +309,15 @@ def _external_q_lines(result: BandpassResult) -> list[str]:
     ]
 
 
-def format_eseries_lines(
-    result: BandpassResult, eseries: str, policy: MatchPolicy | None = None
-) -> list[str]:
-    """Standard-value choice for every tank and coupling capacitor.
+def format_eseries_lines(result: BandpassResult, parts: ResolvedParts) -> list[str]:
+    """Standard-value choice ``design()`` resolved for every tank and coupling capacitor.
 
-    Inductors are wound to value, so they get no standard-value matching.
+    Inductors have no standard values, so they get no standard-value choice.
     """
-    lines = eseries_section_lines(eseries, policy=policy)
-    rows = [(f"Cp{i + 1}", c_tank) for i, c_tank in enumerate(result["c_tank"])]
-    for label, value in rows + coupling_capacitor_rows(result):
+    lines = eseries_section_lines(parts.eseries, policy=parts.match_policy)
+    for label, circuit_name, value in capacitor_parts(result):
         lines.append(f"{label} calculated {format_capacitance(value)}")
-        lines.extend(format_eseries_match(value, eseries, format_capacitance, policy))
+        lines.extend(format_eseries_match(parts.capacitor(circuit_name), format_capacitance))
     return lines
 
 

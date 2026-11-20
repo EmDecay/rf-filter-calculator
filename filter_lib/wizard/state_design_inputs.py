@@ -14,9 +14,11 @@ from typing import TYPE_CHECKING
 from filter_lib.design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    BUILD_INDUCTORS,
     CAPACITOR_GRADE,
     CAPACITOR_TOLERANCE,
     ESERIES,
+    INDUCTOR_DETAIL,
     LOSS_Q,
     LOSS_Q_NOT_SHOWN_MESSAGE,
     OPTIONS,
@@ -24,8 +26,6 @@ from filter_lib.design.option_applicability import (
     RESPONSE_DOCUMENTS,
     STRAY_CAPACITANCE,
     TEXT_PLOT,
-    TOROID_BUILD,
-    TOROID_DETAIL,
     OutputChoices,
     document_options,
     document_reason,
@@ -35,6 +35,11 @@ from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.capacitor_grades import DEFAULT_GRADE
 from filter_lib.shared.cli_aliases import DEFAULT_ESERIES
 from filter_lib.shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
+from filter_lib.shared.inductor_suggestion import (
+    DEFAULT_BUILD_INDUCTORS,
+    DEFAULT_INDUCTOR_DETAIL,
+    NON_DEFAULT_TABLE_DETAILS,
+)
 
 if TYPE_CHECKING:
     from filter_lib.design import DesignRequest, DesignResult, RenderOptions
@@ -60,11 +65,6 @@ class DesignInputsMixin:
         return self.output_format
 
     @property
-    def include_toroids(self) -> bool:
-        """False when Toroid windings is None (CLI --no-toroids)."""
-        return self.toroid_detail != "none"
-
-    @property
     def has_resonator_q(self) -> bool:
         """Whether a resonator Q (Qu, inductor Q, or capacitor Q) is entered (band-pass only)."""
         return self.category == "bandpass" and any(
@@ -78,7 +78,7 @@ class DesignInputsMixin:
             eseries=None if self.eseries == "none" else self.eseries,
             raw=self.raw_units,
             build=self.build_analysis_enabled,
-            include_toroids=self.include_toroids,
+            inductor_detail=self.inductor_detail,
         )
 
     def option_reasons(self) -> dict[str, str]:
@@ -93,11 +93,11 @@ class DesignInputsMixin:
             CAPACITOR_GRADE: self.capacitor_grade != DEFAULT_GRADE,
             CAPACITOR_TOLERANCE: bool(self.capacitor_tolerance_text.strip()),
             STRAY_CAPACITANCE: bool(self.stray_capacitance_text.strip()),
-            TOROID_DETAIL: self.toroid_detail in ("full", "compact"),
+            INDUCTOR_DETAIL: self.inductor_detail in NON_DEFAULT_TABLE_DETAILS,
             TEXT_PLOT: self.show_plot,
             RAW_UNITS: self.raw_units,
             BUILD: self.build_analysis_enabled,
-            TOROID_BUILD: not self.build_use_toroid_candidates,
+            BUILD_INDUCTORS: self.build_inductors != DEFAULT_BUILD_INDUCTORS,
             LOSS_Q: self.has_resonator_q,
         }
         return frozenset(option for option in OPTIONS if chosen[option])
@@ -154,6 +154,12 @@ class DesignInputsMixin:
             return DEFAULT_ESERIES
         return None if self.eseries == "none" else self.eseries
 
+    def _inductor_detail_for(self, options: frozenset[str]) -> str:
+        """The inductor detail used: None on every output, full or compact where it applies."""
+        if self.inductor_detail == "none" or INDUCTOR_DETAIL in options:
+            return self.inductor_detail
+        return DEFAULT_INDUCTOR_DETAIL
+
     def make_build_config(self) -> BuildConfig:
         """Return the shared build settings for the current controls."""
         return BuildConfig(
@@ -166,8 +172,6 @@ class DesignInputsMixin:
             sample_count=self.build_sample_count,
             seed=self.build_seed,
             grid_points=self.build_grid_points,
-            # --no-toroids also leaves the windings out of the build (CLI rule).
-            use_toroid_candidates=self.include_toroids and self.build_use_toroid_candidates,
         )
 
     def _design_request(self, options: frozenset[str], include_build: bool) -> DesignRequest:
@@ -202,7 +206,13 @@ class DesignInputsMixin:
                 if STRAY_CAPACITANCE in options
                 else DEFAULT_STRAY_CAPACITANCE_F
             ),
+            inductor_suggestions=self._inductor_detail_for(options),
             # The wizard has no SPICE output, so the build settings matter only to a build.
+            build_inductors=(
+                self.build_inductors
+                if include_build and BUILD_INDUCTORS in options
+                else DEFAULT_BUILD_INDUCTORS
+            ),
             realization=self.make_build_config() if include_build else None,
             run_build_analysis=include_build,
         )
@@ -239,16 +249,17 @@ class DesignInputsMixin:
     def needs_own_design(self, document: str) -> bool:
         """Whether a saved ``document`` needs a design the result shown cannot give.
 
-        The result is reused only for an equal request (same inputs and the same build);
-        any other document is designed when it is saved, unless that was already done.
+        The result is reused only for an equal request (same inputs and the same build;
+        the table-only inductor detail does not count, as no saved file shows it); any
+        other document is designed when it is saved, unless that was already done.
         """
         outcome = self.design_outcome
         shown = outcome.request if outcome is not None else self.to_design_request()
         request = self.document_request(document)
-        if request == shown:
+        if _same_documents(request, shown):
             return False
         stored = self.document_designs.get(document)
-        return stored is None or stored.request != request
+        return stored is None or not _same_documents(stored.request, request)
 
     def to_render_options(self) -> RenderOptions:
         """Return the shared render options for the result shown.
@@ -259,14 +270,10 @@ class DesignInputsMixin:
         from filter_lib.design import RenderOptions
 
         applied = self.applied_options()
-        detail = self.toroid_detail if TOROID_DETAIL in applied else "best"
         return RenderOptions(
             output_format=self.shown_format,
             raw=RAW_UNITS in applied,
             show_plot=TEXT_PLOT in applied,
-            include_toroids=self.include_toroids,
-            toroid_compact=detail == "compact",
-            toroid_full=detail == "full",
             trailing_blank=False,
             build_target_note=True,
         )
@@ -275,7 +282,7 @@ class DesignInputsMixin:
         """Render options of a saved JSON or CSV document (``--format json``/``csv``)."""
         from filter_lib.design import RenderOptions
 
-        return RenderOptions(output_format=document, include_toroids=self.include_toroids)
+        return RenderOptions(output_format=document)
 
     def design_result(self, document: str | None = None) -> DesignResult:
         """Return the shared ``DesignResult`` of the result shown, or of a saved document.
@@ -291,9 +298,14 @@ class DesignInputsMixin:
         if document is None:
             return outcome
         request = self.document_request(document)
-        if request == outcome.request:
+        if _same_documents(request, outcome.request):
             return outcome
         stored = self.document_designs.get(document)
-        if stored is None or stored.request != request:
+        if stored is None or not _same_documents(stored.request, request):
             raise ValueError(INTERNAL_NO_RESULT_MESSAGE)
         return stored
+
+
+def _same_documents(first: DesignRequest, second: DesignRequest) -> bool:
+    """Whether two requests give the same saved files (the table-only detail aside)."""
+    return first.without_table_detail() == second.without_table_detail()

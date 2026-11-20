@@ -9,7 +9,7 @@ perform (frequency, impedance, order) are not repeated here.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..shared.build_types import BuildConfig
 from ..shared.capacitor_grades import DEFAULT_GRADE, require_grade
@@ -31,6 +31,14 @@ from ..shared.eseries import (
     STRAY_CAPACITANCE_LABEL,
     SUB_PF_OPTION_LABEL,
     require_capacitor_tolerance_pct,
+)
+from ..shared.inductor_suggestion import (
+    DEFAULT_BUILD_INDUCTORS,
+    DEFAULT_INDUCTOR_DETAIL,
+    TABLE_ONLY_DETAILS,
+    require_build_inductors,
+    require_build_with_suggestions,
+    require_inductor_detail,
 )
 from ..shared.numeric import is_finite_real, positive_geometric_mean, require_positive_finite
 from ..shared.physical_input_limits import require_stray_capacitance
@@ -87,8 +95,14 @@ class DesignRequest:
     for none), and ``stray_capacitance_f`` the assumed capacitance across the second part
     of a parallel pair.
 
+    ``inductor_suggestions`` is how much of the inductor suggestions the table shows
+    (``best``, ``full``, ``compact``) or ``none``, which leaves them out of every output
+    and builds the calculated inductances; ``build_inductors`` is what the build
+    simulation and the chosen-parts SPICE deck use for each inductor (``auto``, one kind,
+    or ``calculated``). A forced kind needs suggestions.
+
     ``realization`` holds what a chosen-parts deck or a build simulation needs (ports,
-    Q and its frequency, tolerances, grid, toroid windings); ``None`` uses the CLI's
+    Q and its frequency, tolerances, grid); ``None`` uses the CLI's
     defaults. ``run_build_analysis`` runs the build simulation's tolerance cases; a
     SPICE deck uses ``realization`` without running them.
     """
@@ -114,6 +128,8 @@ class DesignRequest:
     capacitor_grade: str = DEFAULT_GRADE
     capacitor_tolerance_pct: float | None = None
     stray_capacitance_f: float = DEFAULT_STRAY_CAPACITANCE_F
+    inductor_suggestions: str = DEFAULT_INDUCTOR_DETAIL
+    build_inductors: str = DEFAULT_BUILD_INDUCTORS
     realization: BuildConfig | None = None
     run_build_analysis: bool = False
 
@@ -138,6 +154,9 @@ class DesignRequest:
         if self.allow_sub_pf and self.eseries is None:
             raise ValueError(SUB_PF_NEEDS_ESERIES_MESSAGE)
         self._validate_capacitor_policy()
+        require_inductor_detail(self.inductor_suggestions)
+        require_build_inductors(self.build_inductors)
+        require_build_with_suggestions(self.inductor_suggestions, self.build_inductors)
         if self.realization is not None and not isinstance(self.realization, BuildConfig):
             raise ValueError("realization must be a BuildConfig or None")
         if not isinstance(self.run_build_analysis, bool):
@@ -158,6 +177,16 @@ class DesignRequest:
         ):
             if chosen:
                 raise ValueError(needs_eseries_message(f'"{label}"'))
+
+    def without_table_detail(self) -> DesignRequest:
+        """This request with the table-only inductor detail (full, compact) as ``best``.
+
+        Those details change only the table, so two requests equal here give the same
+        JSON, CSV, SPICE, and build.
+        """
+        if self.inductor_suggestions in TABLE_ONLY_DETAILS:
+            return replace(self, inductor_suggestions=DEFAULT_INDUCTOR_DETAIL)
+        return self
 
     @property
     def is_chebyshev(self) -> bool:

@@ -25,7 +25,7 @@
       checkedValue(form, "eseries") === "none" ? "1" : "0",
       isTicked(form, "raw") ? "1" : "0",
       isTicked(form, "sim_build") ? "1" : "0",
-      checkedValue(form, "toroids") === "none" ? "1" : "0",
+      checkedValue(form, "inductor_suggestions") === "none" ? "1" : "0",
     ].join("|");
   }
 
