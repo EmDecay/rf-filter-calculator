@@ -310,3 +310,49 @@ def test_cli_reports_decimal_overflow_as_one_line_usage_error(monkeypatch, capsy
     assert exit_info.value.code == 1
     assert captured.out == ""
     assert captured.err == "Error: Frequency must be positive and finite: 1e1000000000\n"
+
+
+class TestParseCapacitance:
+    """The stray capacitance input: F to fF units, zero allowed, range checked by its owner."""
+
+    @pytest.mark.parametrize(
+        ("text", "farads"),
+        [
+            ("0.2pF", 0.2e-12),
+            ("0.2 pF", 0.2e-12),
+            ("200fF", 0.2e-12),
+            ("2e-13", 2e-13),
+            ("1nF", 1e-9),
+            ("1uF", 1e-6),
+            ("1µF", 1e-6),
+            ("0", 0.0),
+            ("0pF", 0.0),
+            ("-0pF", 0.0),
+        ],
+    )
+    def test_units_and_zero(self, text, farads):
+        from filter_lib.shared.parsing import parse_capacitance
+
+        assert parse_capacitance(text, "Stray capacitance") == pytest.approx(farads, rel=1e-12)
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            ("-1pF", "Stray capacitance must not be negative: -1pF"),
+            ("abc", "Invalid stray capacitance: abc (use a number with F, uF, nF, pF, or fF"),
+            ("", "Invalid stray capacitance:"),
+            ("nan", "Stray capacitance must be positive: nan"),
+        ],
+    )
+    def test_invalid_text_names_the_quantity(self, text, message):
+        from filter_lib.shared.parsing import parse_capacitance
+
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}"):
+            parse_capacitance(text, "Stray capacitance")
+
+    def test_stray_parser_checks_the_range(self):
+        from filter_lib.shared.parsing import parse_stray_capacitance
+
+        assert parse_stray_capacitance("10pF") == pytest.approx(10e-12)
+        with pytest.raises(ValueError, match="^Stray capacitance must be from 0 to 10 pF$"):
+            parse_stray_capacitance("10.1pF")

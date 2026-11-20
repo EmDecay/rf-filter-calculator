@@ -138,7 +138,7 @@ def choose_capacitor(
         pair_score = pair[0]
         improvement = float((single_score - pair_score) * 100 / target)
         margin = _exact(policy.min_parallel_improvement_pct_points)
-        if (single_score - pair_score) * 100 >= margin * target:
+        if pair_wins(single_score, pair_score, target, margin):
             _score, _ratio, total, (low, low_tol), (high, high_tol) = pair
             low_f, high_f = float(low / _PF_PER_F), float(high / _PF_PER_F)
             total_f = float(total / _PF_PER_F)
@@ -177,6 +177,16 @@ def choose_capacitor(
         worst_case_error_f=float(single_score / _PF_PER_F),
         **common,
     )
+
+
+def pair_wins(
+    single_score: Fraction, pair_score: Fraction, target: Fraction, margin: Fraction
+) -> bool:
+    """Whether the pair's score beats the single's by ``margin`` percent of the target.
+
+    The margin is inclusive: an improvement of exactly ``margin`` points chooses the pair.
+    """
+    return (single_score - pair_score) * 100 >= margin * target
 
 
 def _best_pair(
