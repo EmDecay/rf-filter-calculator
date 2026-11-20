@@ -32,10 +32,10 @@ _RULE_WIDTH = 88
 
 
 def not_sourced_note(policy: MatchPolicy) -> str:
-    """The table note under a choice whose part values the sourced series does not make."""
+    """The table note under a choice whose part values the sourced table does not list."""
     return (
-        "  Tolerance not sourced (the sourced series does not make it): chosen by nominal "
-        f"value, ±{assumed_tolerance_pct(policy):g}% assumed."
+        "  Tolerance not sourced (a part is not in the sourced table): chosen by nominal "
+        f"value, ±{assumed_tolerance_pct(policy):g}% assumed for it."
     )
 
 

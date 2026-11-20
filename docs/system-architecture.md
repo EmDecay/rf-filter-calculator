@@ -191,9 +191,9 @@ tolerance. Capacitor selection (`shared/capacitor_choice.py`) is deterministic a
   GRM1885C1H…A01, standard or tight grade; an override can only loosen it);
 - each candidate's interval is nominal ± tolerance, plus the assumed stray for a pair; its
   score is the larger endpoint error; the best single and best pair come from an exhaustive
-  search over the values the series makes; a pair wins only by at least 0.5 percentage
+  search over the values the sourced table lists; a pair wins only by at least 0.5 percentage
   points; ties go to the single, then the smaller ratio, then the lower value;
-- a choice whose parts the series does not make keeps the nominal rule (single within 1%,
+- a choice whose parts the sourced table does not list keeps the nominal rule (single within 1%,
   else a pair) and is reported as `tolerance_not_sourced` with an assumed tolerance;
 - below 1 pF, report `expert_override_required` and retain the calculated value rather
   than silently substituting a part, unless `DesignRequest.allow_sub_pf` is set

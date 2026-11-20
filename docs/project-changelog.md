@@ -11,13 +11,13 @@ compatibility aliases.
   single part or parallel pair whose worst case is closest to the calculated value: each
   candidate covers nominal − tolerance to nominal + tolerance, plus, for a pair, an assumed
   stray across its second part; its score is the larger distance to either end. The best single
-  and best pair come from an exhaustive search over the values a sourced C0G series makes
+  and best pair come from an exhaustive search over the values listed for a sourced C0G series
   (Murata GRM1885C1H…A01; [component-data-sources.md](component-data-sources.md)), in exact
   arithmetic; a pair wins only by at least 0.5 percentage points, ties go to the single part,
   then the smaller ratio, then the lower value. The **1% single-part shortcut is removed** for
   these capacitors. For 13.4744 pF the choice is 4.3 ∥ 9.1 pF (worst case 0.8756 pF) with the
   standard grade and 2.4 ∥ 11 pF (0.4456 pF) with the tight grade.
-- A value the series does not make (most E96 values, and parts above 10 nF) keeps the old
+- A value the sourced table does not list (most E96 values, and parts above 10 nF) keeps the old
   nominal rule and is labelled **tolerance not sourced** (status `tolerance_not_sourced`,
   `tolerance_basis: "assumed"`, a table note, and an assumed ±5% in the build simulation).
 - **Added `--capacitor-grade standard|tight`** (wizard and web **Capacitor grade**): standard is
@@ -49,8 +49,16 @@ compatibility aliases.
   `capacitor_grade` and `capacitor_tolerance_override_pct`; each `circuit_elements` entry gains
   `tolerance_fraction` and `fixed`, and each substitution `stray_capacitance_f`. Making a SPICE
   deck never runs the tolerance cases.
-- The **SPICE – calculated values** web download leaves out every standard-capacitor option
-  (E-series, grade, tolerance, stray, sub-pF), as the CLI refuses them with an exact deck.
+- The **SPICE – calculated values** and **Response data** web downloads leave out every
+  standard-capacitor option (E-series, grade, tolerance, stray, sub-pF), as the CLI refuses them
+  with an exact deck and with `--plot-data`. The wizard's response file always reuses the
+  result shown.
+- A choice labelled "tolerance not sourced" gives each part its own tolerance: a part not in
+  the table gets the assumed 5% (or the override), a listed part keeps its grade's. CSV
+  `RecommendationPolicy` adds `not-sourced-tolerance=5%(assumed)` and the chosen-parts deck's
+  `* part used:` comment adds `tolerance-not-sourced=5%-assumed` for such a choice.
+- The deprecated `--sim-matched` refuses `--capacitor-grade`, `--capacitor-tolerance` and
+  `--stray-capacitance`, as it already refused `--allow-sub-pf`.
 - **HF output changes**, each checked against a committed baseline of 45 HF designs
   (`tests/test_hf_baseline.py`): (a) capacitor choices the worst-case rule changes (41 of 213
   E12 and 66 of 213 E24 choices in the corpus; 196 E96 choices keep their parts and become

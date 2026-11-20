@@ -174,7 +174,7 @@ bandwidth and agree with the requested values to floating-point precision.
 | `--no-match` | Show only calculated capacitor values; do not choose standard values |
 | `--allow-sub-pf` | Also choose standard values for capacitors below 1 pF (table, CSV, JSON, `--sim-build`, and the `nominal-build` SPICE deck); needs an E-series |
 | `--capacitor-grade` | Tolerance grade of the standard capacitors: `standard` (default; the manufacturer's standard codes) or `tight` (one step tighter); needs an E-series |
-| `--capacitor-tolerance` (alias `--cap-tolerance`) | Capacitor tolerance override in ± percent, 0 to under 100: each part uses the larger of this and its grade's tolerance (default: the grade's); a value the series does not make uses it instead of the assumed 5% |
+| `--capacitor-tolerance` (alias `--cap-tolerance`) | Capacitor tolerance override in ± percent, 0 to under 100: each part uses the larger of this and its grade's tolerance (default: the grade's); a value the sourced table does not list uses it instead of the assumed 5% |
 | `--stray-capacitance` | Assumed stray across the second part of a parallel pair, e.g. `0.2pF`; 0 to 10 pF (default: 0.2pF, an assumption) |
 | `--raw` | Unrounded values in farads and henries (scientific notation) |
 | `-q, --quiet` | Print only the component values, one per line |

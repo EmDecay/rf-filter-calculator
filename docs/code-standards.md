@@ -167,12 +167,13 @@ in `shared/capacitor_choice.py`:
   a change to it updates `docs/component-data-sources.md` in the same change;
 - a candidate's interval is nominal − tolerance to nominal + tolerance, plus the assumed stray
   for a pair; its score is the larger endpoint error; the best single and best pair come from
-  an exhaustive search over the E-series values the series makes, in exact `Fraction`
-  arithmetic; a pair wins only by at least 0.5 percentage points (inclusive); ties go to the
-  single, then the smaller ratio, then the lower value; pairs stay within 10:1;
+  an exhaustive search over the E-series values the sourced table lists, in exact `Fraction`
+  arithmetic; a pair wins only by at least 0.5 percentage points (inclusive), and never on an
+  equal score; ties go to the single, then the smaller ratio, then the lower value; pairs stay
+  within 10:1;
 - an override can only loosen a guarantee: tolerance = max(override % × value, sourced
   tolerance); a part whose tolerance is not smaller than its value is ineligible;
-- a choice the nominal rule makes from parts the series does not make keeps that rule (single
+- a choice the nominal rule makes from parts the sourced table does not list keeps that rule (single
   within `LEGACY_SINGLE_WITHIN_PCT`, else a pair 0.5 points closer), with status
   `tolerance_not_sourced` and an assumed 5% (or the override); never present it as sourced;
 - below 1 pF, choose nothing unless `DesignRequest.allow_sub_pf` is set (CLI `--allow-sub-pf`,
@@ -272,8 +273,8 @@ Whether a wizard or web control applies to the chosen output is decided only by
 `design/option_applicability.py`, which restates the CLI's accept/refuse rules and is tested
 against them. Extend that rule for a new option or combination; do not add a check, a disabled
 state, or a reason text in one interface. A document with rules of its own adds them in
-`_DOCUMENT_REASONS` (the calculated-values SPICE deck leaves out every option in
-`MATCHING_OPTIONS`); `document_reasons` and `document_own_options` expose them.
+`_DOCUMENT_REASONS` (the calculated-values SPICE deck and the response data leave out every
+option in `MATCHING_OPTIONS`); `document_reasons` and `document_own_options` expose them.
 Caveats print once where they apply; JSON and CSV keep every warning entry.
 
 ## Machine-Readable Output

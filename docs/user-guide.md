@@ -476,8 +476,9 @@ CLI flag. A hand-made request that sets one anyway is refused with that reason, 
 that are ignored: the standard capacitor values with Values only or Raw units (a radio choice is
 always submitted), and the toroid box with None (the CLI also accepts `--no-toroid-build` with
 `--no-toroids`). The deprecated `--sim-matched` and `--q-safety` have no web fields. The
-**SPICE – calculated values** download uses no standard capacitors, so it leaves out the
-E-series and the capacitor grade, tolerance, stray and sub-pF fields, as if they were disabled.
+**SPICE – calculated values** and **Response data** downloads use no standard capacitors, so
+they leave out the E-series and the capacitor grade, tolerance, stray and sub-pF fields, as if
+they were disabled.
 
 ### Long calculations
 
@@ -623,14 +624,14 @@ Each capacitor gets one choice, shown on the `Use:` line, by its worst case with
   value plus its tolerance, plus, for a pair, the assumed stray across its second part.
 - Its score is the larger distance from the calculated value to either end of that interval.
 - **Single part or two in parallel**: the best single part and the best pair come from an
-  exhaustive search over the values the series makes; the pair is used only when it scores
+  exhaustive search over the values the sourced table lists; the pair is used only when it scores
   at least 0.5 percentage points better. `Nearest single:` then shows the nearest single part
   for comparison. Ties go to the single part, then to the pair with the smaller ratio, then
   to the lower value; a pair's parts are within 10:1.
-- **Tolerance not sourced**: a value the series does not make (most E96 values, and parts above
+- **Tolerance not sourced**: a value the sourced table does not list (most E96 values, and parts above
   10 nF) is chosen by the nominal rule instead (the nearest single part within 1%, otherwise a
-  pair at least 0.5 points closer). The row adds `Tolerance not sourced (the sourced series
-  does not make it): chosen by nominal value, ±5% assumed.`
+  pair at least 0.5 points closer). The row adds `Tolerance not sourced (a part is not in the
+  sourced table): chosen by nominal value, ±5% assumed for it.`
 - **Below 1 pF**: no part is chosen automatically. The row reads
   `Use: none (below 1 pF; see warning)`, the nearest single value is shown for reference only,
   and the warning says: `Below 1 pF no part is chosen automatically. Choose one manually, or
@@ -645,11 +646,11 @@ chosen-parts SPICE deck, need an E-series, and are refused with `--no-match`, `-
 | Option | Wizard and web | Meaning |
 |--------|----------------|---------|
 | `--capacitor-grade standard\|tight` | **Capacitor grade** | The tolerance grade (default standard; tight is one step tighter) |
-| `--capacitor-tolerance PCT` | **Capacitor tolerance (±%)** | An override that can only loosen the grade: each part uses the larger of this percentage and its grade's tolerance. Blank: the grade's tolerance. A value the series does not make uses it instead of the assumed 5% |
+| `--capacitor-tolerance PCT` | **Capacitor tolerance (±%)** | An override that can only loosen the grade: each part uses the larger of this percentage and its grade's tolerance. Blank: the grade's tolerance. A value the sourced table does not list uses it instead of the assumed 5% |
 | `--stray-capacitance CAP` | **Stray capacitance per extra part** | The assumed stray across the second part of a pair, 0 to 10 pF (default 0.2 pF, blank in the wizard and web). An assumption: no source gives a pad-to-pad value for the footprint |
 
 `--allow-sub-pf` (**Allow capacitors below 1 pF** in the wizard and web UI) also chooses parts
-below 1 pF. The series makes no E-series value below 1 pF, so those choices are "tolerance not
+below 1 pF. The sourced table lists no E-series value below 1 pF, so those choices are "tolerance not
 sourced". It applies to the table, CSV, JSON, `--sim-build`, and the chosen-parts
 (`nominal-build`) SPICE deck, and is reported in JSON as `standard_match.policy.allow_sub_pf`
 and in CSV as `RecommendationPolicy`. It needs an E-series, so it is refused with the options
@@ -691,8 +692,8 @@ With `--allow-sub-pf` added, the same capacitor reads:
 C1 calculated 636.62 fF
   Use:            75.00 fF || 560.00 fF (-0.3%)
   Nearest single: 620.00 fF (-2.6%)
-  Tolerance not sourced (the sourced series does not make it): chosen by nominal
-    value, ±5% assumed.
+  Tolerance not sourced (a part is not in the sourced table): chosen by nominal
+    value, ±5% assumed for it.
 ```
 
 From `uv run filter-calc lp bw pi 146MHz -n 5`, a 2 m low-pass: the worst case of 13 pF

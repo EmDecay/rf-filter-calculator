@@ -47,7 +47,7 @@ def test_without_standard_values_the_shared_message_is_raised(category, form, _a
     assert str(caught.value) == SUB_PF_NEEDS_ESERIES_MESSAGE
 
 
-@pytest.mark.parametrize("path", ["/api/design/lowpass", "/export/lowpass/response-json"])
+@pytest.mark.parametrize("path", ["/api/design/lowpass", "/export/lowpass/json"])
 def test_every_route_gives_the_same_answer_without_standard_values(client, path):
     response = client.post(path, data={**LP, **ON, "eseries": "none"})
 
@@ -55,6 +55,14 @@ def test_every_route_gives_the_same_answer_without_standard_values(client, path)
         400,
         {"error": SUB_PF_NEEDS_ESERIES_MESSAGE},
     )
+
+
+def test_response_data_leaves_the_standard_capacitor_options_out(client):
+    """The ideal response never uses them, so the download ignores them, like resonator Q."""
+    response = client.post("/export/lowpass/response-json", data={**LP, **ON, "eseries": "none"})
+
+    assert response.status_code == 200
+    assert response.json()["data"]
 
 
 def test_the_design_view_shows_that_message(client):

@@ -56,7 +56,7 @@ C2 calculated 318.31 pF
 single part or parallel pair whose interval (each part at either end of its tolerance, plus the
 assumed stray across a pair) ends closest to the calculated value. A pair is used only when it
 is at least 0.5 percentage points better than the best single part; `Nearest single:` then
-shows the nearest single part for comparison. A value the sourced series does not make is
+shows the nearest single part for comparison. A value the sourced table does not list is
 chosen by the nominal rule and marked "Tolerance not sourced". Below 1 pF no part is chosen automatically: the row reads
 `Use: none (below 1 pF; see warning)`, the nearest single value is shown for reference only,
 and a warning names the `--allow-sub-pf` option (**Allow capacitors below 1 pF** in the wizard

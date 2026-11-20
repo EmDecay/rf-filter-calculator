@@ -30,6 +30,7 @@ from filter_lib.design.option_applicability import (
     OPTIONS,
     RAW_NEEDS_TABLE_MESSAGE,
     RAW_UNITS,
+    RESPONSE_DATA_MATCHING_MESSAGE,
     STRAY_CAPACITANCE,
     SUB_PF_RAW_MESSAGE,
     SUB_PF_VALUES_ONLY_MESSAGE,
@@ -156,8 +157,13 @@ def test_the_calculated_values_deck_has_its_own_rule_for_capacitor_choices():
     """Exact SPICE uses no standard capacitors: every matching option is left out of it."""
     assert set(MATCHING_OPTIONS) == {ESERIES, ALLOW_SUB_PF, *POLICY_LABELS}
     assert document_own_options("spice-exact") == frozenset(MATCHING_OPTIONS)
-    for document in ("json", "csv", "spice-nominal", "response-json", "response-csv"):
+    for document in ("json", "csv", "spice-nominal"):
         assert document_own_options(document) == frozenset()
+    # Response data is the ideal response, which no standard capacitor choice changes.
+    for document in ("response-json", "response-csv"):
+        assert document_own_options(document) == frozenset(MATCHING_OPTIONS)
+        for option in MATCHING_OPTIONS:
+            assert document_reason(document, option) == RESPONSE_DATA_MATCHING_MESSAGE
     reasons = document_reasons(OutputChoices(), "spice-exact")
     for option in MATCHING_OPTIONS:
         assert reasons[option] == EXACT_SPICE_MATCHING_MESSAGE

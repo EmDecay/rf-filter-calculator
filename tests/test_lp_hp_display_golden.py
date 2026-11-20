@@ -1068,8 +1068,8 @@ EXPECTED_POLICY = {
     "allow_sub_pf": False,
 }
 EXPECTED_POLICY_SUMMARY = (
-    "worst-case;grade=standard;tolerance-override=none;stray=0.2pF(assumed);"
-    "parallel-improvement>=0.5pp;minimum-cap=1pF"
+    "worst-case;grade=standard;tolerance-override=none;not-sourced-tolerance=5%(assumed);"
+    "stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF"
 )
 SINGLE_REASONS = {
     "single_worst_case_is_best",

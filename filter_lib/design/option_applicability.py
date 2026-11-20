@@ -246,8 +246,17 @@ EXACT_SPICE_MATCHING_MESSAGE = (
     "Standard capacitor choices have no effect on the calculated-values SPICE deck, which "
     "uses the calculated values"
 )
+# The response data is the ideal response, which no standard capacitor choice changes (the
+# CLI refuses those options with --plot-data); like resonator Q, it leaves them out.
+RESPONSE_DATA_MATCHING_MESSAGE = (
+    "Standard capacitor choices have no effect on response data, which is the ideal response"
+)
 _DOCUMENT_REASONS = {
     "spice-exact": {option: EXACT_SPICE_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
+    **{
+        document: {option: RESPONSE_DATA_MATCHING_MESSAGE for option in MATCHING_OPTIONS}
+        for document in ("response-json", "response-csv")
+    },
 }
 
 

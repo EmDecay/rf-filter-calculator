@@ -86,10 +86,16 @@ def calculate_and_format(
     output_text = "\n".join(lines)
     if not output_text.strip() or not snapshot.result:
         return CalculationOutcome(status="error", error=INTERNAL_NO_RESULT_MESSAGE)
+    # One detached copy: the result and the build analysis are the design result's own.
+    detached = deepcopy(snapshot.design_outcome)
+    if detached is None:
+        return CalculationOutcome(
+            status="success", output_text=output_text, result=deepcopy(snapshot.result)
+        )
     return CalculationOutcome(
         status="success",
         output_text=output_text,
-        result=deepcopy(snapshot.result),
-        build_analysis=deepcopy(snapshot.build_analysis),
-        design=deepcopy(snapshot.design_outcome),
+        result=detached.result,
+        build_analysis=detached.build_analysis,
+        design=detached,
     )

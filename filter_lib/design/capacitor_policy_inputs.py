@@ -25,7 +25,8 @@ GRADE_HELP = (
 TOLERANCE_FIELD_LABEL = f"{CAPACITOR_TOLERANCE_LABEL} (±%)"
 TOLERANCE_FIELD_HELP = (
     "Blank = the grade's tolerance. A value can only loosen it: each capacitor uses the "
-    "larger of the two. A value the series does not make uses it instead of the assumed 5%."
+    "larger of the two. A value the sourced table does not list uses it instead of the "
+    "assumed 5%."
 )
 STRAY_FIELD_LABEL = "Stray capacitance per extra part"
 STRAY_FIELD_HELP = (

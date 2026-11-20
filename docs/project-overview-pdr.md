@@ -111,7 +111,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - **Matching Strategies**:
   - Worst case: each single part or parallel pair is scored by the larger error of its tolerance interval (plus an assumed stray for a pair); the best single and best pair come from an exhaustive search
   - Parallel combination: selected only when its worst case is at least 0.5 percentage points better
-  - Values the sourced series does not make: nominal rule (single within 1%, else a pair), marked "tolerance not sourced"
+  - Values the sourced table does not list: nominal rule (single within 1%, else a pair), marked "tolerance not sourced"
   - Below 1 pF: no part chosen automatically unless `--allow-sub-pf` (wizard/web: **Allow capacitors below 1 pF**) is on; otherwise the user is told to choose one manually
 - **Acceptance Criteria**:
   - ✓ Exactly one choice per capacitor, or an explicit "none (below 1 pF)" status

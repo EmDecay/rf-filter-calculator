@@ -61,7 +61,7 @@ def test_spice_deck_holds_the_solver_branches_with_their_kinds(request_fields):
         assert value == pytest.approx(element.value, rel=1e-11)
     strays = [element for element in elements if element.fixed]
     assert strays and all(element.name.startswith("CSTRAY_") for element in strays)
-    assert all(element.value == pytest.approx(0.2e-12) for element in strays)
+    assert all(element.value == pytest.approx(0.2e-12, rel=1e-12, abs=0) for element in strays)
 
 
 def test_tolerance_cases_leave_the_stray_unchanged_and_vary_only_real_parts():
@@ -100,3 +100,15 @@ def test_a_zero_stray_adds_no_element():
 
     assert "CSTRAY_" not in deck
     assert "C1A " in deck  # 13.47 pF is still a pair
+
+
+def test_a_fixed_element_keeps_its_value_even_when_a_factor_names_it():
+    from filter_lib.shared.tolerance_screening import perturb_circuit
+
+    result = calculate_bandpass_filter(14.2e6, 350e3, 50, 3, "butterworth", "top")
+    circuit = realize_nominal_build(result, "bandpass", FAST).circuit
+    stray = next(element for element in circuit.elements if element.fixed)
+
+    perturbed = perturb_circuit(circuit, ((stray.name, 2.0),))
+
+    assert next(e for e in perturbed.elements if e.name == stray.name).value == stray.value

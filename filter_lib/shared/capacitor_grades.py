@@ -5,7 +5,7 @@ GRM1885C1H…A01, the evidence is in ``docs/component-data-sources.md``): which 
 makes and, for each grade, the guaranteed tolerance of each value range. Values are
 exact decimals in pF (``Fraction``) so a value at a range boundary is never misread.
 
-A value the series does not make has no sourced tolerance; capacitor matching then
+A value the sourced table does not list has no sourced tolerance; capacitor matching then
 keeps the legacy nominal rule and labels the choice "tolerance not sourced".
 """
 
@@ -28,7 +28,7 @@ from .packaged_data import (
 
 GRADE_NAMES = ("standard", "tight")
 DEFAULT_GRADE = "standard"
-# The tolerance assumed, for the build simulation, for a part the series does not make.
+# The tolerance assumed, for the build simulation, for a part the sourced table does not list.
 ASSUMED_TOLERANCE_PCT = 5.0
 
 _LABEL = "capacitor grade data"
@@ -184,7 +184,7 @@ _E24_MANTISSAS = frozenset(Fraction(round(value * 100), 100) for value in E_SERI
 
 
 def is_made(value_pf: Fraction) -> bool:
-    """Whether the series makes a part of exactly ``value_pf`` (an exact ``Fraction``)."""
+    """Whether the sourced table lists a part of exactly ``value_pf`` (an exact ``Fraction``)."""
     if _FINE_FROM <= value_pf <= _FINE_TO:
         return (value_pf / _FINE_STEP).denominator == 1
     if _E24_FROM <= value_pf <= _E24_TO:
@@ -196,7 +196,7 @@ def is_made(value_pf: Fraction) -> bool:
 
 
 def made_values_pf() -> tuple[Fraction, ...]:
-    """Every value the series makes, ascending."""
+    """Every value the sourced table lists, ascending."""
     steps = int((_FINE_TO - _FINE_FROM) / _FINE_STEP)
     fine = [_FINE_FROM + index * _FINE_STEP for index in range(steps + 1)]
     e24 = sorted(
@@ -223,7 +223,7 @@ _check_rows_cover_the_series()
 
 def require_grade(name: object) -> CapacitorGrade:
     """The grade called ``name``; the message names the choices."""
-    if name not in GRADES:
+    if not isinstance(name, str) or name not in GRADES:
         raise ValueError(f"Capacitor grade must be {' or '.join(GRADE_NAMES)}")
     return GRADES[name]  # type: ignore[index]
 

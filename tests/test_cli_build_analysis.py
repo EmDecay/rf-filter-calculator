@@ -361,6 +361,15 @@ def test_deprecated_alias_has_json_parity_and_warning(
             "--capacitor-grade cannot be combined with --no-match",
         ),
         (
+            (*_LOWPASS, "--sim-matched", "--capacitor-grade", "tight", "--stray-capacitance", "0"),
+            "--capacitor-grade, --stray-capacitance cannot be used with the deprecated "
+            "--sim-matched; use --sim-build",
+        ),
+        (
+            (*_LOWPASS, "--sim-matched", "--cap-tolerance", "8"),
+            "--capacitor-tolerance cannot be used with the deprecated --sim-matched",
+        ),
+        (
             (*_LOWPASS, "-q", "--stray-capacitance", "0pF"),
             "--stray-capacitance has no effect with --quiet",
         ),

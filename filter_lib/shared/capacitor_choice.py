@@ -4,8 +4,8 @@ Each candidate (a single part or a parallel pair) covers an interval of possible
 capacitance: from its nominal value less its tolerance to its nominal value plus its
 tolerance, plus, for a pair, the assumed stray across its second part. Its score is the
 larger distance from the target to either end of that interval. The best single part
-and the best pair are found by exhaustive search over the E-series values the sourced
-series makes; the pair is chosen only when its score, in percent of the target, is at
+and the best pair are found by exhaustive search over the E-series values the
+sourced table lists; the pair is chosen only when its score, in percent of the target, is at
 least the policy's margin (0.5 percentage points) better. Ties go to the single part;
 between pairs to the smaller part ratio, then the lower nominal value; between singles
 to the lower value. Arithmetic is exact (``Fraction`` in pF), so a tie is a real tie.
@@ -13,7 +13,7 @@ to the lower value. Arithmetic is exact (``Fraction`` in pF), so a tie is a real
 A part's tolerance is the sourced tolerance of its grade, or, with an override, the
 larger of the override percentage and the sourced tolerance (an override can only
 loosen a guarantee). A part whose tolerance is not smaller than its value is not
-eligible. When the nominal rule's choice uses a part the series does not make, that
+eligible. When the nominal rule's choice uses a part the sourced table does not list, that
 choice is kept with status ``tolerance_not_sourced`` and an assumed tolerance.
 """
 
@@ -53,7 +53,7 @@ def _farads(value_pf: Fraction) -> float:
 
 @cache
 def _series_values_pf(series: str) -> tuple[Fraction, ...]:
-    """The values of ``series`` that the sourced series makes, ascending, in pF."""
+    """The values of ``series`` that the sourced table lists, ascending, in pF."""
     hundredths = set(_SERIES_HUNDREDTHS[series])
     values = []
     for value in made_values_pf():
@@ -76,7 +76,7 @@ def part_tolerance_pf(value_pf: Fraction, policy: MatchPolicy) -> Fraction | Non
 
 
 def assumed_tolerance_pct(policy: MatchPolicy) -> float:
-    """The tolerance assumed for a part the series does not make: the override, or 5%."""
+    """The tolerance assumed for a part the sourced table does not list: the override, or 5%."""
     override = policy.tolerance_override_pct
     return override if override is not None else ASSUMED_TOLERANCE_PCT
 
@@ -95,13 +95,27 @@ def _candidates(policy: MatchPolicy, series: str) -> list[tuple[Fraction, Fracti
 
 
 def _not_sourced(nominal: ESeriesMatch, policy: MatchPolicy) -> ESeriesMatch:
-    fraction = assumed_tolerance_pct(policy) / 100.0
-    parts = nominal.selected_components or ()
+    """Keep the nominal choice; each part gets its own tolerance.
+
+    A part the table lists keeps its sourced tolerance (with the override floor); only a
+    part the table does not list gets the assumed tolerance.
+    """
+    assumed = assumed_tolerance_pct(policy) / 100.0
+    tolerances, fractions = [], []
+    for value in nominal.selected_components or ():
+        exact = part_pf(value)
+        sourced = part_tolerance_pf(exact, policy)
+        if sourced is None:
+            tolerances.append(value * assumed)
+            fractions.append(assumed)
+        else:
+            tolerances.append(_farads(sourced))
+            fractions.append(float(sourced / exact))
     return replace(
         nominal,
         status=TOLERANCE_NOT_SOURCED,
-        part_tolerances_f=tuple(value * fraction for value in parts),
-        part_tolerance_fractions=tuple(fraction for _value in parts),
+        part_tolerances_f=tuple(tolerances),
+        part_tolerance_fractions=tuple(fractions),
         tolerance_sourced=False,
     )
 
@@ -126,7 +140,7 @@ def choose_capacitor(
     single_score, single_value, single_tolerance = min(
         (abs(value - target) + tolerance, value, tolerance) for value, tolerance in candidates
     )
-    pair = _best_pair(candidates, target, single_score, ratio_limit, policy)
+    pair = _best_pair(candidates, target, ratio_limit, policy)
 
     common = {
         "target": nominal.target,
@@ -169,7 +183,7 @@ def choose_capacitor(
         recommended_kind="single",
         recommendation_reason=(
             "single_worst_case_is_best"
-            if pair is None
+            if pair is None or pair[0] >= single_score
             else "parallel_worst_case_improvement_below_policy_threshold"
         ),
         raw_parallel_improvement_pct_points=improvement,
@@ -186,30 +200,33 @@ def pair_wins(
     """Whether the pair's score beats the single's by ``margin`` percent of the target.
 
     The margin is inclusive: an improvement of exactly ``margin`` points chooses the pair.
+    An equal score never does, even with a zero margin: ties go to the single part.
     """
-    return (single_score - pair_score) * 100 >= margin * target
+    gain = single_score - pair_score
+    return gain > 0 and gain * 100 >= margin * target
 
 
 def _best_pair(
     candidates: list[tuple[Fraction, Fraction]],
     target: Fraction,
-    bound: Fraction,
     ratio_limit: float,
     policy: MatchPolicy,
 ):
     """The best pair as ``(score, ratio, total, low part, high part)``, or None.
 
-    A pair's interval contains its nominal total, so a pair whose total is further than
-    ``bound`` (the best single's score) from the target cannot beat that single; only
-    totals within the bound are scored.
+    A pair's interval contains its nominal total, so a pair whose total is further from the
+    target than the best score found so far cannot beat it; only totals within that bound
+    are scored, and the bound tightens as better pairs are found.
     """
     values = [value for value, _tolerance in candidates]
     ratio = _exact(float(ratio_limit))
     stray = _exact(policy.stray_capacitance_f) * _PF_PER_F
     best = None
     for index, (low, low_tolerance) in enumerate(candidates):
-        start = bisect_left(values, max(low, target - bound - low), lo=index)
-        stop = bisect_right(values, min(low * ratio, target + bound - low))
+        start, stop = index, bisect_right(values, low * ratio)
+        if best is not None:
+            start = bisect_left(values, max(low, target - best[0] - low), lo=index)
+            stop = bisect_right(values, min(low * ratio, target + best[0] - low))
         for high, high_tolerance in candidates[start:stop]:
             total = low + high
             tolerance = low_tolerance + high_tolerance

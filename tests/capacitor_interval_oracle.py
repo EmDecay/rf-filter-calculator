@@ -108,6 +108,7 @@ def best_choice(
             score = max(abs(low - target_pf), abs(high - target_pf))
             pairs.append((score, second / first, total, first, second))
     pair = min(pairs)
-    if (single_score - pair[0]) * 100 >= margin_pp * target_pf:
+    gain = single_score - pair[0]
+    if gain > 0 and gain * 100 >= margin_pp * target_pf:
         return (pair[3], pair[4]), pair[0]
     return (single,), single_score

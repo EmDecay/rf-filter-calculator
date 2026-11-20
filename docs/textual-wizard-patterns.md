@@ -47,7 +47,8 @@ Saved JSON and CSV use `document_options`, the same mapping the web downloads us
 control's visible value is applied to each file that can show it (Values only + None gives a
 JSON file equal to `--format json --no-match`). Each saved file has its own `DesignRequest`
 (`FilterState.document_request`); the result shown (`FilterState.design_outcome`) is reused only
-when that request is equal. A file whose request differs (a disabled build or Qu the JSON uses,
+when that request is equal. The response data file is the ideal response, which no capacitor
+option, Q or build changes, so it always reuses the result shown. A file whose request differs (a disabled build or Qu the JSON uses,
 or standard values the result left out) is designed only when it is saved, in a separate thread
 worker (group `document-designs`, notice "Preparing the files…"), one design per file so one
 failure keeps the others, and cached in `FilterState.document_designs`. The result shown never

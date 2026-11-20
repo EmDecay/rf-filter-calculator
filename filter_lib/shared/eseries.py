@@ -98,7 +98,7 @@ CAPACITOR_GRADE_HELP = (
 CAPACITOR_TOLERANCE_HELP = (
     "Capacitor tolerance in ± percent, 0 to under 100. Each standard capacitor uses the "
     "larger of this and its grade's tolerance, so it can only loosen the grade; a value "
-    "the series does not make uses it instead of the assumed 5% (default: the grade's "
+    "the sourced table does not list uses it instead of the assumed 5% (default: the grade's "
     "tolerance)"
 )
 STRAY_CAPACITANCE_HELP = (
@@ -176,8 +176,11 @@ class MatchPolicy:
         override = (
             "none" if self.tolerance_override_pct is None else f"{self.tolerance_override_pct:g}%"
         )
+        from .capacitor_choice import assumed_tolerance_pct
+
         return (
             f"worst-case;grade={self.grade};tolerance-override={override};"
+            f"not-sourced-tolerance={assumed_tolerance_pct(self):g}%(assumed);"
             f"stray={self.stray_capacitance_f * 1e12:g}pF(assumed);"
             f"parallel-improvement>={self.min_parallel_improvement_pct_points:g}pp;"
             f"minimum-cap={floor}"
@@ -201,7 +204,7 @@ def sub_pf_warning(floor_pf: float) -> str:
     )
 
 
-# Status of a capacitor choice whose part values the sourced series does not make: it is
+# Status of a capacitor choice whose part values the sourced table does not list: it is
 # chosen by the legacy nominal rule and its tolerance is an assumption.
 TOLERANCE_NOT_SOURCED = "tolerance_not_sourced"
 
@@ -550,7 +553,7 @@ def find_parallel_combo(
 
 # The nominal rule's single-part preference: a single part within 1% of the target is
 # kept without looking at pairs. It applies to harmonic (inductor) matching and to
-# capacitor values the sourced series does not make; the worst-case rule has none.
+# capacitor values the sourced table does not list; the worst-case rule has none.
 LEGACY_SINGLE_WITHIN_PCT = 1.0
 
 
@@ -565,8 +568,8 @@ def match_component(
     """Find best E-series match with optional parallel combination.
 
     Capacitors (``additive``) are chosen by the worst-case interval rule over the parts
-    the sourced series makes (``capacitor_choice``); a choice whose parts it does not
-    make keeps the nominal rule with status ``tolerance_not_sourced``. Inductors
+    the sourced table lists (``capacitor_choice``); a choice with a part it does not
+    list keeps the nominal rule with status ``tolerance_not_sourced``. Inductors
     (``harmonic``) keep the nominal rule.
 
     Args:

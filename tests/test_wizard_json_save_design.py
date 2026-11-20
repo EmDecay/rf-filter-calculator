@@ -147,3 +147,27 @@ def test_a_json_that_needs_no_design_of_its_own_saves_without_a_worker(
     saved = list(tmp_path.glob("lowpass-*.json"))
     assert [path.read_text(encoding="utf-8") for path in saved] == [expected]
     assert ("information", PREPARING_FILES_MESSAGE) not in notices
+
+
+def test_an_unused_invalid_capacitor_field_blocks_only_the_file_that_uses_it(
+    monkeypatch, capsys, tmp_path
+):
+    """Values only leaves the tolerance field out; the JSON uses it, the response data never."""
+    monkeypatch.chdir(tmp_path)
+    message = "Capacitor tolerance must be a number"
+    state = _csv_with_ticked_build(
+        output_format="table",
+        quiet=True,
+        build_analysis_enabled=False,
+        capacitor_tolerance_text="bad",
+        capacitor_input_error=message,
+        export_format="csv",
+    )
+    expected_response = cli_stdout(monkeypatch, capsys, *_LOWPASS_ARGV, "--plot-data", "csv")
+
+    notices = _save_json(state)
+
+    assert list(tmp_path.glob("*.json")) == []
+    responses = list(tmp_path.glob("lowpass-*-response.csv"))
+    assert [path.read_text(encoding="utf-8") for path in responses] == [expected_response]
+    assert ("error", f"{JSON_NOT_SAVED_PREFIX}{message}") in notices

@@ -12,10 +12,11 @@ from .build_types import (
     NominalRealization,
     resolve_build_config,
 )
+from .capacitor_choice import assumed_tolerance_pct
 from .circuit_builders import build_named_circuit
 from .circuit_display_names import STRAY_PREFIX, spice_names_comment
 from .circuit_model import CircuitElement
-from .eseries import DEFAULT_MATCH_POLICY, MatchPolicy
+from .eseries import DEFAULT_MATCH_POLICY, TOLERANCE_NOT_SOURCED, MatchPolicy
 from .nominal_realization import (
     applicable_part_limitations,
     grouped_part_warnings,
@@ -93,7 +94,9 @@ def _part_description(substitution: ComponentSubstitution, eseries: str) -> str:
     return f"calculated value {reason}"
 
 
-def _nominal_comments(realization: NominalRealization, eseries: str) -> list[str]:
+def _nominal_comments(
+    realization: NominalRealization, eseries: str, policy: MatchPolicy
+) -> list[str]:
     comments: list[str] = []
     for substitution in realization.substitutions:
         details = [
@@ -108,6 +111,8 @@ def _nominal_comments(realization: NominalRealization, eseries: str) -> list[str
             details.append(f"turns={substitution.turns}")
         if substitution.stray_capacitance_f:
             details.append(f"stray={_number(substitution.stray_capacitance_f)}")
+        if substitution.status == TOLERANCE_NOT_SOURCED:
+            details.append(f"tolerance-not-sourced={assumed_tolerance_pct(policy):g}%-assumed")
         comments.append("* part used: " + " ".join(details))
         if substitution.stray_capacitance_f:
             comments.append(
@@ -200,7 +205,7 @@ def export_spice_deck(
     if names is not None:
         lines.append(names)
     if nominal is not None:
-        lines.extend(_nominal_comments(nominal, eseries))
+        lines.extend(_nominal_comments(nominal, eseries, policy))
     lines.extend(
         (
             "VINPUT NSOURCE 0 AC 1",
