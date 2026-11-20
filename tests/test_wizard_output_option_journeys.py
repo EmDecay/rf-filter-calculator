@@ -113,10 +113,15 @@ def test_output_options_disable_what_cannot_apply_and_say_why() -> None:
             build_inductors = screen.query_one("#build-inductors", RadioSet)
             assert build_inductors.pressed_button.id == "build-inductors-auto"
             assert not build_inductors.disabled
-            # Inductor suggestions None: no suggestion for the build to use.
+            # Inductor suggestions None: no suggestion for a forced kind to use; Auto and
+            # Calculated values stay usable.
             _choose(detail, "inductor-none")
             await pilot.pause()
-            assert build_inductors.disabled
+            for kind in ("toroid", "air-coil", "chip"):
+                assert screen.query_one(f"#build-inductors-{kind}").disabled
+            for choice in ("auto", "calculated"):
+                assert not screen.query_one(f"#build-inductors-{choice}").disabled
+            assert not build_inductors.disabled
             assert _reason(screen, "build_inductors") == BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE
 
             # Values only with the default E24 shows results; nothing is refused (C-3).

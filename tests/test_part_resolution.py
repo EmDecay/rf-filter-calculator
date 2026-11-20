@@ -8,6 +8,7 @@ part resolution, and that no module outside ``filter_lib/design`` selects a part
 from __future__ import annotations
 
 import ast
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -35,7 +36,7 @@ from filter_lib.shared.inductor_suggestion import (
     InductorSuggestion,
     KindSuggestions,
 )
-from filter_lib.shared.toroid_selection import NO_SUITABLE_CORE_REASON, find_core_candidates
+from filter_lib.shared.toroid_selection import find_core_candidates, no_suitable_core_reason
 
 PACKAGE = Path(__file__).resolve().parents[1] / "filter_lib"
 
@@ -98,13 +99,38 @@ def test_hf_toroids_match_the_screen_with_the_not_checked_srf_basis():
         assert suggestion.target_h == outcome.result["inductors"][0]
         assert suggestion.srf_basis == SRF_NOT_CHECKED
         assert suggestion.status == candidate.candidate_status
+        # The core's A_L tolerance applies to the achieved inductance; the budget
+        # states it as a percentage of the target.
+        assert suggestion.tolerance_pct == candidate.core.al_tolerance_pct
         assert suggestion.error_budget == ErrorBudget(
             nominal_mismatch_pct=candidate.winding.error_pct,
-            tolerance_pct=candidate.core.al_tolerance_pct,
+            tolerance_pct=candidate.core.al_tolerance_pct
+            * candidate.winding.l_actual_h
+            / suggestion.target_h,
             srf_drift_pct=None,
         )
         assert suggestion.source.publisher == "Micrometals, Inc."
     assert toroids.reason_none is None
+
+
+def test_the_budget_s_terms_add_up_to_the_winding_s_true_worst_case():
+    # 14.175 MHz, 75 ohm, n=7: L1's first winding is +4.99 % from its target, and its
+    # +-5 % A_L range is +-5.25 % of the target, so the upper end is +10.24 %.
+    outcome = design(_ladder(frequency_hz=14.175e6, impedance=75.0, order=7))
+    best = outcome.parts.inductor("L1").best
+    budget = best.error_budget
+    upper = best.achieved_h * (1 + best.tolerance_pct / 100) / best.target_h - 1
+    lower = best.achieved_h * (1 - best.tolerance_pct / 100) / best.target_h - 1
+
+    assert best.part_name == "T50-2"
+    assert budget.nominal_mismatch_pct == pytest.approx(4.99314, abs=5e-6)
+    assert budget.tolerance_pct == pytest.approx(5.24966, abs=5e-6)
+    assert budget.nominal_mismatch_pct + budget.tolerance_pct == pytest.approx(
+        upper * 100, rel=1e-12, abs=0
+    )
+    assert budget.nominal_mismatch_pct - budget.tolerance_pct == pytest.approx(
+        lower * 100, rel=1e-12, abs=0
+    )
 
 
 def test_kinds_never_offered_state_their_sourced_reasons():
@@ -129,14 +155,41 @@ def test_no_rated_core_names_the_frequency_and_the_vhf_exclusion():
     assert inductor.best is None
 
 
-def test_a_rated_core_that_cannot_reach_the_inductance_keeps_the_screen_reason():
-    # 1 mH at 30 MHz: cores are rated there, but none winds it within its A_L tolerance.
+def test_a_rated_core_that_misses_in_whole_turns_names_that_limit():
+    # 5 ohm, 10 MHz, n=3: every rated core fits a single layer, but each whole-turn
+    # winding misses 0.1592 uH by more than its 5 % A_L tolerance (+8.57 %, +10.84 %,
+    # -10.46 %).
+    outcome = design(_ladder(impedance=5.0, order=3))
+
+    reason = outcome.parts.inductor("L1").kind("toroid").reason_none
+    assert reason == (
+        "No suitable toroid core in the built-in list: no core rated for this frequency "
+        "reaches this inductance within its A_L tolerance using whole turns. Choose a core "
+        "manually."
+    )
+
+
+def test_a_winding_that_fits_no_rated_core_names_that_limit():
+    # 0.1 H at 30 MHz needs more turns than any rated core's winding table holds.
     parts = resolve_parts_for(
         {"freq_hz": 30e6, "capacitors": [1e-12], "inductors": [1e-1], "order": 2, "topology": "pi"},
         "lowpass",
     )
 
-    assert parts.inductor("L1").kind("toroid").reason_none == NO_SUITABLE_CORE_REASON
+    assert parts.inductor("L1").kind("toroid").reason_none == (
+        "No suitable toroid core in the built-in list: the winding that reaches this "
+        "inductance does not fit any core rated for this frequency. Choose a core manually."
+    )
+
+
+def test_cores_rejected_for_both_limits_name_both():
+    reason = no_suitable_core_reason(frozenset({"inductance", "fit"}))
+
+    assert reason == (
+        "No suitable toroid core in the built-in list: each core rated for this frequency "
+        "either misses this inductance by more than its A_L tolerance using whole turns or "
+        "cannot fit the winding. Choose a core manually."
+    )
 
 
 @pytest.mark.parametrize(
@@ -146,6 +199,24 @@ def test_a_rated_core_that_cannot_reach_the_inductance_keeps_the_screen_reason()
         dict(rank=0),
         dict(srf_basis="typical"),
         dict(achieved_h=0.0),
+        dict(tolerance_pct=-1.0),
+        dict(tolerance_pct=float("nan")),
+        dict(tolerance_pct=100.0),
+        # A model qualifies only with its stated accuracy.
+        dict(srf_basis="model"),
+        # Only the legacy toroid windings may leave the SRF not checked.
+        dict(kind="chip"),
+    ],
+    ids=[
+        "kind",
+        "rank",
+        "srf-basis",
+        "inductance",
+        "negative-tolerance",
+        "nan-tolerance",
+        "full-tolerance",
+        "model-without-accuracy",
+        "unchecked-chip",
     ],
 )
 def test_the_record_refuses_values_outside_its_contract(build):
@@ -166,6 +237,34 @@ def test_the_record_refuses_values_outside_its_contract(build):
 
     with pytest.raises(ValueError):
         InductorSuggestion(**values)
+
+
+@pytest.mark.parametrize(
+    "budget",
+    [
+        dict(nominal_mismatch_pct=float("inf")),
+        dict(tolerance_pct=-0.1),
+        dict(tolerance_pct=float("nan")),
+        dict(srf_drift_pct=(1.0, -1.0)),
+        dict(srf_drift_pct=(0.0, float("nan"))),
+    ],
+    ids=["mismatch", "negative-tolerance", "nan-tolerance", "drift-order", "nan-drift"],
+)
+def test_the_error_budget_refuses_values_outside_its_contract(budget):
+    values = dict(nominal_mismatch_pct=1.0, tolerance_pct=5.0)
+    values.update(budget)
+
+    with pytest.raises(ValueError):
+        ErrorBudget(**values)
+
+
+def test_a_model_basis_with_its_accuracy_is_a_valid_record():
+    suggestion = design(_ladder()).parts.inductor("L1").best
+    chip = dataclasses.replace(
+        suggestion, kind="chip", srf_basis="model", srf_accuracy="±5% against measurements"
+    )
+
+    assert chip.srf_basis == "model"
 
 
 def test_a_kind_has_either_suggestions_or_a_reason():
@@ -283,6 +382,36 @@ def test_resolve_parts_uses_the_request_s_settings():
     assert resolve_parts(request, outcome.result) == outcome.parts
     assert outcome.parts.inductor_detail == "full"
     assert outcome.parts.build_inductors == "calculated"
+
+
+def test_the_resolver_refuses_what_the_request_refuses():
+    result = design(_ladder()).result
+
+    with pytest.raises(ValueError) as error:
+        resolve_parts_for(result, "lowpass", inductor_detail="none", build_inductors="chip")
+    assert str(error.value) == FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE
+    with pytest.raises(ValueError, match="zero-argument callable"):
+        resolve_parts_for(result, "lowpass", should_cancel=True)  # type: ignore[arg-type]
+
+
+def test_suggestions_off_screen_nothing(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "filter_lib.design.part_resolution.suggest_toroids",
+        lambda *args: calls.append(args) or pytest.fail("a toroid was screened"),
+    )
+
+    parts = design(_ladder(inductor_suggestions="none")).parts
+
+    assert calls == []
+    assert parts.inductor("L1").kinds == ()
+
+
+def test_band_pass_synthesis_refuses_a_check_that_cannot_be_called():
+    from filter_lib.bandpass import calculate_bandpass_filter
+
+    with pytest.raises(ValueError, match="zero-argument callable"):
+        calculate_bandpass_filter(14.2e6, 500e3, 50.0, 3, "butterworth", "top", should_cancel=True)
 
 
 # -- Request rules -------------------------------------------------------------------------

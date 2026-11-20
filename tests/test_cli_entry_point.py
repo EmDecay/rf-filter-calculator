@@ -4,7 +4,7 @@ import io
 import os
 import subprocess
 import sys
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError
 from unittest.mock import patch
 
 import pytest
@@ -90,17 +90,26 @@ def test_wizard_subcommand_accepts_no_options(monkeypatch, capsys):
     run_wizard.assert_not_called()
 
 
-def test_version_reports_installed_distribution(monkeypatch, capsys):
+def test_version_reports_the_running_package(monkeypatch, capsys):
+    import filter_lib
+
     with pytest.raises(SystemExit) as exc_info:
         _main(monkeypatch, "--version")
 
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == f"filter-calc {version('rf-filter-calculator')}\n"
+    assert capsys.readouterr().out == f"filter-calc {filter_lib.__version__}\n"
 
 
-def test_version_falls_back_to_package_literal_in_source_checkout(monkeypatch, capsys):
-    missing = PackageNotFoundError("rf-filter-calculator")
-    with patch("filter_lib.cli.metadata_version", side_effect=missing):
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"return_value": "2.3.0"},  # an editable install made before the version moved
+        {"side_effect": PackageNotFoundError("rf-filter-calculator")},  # a bare checkout
+    ],
+    ids=["stale-metadata", "no-metadata"],
+)
+def test_version_never_comes_from_installed_metadata(monkeypatch, capsys, metadata):
+    with patch("importlib.metadata.version", **metadata):
         with pytest.raises(SystemExit) as exc_info:
             _main(monkeypatch, "--version")
 

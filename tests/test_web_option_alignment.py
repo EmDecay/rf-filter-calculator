@@ -228,8 +228,11 @@ def test_build_inductors_is_a_choice_that_starts_at_auto(client):
 
     for value in BUILD_INDUCTOR_CHOICES:
         checked = " checked" if value == "auto" else ""
-        radio = f'name="build_inductors" value="{value}"{checked} data-option="build_inductors"'
-        assert radio in page, value
+        # Only the forced kinds follow the rule (Inductor suggestions None disables them).
+        forced = value in ("toroid", "air-coil", "chip")
+        option = ' data-option="build_inductors"' if forced else ""
+        radio = f'name="build_inductors" value="{value}"{checked}{option}'
+        assert re.search(re.escape(radio) + r'( aria-describedby="[^"]*")?>', page), value
     assert "Inductors in the build" in page
     assert 'type="hidden" name="build_inductors"' not in page
     assert "Simulate inductors as the suggested toroid windings" not in page

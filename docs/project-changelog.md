@@ -117,13 +117,18 @@ only labels changed.
 - **Added `--build-inductors {auto,toroid,air-coil,chip,calculated}`** (default `auto`; wizard
   and web **Inductors in the build**, which the web reads only while **Simulate the built
   filter** is ticked): what `--sim-build` and the chosen-parts deck use for each inductor. It
-  needs `--sim-build` or `--format spice` and is refused with an exact deck. A forced kind
+  needs `--sim-build` or `--format spice` and is refused with an exact deck (the web's
+  SPICE – calculated values and response-data downloads leave it out). A forced kind
   without a part simulates the calculated value and says why; a forced kind with
-  `--inductor-suggestions none` is refused.
+  `--inductor-suggestions none` is refused, and the wizard and web disable only the forced
+  kinds then.
+- **`--version` reports the running code's version** (`filter_lib.__version__`, the literal
+  packaging reads) instead of installed metadata, which an editable checkout keeps at the
+  version it was installed at.
 - **Output text.** The table section "Toroid Winding Suggestions (iron-powder T-series)" is now
   **Inductor Suggestions**; toroid details follow "Toroid windings (iron-powder T-series):",
   titles read `1. Toroid winding T68-2`, and each detailed suggestion ends with an error budget
-  line (`Error budget: -0.25% nominal, ±5% tolerance, SRF drift not checked`). An inductor with
+  line (`Error budget: -0.25% nominal, ±4.99% tolerance, SRF drift not checked`, every term in percent of the target, so a toroid's ±5% A_L tolerance of the achieved inductance is restated against the target). An inductor with
   no suggestion shows `No inductor suggestion qualifies:` and one reason per kind, worded as in
   [component-data-sources.md](component-data-sources.md): "No suitable toroid core in the
   built-in list. …" or, above every core's range, the VHF toroid exclusion; the air-core coil

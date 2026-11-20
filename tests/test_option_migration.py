@@ -190,6 +190,10 @@ def test_sim_matched_and_its_module_are_gone(monkeypatch, capsys):
     assert importlib.util.find_spec("filter_lib.shared.matched_simulation") is None
 
 
+def test_the_toroid_flag_module_is_gone():
+    assert importlib.util.find_spec("filter_lib.cli.toroid_flags") is None
+
+
 # -- BuildConfig.use_toroid_candidates -> DesignRequest.build_inductors ----------------------
 
 
@@ -362,6 +366,7 @@ _OLD_JSON_KEYS = {
     "verified_toroid_elements",
     "uses_verified_toroid_candidates",
     "q_dc_upper_bound",
+    "matched_sim",
 }
 
 
@@ -420,7 +425,7 @@ def test_old_method_and_status_values_are_gone(monkeypatch, capsys, choice):
 
 _REMOVED = re.compile(
     r"--no-toroids\b|--toroid-full\b|--toroid-compact\b|--no-toroid-build\b|--sim-matched\b"
-    r"|\bsim_matched\b|\bmatched_simulation\b|\btoroid_recommendations\b|\bresonator_toroid_"
+    r"|\bsim_matched\b|\bmatched_sim\b|\bmatched_simulation\b|\btoroid_flags\b|\btoroid_recommendations\b|\bresonator_toroid_"
     r"|\buse_toroid_candidates\b|\binclude_toroids\b|\btoroid_build\b|\bno_toroid_build\b"
     r"|\bno_toroids\b|\btoroid_full\b|\btoroid_compact\b|\btoroid_detail\b|\bTOROID_DETAIL\b"
     r"|\bTOROID_BUILD\b|\bsimulate_toroid_windings\b|\bverified_toroid_|\bcandidate_screen_"

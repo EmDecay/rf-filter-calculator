@@ -12,7 +12,7 @@
     {{ text_field("build_sample_count", "Extra random tolerance cases", help="Random part values within tolerance, added to the fixed tolerance cases. 0 to 10000; blank = 0.", inputmode="numeric") }}
     {{ text_field("build_seed", "Random seed", help="The same seed repeats the same random cases. Blank = 0.", inputmode="numeric") }}
     {{ text_field("build_grid_points", "Frequency points", help="Points in the simulated frequency sweep, 51 to 5001; refined automatically between points. Blank = 601.", inputmode="numeric", wide=true) }}
-    {{ segmented("build_inductors", labels.build_inductors, labels.build_inductors_choices, option="build_inductors") }}
+    {{ segmented("build_inductors", labels.build_inductors, labels.build_inductors_choices, option="build_inductors", option_values=("toroid", "air-coil", "chip")) }}
     <p class="field__help field--wide">{{ labels.build_inductors_help }}</p>
   </div>
 </fieldset>

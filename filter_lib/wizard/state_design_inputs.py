@@ -38,6 +38,7 @@ from filter_lib.shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
 from filter_lib.shared.inductor_suggestion import (
     DEFAULT_BUILD_INDUCTORS,
     DEFAULT_INDUCTOR_DETAIL,
+    FORCED_KINDS,
     NON_DEFAULT_TABLE_DETAILS,
 )
 
@@ -97,7 +98,9 @@ class DesignInputsMixin:
             TEXT_PLOT: self.show_plot,
             RAW_UNITS: self.raw_units,
             BUILD: self.build_analysis_enabled,
-            BUILD_INDUCTORS: self.build_inductors != DEFAULT_BUILD_INDUCTORS,
+            # Only a forced kind is an option the rule can disable; Auto and Calculated
+            # values always apply (see _build_inductors_for).
+            BUILD_INDUCTORS: self.build_inductors in FORCED_KINDS,
             LOSS_Q: self.has_resonator_q,
         }
         return frozenset(option for option in OPTIONS if chosen[option])
@@ -154,6 +157,14 @@ class DesignInputsMixin:
             return DEFAULT_ESERIES
         return None if self.eseries == "none" else self.eseries
 
+    def _build_inductors_for(self, options: frozenset[str], include_build: bool) -> str:
+        """The build inductors used: only with the build; a forced kind where it applies."""
+        if not include_build:
+            return DEFAULT_BUILD_INDUCTORS
+        if self.build_inductors in FORCED_KINDS and BUILD_INDUCTORS not in options:
+            return DEFAULT_BUILD_INDUCTORS
+        return self.build_inductors
+
     def _inductor_detail_for(self, options: frozenset[str]) -> str:
         """The inductor detail used: None on every output, full or compact where it applies."""
         if self.inductor_detail == "none" or INDUCTOR_DETAIL in options:
@@ -208,11 +219,7 @@ class DesignInputsMixin:
             ),
             inductor_suggestions=self._inductor_detail_for(options),
             # The wizard has no SPICE output, so the build settings matter only to a build.
-            build_inductors=(
-                self.build_inductors
-                if include_build and BUILD_INDUCTORS in options
-                else DEFAULT_BUILD_INDUCTORS
-            ),
+            build_inductors=self._build_inductors_for(options, include_build),
             realization=self.make_build_config() if include_build else None,
             run_build_analysis=include_build,
         )

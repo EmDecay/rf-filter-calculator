@@ -118,16 +118,36 @@ def require_build_with_suggestions(detail: str, build_inductors: str) -> None:
 class ErrorBudget:
     """How far a suggested part can be from its target, term by term.
 
-    ``nominal_mismatch_pct`` is the signed difference of the part's nominal inductance
-    from the target, ``tolerance_pct`` its ± manufacturing tolerance, both in percent of
-    the target. ``srf_drift_pct`` is the (lowest, highest) change of inductance from
-    self-resonance over the checked frequency range, or ``None`` when the SRF is not
-    checked.
+    Every term is in percent of the design target, so the terms add up to the part's
+    true worst case. ``nominal_mismatch_pct`` is the signed difference of the part's
+    nominal inductance from the target; ``tolerance_pct`` is its ± manufacturing
+    tolerance, which applies to the part's own (achieved) inductance and is converted
+    to the target here (``tolerance_of_target``). ``srf_drift_pct`` is the (lowest,
+    highest) change of inductance from self-resonance over the checked frequency range,
+    or ``None`` when the SRF is not checked.
     """
 
     nominal_mismatch_pct: float
     tolerance_pct: float
     srf_drift_pct: tuple[float, float] | None = None
+
+    def __post_init__(self) -> None:
+        if not is_finite_real(self.nominal_mismatch_pct):
+            raise ValueError("The nominal mismatch must be finite")
+        if not is_finite_real(self.tolerance_pct) or self.tolerance_pct < 0:
+            raise ValueError("The tolerance must be zero or more and finite")
+        drift = self.srf_drift_pct
+        if drift is not None and (
+            len(drift) != 2
+            or not all(is_finite_real(value) for value in drift)
+            or drift[0] > drift[1]
+        ):
+            raise ValueError("The SRF drift must be a finite (lowest, highest) pair")
+
+
+def tolerance_of_target(tolerance_pct: float, achieved_h: float, target_h: float) -> float:
+    """A part's ± tolerance (percent of its own inductance) as percent of the target."""
+    return tolerance_pct * achieved_h / target_h
 
 
 @dataclass(frozen=True)
@@ -172,6 +192,14 @@ class InductorSuggestion:
         for value in (self.target_h, self.achieved_h):
             if not is_finite_real(value) or value <= 0:
                 raise ValueError("Suggestion inductances must be positive and finite")
+        if not is_finite_real(self.tolerance_pct) or not 0 <= self.tolerance_pct < 100:
+            raise ValueError("A suggestion's tolerance must be at least 0% and below 100%")
+        # Only a guaranteed limit or a model with its stated accuracy may qualify a part;
+        # "not checked" is kept for the legacy HF toroid windings alone.
+        if self.srf_basis == SRF_MODEL and not self.srf_accuracy:
+            raise ValueError("An SRF model basis needs its stated accuracy")
+        if self.srf_basis == SRF_NOT_CHECKED and self.kind != "toroid":
+            raise ValueError("Only toroid windings may leave the SRF not checked")
 
 
 @dataclass(frozen=True)

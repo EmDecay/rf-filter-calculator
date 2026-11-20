@@ -57,7 +57,7 @@ def has_suggestion(inductors: Sequence[InductorParts]) -> bool:
 
 
 def format_error_budget(budget: ErrorBudget) -> str:
-    """The error budget, term by term, in percent of the target."""
+    """The error budget, term by term, in percent of the target (two decimals each)."""
     mismatch = f"{format_fixed(budget.nominal_mismatch_pct, 2, explicit_sign=True)}%"
     if budget.srf_drift_pct is None:
         drift = "SRF drift not checked"
@@ -67,7 +67,8 @@ def format_error_budget(budget: ErrorBudget) -> str:
             f"SRF drift {format_fixed(low, 2, explicit_sign=True)}% to "
             f"{format_fixed(high, 2, explicit_sign=True)}%"
         )
-    return f"Error budget: {mismatch} nominal, ±{budget.tolerance_pct:g}% tolerance, {drift}"
+    tolerance = format_fixed(budget.tolerance_pct, 2)
+    return f"Error budget: {mismatch} nominal, ±{tolerance}% tolerance, {drift}"
 
 
 def _title(suggestion: InductorSuggestion) -> str:

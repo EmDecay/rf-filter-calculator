@@ -8,7 +8,11 @@ and wizard documents read the ``ResolvedParts`` it returns.
 
 from __future__ import annotations
 
-from ..shared.cancellation import CancellationCheck, raise_if_cancelled
+from ..shared.cancellation import (
+    CancellationCheck,
+    raise_if_cancelled,
+    require_cancellation_check,
+)
 from ..shared.circuit_builders import build_named_circuit
 from ..shared.circuit_model import CircuitElement
 from ..shared.eseries import DEFAULT_MATCH_POLICY, MatchPolicy, match_component
@@ -24,6 +28,7 @@ from ..shared.inductor_suggestion import (
     InductorSuggestion,
     KindSuggestions,
     require_build_inductors,
+    require_build_with_suggestions,
     require_inductor_detail,
 )
 from ..shared.resolved_parts import InductorParts, ResolvedParts
@@ -123,6 +128,8 @@ def resolve_parts_for(
     """
     require_inductor_detail(inductor_detail)
     require_build_inductors(build_inductors)
+    require_build_with_suggestions(inductor_detail, build_inductors)
+    require_cancellation_check(should_cancel)
     active_policy = DEFAULT_MATCH_POLICY if policy is None else policy
     circuit = build_named_circuit(result, category)
     design_freq_hz = _design_frequency(result, category)
@@ -138,7 +145,12 @@ def resolve_parts_for(
                 )
             continue
         if element.value not in screened:
-            screened[element.value] = _kind_suggestions(element.value, design_freq_hz)
+            # Suggestions off: nothing is screened, and the build uses calculated values.
+            screened[element.value] = (
+                ()
+                if inductor_detail == "none"
+                else _kind_suggestions(element.value, design_freq_hz)
+            )
         inductors[element.name] = _inductor_parts(
             element, screened[element.value], inductor_detail, build_inductors
         )

@@ -1,6 +1,10 @@
 """High-level orchestration for calibrated Top-C bandpass designs."""
 
-from ..shared.cancellation import CancellationCheck, raise_if_cancelled
+from ..shared.cancellation import (
+    CancellationCheck,
+    raise_if_cancelled,
+    require_cancellation_check,
+)
 from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from ..shared.numeric import require_positive_finite
 from .coupling_math import require_end_coupling_resonator
@@ -109,6 +113,7 @@ def calculate_bandpass_filter(
     """
     _validate_inputs(f0, bw, z0, n_resonators, filter_type, coupling)
     require_positive_finite(q_safety, "q_safety")
+    require_cancellation_check(should_cancel)
     resonator_qu = combine_resonator_q(qu=qu, ql=ql, qc=qc)
     _resolve_resonator_components(f0, z0, resonator_impedance, resonator_inductance)
     if filter_type == "chebyshev":

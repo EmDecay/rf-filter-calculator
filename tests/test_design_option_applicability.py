@@ -24,6 +24,7 @@ from filter_lib.design.option_applicability import (
     ESERIES,
     ESERIES_RAW_MESSAGE,
     ESERIES_VALUES_ONLY_MESSAGE,
+    EXACT_SPICE_BUILD_INDUCTORS_MESSAGE,
     EXACT_SPICE_MATCHING_MESSAGE,
     INDUCTOR_DETAIL,
     INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE,
@@ -34,6 +35,7 @@ from filter_lib.design.option_applicability import (
     OPTIONS,
     RAW_NEEDS_TABLE_MESSAGE,
     RAW_UNITS,
+    RESPONSE_DATA_BUILD_INDUCTORS_MESSAGE,
     RESPONSE_DATA_MATCHING_MESSAGE,
     STRAY_CAPACITANCE,
     SUB_PF_RAW_MESSAGE,
@@ -157,22 +159,27 @@ def test_document_reason_judges_each_document_by_its_own_format(document, expect
         document_reason("pdf", LOSS_Q)
 
 
-def test_the_calculated_values_deck_has_its_own_rule_for_capacitor_choices():
-    """Exact SPICE uses no standard capacitors: every matching option is left out of it."""
+def test_the_calculated_values_deck_has_its_own_rule_for_chosen_parts():
+    """Exact SPICE uses no chosen part: every matching option and the build inductors are
+    left out of it (the CLI refuses them with an exact deck)."""
     assert set(MATCHING_OPTIONS) == {ESERIES, ALLOW_SUB_PF, *POLICY_LABELS}
-    assert document_own_options("spice-exact") == frozenset(MATCHING_OPTIONS)
+    chosen_parts = frozenset({*MATCHING_OPTIONS, BUILD_INDUCTORS})
+    assert document_own_options("spice-exact") == chosen_parts
     for document in ("json", "csv", "spice-nominal"):
         assert document_own_options(document) == frozenset()
-    # Response data is the ideal response, which no standard capacitor choice changes.
+    # Response data is the ideal response, which no chosen part changes.
     for document in ("response-json", "response-csv"):
-        assert document_own_options(document) == frozenset(MATCHING_OPTIONS)
+        assert document_own_options(document) == chosen_parts
         for option in MATCHING_OPTIONS:
             assert document_reason(document, option) == RESPONSE_DATA_MATCHING_MESSAGE
+        assert document_reason(document, BUILD_INDUCTORS) == RESPONSE_DATA_BUILD_INDUCTORS_MESSAGE
     reasons = document_reasons(OutputChoices(), "spice-exact")
     for option in MATCHING_OPTIONS:
         assert reasons[option] == EXACT_SPICE_MATCHING_MESSAGE
         assert document_reason("spice-exact", option) == EXACT_SPICE_MATCHING_MESSAGE
         assert document_reason("spice-nominal", option) is None
+    assert reasons[BUILD_INDUCTORS] == EXACT_SPICE_BUILD_INDUCTORS_MESSAGE
+    assert document_reason("spice-nominal", BUILD_INDUCTORS) is None
 
 
 def test_no_standard_values_rules_out_sub_pf_and_the_build():

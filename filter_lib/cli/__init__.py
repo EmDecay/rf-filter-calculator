@@ -4,21 +4,11 @@ import argparse
 import os
 import sys
 import textwrap
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as metadata_version
 
 from .. import __version__
 from . import bandpass_cmd, highpass_cmd, lowpass_cmd, web_cmd, wizard_cmd
 
 __all__ = ["lowpass_cmd", "highpass_cmd", "bandpass_cmd", "wizard_cmd", "web_cmd", "main"]
-
-
-def _package_version() -> str:
-    """Return the installed distribution version, falling back for source checkouts."""
-    try:
-        return metadata_version("rf-filter-calculator")
-    except PackageNotFoundError:
-        return __version__
 
 
 def _discard_further_stdout() -> None:
@@ -69,7 +59,9 @@ Examples:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {_package_version()}",
+        # The running package's own version: the one literal packaging metadata is built
+        # from, so an editable checkout never reports the version it was installed at.
+        version=f"%(prog)s {__version__}",
     )
 
     subparsers = parser.add_subparsers(dest="command")

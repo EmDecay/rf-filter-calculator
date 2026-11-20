@@ -13,8 +13,8 @@ Complete reference for all commands, options, and features. Upgrading from 2.x? 
 | `wizard` | `w` | Interactive terminal wizard (also the default with no arguments) |
 | `web` | - | Browser interface on this computer (needs the optional `web` dependencies) |
 
-`filter-calc --version` prints the installed version, and `filter-calc <command> --help` lists
-every option for that command.
+`filter-calc --version` prints the version of the code that runs, and
+`filter-calc <command> --help` lists every option for that command.
 
 ## Lowpass Command
 
@@ -302,7 +302,9 @@ inductors, or Calculated values.
 An option that cannot apply is disabled, with a one-line reason under it, and treated as not
 set, like leaving out the CLI flag (the rule is the one the CLI enforces): Values only disables
 the standard capacitor values, the text plot, the two table-only inductor suggestion choices,
-and the build simulation; Inductor suggestions None disables **Inductors in the build**.
+and the build simulation; Inductor suggestions None disables the three forced kinds of
+**Inductors in the build** (Auto and Calculated values stay usable and build the calculated
+values).
 Select **Show results** to calculate.
 
 #### 4. Results
@@ -407,7 +409,7 @@ Field names mirror the CLI flags, so a design can move between the two.
 | Response graph (`svg_plot`) | none | Web only |
 | Simulate the built filter (`sim_build`) | `--sim-build` | Needs table or JSON output and an E-series |
 | Build fields (`build_inductor_tolerance_pct`, `build_inductor_q`, `build_capacitor_q`, `build_reference_frequency`, `build_source_resistance`, `build_load_resistance`, `build_sample_count`, `build_seed`, `build_grid_points`) | `--inductor-tolerance`, `--inductor-q`, `--capacitor-q`, `--loss-reference-frequency`, `--source-resistance`, `--load-resistance`, `--sample-count`, `--seed`, `--analysis-points` | Labeled Inductor tolerance (±%), Inductor/Capacitor Q, Frequency at which the Q values apply, Simulation source/load resistance (Ω), Extra random tolerance cases, Random seed, Frequency points. Pre-filled with the CLI defaults (the inductor tolerance is blank: 10% for toroid windings and calculated values); a blank takes the default. Read only when the build box is ticked. A nonzero seed needs extra random cases |
-| Inductors in the build (`build_inductors`: auto, toroid, air-coil, chip, calculated) | `--build-inductors` | Auto (default) / Toroid windings / Air-core coils / Chip inductors / Calculated values. A build field: read only when the build box is ticked. Disabled when Inductor suggestions is None |
+| Inductors in the build (`build_inductors`: auto, toroid, air-coil, chip, calculated) | `--build-inductors` | Auto (default) / Toroid windings / Air-core coils / Chip inductors / Calculated values. A build field: read only when the build box is ticked. With Inductor suggestions None, the three forced kinds are disabled; the SPICE – calculated values and response-data downloads leave it out |
 
 An option that cannot apply is disabled, with the reason under it, by the wizard's rule, and is
 not submitted (like leaving out the CLI flag). A hand-made request that sets one anyway is
@@ -630,7 +632,7 @@ toroid windings on HF cores are offered:
 
 | Kind | Offered | Reason shown when there is no part |
 |---|---|---|
-| Toroid winding | T25-6, T50-2, and T68-2, within each core's rated frequency range ([below](#toroid-winding-suggestions)) | "No suitable toroid core in the built-in list. …", or above every core's range "No built-in toroid core is rated for 146 MHz. VHF toroids are not offered: the core maker publishes no self-resonance or winding-capacitance data, so the inductance near the band cannot be checked." |
+| Toroid winding | T25-6, T50-2, and T68-2, within each core's rated frequency range ([below](#toroid-winding-suggestions)) | "No suitable toroid core in the built-in list: …" naming the limit that failed (whole-turn inductance within the A_L tolerance, or winding fit), or above every core's range "No built-in toroid core is rated for 146 MHz. VHF toroids are not offered: the core maker publishes no self-resonance or winding-capacitance data, so the inductance near the band cannot be checked." |
 | Air-core coil | No | "Air-core coils are not offered: no published self-capacitance model is validated for coils of a few spaced turns, so their self-resonance cannot be checked." |
 | Chip inductor | No | "Chip inductor suggestions are not available in this version." |
 
@@ -656,9 +658,11 @@ are the same for each: JSON always lists up to three per kind and CSV the best. 
 qualify.
 
 Each detailed suggestion ends with its error budget, for example `Error budget: -0.25%
-nominal, ±5% tolerance, SRF drift not checked`: the part's nominal distance from the target,
-its ± manufacturing tolerance (for a toroid, the core's A_L tolerance), and the change of
-inductance from self-resonance, not checked for toroid windings. An inductor with no
+nominal, ±4.99% tolerance, SRF drift not checked`, every term in percent of the target: the
+part's nominal distance from the target, its ± manufacturing tolerance (for a toroid, the
+core's ±5% A_L tolerance of the achieved inductance, restated against the target), and the
+change of inductance from self-resonance, not checked for toroid windings. The terms add up
+to the part's true worst case. An inductor with no
 suggestion lists one reason per kind, as from `uv run filter-calc lp bw pi 146MHz -n 5`:
 
 ```text
@@ -728,7 +732,7 @@ L range: the same turns across the core's ±5% A_L tolerance.
      Wire: 311 mm of AWG 20 (0.800 mm dia.)   DCR: 12.1 mΩ   Fit: single layer (datasheet)
      Q limit from wire DCR alone (ωL/DCR): 8,210 at 10 MHz. Real Q is lower.
      Size: 12.70 × 7.70 × 4.83 mm (OD × ID × H)   Source: Micrometals, Inc. datasheet
-     Error budget: -0.25% nominal, ±5% tolerance, SRF drift not checked
+     Error budget: -0.25% nominal, ±4.99% tolerance, SRF drift not checked
 ```
 
 `compact` prints one line for the best part, and one legend line replaces the detailed view's
