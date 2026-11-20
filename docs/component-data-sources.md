@@ -10,7 +10,8 @@ can cover the acceptance designs, and why the others are not offered.
 worst-case rule in [code-standards.md](code-standards.md#e-series-policy)); each packaged row
 cites the reference sheet that states its tolerance, with the URL and SHA-256 listed here. The
 chip-inductor, toroid, air-coil and trimmer data are evidence only: no calculator output uses
-them yet. When a feature packages part of this page as a data file, the packaged rows must
+their values yet. The output does quote the exclusion reasons for VHF toroids and air-core coils
+below, word for word, as the reason those kinds offer no part. When a feature packages part of this page as a data file, the packaged rows must
 match this page and cite the same sources; a data change updates this page in the same change.
 
 ## How to read this page

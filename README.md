@@ -15,9 +15,9 @@ Calculates LC filter component values for RF engineers and amateur radio operato
 - **Standard Capacitor Values**: E12/E24/E96 sets how many standard values there are per decade, not the part tolerance. Each capacitor gets the single part or parallel pair whose worst case is closest to the calculated value: each part at either end of its tolerance, plus an assumed stray (default 0.2 pF) across a pair; a pair only if it is at least 0.5 percentage points closer. Tolerances come from a sourced C0G series (Murata GRM1885C1H…A01, standard or tight grade, see [docs/component-data-sources.md](docs/component-data-sources.md)); a value that series does not make keeps the nominal rule and is labelled "tolerance not sourced". Below 1 pF no part is chosen automatically unless you turn on `--allow-sub-pf` (**Allow capacitors below 1 pF** in the wizard and web UI)
 - **End Coupling**: Band-pass external Q is set by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
 - **Checked Band-Pass Design**: Each top-coupled design places both −3 dB edges where requested, and a response check simulates the circuit to confirm the passband, outer edges, passband shape, ripple, and points just outside the passband. Rejection farther out is not checked; the attenuation at 2×f₀ and 3×f₀ and the Cohn loss estimates are reported separately
-- **Build Simulation**: `--sim-build` simulates the filter with the chosen parts (standard capacitor values and suggested toroid windings), optional part losses (Q), and tolerance cases plus repeatable extra random cases. Measurements include the exact requested band edges and say when a value did not converge or the response is above −3 dB in separate ranges
+- **Build Simulation**: `--sim-build` simulates the filter with the chosen parts (standard capacitor values and inductor suggestions), optional part losses (Q), and tolerance cases plus repeatable extra random cases. Measurements include the exact requested band edges and say when a value did not converge or the response is above −3 dB in separate ranges
 - **Generic SPICE Export**: decks with the calculated values (`exact`, or `calculated`) or the chosen parts (`nominal-build`, or `chosen-parts`) use the same named circuit as the build simulation; band-pass decks map SPICE names to table names in a `* names:` comment
-- **Toroid Winding Suggestions**: Automatic suggestions are limited to cores with primary-source data (currently T25-6, T50-2, and T68-2) that are rated for the frequency, reach the inductance within the A_L tolerance using whole turns, and fit the winding. RF Q, SRF, core loss, saturation, heating, and power handling are not checked
+- **Inductor Suggestions**: Each inductor lists a buildable part of each kind, in the order toroid winding, air-core coil, chip inductor, with an error budget; a kind with no part says why. Toroid windings are limited to cores with primary-source data (currently T25-6, T50-2, and T68-2) that are rated for the frequency, reach the inductance within the A_L tolerance using whole turns, and fit the winding; RF Q, SRF, core loss, saturation, heating, and power handling are not checked. VHF toroids and air-core coils are not offered, because no published data lets their self-resonance be checked ([docs/component-data-sources.md](docs/component-data-sources.md)), and chip inductors are not available in this version
 - **ASCII Plots**: Visualize the frequency response (LP/HP ideal transfer function, BP simulated circuit)
 - **Multiple Outputs**: Table, JSON, CSV, generic SPICE, and standalone response-data exports
 - **Interactive Wizard**: Guided terminal (TUI) design mode with the same options, labels, defaults, and order as the web UI
@@ -182,17 +182,14 @@ bandwidth and agree with the requested values to floating-point precision.
 | `--plot` | Add a text plot of the frequency response to the table |
 | `--plot-data` | Print only the frequency response, as json or csv |
 | `--explain` | Print a short description of the response type and exit |
-| `--no-toroids` | Leave out the suggested toroid windings from all outputs |
-| `--toroid-compact` | Table output: the best toroid suggestion for each inductor on one line |
-| `--toroid-full` | Table output: up to three toroid suggestions per inductor (default: the best one; JSON lists up to three, CSV the best) |
-| `--sim-matched` | Deprecated; use `--sim-build` |
+| `--inductor-suggestions` | Inductor suggestions in the table: `best` (default; the part the build uses), `full` (up to three per kind, and why a kind has none), `compact` (the best on one line), or `none` (left out of every output; the build and SPICE use the calculated inductances). JSON lists up to three per kind and CSV the best |
 | `--sim-build` | Build simulation: simulate the filter with the chosen parts at nominal values and across tolerance cases, with optional part losses (Q) |
 | `--inductor-tolerance` (alias `--ind-tolerance`) | ± percent tolerance of every inductor in `--sim-build` (default: 10 for toroid windings and calculated values); capacitors use their own tolerances (see `--capacitor-grade`) |
 | `--inductor-q`, `--capacitor-q` | Part losses (Q) for `--sim-build` or the `nominal-build` SPICE deck |
 | `--loss-reference-frequency` | Frequency at which the Q values apply (default: cutoff or center frequency); needs a Q option |
 | `--source-resistance`, `--load-resistance` | Simulation source and load resistance; component values are still designed for equal source and load impedance |
 | `--sample-count` (alias `--samples`), `--seed`, `--analysis-points` | Extra random tolerance cases, their random seed, and the number of frequency points; measurements are refined automatically |
-| `--no-toroid-build` | Simulate the calculated inductances instead of the suggested toroid windings |
+| `--build-inductors` | What `--sim-build` and the `nominal-build` SPICE deck use for each inductor: `auto` (default; the first suggestion in the order toroid, air coil, chip), `toroid`, `air-coil`, `chip`, or `calculated`. An inductor with no suggestion of the chosen kind uses its calculated value, and the output says why |
 | `--spice-realization` | Values in the `--format spice` deck: `exact` or `calculated` (calculated values, lossless), or `nominal-build` or `chosen-parts` (chosen parts; default) |
 | `--qu` | Band-pass resonator Qu (inductor and capacitor losses together), for the loss estimate and the build simulation |
 | `--ql`, `--qc` | Band-pass resonator inductor Q and resonator capacitor Q; combined as `1/Qu = 1/(inductor Q) + 1/(capacitor Q)` |
@@ -211,7 +208,7 @@ Running with no arguments starts a Textual TUI wizard with screen-based navigati
 
 1. **Welcome Screen** - Choose a filter (low-pass, high-pass, band-pass)
 2. **Filter Configuration** - Set response, topology or coupling, frequency, impedance, and order (low-pass, high-pass) or number of resonators (band-pass). Band-pass takes the center and width or the two −3 dB band edges, plus optional resonator size and resonator Q (Qu, or resonator inductor Q and capacitor Q)
-3. **Output options** - Format (Table, Values only, JSON, CSV), standard capacitor values (and **Allow capacitors below 1 pF**), toroid windings (Best, detailed; Up to 3, detailed; Best, one line; None), text plot and raw units, a response data file, and the optional build simulation. An option that cannot apply to the chosen format is disabled with the reason under it
+3. **Output options** - Format (Table, Values only, JSON, CSV), standard capacitor values (and **Allow capacitors below 1 pF**), inductor suggestions (Best, detailed; Up to 3 per kind, detailed; Best, one line; None), text plot and raw units, a response data file, and the optional build simulation (including **Inductors in the build**). An option that cannot apply to the chosen format is disabled with the reason under it
 4. **Results** - View the calculation and save it; the component file and an optional response-data file are chosen separately
 
 **Keyboard shortcuts:**
@@ -298,6 +295,10 @@ uv run filter-calc bp bw top -f 14.175MHz -b 350kHz \
 The deck prints load-node voltage. Its comment gives the transducer-gain expression; the printed voltage is not itself gain in dB. `--spice-realization nominal-build` (the default) uses the chosen parts and lists each one in a `* part used:` comment; a parallel pair also gets its assumed stray as a capacitor named `CSTRAY_<part>` across the same terminals. `exact` uses the calculated values without losses. `chosen-parts` and `calculated` are the same choices under the names the web UI uses.
 
 ## Release Notes
+
+### Worst-case capacitor choice and inductor suggestions (v3.0.0, unreleased)
+
+Version 3.0.0 is a breaking release. It chooses each standard capacitor by its worst case within a sourced tolerance (`--capacitor-grade`, `--capacitor-tolerance`, `--stray-capacitance`), and it replaces the toroid-only options with generic inductor suggestions: `--inductor-suggestions` replaces `--no-toroids`, `--toroid-full`, and `--toroid-compact`, and `--build-inductors` replaces `--no-toroid-build`. The deprecated `--sim-matched` is removed; use `--sim-build`. Old names have no aliases. The inductor change alters only labels: HF inductor values and toroid picks stay the same. See [Migrating from 2.x](docs/user-guide.md#migrating-from-2x) and [docs/project-changelog.md](docs/project-changelog.md).
 
 ### Plain-language output and aligned interfaces (v2.3.0)
 

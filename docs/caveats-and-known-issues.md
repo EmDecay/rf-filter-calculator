@@ -1,6 +1,6 @@
 # Caveats & Known Issues
 
-The calculator keeps three things apart: the ideal design (the calculated values), the chosen parts (standard capacitor values and suggested toroid windings), and simulations of either. None of those is a measurement of an assembled filter.
+The calculator keeps three things apart: the ideal design (the calculated values), the chosen parts (standard capacitor values and inductor suggestions), and simulations of either. None of those is a measurement of an assembled filter.
 
 ## Input and numeric limits
 
@@ -109,7 +109,7 @@ loss in each resonator inductor rather than separate inductor and capacitor Q. S
 `--sim-build` (**Simulate the built filter** in the wizard and web UI) uses the same named circuit as the SPICE export and keeps apart:
 
 1. the ideal values (the calculated components);
-2. the chosen parts (standard capacitor values and suggested toroid windings, or the calculated value where no part was chosen);
+2. the chosen parts (standard capacitor values and the inductor suggestions `--build-inductors` picks, or the calculated value where no part was chosen, with the reason);
 3. the fixed tolerance cases; and
 4. optional extra random tolerance cases, repeatable for the same seed.
 
@@ -131,7 +131,13 @@ check the JSON region records and the lowest gain in passband.
 
 The simulation leaves out layout and wiring (other than the assumed pair stray), package parasitics, coupling between parts, self-resonance (SRF), temperature drift, nonlinear effects, saturation, heating, and power handling.
 
-## Toroid winding suggestions
+## Inductor suggestions
+
+Every inductor lists a buildable part of each kind, in the fixed order toroid winding, air-core coil, chip inductor, or the limit that failed for that kind. In this version only toroid windings are offered. VHF toroids and few-turn air-core coils are not offered because no published data lets their self-resonance be checked (the core maker publishes no self-resonance or winding-capacitance data, and no self-capacitance model is validated for coils of a few spaced turns); [Component Data Sources](component-data-sources.md#decisions) records the evidence. Chip inductor suggestions are not available in this version. A design above every toroid core's rated range, such as a 2 m filter, therefore gets no inductor suggestion: build and measure the inductors yourself, and the build simulation uses the calculated values.
+
+The error budget states the nominal mismatch and the manufacturing tolerance; for toroid windings the SRF drift is "not checked". The build simulation varies every inductor by `--inductor-tolerance` (default 10% for toroid windings and calculated values), which can differ from the tolerance in the error budget.
+
+### Toroid winding suggestions
 
 The packaged data set retains 43 legacy records for inspection, but automatic suggestions are restricted to exact cores with primary-source core data: T25-6, T50-2, and T68-2. Material-frequency guidance has its own recorded source.
 
@@ -141,9 +147,9 @@ A core is suggested automatically only when:
 - the whole-turn inductance is within that core's published A_L tolerance of the target; and
 - a manufacturer winding limit is not exceeded when such a table exists.
 
-When no core qualifies, the output says `No suitable core in the built-in list` and asks you to choose a core manually. Unsourced geometric winding capacity is labeled `Fit: estimated from core size`; it is not used as a hard exclusion. A suggestion count is therefore "up to three," and zero or one suggestion can be the correct result.
+When no core qualifies, the output says `No suitable toroid core in the built-in list` and asks you to choose a core manually; when no core is rated for the frequency, it says so and, above every core's range, why VHF toroids are not offered. Unsourced geometric winding capacity is labeled `Fit: estimated from core size`; it is not used as a hard exclusion. A suggestion count is therefore "up to three," and zero or one suggestion can be the correct result.
 
-The `Q limit from wire DCR alone (ωL/DCR)` number uses only the wire's DC resistance, so it is an upper limit, not predicted or measured RF Q. RF Q, core loss, AC copper loss, SRF, saturation, heating, and power handling are not checked (`not_assessed` in JSON and CSV). The deprecated JSON alias `q_dc_upper_bound` is retained for compatibility and must be interpreted with the adjacent assessment metadata.
+The `Q limit from wire DCR alone (ωL/DCR)` number uses only the wire's DC resistance, so it is an upper limit, not predicted or measured RF Q. RF Q, core loss, AC copper loss, SRF, saturation, heating, and power handling are not checked (`not_assessed` in JSON and CSV, `srf_basis: "not_checked"` in the suggestion record). JSON gives the ratio as `wire_dcr_reactance_ratio_ceiling`; the deprecated `q_dc_upper_bound` alias is no longer in the suggestion record.
 
 A_L is stored in nH/turn². The turn calculation is:
 
@@ -174,8 +180,8 @@ sweeps.
 
 - The web UI is a local tool. It has no login, stores nothing, and is not hardened for hosting on the internet. Binding with `--host 0.0.0.0` exposes it to everyone on the network and turns off its check that requests are addressed to this computer.
 - Browser submissions are accepted only from the web UI's own page. Scripts that send no browser origin headers, such as `curl`, can still use it.
-- A calculation is cut off after 60 seconds ("Calculation stopped after 60 s"). The build simulation stops at its next case; a design calculation already running cannot be interrupted and finishes in the background, then is discarded. At most two calculations run at once and the rest wait their turn.
-- Options that cannot apply to the chosen output are disabled on the page with the reason, and a hand-made request that sets one is refused with that reason, as the CLI refuses the flag. Two are ignored instead: the standard capacitor values with Values only or Raw units (a radio choice is always submitted), and the toroid box with Toroid windings None. Downloads judge each option again for their own document: **Allow capacitors below 1 pF** is ignored by the SPICE – calculated values and response-data downloads, and the response-data downloads leave out the resonator Q, while Components (CSV) and SPICE – calculated values refuse resonator Q that the result used.
+- A calculation is cut off after 60 seconds ("Calculation stopped after 60 s"). A band-pass calibration stops before its next circuit evaluation, part resolution before its next part, and the build simulation before its next case; a low-pass or high-pass synthesis is one closed-form step and is checked only before it starts. At most two calculations run at once and the rest wait their turn.
+- Options that cannot apply to the chosen output are disabled on the page with the reason, and a hand-made request that sets one is refused with that reason, as the CLI refuses the flag. Two are ignored instead: the standard capacitor values with Values only or Raw units (a radio choice is always submitted), and **Inductors in the build** set to Auto or Calculated values with Inductor suggestions None (both build the calculated values); a forced kind with None is refused. Downloads judge each option again for their own document: **Allow capacitors below 1 pF** is ignored by the SPICE – calculated values and response-data downloads, and the response-data downloads leave out the resonator Q, while Components (CSV) and SPICE – calculated values refuse resonator Q that the result used.
 - Without JavaScript nothing is disabled live and no stale-inputs notice appears; the server still refuses options that cannot apply, and downloads still use the inputs of the result shown.
 - The response graph shows magnitude only, on the fixed frequency points of the response-data export; zoom with the text plot (`--plot`) or by plotting the downloaded data.
 

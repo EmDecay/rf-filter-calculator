@@ -17,7 +17,7 @@ One `FilterState` lives at `FilterWizardApp.filter_state`. Screens read or updat
 
 Parameter screens store validated design inputs (band-pass also stores the band edges and
 the resonator Q). Output options stores every control's *visible* value: format (Values only is
-`output_format="quiet"`), E-series, `allow_sub_pf`, toroid detail
+`output_format="quiet"`), E-series, `allow_sub_pf`, inductor detail
 (`best`/`full`/`compact`/`none`), plot, raw, response sidecar, and build-simulation controls,
 including ones that are disabled. `DesignInputsMixin` (`state_design_inputs.py`) turns those
 into the result's `DesignRequest`/`RenderOptions` with `applied_options()` and into each saved
@@ -36,7 +36,7 @@ file's with `document_options()`. Results receives a snapshot and publishes a de
 ### Options that cannot apply
 
 Output combinations are never refused on **Show results**. Each change to Format, E-series, Raw
-units, the build box, or Toroid windings asks the shared rule,
+units, the build box, or Inductor suggestions asks the shared rule,
 `filter_lib.design.option_applicability.inapplicable_options`, which controls cannot apply. Those
 are disabled and the rule's one-line reason is shown in the `#reason-<option>` Static under them.
 The result treats a disabled control as unset, the same as leaving out the CLI flag, so Values

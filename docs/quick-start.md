@@ -51,8 +51,8 @@ JSON). Read it and any warnings before treating a design as ready to build.
 ### Simulate the Built Filter
 
 ```bash
-# Simulate the chosen parts (standard capacitor values and suggested toroid
-# windings) with part losses (Q), across the tolerance cases plus two extra
+# Simulate the chosen parts (standard capacitor values and inductor
+# suggestions) with part losses (Q), across the tolerance cases plus two extra
 # random tolerance cases. Each capacitor varies by its own tolerance; the
 # inductors by 10% here.
 uv run filter-calc lp bw pi 10MHz --sim-build \
@@ -103,7 +103,7 @@ response graph and download buttons; downloads use the inputs of the result show
 | `-e E96` | Choose capacitors from the E96 standard values (96 per decade) |
 | `--no-match` | Show only calculated capacitor values; do not choose standard values |
 | `--allow-sub-pf` | Also choose standard values for capacitors below 1 pF |
-| `--no-toroids` | Leave out the toroid winding suggestions |
+| `--inductor-suggestions` | Inductor suggestions in the table: `best` (default), `full`, `compact`, or `none` (left out of every output) |
 | `--sim-build` | Build simulation: the ideal values compared with the chosen parts, across tolerance cases |
 | `--format spice` | Export a generic SPICE deck (chosen parts by default, or `--spice-realization exact`, also spelled `calculated`) |
 
