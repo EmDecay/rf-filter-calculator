@@ -37,8 +37,12 @@ Inductors: no standard values; wind to the calculated value.
 E24 Standard Capacitor Values
 ──────────────────────────────────────────────────
 E24 = 24 standard values per decade; it does not set the part tolerance.
-Each capacitor gets one choice: a single part if within 1%, otherwise two in
-parallel if that is at least 0.5 percentage points closer.
+Each capacitor gets the single part or parallel pair whose worst case (each part at
+either end of its tolerance, plus the assumed stray across a pair) is closest to
+the calculated value; a pair only if it is at least 0.5 percentage points closer.
+Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),
+±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).
+Stray: 0.2 pF across the second part of a pair (an assumption).
 
 C1 calculated 318.31 pF
   Use:            47.00 pF || 270.00 pF (-0.4%)
@@ -48,9 +52,12 @@ C2 calculated 318.31 pF
   Nearest single: 330.00 pF (+3.7%)
 ```
 
-`Use:` is the one choice made for each capacitor. A parallel pair is used only when it is at
-least 0.5 percentage points closer than the best single part; `Nearest single:` is then shown
-for comparison. Below 1 pF no part is chosen automatically: the row reads
+`Use:` is the one choice made for each capacitor, by its worst case within tolerance: the
+single part or parallel pair whose interval (each part at either end of its tolerance, plus the
+assumed stray across a pair) ends closest to the calculated value. A pair is used only when it
+is at least 0.5 percentage points better than the best single part; `Nearest single:` then
+shows the nearest single part for comparison. A value the sourced series does not make is
+chosen by the nominal rule and marked "Tolerance not sourced". Below 1 pF no part is chosen automatically: the row reads
 `Use: none (below 1 pF; see warning)`, the nearest single value is shown for reference only,
 and a warning names the `--allow-sub-pf` option (**Allow capacitors below 1 pF** in the wizard
 and web UI), which lets the calculator choose those values too.
@@ -89,8 +96,12 @@ Inductors: no standard values; wind to the calculated value.
 E24 Standard Capacitor Values
 ──────────────────────────────────────────────────
 E24 = 24 standard values per decade; it does not set the part tolerance.
-Each capacitor gets one choice: a single part if within 1%, otherwise two in
-parallel if that is at least 0.5 percentage points closer.
+Each capacitor gets the single part or parallel pair whose worst case (each part at
+either end of its tolerance, plus the assumed stray across a pair) is closest to
+the calculated value; a pair only if it is at least 0.5 percentage points closer.
+Tolerance (standard grade, Murata GRM1885C1H…A01): ±0.1 pF (0.5–0.9 pF),
+±0.25 pF (1–5 pF), ±0.5 pF (5.1–9.9 pF), ±5% (10–10000 pF).
+Stray: 0.2 pF across the second part of a pair (an assumption).
 
 C1 calculated 318.31 pF
   Use:            47.00 pF || 270.00 pF (-0.4%)
@@ -188,6 +199,7 @@ A selected component fragment is:
         "value_farads": 3.183098861837907e-10,
         "standard_match": {
           "status": "recommended",
+          "tolerance_basis": "sourced",
           "selected": {
             "kind": "parallel",
             "components": [
@@ -197,7 +209,7 @@ A selected component fragment is:
             "value_farads": 3.17e-10,
             "error_pct": -0.41151288120356627
           },
-          "reason": "parallel_materially_improves_error",
+          "reason": "parallel_worst_case_materially_better",
           "warnings": []
         }
       }
@@ -207,7 +219,8 @@ A selected component fragment is:
 ```
 
 The complete result includes all components and the selection-rule fields
-(`standard_match.policy`, including `allow_sub_pf`). JSON serialization is strict: `NaN` and
+(`standard_match.policy`: the rule, the capacitor series and grade with its tolerances, any
+override, the assumed stray, and `allow_sub_pf`). JSON serialization is strict: `NaN` and
 infinities are never emitted.
 
 For explicit band-pass edges, `requested_parameters` and the `--sim-build` `target` block
@@ -222,8 +235,8 @@ uv run filter-calc lp bw pi 10MHz --format csv --no-toroids
 
 ```csv
 Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy
-C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_materially_improves_error,,single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF
-C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_materially_improves_error,,single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF
+C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;tolerance-override=none;stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF
+C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;tolerance-override=none;stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF
 L1,1.59,µH,,,,,,,,,,,,,
 ```
 
@@ -273,26 +286,29 @@ Ideal values:  -3 dB cutoff 10 MHz
 Chosen parts:  -3 dB cutoff 10.04 MHz
                peak gain 0.00 dB, lowest gain in passband -2.93 dB
 Parts used:
-  C1: 47.00 pF || 150.00 pF (E24)
+  C1: 47.00 pF || 150.00 pF (E24), plus 200.00 fF stray (assumed)
   L1: 1.28 µH, 15 turns of AWG 16 on T68-2 (328 mm wire)
-  C2: 75.00 pF || 560.00 pF (E24)
+  C2: 75.00 pF || 560.00 pF (E24), plus 200.00 fF stray (assumed)
   L2: 1.28 µH, 15 turns of AWG 16 on T68-2 (328 mm wire)
-  C3: 47.00 pF || 150.00 pF (E24)
-Tolerance cases: C ±5%, L ±10%. 19 cases: nominal, all low, all high,
+  C3: 47.00 pF || 150.00 pF (E24), plus 200.00 fF stray (assumed)
+Tolerance cases: each capacitor at its standard-grade tolerance, L ±10%.
+  19 cases: nominal, all low, all high,
   and each part low and high alone.
 Spread across these cases (min / 5th percentile / median / 95th percentile / max):
   Peak gain:               0.000 / 0.000 / 0.000 / 0.000 / 0.000 dB
-  Lowest gain in passband: -4.893 / -3.742 / -2.927 / -2.274 / -1.531 dB
+  Lowest gain in passband: -4.896 / -3.744 / -2.927 / -2.274 / -1.531 dB
   -3 dB cutoff:            9.298 / 9.698 / 10.04 / 10.4 / 10.92 MHz
 Build warnings:
   - L1, L2: Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure
     before use.
 Model limits:
   - Chosen parts are simulated at their nominal values, without lead or package parasitics.
+  - Each parallel pair has an assumed 0.2 pF stray across it, the same in every tolerance case;
+    it is an assumption, not a measured value.
   - Toroid windings were checked only for frequency range, whole-turn inductance, and wire fit.
   - The tolerance cases do not guarantee the true worst case.
-  - The simulation leaves out layout and wiring, self-resonance (SRF), temperature drift,
-    nonlinear effects, and power handling.
+  - The simulation leaves out layout and wiring (other than the assumed pair stray),
+    self-resonance (SRF), temperature drift, nonlinear effects, and power handling.
 ```
 
 With `--format json`, the complete component JSON gains these top-level blocks:
@@ -321,6 +337,10 @@ uv run filter-calc lp bw pi 10MHz --sim-build --no-toroids \
   },
   "tolerance_analysis": {
     "method": "deterministic_corners_plus_seeded_uniform_screening",
+    "tolerance_source": "each_part",
+    "capacitor_grade": "standard",
+    "capacitor_tolerance_override_pct": null,
+    "inductor_tolerance_pct": 10.0,
     "sample_count": 20,
     "seed": 73,
     "grid_points": 601
@@ -385,8 +405,10 @@ RLOAD 5 0 50
 
 `nominal-build` is the default `--spice-realization`: it uses the chosen parts (standard
 capacitor values and toroid windings) and the same fixed-series-resistance Q model as the build
-simulation, and adds a `* part used:` comment for each part. `exact` uses the calculated values
-without losses. `chosen-parts` and `calculated` are accepted as the same two choices. Band-pass decks keep the SPICE element names `CT1`, `LT1`, `CK1`, `CIN`, and
+simulation, and adds a `* part used:` comment for each part. Each parallel pair also gets its
+assumed stray as a capacitor named `CSTRAY_<part>` across the pair's terminals, with a
+`* stray:` comment; it stays fixed in every tolerance case. `exact` uses the calculated values
+without losses, and takes none of the standard-capacitor options. `chosen-parts` and `calculated` are accepted as the same two choices. Band-pass decks keep the SPICE element names `CT1`, `LT1`, `CK1`, `CIN`, and
 `COUT`; the `* names:` comment maps them to the table names (`Cp1`, `L1`, `Cs12`, `Ce_in`,
 `Ce_out`). The `.print` trace is load voltage; use the commented expression for transducer
 power gain. The band-pass sweep is linear and sized by bandwidth and resonator count so narrow

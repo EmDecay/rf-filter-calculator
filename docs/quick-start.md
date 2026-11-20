@@ -53,10 +53,11 @@ JSON). Read it and any warnings before treating a design as ready to build.
 ```bash
 # Simulate the chosen parts (standard capacitor values and suggested toroid
 # windings) with part losses (Q), across the tolerance cases plus two extra
-# random tolerance cases.
+# random tolerance cases. Each capacitor varies by its own tolerance; the
+# inductors by 10% here.
 uv run filter-calc lp bw pi 10MHz --sim-build \
   --inductor-q 100 --capacitor-q 500 \
-  --cap-tolerance 5 --ind-tolerance 10 \
+  --ind-tolerance 10 \
   --samples 2 --seed 73 --format json
 
 # Export the same chosen parts as a generic SPICE deck.

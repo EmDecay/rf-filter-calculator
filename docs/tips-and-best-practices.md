@@ -57,9 +57,12 @@ Get the most out of RF Filter Calculator.
 ### Parallel Combinations
 
 The E-series sets how many standard values there are per decade, not the component
-tolerance. Each capacitor gets one choice: a single part when it is within 1% of the target,
-otherwise two in parallel when the pair is at least 0.5 percentage points closer. Below 1 pF
-no part is chosen automatically; add `--allow-sub-pf` (**Allow capacitors below 1 pF** in the
+tolerance. Each capacitor gets one choice, by its worst case within its sourced tolerance: the
+single part or parallel pair whose interval (each part at either end of its tolerance, plus an
+assumed 0.2 pF stray across a pair) ends closest to the target, a pair only when it is at
+least 0.5 percentage points better. At VHF a pair of small parts can beat one larger part,
+because parts below 10 pF have tolerances in pF rather than percent; `--capacitor-grade tight`
+narrows them. Below 1 pF no part is chosen automatically; add `--allow-sub-pf` (**Allow capacitors below 1 pF** in the
 wizard and web UI) to have those chosen too. Inductors are not E-series matched; a toroid
 winding suggestion is an option, not a suitability claim.
 

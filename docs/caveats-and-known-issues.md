@@ -33,24 +33,53 @@ For Bessel bandpass, the lowpass-to-bandpass transformation does not preserve ma
 
 ## E-series selection is not tolerance
 
-E12, E24, and E96 set how many standard values there are per decade. They do not declare the tolerance of a part in hand. Manufacturing tolerance is a separate build-simulation input (`--capacitor-tolerance`, `--inductor-tolerance`).
+E12, E24, and E96 set how many standard values there are per decade. They do not declare the
+tolerance of a part. Capacitor tolerances come from one sourced C0G series, Murata
+GRM1885C1H…A01 (0603, 50 V), recorded with its sources in
+[component-data-sources.md](component-data-sources.md):
 
-Each capacitor gets one choice, chosen conservatively:
+| Value range | Standard grade (default) | Tight grade (`--capacitor-grade tight`) |
+|---|---|---|
+| 0.5–0.9 pF | ±0.1 pF | ±0.05 pF |
+| 1–5 pF | ±0.25 pF | ±0.1 pF |
+| 5.1–9.9 pF | ±0.5 pF | ±0.25 pF |
+| 10–910 pF | ±5% | ±2% |
+| 1–10 nF | ±5% | ±5% |
 
-- a single part when it is within 1% of the calculated value;
-- otherwise two capacitors in parallel only when the pair is at least 0.5 percentage points closer;
-- the ratio between the pair is limited to 10:1, decided on exact nominal values so the same
-  pair is accepted in every decade;
-- when two pairs give exactly the same nominal value, the more balanced pair is chosen; and
+The series makes 0.5–9.9 pF in 0.1 pF steps and the E24 values from 10 pF to 10 nF, so every
+E12 and E24 value from 1 pF to 10 nF is covered, but only the E96 values with two significant
+digits (such as 1.0, 1.1 and 75 pF).
+
+Each capacitor gets one choice, by its worst case within tolerance:
+
+- each candidate covers an interval from its nominal value minus its tolerance to its nominal
+  value plus its tolerance, plus, for a pair, the assumed stray across its second part
+  (`--stray-capacitance`, default 0.2 pF; an assumption, because no source gives a pad-to-pad
+  value for the footprint);
+- its score is the larger distance from the calculated value to either end of that interval;
+- the best single part and the best pair are found by exhaustive search over the values the
+  series makes; the pair is chosen only when it scores at least 0.5 percentage points better;
+- ties go to the single part, then to the pair with the smaller ratio, then to the lower
+  value; the ratio between the two parts is limited to 10:1;
+- `--capacitor-tolerance` can only loosen the grade: each part uses the larger of that
+  percentage and its grade's tolerance;
+- a value the series does not make (most E96 values, and parts above 10 nF) keeps the
+  nominal rule (the nearest single part within 1%, otherwise a pair at least 0.5 points
+  closer), is labelled "tolerance not sourced" (JSON and CSV status `tolerance_not_sourced`),
+  and uses an assumed ±5% (or the override) in the build simulation; and
 - below 1 pF no part is chosen automatically, unless `--allow-sub-pf` (**Allow capacitors below
-  1 pF** in the wizard and web UI) is on.
+  1 pF** in the wizard and web UI) is on. The series makes no E-series value below 1 pF, so
+  those choices are always "tolerance not sourced".
 
 Without that option, a target below 1 pF keeps its calculated value, the row reads
 `Use: none (below 1 pF; see warning)`, and the build simulation and chosen-parts SPICE deck use
-the calculated value (JSON status `expert_override_required`, an exact fallback). With the
-option on, the same single/parallel rule applies below 1 pF too. JSON and CSV record the
-selection rule (including `allow_sub_pf`) and at most one choice per capacitor. Inductors are
-not E-series matched.
+the calculated value (JSON status `expert_override_required`, an exact fallback). JSON and CSV
+record the rule, the grade, any override and the stray (`standard_match.policy`, CSV
+`RecommendationPolicy`) and at most one choice per capacitor. Inductors are not E-series
+matched.
+
+Tolerances are at room temperature (1 MHz up to 1000 pF); the C0G temperature coefficient
+(0 ± 30 ppm/°C) adds to them, and the lifecycle of each orderable part is not checked.
 
 ## Q and loss semantics
 
@@ -81,7 +110,9 @@ loss in each resonator inductor rather than separate inductor and capacitor Q. S
 3. the fixed tolerance cases; and
 4. optional extra random tolerance cases, repeatable for the same seed.
 
-The fixed cases are nominal, all parts low, all parts high, and each part low and high alone. They show spread but do not guarantee the true worst case. The extra random cases draw each part uniformly within its tolerance; they are not a Monte Carlo yield estimate or a probability model. The percentiles in the spread table come from only these cases.
+The fixed cases are nominal, all parts low, all parts high, and each part low and high alone. They show spread but do not guarantee the true worst case. Each capacitor varies by its own tolerance (its grade's, or the larger override; ±5% assumed where the tolerance is not sourced) and each inductor by `--inductor-tolerance` (default 10%). The extra random cases draw each part uniformly within its tolerance; they are not a Monte Carlo yield estimate or a probability model. The percentiles in the spread table come from only these cases.
+
+A parallel pair also gets its assumed stray (`--stray-capacitance`, default 0.2 pF) as a fixed capacitor across the pair's terminals. It is the same in every case and is never varied, so it does not change the list of cases or the random draws of the real parts; a stray of 0 adds nothing. The chosen-parts SPICE deck contains the same element, named `CSTRAY_<part>`.
 
 The simulation reports transducer gain (Gt) and accepts separate simulation source and load resistances. With equal source and load, Gt in dB is the negative of the insertion loss, and the table says so. Those resistances change only the simulation; the component values are still designed for equal source and load impedance at the impedance you entered.
 
@@ -95,7 +126,7 @@ response is above −3 dB in separate ranges, the cutoff or edges come from the 
 the peak (bandpass: the range around the peak nearest the center), not the outermost edges;
 check the JSON region records and the lowest gain in passband.
 
-The simulation leaves out layout and wiring, package parasitics, coupling between parts, self-resonance (SRF), temperature drift, nonlinear effects, saturation, heating, and power handling.
+The simulation leaves out layout and wiring (other than the assumed pair stray), package parasitics, coupling between parts, self-resonance (SRF), temperature drift, nonlinear effects, saturation, heating, and power handling.
 
 ## Toroid winding suggestions
 
@@ -121,7 +152,7 @@ Measure the wound inductance and characterize Q/SRF under the intended operating
 
 ## Generic SPICE export
 
-`--format spice` exports either the calculated values (`--spice-realization exact`, or `calculated`; lossless) or the same chosen parts used by the build simulation (`nominal-build`, or `chosen-parts`; the default). Chosen-parts decks can include series-loss resistors from the Q options and list each part in a `* part used:` comment; tolerance cases are not embedded in a deck. Band-pass decks keep the SPICE names `CT1`, `LT1`, `CK1`, `CIN`, `COUT` and map them to the table names in a `* names:` comment.
+`--format spice` exports either the calculated values (`--spice-realization exact`, or `calculated`; lossless) or the same chosen parts used by the build simulation (`nominal-build`, or `chosen-parts`; the default). Chosen-parts decks can include series-loss resistors from the Q options, list each part in a `* part used:` comment, and add each pair's assumed stray as `CSTRAY_<part>` (with a `* stray:` comment); tolerance cases are not embedded in a deck, and making a deck never runs them. Band-pass decks keep the SPICE names `CT1`, `LT1`, `CK1`, `CIN`, `COUT` and map them to the table names in a `* names:` comment.
 
 The deck's `.print ac vm(node)` is load-node voltage, not gain in dB. A comment gives the transducer-gain expression:
 
