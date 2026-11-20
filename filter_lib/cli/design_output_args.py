@@ -6,7 +6,22 @@ from collections.abc import Callable
 from typing import Any
 
 from ..design import RenderOptions
-from ..shared.cli_helpers import SIM_MATCHED_DEPRECATION_WARNING
+from ..shared.cli_helpers import SIM_MATCHED_DEPRECATION_WARNING, make_build_config
+
+
+def part_policy_args(args: Namespace) -> dict[str, Any]:
+    """The ``DesignRequest`` part policy and build fields the CLI flags select.
+
+    The build settings (``realization``) are always attached: a chosen-parts SPICE deck
+    uses them without ``--sim-build``, and the flags that only the build simulation uses
+    are refused elsewhere unless it runs.
+    """
+    return {
+        "eseries": None if args.no_match else args.eseries,
+        "allow_sub_pf": bool(getattr(args, "allow_sub_pf", False)),
+        "realization": make_build_config(args),
+        "run_build_analysis": bool(getattr(args, "sim_build", False)),
+    }
 
 
 def render_options_from_args(args: Namespace) -> RenderOptions:
@@ -14,7 +29,6 @@ def render_options_from_args(args: Namespace) -> RenderOptions:
     return RenderOptions(
         output_format="quiet" if args.quiet else args.format,
         raw=args.raw,
-        eseries=None if args.no_match else args.eseries,
         show_plot=args.plot,
         include_toroids=not args.no_toroids,
         toroid_compact=args.toroid_compact,

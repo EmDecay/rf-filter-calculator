@@ -51,7 +51,7 @@ def simulate_toroid_windings(form: FormData) -> bool:
 
 
 def parse_build_config(
-    form: FormData, eseries: str, *, use_toroids: bool, resonator_q_supplied: bool
+    form: FormData, *, use_toroids: bool, resonator_q_supplied: bool
 ) -> BuildConfig:
     """Return the ``BuildConfig`` for the submitted build controls."""
     inductor_q = optional_float(form, "build_inductor_q", "Inductor Q")
@@ -62,7 +62,6 @@ def parse_build_config(
     load = text(form, "build_load_resistance")
     reference = text(form, "build_reference_frequency")
     config = BuildConfig(
-        eseries=eseries,
         capacitor_tolerance_pct=float_or(
             form,
             "build_capacitor_tolerance_pct",

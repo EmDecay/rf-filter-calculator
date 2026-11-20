@@ -165,7 +165,6 @@ def build_field_values(state: FilterState) -> dict[str, str]:
 
 
 def parse_build_config(
-    eseries: str,
     values: BuildOptionValues,
     *,
     design_impedance: float | None = None,
@@ -204,10 +203,7 @@ def parse_build_config(
     def frequency(value: str, _label: str) -> float | None:
         return parse_q_frequency(value) if value else None
 
-    try:
-        defaults = BuildConfig(eseries=eseries, use_toroid_candidates=values.use_toroid_candidates)
-    except ValueError as error:
-        raise BuildOptionError(str(error), None) from error
+    defaults = BuildConfig(use_toroid_candidates=values.use_toroid_candidates)
 
     # (BuildConfig field, Input id, parser, raw text, label used in messages), in form order.
     fields = (

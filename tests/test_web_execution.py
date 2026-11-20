@@ -42,7 +42,7 @@ def cancellable_analysis(monkeypatch):
     """Replace the build analysis with one that runs until it is cancelled."""
     state = {"started": threading.Event(), "cancelled": threading.Event()}
 
-    def analysis(_result, _category, _config, *, should_cancel=None):
+    def analysis(_result, _category, _config, *, should_cancel=None, **_policy):
         state["started"].set()
         # Bounded so a regression that never cancels fails instead of hanging the suite.
         if not _wait_until(should_cancel, timeout=5.0):

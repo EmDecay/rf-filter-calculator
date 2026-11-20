@@ -33,24 +33,25 @@ def calculate_and_format(
     """
     # Deferred so the wizard UI can start without loading the calculation
     # stack; it's only paid when the user actually reaches the results screen.
-    from filter_lib.design import render_lines, with_build_analysis
+    from filter_lib.design import render_lines
     from filter_lib.shared.build_types import BuildAnalysisCancelled
 
     from .filter_type_calculators import (
         calculate_bandpass,
         calculate_highpass,
         calculate_lowpass,
-        synthesize,
+        design_from_state,
     )
 
-    # Direct calculator functions retain their legacy state.result side effect
-    # for CLI/tests. Running them on a deep copy prevents a canceled or stale
-    # worker from mutating the live wizard state.
+    # The calculators store their design result on the state they are given. Running
+    # them on a deep copy prevents a canceled or stale worker from mutating the live
+    # wizard state.
     snapshot = state.calculation_copy()
     snapshot.result = {}
     snapshot.output_text = ""
     snapshot.build_analysis = None
-    snapshot.json_design = None
+    snapshot.design_outcome = None
+    snapshot.document_designs = {}
 
     # Options the shown output cannot apply are left out here (the shared rule), so
     # every remaining combination is one the CLI accepts.
@@ -70,15 +71,9 @@ def calculate_and_format(
     # Only the result shown is calculated here. A disabled build or resonator Q never
     # runs for it; a saved JSON that uses one is calculated when it is saved.
     try:
-        build_analysis = None
         if snapshot.runs_build:
-            # Render once, after the build, instead of rendering the design alone first.
-            synthesize(snapshot)
-            outcome = with_build_analysis(
-                snapshot.design_result(), snapshot.make_build_config(), should_cancel
-            )
-            build_analysis = outcome.build_analysis
-            lines = render_lines(outcome, options)
+            # The build is part of the request; only it polls the cancellation check.
+            lines = render_lines(design_from_state(snapshot, should_cancel), options)
         else:
             lines = calculators[snapshot.category](snapshot)
     except BuildAnalysisCancelled:
@@ -95,5 +90,6 @@ def calculate_and_format(
         status="success",
         output_text=output_text,
         result=deepcopy(snapshot.result),
-        build_analysis=deepcopy(build_analysis),
+        build_analysis=deepcopy(snapshot.build_analysis),
+        design=deepcopy(snapshot.design_outcome),
     )

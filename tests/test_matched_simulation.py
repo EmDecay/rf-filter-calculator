@@ -123,8 +123,8 @@ class TestRunMatchedSimulation:
         calculated = CircuitMeasurement(None, 1.0, -3.0, False)
         nominal = CircuitMeasurement(None, 2.0, -3.0, False)
 
-        def fake_measure(result, category, config):
-            captured.update(result=result, category=category, config=config)
+        def fake_measure(result, category, config, *, eseries):
+            captured.update(result=result, category=category, config=config, eseries=eseries)
             return SimpleNamespace(calculated=calculated, nominal_build=nominal)
 
         monkeypatch.setattr(
@@ -136,7 +136,7 @@ class TestRunMatchedSimulation:
 
         assert captured["result"] is result
         assert captured["category"] == "lowpass"
-        assert captured["config"].eseries == "E96"
+        assert captured["eseries"] == "E96"
         assert captured["config"].grid_points == 1201
         assert captured["config"].use_toroid_candidates is False
         assert summary.exact is calculated
@@ -164,8 +164,8 @@ class TestRunMatchedSimulation:
         ],
     )
     def test_facade_measurements_equal_full_build_analysis(self, category, result):
-        config = BuildConfig(eseries="E24", grid_points=GRID_POINTS)
-        analysis = analyze_build(result, category, config)
+        config = BuildConfig(grid_points=GRID_POINTS)
+        analysis = analyze_build(result, category, config, eseries="E24")
 
         summary = run_matched_simulation(result, category, "E24")
 

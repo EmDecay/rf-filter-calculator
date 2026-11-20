@@ -17,6 +17,7 @@ from .circuit_builders import build_named_circuit
 from .circuit_display_names import display_component_name, format_name_list
 from .circuit_model import CircuitElement, NamedCircuit
 from .component_realization import _realize_capacitor, _realize_inductor
+from .eseries import DEFAULT_MATCH_POLICY, MatchPolicy
 from .formatting import format_frequency
 
 NOMINAL_PARTS_LIMITATION = (
@@ -58,6 +59,8 @@ def grouped_part_warnings(substitutions: Iterable[ComponentSubstitution]) -> lis
 def _realize_element(
     element: CircuitElement,
     config: BuildConfig,
+    eseries: str,
+    policy: MatchPolicy,
     inductor_q: float | None,
     capacitor_q: float | None,
     capacitor_q_tank_only: bool,
@@ -70,7 +73,8 @@ def _realize_element(
         )
         return _realize_capacitor(
             element,
-            config,
+            eseries,
+            policy,
             element_capacitor_q,
             loss_reference_frequency,
         )
@@ -87,9 +91,18 @@ def _realize_element(
 
 
 def realize_nominal_build(
-    result: dict, category: str, config: BuildConfig | None = None
+    result: dict,
+    category: str,
+    config: BuildConfig | None = None,
+    *,
+    eseries: str = "E24",
+    policy: MatchPolicy = DEFAULT_MATCH_POLICY,
 ) -> NominalRealization:
-    """Realize selected physical parts while preserving topology and traceability."""
+    """Realize selected physical parts while preserving topology and traceability.
+
+    Capacitors get the standard values ``match_component`` chooses from ``eseries``
+    under ``policy``; ``design()`` passes the request's series and policy.
+    """
     active_config = resolve_build_config(config)
     exact = build_named_circuit(result, category)
     design_frequency = _design_frequency(result, category)
@@ -114,6 +127,8 @@ def realize_nominal_build(
         parts, substitution, part_warnings = _realize_element(
             element,
             active_config,
+            eseries,
+            policy,
             inductor_q,
             capacitor_q,
             tank_only,

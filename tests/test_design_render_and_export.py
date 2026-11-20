@@ -71,60 +71,68 @@ def _document(lines: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+# (id, CLI flags, render options, the request's standard capacitor series)
 RENDER_CASES = [
-    ("table", (), RenderOptions()),
+    ("table", (), RenderOptions(), "E24"),
     (
         "table-plot-full-e96",
         ("--plot", "--toroid-full", "-e", "E96"),
-        RenderOptions(eseries="E96", show_plot=True, toroid_full=True),
+        RenderOptions(show_plot=True, toroid_full=True),
+        "E96",
     ),
-    ("table-raw-no-match", ("--raw", "--no-match"), RenderOptions(raw=True, eseries=None)),
+    ("table-raw-no-match", ("--raw", "--no-match"), RenderOptions(raw=True), None),
     (
         "table-compact",
         ("--toroid-compact", "-e", "E12"),
-        RenderOptions(eseries="E12", toroid_compact=True),
+        RenderOptions(toroid_compact=True),
+        "E12",
     ),
-    ("table-no-toroids", ("--no-toroids",), RenderOptions(include_toroids=False)),
-    ("quiet", ("-q",), RenderOptions(output_format="quiet")),
-    ("quiet-raw", ("-q", "--raw"), RenderOptions(output_format="quiet", raw=True)),
-    (
-        "json-e12",
-        ("--format", "json", "-e", "E12"),
-        RenderOptions(output_format="json", eseries="E12"),
-    ),
+    ("table-no-toroids", ("--no-toroids",), RenderOptions(include_toroids=False), "E24"),
+    ("quiet", ("-q",), RenderOptions(output_format="quiet"), "E24"),
+    ("quiet-raw", ("-q", "--raw"), RenderOptions(output_format="quiet", raw=True), "E24"),
+    ("json-e12", ("--format", "json", "-e", "E12"), RenderOptions(output_format="json"), "E12"),
     (
         "json-no-match",
         ("--format", "json", "--no-match"),
-        RenderOptions(output_format="json", eseries=None),
+        RenderOptions(output_format="json"),
+        None,
     ),
     (
         "json-no-toroids",
         ("--format", "json", "--no-toroids"),
         RenderOptions(output_format="json", include_toroids=False),
+        "E24",
     ),
-    ("csv", ("--format", "csv"), RenderOptions(output_format="csv")),
-    (
-        "csv-e96",
-        ("--format", "csv", "-e", "E96"),
-        RenderOptions(output_format="csv", eseries="E96"),
-    ),
+    ("csv", ("--format", "csv"), RenderOptions(output_format="csv"), "E24"),
+    ("csv-e96", ("--format", "csv", "-e", "E96"), RenderOptions(output_format="csv"), "E96"),
 ]
 
 
 @pytest.mark.parametrize("category", list(ARGV))
 @pytest.mark.parametrize(
-    "flags, options", [case[1:] for case in RENDER_CASES], ids=[case[0] for case in RENDER_CASES]
+    "flags, options, eseries",
+    [case[1:] for case in RENDER_CASES],
+    ids=[case[0] for case in RENDER_CASES],
 )
-def test_render_lines_is_the_cli_output(monkeypatch, capsys, outcomes, category, flags, options):
+def test_render_lines_is_the_cli_output(
+    monkeypatch, capsys, outcomes, category, flags, options, eseries
+):
     expected = cli_stdout(monkeypatch, capsys, *ARGV[category], *flags)
+    outcome = (
+        outcomes[category]
+        if eseries == "E24"
+        else design(dataclasses.replace(_request(category), eseries=eseries))
+    )
 
-    assert _document(render_lines(outcomes[category], options)) == expected
+    assert _document(render_lines(outcome, options)) == expected
 
 
 @pytest.mark.parametrize("category", ["lowpass", "bandpass"])
 @pytest.mark.parametrize("output_format", ["table", "json"])
 def test_build_analysis_output_is_the_cli_output(monkeypatch, capsys, category, output_format):
-    request = dataclasses.replace(_request(category), build=BuildConfig(grid_points=51))
+    request = dataclasses.replace(
+        _request(category), realization=BuildConfig(grid_points=51), run_build_analysis=True
+    )
     expected = cli_stdout(
         monkeypatch, capsys, *ARGV[category], *FAST_BUILD_ARGV, "--format", output_format
     )
@@ -138,7 +146,11 @@ def test_wizard_layout_differs_from_the_cli_only_by_its_framing(outcomes):
     outcome = dataclasses.replace(
         outcomes["highpass"],
         build_analysis=design(
-            dataclasses.replace(_request("highpass"), build=BuildConfig(grid_points=51))
+            dataclasses.replace(
+                _request("highpass"),
+                realization=BuildConfig(grid_points=51),
+                run_build_analysis=True,
+            )
         ).build_analysis,
     )
     cli_lines = render_lines(outcome, RenderOptions())
@@ -164,7 +176,6 @@ def test_wizard_layout_differs_from_the_cli_only_by_its_framing(outcomes):
             RenderOptions(output_format="quiet"),
             "Build simulation cannot be used with values-only output",
         ),
-        (RenderOptions(eseries=None), BUILD_NEEDS_ESERIES_MESSAGE),
     ],
 )
 def test_build_mode_rules(options, message):
@@ -172,9 +183,16 @@ def test_build_mode_rules(options, message):
         options.validate_for_build()
 
 
+def test_build_needs_standard_values_in_the_request():
+    with pytest.raises(ValueError, match=f"^{re.escape(BUILD_NEEDS_ESERIES_MESSAGE)}$"):
+        dataclasses.replace(_request("lowpass"), eseries=None, run_build_analysis=True)
+
+
 def test_render_lines_rejects_an_analysis_the_format_cannot_carry(outcomes):
     analysis = design(
-        dataclasses.replace(_request("lowpass"), build=BuildConfig(grid_points=51))
+        dataclasses.replace(
+            _request("lowpass"), realization=BuildConfig(grid_points=51), run_build_analysis=True
+        )
     ).build_analysis
     outcome = dataclasses.replace(outcomes["lowpass"], build_analysis=analysis)
 
@@ -189,8 +207,8 @@ def test_render_options_reject_unknown_formats_and_both_toroid_details():
         RenderOptions(toroid_compact=True, toroid_full=True)
 
 
-def test_unknown_category_is_rejected():
-    outcome = DesignResult(category="notch", result={})
+def test_unknown_category_is_rejected(outcomes):
+    outcome = dataclasses.replace(outcomes["lowpass"], category="notch", result={})
 
     with pytest.raises(ValueError, match="^Unknown filter category$"):
         render_lines(outcome, RenderOptions())
@@ -211,7 +229,7 @@ def test_spice_export_is_the_cli_deck(monkeypatch, capsys, outcomes, category, r
         realization,
     )
 
-    deck = export_spice(outcomes[category], realization.replace("-", "_"), BuildConfig())
+    deck = export_spice(outcomes[category], realization.replace("-", "_"))
 
     # The CLI prints the deck with end="", so the deck carries its own final newline.
     assert deck == expected

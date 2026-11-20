@@ -13,6 +13,7 @@ from .build_types import (
     resolve_build_config,
 )
 from .circuit_builders import build_named_circuit
+from .eseries import DEFAULT_MATCH_POLICY, MatchPolicy
 from .nominal_realization import realize_nominal_build
 from .tolerance_screening import run_screening_cases, summarize_cases
 
@@ -92,6 +93,8 @@ class CalculatedAndNominalMeasurement:
 @dataclass(frozen=True)
 class _PreparedAnalysis:
     config: BuildConfig
+    eseries: str
+    policy: MatchPolicy
     nominal: NominalRealization
     freqs: list[float]
     source: float
@@ -103,28 +106,37 @@ def _prepare_analysis(
     result: dict,
     category: str,
     config: BuildConfig | None,
+    eseries: str,
+    policy: MatchPolicy,
     should_cancel: CancellationCheck | None = None,
 ) -> _PreparedAnalysis:
     """Resolve the config, realize the nominal build, and measure the calculated circuit."""
     active_config = resolve_build_config(config)
     exact_circuit = build_named_circuit(result, category)
-    nominal = realize_nominal_build(result, category, active_config)
+    nominal = realize_nominal_build(result, category, active_config, eseries=eseries, policy=policy)
     freqs = build_frequency_grid(result, category, active_config.grid_points)
     source, load = evaluation_ports(result, category, active_config)
     raise_if_cancelled(should_cancel)
     calculated_measurement = measure_circuit(exact_circuit, result, category, freqs, source, load)
-    return _PreparedAnalysis(active_config, nominal, freqs, source, load, calculated_measurement)
+    return _PreparedAnalysis(
+        active_config, eseries, policy, nominal, freqs, source, load, calculated_measurement
+    )
 
 
 def measure_calculated_and_nominal(
-    result: dict, category: str, config: BuildConfig | None = None
+    result: dict,
+    category: str,
+    config: BuildConfig | None = None,
+    *,
+    eseries: str = "E24",
+    policy: MatchPolicy = DEFAULT_MATCH_POLICY,
 ) -> CalculatedAndNominalMeasurement:
     """Measure only the calculated and nominal-build circuits.
 
     The nominal measurement equals ``analyze_build(...).nominal_build``; the
     deterministic corners and seeded samples are skipped.
     """
-    prepared = _prepare_analysis(result, category, config)
+    prepared = _prepare_analysis(result, category, config, eseries, policy)
     return CalculatedAndNominalMeasurement(
         config=prepared.config,
         source_resistance_ohm=prepared.source,
@@ -147,9 +159,14 @@ def analyze_build(
     category: str,
     config: BuildConfig | None = None,
     *,
+    eseries: str = "E24",
+    policy: MatchPolicy = DEFAULT_MATCH_POLICY,
     should_cancel: CancellationCheck | None = None,
 ) -> BuildAnalysisResult:
     """Analyze calculated, nominal-build, corners, and seeded uniform cases.
+
+    Capacitors are chosen from ``eseries`` under ``policy`` (``design()`` passes the
+    request's series and policy, so the build uses the parts every output shows).
 
     A large sample count times a dense grid can run for minutes. An interactive
     caller passes ``should_cancel``, a zero-argument callable polled before the
@@ -159,7 +176,7 @@ def analyze_build(
     """
     if should_cancel is not None and not callable(should_cancel):
         raise ValueError("should_cancel must be a zero-argument callable or None")
-    prepared = _prepare_analysis(result, category, config, should_cancel)
+    prepared = _prepare_analysis(result, category, config, eseries, policy, should_cancel)
     active_config, nominal = prepared.config, prepared.nominal
     source, load = prepared.source, prepared.load
     cases = run_screening_cases(
@@ -176,6 +193,8 @@ def analyze_build(
     return BuildAnalysisResult(
         category=category,
         config=active_config,
+        eseries=prepared.eseries,
+        match_policy=prepared.policy,
         source_resistance_ohm=source,
         load_resistance_ohm=load,
         gain_metric="transducer_power_gain_db",

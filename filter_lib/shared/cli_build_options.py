@@ -3,7 +3,7 @@
 from argparse import Action, ArgumentParser, Namespace
 from typing import Any
 
-from .cli_aliases import DEFAULT_ESERIES, SPICE_REALIZATION_CHOICES, resolve_spice_realization
+from .cli_aliases import SPICE_REALIZATION_CHOICES, resolve_spice_realization
 
 
 class _StoreSpiceRealization(Action):
@@ -151,7 +151,6 @@ def make_build_config(args: Namespace):
     load_arg = getattr(args, "build_load_resistance", None)
     reference_arg = getattr(args, "build_reference_frequency", None)
     return BuildConfig(
-        eseries=getattr(args, "eseries", DEFAULT_ESERIES),
         capacitor_tolerance_pct=(
             getattr(args, "build_capacitor_tolerance_pct", None)
             if getattr(args, "build_capacitor_tolerance_pct", None) is not None

@@ -482,10 +482,20 @@ class TestEndCapOutputs:
         assert "Ce_out calculated " in out
 
     def test_wizard_table_includes_end_caps_and_their_preferred_values(self, result):
-        from filter_lib.wizard.formatting_helpers import format_bandpass_table
+        from filter_lib.wizard.calculation_handler import calculate_and_format
         from filter_lib.wizard.state import FilterState
 
-        table = "\n".join(format_bandpass_table(result, FilterState(show_plot=False)))
+        state = FilterState(
+            category="bandpass",
+            filter_type=result["filter_type"],
+            topology="top",
+            frequency_hz=result["f0"],
+            bandwidth_hz=result["bw"],
+            impedance=result["z0"],
+            order=result["n_resonators"],
+            show_plot=False,
+        )
+        table = calculate_and_format(state).output_text
         assert "Ce_in" in table
         assert "(set by Ce_out)" in table
         assert "Ce_in calculated " in table

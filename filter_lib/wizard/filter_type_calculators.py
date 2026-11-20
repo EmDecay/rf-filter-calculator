@@ -1,13 +1,14 @@
 """Filter-specific calculation entry points for the wizard.
 
 Contract shared by all three calculators: design the filter from the FilterState the
-screens populated through the shared ``filter_lib.design`` service, stash the raw
-result dict on `state.result` (the results screen's export paths re-format it later),
-and return display lines rendered by the shared dispatcher.
+screens populated through the shared ``filter_lib.design`` service, stash the design
+result on the state (the results screen's export paths re-format it later), and return
+display lines rendered by the shared dispatcher.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from filter_lib.design.export import BANDPASS_RESPONSE_POINTS
@@ -21,22 +22,28 @@ if TYPE_CHECKING:
 BANDPASS_WIZARD_RESPONSE_POINTS = BANDPASS_RESPONSE_POINTS
 
 
-def synthesize(state: FilterState) -> DesignResult:
-    """Synthesize without build analysis and store the raw result on ``state``."""
+def design_from_state(
+    state: FilterState, should_cancel: Callable[[], bool] | None = None
+) -> DesignResult:
+    """Design the result shown (with its build simulation, if any) and store it on ``state``.
+
+    The design result is kept so the results screen can save JSON, CSV, and response
+    data later without designing again when their request is the same.
+    """
     from filter_lib.design import design
 
-    outcome = design(state.to_design_request(include_build=False))
-    # Keep the raw result so the results screen can export JSON/CSV/response
-    # data later without re-running the synthesis.
+    outcome = design(state.to_design_request(), should_cancel=should_cancel)
     state.result = outcome.result
+    state.build_analysis = outcome.build_analysis
+    state.design_outcome = outcome
     return outcome
 
 
 def _calculate(state: FilterState) -> list[str]:
-    """Synthesize without build analysis, store the result, and render it."""
+    """Design the result shown, store it, and render it."""
     from filter_lib.design import render_lines
 
-    return render_lines(synthesize(state), state.to_render_options())
+    return render_lines(design_from_state(state), state.to_render_options())
 
 
 def calculate_lowpass(state: FilterState) -> list[str]:

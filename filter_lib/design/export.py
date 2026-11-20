@@ -7,18 +7,15 @@ function, bandpass simulates the synthesized circuit.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
+from ..shared.cli_aliases import DEFAULT_ESERIES, DEFAULT_RIPPLE_DB
 from .design_result import DesignResult
-
-if TYPE_CHECKING:
-    from ..shared.build_types import BuildConfig
+from .render_options import needs_eseries_message
 
 # Dense enough to resolve both skirts of narrow band-pass designs; equals
 # ``bandpass.display.PLOT_POINTS`` so the export matches the on-screen plot.
 BANDPASS_RESPONSE_POINTS = 601
 RESPONSE_FORMATS = ("json", "csv")
+NOMINAL_SPICE_NEEDS_ESERIES_MESSAGE = needs_eseries_message("A chosen-parts SPICE deck")
 
 
 def response_series(outcome: DesignResult) -> tuple[list[float], list[float]]:
@@ -62,19 +59,23 @@ def export_response_data(outcome: DesignResult, fmt: str) -> str:
     return export_response_csv(freqs, response_db)
 
 
-def export_spice(outcome: DesignResult, realization: str, config: BuildConfig | None) -> str:
+def export_spice(outcome: DesignResult, realization: str) -> str:
     """Return the SPICE deck for ``realization`` (``exact`` or ``nominal_build``).
 
-    The deck ends with its own newline, so callers write it unchanged. Sub-pF selection
-    is allowed when either the outcome or ``config`` allows it, so the chosen-parts deck
-    picks the same capacitors as the other outputs.
+    The deck ends with its own newline, so callers write it unchanged. The chosen-parts
+    deck uses the outcome's standard values, match policy, and build settings, so it
+    picks the same capacitors as every other output; it never runs the build
+    simulation's tolerance cases.
     """
     from ..shared.spice_export import export_spice_deck
-    from .design_service import apply_sub_pf_policy
 
+    if realization == "nominal_build" and outcome.eseries is None:
+        raise ValueError(NOMINAL_SPICE_NEEDS_ESERIES_MESSAGE)
     return export_spice_deck(
         outcome.result,
         outcome.category,
         realization=realization,
-        config=apply_sub_pf_policy(config, outcome.allow_sub_pf),
+        config=outcome.realization,
+        eseries=outcome.eseries or DEFAULT_ESERIES,
+        policy=outcome.match_policy,
     )

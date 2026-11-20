@@ -82,11 +82,8 @@ def run_matched_simulation(
     analysis = measure_calculated_and_nominal(
         result,
         category,
-        BuildConfig(
-            eseries=series,
-            grid_points=GRID_POINTS,
-            use_toroid_candidates=use_toroid_candidates,
-        ),
+        BuildConfig(grid_points=GRID_POINTS, use_toroid_candidates=use_toroid_candidates),
+        eseries=series,
     )
     return MatchedSimSummary(
         category=category,

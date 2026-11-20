@@ -138,7 +138,9 @@ def test_realizable_extremes_export_only_finite_positive_values(category, overri
     outcome = calculate_and_format(state)
     assert outcome.succeeded, outcome.error
     revision = state.begin_calculation()
-    assert state.publish_success(revision, outcome.output_text, outcome.result)
+    assert state.publish_success(
+        revision, outcome.output_text, outcome.result, outcome.build_analysis, outcome.design
+    )
 
     payload = _finite_json(format_component_json(state))
     format_component_csv(state)

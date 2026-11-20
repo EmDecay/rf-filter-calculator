@@ -133,7 +133,7 @@ def _parts_used_lines(analysis: BuildAnalysisResult) -> list[str]:
     lines = ["Parts used:"]
     for substitution in substitutions:
         name = display_component_name(substitution.logical_name)
-        row = _format_substitution(substitution, analysis.config.eseries)
+        row = _format_substitution(substitution, analysis.eseries)
         # Align the values after the names.
         lines.append(row.replace(f"  {name}: ", f"  {name + ':':<{width + 1}} ", 1))
     return lines

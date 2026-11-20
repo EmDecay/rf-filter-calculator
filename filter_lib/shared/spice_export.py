@@ -15,6 +15,7 @@ from .build_types import (
 from .circuit_builders import build_named_circuit
 from .circuit_display_names import spice_names_comment
 from .circuit_model import CircuitElement
+from .eseries import DEFAULT_MATCH_POLICY, MatchPolicy
 from .nominal_realization import (
     applicable_part_limitations,
     grouped_part_warnings,
@@ -125,11 +126,14 @@ def export_spice_deck(
     *,
     realization: str = "exact",
     config: BuildConfig | None = None,
+    eseries: str = "E24",
+    policy: MatchPolicy = DEFAULT_MATCH_POLICY,
 ) -> str:
     """Export an exact or nominal-build passive network as generic SPICE.
 
     The deck includes a 1 V AC Thevenin source, separate finite source/load
     resistances, a bandwidth-aware BP sweep (logarithmic for LP/HP), and losses.
+    The chosen-parts deck picks capacitors from ``eseries`` under ``policy``.
     """
     active_config = resolve_build_config(config)
     nominal: NominalRealization | None = None
@@ -137,7 +141,9 @@ def export_spice_deck(
         circuit = build_named_circuit(result, category)
         realization_label = "calculated, lossless (exact)"
     elif realization == "nominal_build":
-        nominal = realize_nominal_build(result, category, active_config)
+        nominal = realize_nominal_build(
+            result, category, active_config, eseries=eseries, policy=policy
+        )
         circuit = nominal.circuit
         realization_label = "chosen parts (nominal-build)"
     else:
@@ -176,7 +182,7 @@ def export_spice_deck(
     if names is not None:
         lines.append(names)
     if nominal is not None:
-        lines.extend(_nominal_comments(nominal, active_config.eseries))
+        lines.extend(_nominal_comments(nominal, eseries))
     lines.extend(
         (
             "VINPUT NSOURCE 0 AC 1",

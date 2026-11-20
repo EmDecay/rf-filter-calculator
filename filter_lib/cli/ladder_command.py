@@ -6,18 +6,10 @@ example shown in usage errors; everything after argument resolution lives here.
 
 from argparse import Namespace
 
-from ..design import (
-    DesignRequest,
-    design,
-    export_response_data,
-    export_spice,
-    render_lines,
-    with_build_analysis,
-)
+from ..design import DesignRequest, design, export_response_data, export_spice, render_lines
 from ..shared.cli_aliases import resolve_filter_type
 from ..shared.cli_helpers import (
     get_filter_type_arg,
-    make_build_config,
     resolve_alternative_arg,
     resolve_ripple_arg,
     usage_error,
@@ -26,6 +18,7 @@ from ..shared.cli_helpers import (
 )
 from ..shared.parsing import parse_frequency, parse_impedance
 from .design_output_args import (
+    part_policy_args,
     render_options_from_args,
     run_deprecated_matched_simulation,
     spice_realization_from_args,
@@ -91,18 +84,15 @@ def run_ladder(args: Namespace, category: str, explanations: dict, example: str)
         impedance=impedance,
         order=args.components,
         ripple_db=ripple_db,
-        allow_sub_pf=bool(getattr(args, "allow_sub_pf", False)),
+        **part_policy_args(args),
     )
     outcome = design(request)
 
     if args.format == "spice":
-        config = make_build_config(args)
-        print(export_spice(outcome, spice_realization_from_args(args), config), end="")
+        print(export_spice(outcome, spice_realization_from_args(args)), end="")
         return
 
-    if getattr(args, "sim_build", False):
-        outcome = with_build_analysis(outcome, make_build_config(args))
-    elif getattr(args, "sim_matched", False):
+    if getattr(args, "sim_matched", False):
         _run_deprecated_matched_simulation(args, category, outcome.result)
         return
 

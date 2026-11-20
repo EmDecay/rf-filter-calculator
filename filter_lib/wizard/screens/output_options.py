@@ -339,11 +339,8 @@ class OutputOptionsScreen(Screen):
         state.build_field_text = {
             input_id: self.query_one(f"#{input_id}", Input).value for input_id in BUILD_INPUT_FLOW
         }
-        # The series here only validates; each output picks its own.
-        eseries = DEFAULT_ESERIES if state.eseries == "none" else state.eseries
         try:
             build_config = parse_build_config(
-                eseries,
                 values,
                 design_impedance=state.impedance,
                 resonator_q_supplied=state.has_resonator_q,

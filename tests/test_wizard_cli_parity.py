@@ -15,7 +15,7 @@ import pytest
 from filter_lib import cli
 from filter_lib.wizard.calculation_handler import calculate_and_format
 from filter_lib.wizard.export_formatting import format_response_export
-from filter_lib.wizard.state import FilterState
+from filter_lib.wizard.state import CSV_DOCUMENT, JSON_DOCUMENT, FilterState
 
 _ALIAS = {"butterworth": "bw", "chebyshev": "ch", "bessel": "bs"}
 # Wizard toroid choice -> CLI flags; "Best, detailed" is the CLI default (no flag).
@@ -221,7 +221,7 @@ def test_bandpass_table_is_the_cli_table(monkeypatch, capsys, state, flags):
 )
 def test_response_sidecar_is_the_cli_plot_data(monkeypatch, capsys, state, fmt):
     expected = _cli_stdout(monkeypatch, capsys, *_design_argv(state), "--plot-data", fmt)
-    calculated = replace(state, result=calculate_and_format(state).result)
+    calculated = _saved(state)
 
     assert _document(format_response_export(calculated, fmt)) == _document(expected)
 
@@ -331,7 +331,7 @@ def test_sub_pf_option_reaches_the_saved_json_export(monkeypatch, capsys):
     from filter_lib.wizard.export_formatting import format_component_json
 
     state = _sub_pf_state()
-    calculated = replace(state, result=calculate_and_format(state).result)
+    calculated = _saved(state)
     expected = _cli_stdout(monkeypatch, capsys, *_SUB_PF_ARGV, "--format", "json")
 
     assert format_component_json(calculated) == expected
@@ -341,7 +341,7 @@ def test_sub_pf_option_reaches_the_saved_json_export(monkeypatch, capsys):
 def _saved(state: FilterState):
     """``state`` after its calculation, as the results screen holds it for saving.
 
-    A JSON that needs its own design gets it as the results screen's Save does.
+    A document that needs its own design gets it as the results screen's Save does.
     """
     from filter_lib.design import design
     from filter_lib.wizard.state import CalculationOutcome
@@ -353,10 +353,13 @@ def _saved(state: FilterState):
         result=outcome.result,
         output_text=outcome.output_text,
         build_analysis=outcome.build_analysis,
+        design_outcome=outcome.design,
+        document_designs={},
         calculation_status="success",
     )
-    if saved.json_needs_own_design():
-        saved.json_design = design(saved.json_design_request())
+    for document in (JSON_DOCUMENT, CSV_DOCUMENT, "response-json", "response-csv"):
+        if saved.document_refusal(document) is None and saved.needs_own_design(document):
+            saved.document_designs[document] = design(saved.document_request(document))
     return saved
 
 

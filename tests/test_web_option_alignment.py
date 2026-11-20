@@ -255,7 +255,7 @@ def test_unticked_toroid_build_is_the_cli_no_toroid_build(monkeypatch, capsys, c
 def test_the_2_2_field_still_means_no_toroid_build():
     form = {**LP, "sim_build": "on", "no_toroid_build": "on"}
 
-    assert parse_design_form("lowpass", form).request.build.use_toroid_candidates is False
+    assert parse_design_form("lowpass", form).request.realization.use_toroid_candidates is False
 
 
 @pytest.mark.parametrize("toroid_build, checked", [("off", False), ("on", True)])
