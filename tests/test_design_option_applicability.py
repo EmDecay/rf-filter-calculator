@@ -252,6 +252,14 @@ FORMAT_FLAGS = {
     "csv": ("--format", "csv"),
 }
 ESERIES_FLAGS = {"default": (), "E12": ("-e", "E12"), "none": ("--no-match",)}
+# One capacitor policy option at a time (they share one rule), or none.
+POLICY_FLAGS = {
+    "none": (None, ()),
+    "sub_pf": (ALLOW_SUB_PF, ("--allow-sub-pf",)),
+    "grade": (CAPACITOR_GRADE, ("--capacitor-grade", "tight")),
+    "tolerance": (CAPACITOR_TOLERANCE, ("--capacitor-tolerance", "3")),
+    "stray": (STRAY_CAPACITANCE, ("--stray-capacitance", "0.1pF")),
+}
 TOROIDS_FLAGS = {"best": (), "full": ("--toroid-full",), "none": ("--no-toroids",)}
 
 
@@ -285,17 +293,22 @@ def test_the_rule_accepts_exactly_what_the_cli_accepts(capsys, category):
     """
     design_argv, _setup, loss_q_values = CATEGORIES[category]
     disagreements = []
-    for fmt, series, toroids, loss_q, raw, plot, sub_pf, build in product(
-        FORMAT_FLAGS, ESERIES_FLAGS, TOROIDS_FLAGS, loss_q_values, *[(False, True)] * 4
+    for fmt, series, toroids, loss_q, policy, raw, plot, build in product(
+        FORMAT_FLAGS,
+        ESERIES_FLAGS,
+        TOROIDS_FLAGS,
+        loss_q_values,
+        POLICY_FLAGS,
+        *[(False, True)] * 3,
     ):
+        policy_option, policy_flags = POLICY_FLAGS[policy]
         argv = [*design_argv, *FORMAT_FLAGS[fmt], *ESERIES_FLAGS[series]]
-        argv += [*TOROIDS_FLAGS[toroids], *(("--qu", "200") if loss_q else ())]
+        argv += [*TOROIDS_FLAGS[toroids], *(("--qu", "200") if loss_q else ()), *policy_flags]
         argv += [
             flag
             for on, flag in (
                 (raw, "--raw"),
                 (plot, "--plot"),
-                (sub_pf, "--allow-sub-pf"),
                 (build, "--sim-build"),
             )
             if on
@@ -311,7 +324,7 @@ def test_the_rule_accepts_exactly_what_the_cli_accepts(capsys, category):
             option
             for on, option in (
                 (series == "E12", ESERIES),
-                (sub_pf, ALLOW_SUB_PF),
+                (policy_option is not None, policy_option),
                 (toroids == "full", TOROID_DETAIL),
                 (plot, TEXT_PLOT),
                 (raw, RAW_UNITS),
@@ -330,3 +343,16 @@ def test_the_rule_accepts_exactly_what_the_cli_accepts(capsys, category):
     capsys.readouterr()
 
     assert disagreements == []
+
+
+@pytest.mark.parametrize("policy", [name for name in POLICY_FLAGS if name != "none"])
+@pytest.mark.parametrize("realization", ["exact", "nominal-build"])
+def test_spice_decks_take_capacitor_options_exactly_as_the_cli_does(policy, realization):
+    option, flags = POLICY_FLAGS[policy]
+    argv = [*CATEGORIES["lowpass"][0], "--format", "spice", "--spice-realization", realization]
+    document = "spice-exact" if realization == "exact" else "spice-nominal"
+
+    cli_accepts = _cli_accepts("lowpass", [*argv, *flags])
+
+    assert cli_accepts is (document_reason(document, option) is None)
+    assert cli_accepts is (realization == "nominal-build")
