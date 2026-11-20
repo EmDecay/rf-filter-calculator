@@ -40,8 +40,6 @@ CSV_WITH_BUILD_MESSAGE = "CSV cannot include the build simulation. Save as Text 
 JSON_DOCUMENT = "json"
 CSV_DOCUMENT = "csv"
 # The response data file (``--plot-data``) is one of the shared ``RESPONSE_DOCUMENTS``.
-# Options that change the calculated design, not only how it is written out.
-_DESIGN_OPTIONS = frozenset({BUILD, LOSS_Q})
 
 
 class DesignInputsMixin:
@@ -140,11 +138,6 @@ class DesignInputsMixin:
             return LOSS_Q_NOT_SHOWN_MESSAGE
         return None
 
-    def json_needs_own_design(self) -> bool:
-        """Whether the saved JSON uses a build or resonator Q the result shown did not."""
-        extra = self.document_options(JSON_DOCUMENT).difference(self.applied_options())
-        return bool(extra & _DESIGN_OPTIONS)
-
     # -- Shared design inputs ----------------------------------------------------------
 
     def _eseries_for(self, options: frozenset[str]) -> str | None:
@@ -157,7 +150,6 @@ class DesignInputsMixin:
         """Return the shared engine configuration for the current controls."""
         options = self.applied_options() if options is None else options
         return BuildConfig(
-            eseries=self._eseries_for(options) or DEFAULT_ESERIES,
             capacitor_tolerance_pct=self.build_capacitor_tolerance_pct,
             inductor_tolerance_pct=self.build_inductor_tolerance_pct,
             inductor_q=self.build_inductor_q,
@@ -193,30 +185,48 @@ class DesignInputsMixin:
             qc=self.qc if resonator_q else None,
             resonator_impedance=self.resonator_impedance if bandpass else None,
             resonator_inductance=self.resonator_inductance if bandpass else None,
-            build=self.make_build_config(options) if include_build else None,
+            eseries=self._eseries_for(options),
             allow_sub_pf=ALLOW_SUB_PF in options,
+            # The wizard has no SPICE output, so the build settings matter only to a build.
+            realization=self.make_build_config(options) if include_build else None,
+            run_build_analysis=include_build,
         )
 
-    def to_design_request(self, include_build: bool) -> DesignRequest:
+    def to_design_request(self) -> DesignRequest:
         """Return the shared design request for the result shown.
 
         ``order`` carries the component count for ladders and the resonator count for
         bandpass; ``topology`` carries the coupling id for bandpass. The build
-        configuration is attached only when ``include_build`` is true.
+        simulation is part of the request when the result shows it.
         """
-        return self._design_request(self.applied_options(), include_build)
+        return self._design_request(self.applied_options(), include_build=self.runs_build)
 
-    def json_design_request(self) -> DesignRequest:
-        """The design request of the saved JSON, with its build when it uses one.
+    def document_request(self, document: str) -> DesignRequest:
+        """The design request of a saved ``document`` (``DOCUMENT_FORMATS`` key).
 
-        A build the result did not use was not checked when the result was shown; if
-        its fields could not be read, the saved JSON reports why here.
+        Only a saved JSON can carry the build. A build the result did not use was not
+        checked when the result was shown; if its fields could not be read, the saved
+        JSON reports why here.
         """
-        options = self.document_options(JSON_DOCUMENT)
-        include_build = BUILD in options
+        options = self.document_options(document)
+        include_build = document == JSON_DOCUMENT and BUILD in options
         if include_build and self.build_input_error is not None:
             raise ValueError(self.build_input_error)
         return self._design_request(options, include_build=include_build)
+
+    def needs_own_design(self, document: str) -> bool:
+        """Whether a saved ``document`` needs a design the result shown cannot give.
+
+        The result is reused only for an equal request (same inputs and the same build);
+        any other document is designed when it is saved, unless that was already done.
+        """
+        outcome = self.design_outcome
+        shown = outcome.request if outcome is not None else self.to_design_request()
+        request = self.document_request(document)
+        if request == shown:
+            return False
+        stored = self.document_designs.get(document)
+        return stored is None or stored.request != request
 
     def to_render_options(self) -> RenderOptions:
         """Return the shared render options for the result shown.
@@ -231,7 +241,6 @@ class DesignInputsMixin:
         return RenderOptions(
             output_format=self.shown_format,
             raw=RAW_UNITS in applied,
-            eseries=self._eseries_for(applied),
             show_plot=TEXT_PLOT in applied,
             include_toroids=self.include_toroids,
             toroid_compact=detail == "compact",
@@ -244,34 +253,25 @@ class DesignInputsMixin:
         """Render options of a saved JSON or CSV document (``--format json``/``csv``)."""
         from filter_lib.design import RenderOptions
 
-        return RenderOptions(
-            output_format=document,
-            eseries=self._eseries_for(self.document_options(document)),
-            include_toroids=self.include_toroids,
-        )
+        return RenderOptions(output_format=document, include_toroids=self.include_toroids)
 
     def design_result(self, document: str | None = None) -> DesignResult:
-        """Return the stored calculation as a shared ``DesignResult``.
+        """Return the shared ``DesignResult`` of the result shown, or of a saved document.
 
-        With ``document``, the result as that saved document uses it: the separately
-        calculated design when the JSON needs one, otherwise the stored result with the
-        document's sub-pF choice (the build only where the document carries it).
+        A document reuses the result shown when its request is equal; otherwise it uses
+        its own design, which the results screen calculates on Save.
         """
-        from filter_lib.design import DesignResult
+        from .state import INTERNAL_NO_RESULT_MESSAGE
 
+        outcome = self.design_outcome
+        if outcome is None:
+            raise ValueError(INTERNAL_NO_RESULT_MESSAGE)
         if document is None:
-            options = self.applied_options()
-        else:
-            if document == JSON_DOCUMENT and self.json_needs_own_design():
-                if self.json_design is None:
-                    from .state import INTERNAL_NO_RESULT_MESSAGE
-
-                    raise ValueError(INTERNAL_NO_RESULT_MESSAGE)
-                return self.json_design
-            options = self.document_options(document)
-        return DesignResult(
-            category=self.category,
-            result=self.result,
-            build_analysis=self.build_analysis if BUILD in options else None,
-            allow_sub_pf=ALLOW_SUB_PF in options,
-        )
+            return outcome
+        request = self.document_request(document)
+        if request == outcome.request:
+            return outcome
+        stored = self.document_designs.get(document)
+        if stored is None or stored.request != request:
+            raise ValueError(INTERNAL_NO_RESULT_MESSAGE)
+        return stored

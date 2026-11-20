@@ -61,14 +61,13 @@ BAND_SPECS = ("center", "edges")
 class DesignForm:
     """Everything one submission asks for.
 
-    ``request.build`` is set only when the build simulation was requested;
-    ``spice_config`` is the configuration the chosen-parts SPICE deck uses: the
+    ``request.run_build_analysis`` is set only when the build simulation was requested;
+    ``request.realization`` is what the build and the chosen-parts SPICE deck use: the
     submitted build controls when that section is enabled, the defaults otherwise.
     """
 
     request: DesignRequest
     options: RenderOptions
-    spice_config: BuildConfig
     svg_plot: bool
 
     def option_choices(self) -> OutputChoices:
@@ -76,9 +75,9 @@ class DesignForm:
         options = self.options
         return OutputChoices(
             output_format=options.output_format,
-            eseries=options.eseries,
+            eseries=self.request.eseries,
             raw=options.raw,
-            build=self.request.build is not None,
+            build=self.request.run_build_analysis,
             include_toroids=options.include_toroids,
         )
 
@@ -96,7 +95,7 @@ class DesignForm:
             (TEXT_PLOT, options.show_plot),
             (TOROID_DETAIL, options.toroid_full or options.toroid_compact),
             (ALLOW_SUB_PF, self.request.allow_sub_pf),
-            (BUILD, self.request.build is not None),
+            (BUILD, self.request.run_build_analysis),
         )
         choices = self.option_choices()
         require_applicable(choices, [option for option, ticked in selected if ticked])
@@ -154,13 +153,16 @@ def require_category(category: str) -> str:
     return category
 
 
-def _render_options(form: FormData) -> RenderOptions:
+def _eseries(form: FormData) -> str | None:
     eseries = choice(form, "eseries", ESERIES_CHOICES, DEFAULT_ESERIES, "Standard capacitor values")
+    return None if eseries == "none" else eseries
+
+
+def _render_options(form: FormData) -> RenderOptions:
     toroids = choice(form, "toroids", TOROID_CHOICES, "best", "Toroid detail")
     return RenderOptions(
         output_format=choice(form, "output_format", OUTPUT_FORMATS, "table", "Output format"),
         raw=flag(form, "raw"),
-        eseries=None if eseries == "none" else eseries,
         show_plot=flag(form, "plot"),
         include_toroids=toroids != "none",
         toroid_compact=toroids == "compact",
@@ -256,30 +258,26 @@ def parse_design_form(category: str, form: FormData) -> DesignForm:
     else:
         request = _ladder_request(category, form, filter_type)
     options = _render_options(form)
-    if request.allow_sub_pf:
-        # Checked here, not only when rendering, so every download gives the same answer.
-        options.validate_for_sub_pf()
-
-    eseries = options.eseries or DEFAULT_ESERIES
-    if flag(form, "sim_build"):
-        # The build needs standard values; whether the chosen output can show it is
-        # checked by each route against the document it actually produces.
-        if options.eseries is None:
+    # The request checks the standard values that sub-pF parts and the build need, so
+    # every download gives the same answer.
+    request = replace(request, eseries=_eseries(form))
+    run_build = flag(form, "sim_build")
+    if run_build:
+        # Whether the chosen output can show the build is checked by each route against
+        # the document it actually produces.
+        if request.eseries is None:
             raise ValueError(BUILD_NEEDS_ESERIES_MESSAGE)
-        build_config = parse_build_config(
+        realization = parse_build_config(
             form,
-            eseries,
             use_toroids=options.include_toroids,
             resonator_q_supplied=any(q is not None for q in (request.qu, request.ql, request.qc)),
         )
-        request = replace(request, build=build_config)
     else:
         # Build fields are ignored unless the build section is enabled; the deck then
-        # uses the CLI's defaults for the chosen E-series and toroid setting.
-        build_config = BuildConfig(eseries=eseries, use_toroid_candidates=options.include_toroids)
+        # uses the CLI's defaults for the chosen toroid setting.
+        realization = BuildConfig(use_toroid_candidates=options.include_toroids)
     return DesignForm(
-        request=request,
+        request=replace(request, realization=realization, run_build_analysis=run_build),
         options=options,
-        spice_config=build_config,
         svg_plot=flag(form, "svg_plot"),
     )

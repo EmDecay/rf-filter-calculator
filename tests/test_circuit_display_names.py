@@ -76,7 +76,8 @@ def test_parallel_sub_pf_parts_are_grouped_under_one_table_name():
         result,
         "bandpass",
         realization="nominal_build",
-        config=BuildConfig(match_policy=MatchPolicy(allow_sub_pf=True)),
+        config=BuildConfig(),
+        policy=MatchPolicy(allow_sub_pf=True),
     )
 
     assert "CK1A+CK1B=Cs12" in deck

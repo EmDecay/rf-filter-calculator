@@ -550,7 +550,7 @@ class TestResponseSidecar:
 
 
 class TestJsonWithItsOwnDesign:
-    """The saved JSON's own design runs on Save, in a worker of its own."""
+    """A saved file's own design runs on Save, in a worker of its own."""
 
     def _state(self) -> FilterState:
         # CSV shown with the build ticked: the saved JSON needs a design of its own.
@@ -569,10 +569,10 @@ class TestJsonWithItsOwnDesign:
 
         view.screen.run_worker.assert_called_once()
         kwargs = view.screen.run_worker.call_args.kwargs
-        assert kwargs["group"] == "json-design" and kwargs["thread"] is True
+        assert kwargs["group"] == "document-designs" and kwargs["thread"] is True
         assert [c.args[0] for c in view.screen.notify.call_args_list] == [
-            results_module.PREPARING_JSON_MESSAGE,
-            results_module.PREPARING_JSON_MESSAGE,
+            results_module.PREPARING_FILES_MESSAGE,
+            results_module.PREPARING_FILES_MESSAGE,
         ]
         assert list(tmp_path.iterdir()) == []
 
@@ -580,11 +580,11 @@ class TestJsonWithItsOwnDesign:
         state = self._state()
         view = _saving_screen(monkeypatch, tmp_path, state, "export-json")
         worker = Mock(is_running=False)
-        view.screen._json_worker = worker
-        view.screen._json_revision = state.calculation_revision - 1
+        view.screen._files_worker = worker
+        view.screen._files_revision = state.calculation_revision - 1
         view.screen._accept_worker_events = True
 
         view.screen.on_worker_state_changed(_worker_event(worker, "SUCCESS", result=Mock()))
 
-        assert state.json_design is None
+        assert state.document_designs == {}
         assert list(tmp_path.iterdir()) == []

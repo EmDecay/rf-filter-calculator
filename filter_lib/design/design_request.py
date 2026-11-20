@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..shared.cli_aliases import (
+    DEFAULT_ESERIES,
     DEFAULT_Q_SAFETY,
     MAX_RIPPLE_DB,
     RIPPLE_RANGE_MESSAGE,
@@ -21,8 +22,9 @@ from ..shared.cli_aliases import (
     resolve_filter_type,
 )
 from ..shared.cli_bandpass_output_validation import RESONATOR_Q_LABELS, loss_q_not_shown_message
-from ..shared.eseries import SUB_PF_OPTION_LABEL
+from ..shared.eseries import E_SERIES, SUB_PF_OPTION_LABEL
 from ..shared.numeric import is_finite_real, positive_geometric_mean, require_positive_finite
+from .render_options import BUILD_NEEDS_ESERIES_MESSAGE, SUB_PF_NEEDS_ESERIES_MESSAGE
 
 if TYPE_CHECKING:
     from ..shared.build_types import BuildConfig
@@ -56,19 +58,24 @@ def _is_real(value: object) -> bool:
 
 @dataclass(frozen=True)
 class DesignRequest:
-    """One filter design: synthesis inputs plus optional realized-build settings.
+    """One filter design: synthesis inputs, part policy, and build settings.
 
     ``topology`` is ``pi`` or ``t`` for ladders and the coupling id (``top``) for
     bandpass; ``order`` is the component count for ladders and the resonator count
     for bandpass. ``requested_f_low_hz``/``requested_f_high_hz`` record a band
     specified by its edges so the result metadata can restate them exactly.
 
-    ``allow_sub_pf`` is the one switch for choosing standard capacitor values below
-    1 pF (``--allow-sub-pf``; "Allow capacitors below 1 pF" in the wizard and web).
-    ``design()`` carries it to every place that picks standard capacitors: the
-    E-series table section, CSV/JSON standard matches, the build simulation, and the
-    chosen-parts SPICE deck. An explicit ``build.match_policy.allow_sub_pf`` opt-in is
-    combined with it (either one allows sub-pF parts), never overwritten.
+    The part policy is resolved once, by ``design()``, and every output reads it from
+    the ``DesignResult``: ``eseries`` is the standard capacitor series (``None`` for no
+    standard values, CLI ``--no-match``) and ``allow_sub_pf`` the one switch for
+    choosing capacitors below 1 pF (``--allow-sub-pf``; "Allow capacitors below 1 pF"
+    in the wizard and web). Together they decide the standard capacitors of the table,
+    CSV, JSON, the build simulation, and the chosen-parts SPICE deck.
+
+    ``realization`` holds what a chosen-parts deck or a build simulation needs (ports,
+    Q and its frequency, tolerances, grid, toroid windings); ``None`` uses the CLI's
+    defaults. ``run_build_analysis`` runs the build simulation's tolerance cases; a
+    SPICE deck uses ``realization`` without running them.
     """
 
     category: str
@@ -87,20 +94,37 @@ class DesignRequest:
     qc: float | None = None
     resonator_impedance: float | None = None
     resonator_inductance: float | None = None
-    build: BuildConfig | None = None
+    eseries: str | None = DEFAULT_ESERIES
     allow_sub_pf: bool = False
+    realization: BuildConfig | None = None
+    run_build_analysis: bool = False
 
     def __post_init__(self) -> None:
         if self.category not in CATEGORIES:
             raise ValueError("Unknown filter category")
-        if not isinstance(self.allow_sub_pf, bool):
-            raise ValueError(f'"{SUB_PF_OPTION_LABEL}" must be on or off')
+        self._validate_part_policy()
         object.__setattr__(self, "filter_type", resolve_filter_type(self.filter_type))
         if self.category == "bandpass":
             object.__setattr__(self, "topology", resolve_coupling(self.topology))
             self._validate_bandpass()
         else:
             self._validate_ladder()
+
+    def _validate_part_policy(self) -> None:
+        from ..shared.build_types import BuildConfig
+
+        if self.eseries is not None and self.eseries not in E_SERIES:
+            raise ValueError("E-series must be E12, E24, or E96")
+        if not isinstance(self.allow_sub_pf, bool):
+            raise ValueError(f'"{SUB_PF_OPTION_LABEL}" must be on or off')
+        if self.allow_sub_pf and self.eseries is None:
+            raise ValueError(SUB_PF_NEEDS_ESERIES_MESSAGE)
+        if self.realization is not None and not isinstance(self.realization, BuildConfig):
+            raise ValueError("realization must be a BuildConfig or None")
+        if not isinstance(self.run_build_analysis, bool):
+            raise ValueError("run_build_analysis must be on or off")
+        if self.run_build_analysis and self.eseries is None:
+            raise ValueError(BUILD_NEEDS_ESERIES_MESSAGE)
 
     @property
     def is_chebyshev(self) -> bool:

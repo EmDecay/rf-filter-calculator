@@ -1128,7 +1128,7 @@ class TestBandpassScreen:
         center, width = band_from_edges(7e6, 14.35e6)  # blank upper edge = 14.35MHz
         assert (state.frequency_hz, state.bandwidth_hz) == (center, width)
         assert (state.requested_f_low_hz, state.requested_f_high_hz) == (7e6, 14.35e6)
-        request = state.to_design_request(include_build=False)
+        request = state.to_design_request()
         assert (request.requested_f_low_hz, request.requested_f_high_hz) == (7e6, 14.35e6)
 
     def test_center_entry_clears_edges_from_an_earlier_pass(self, monkeypatch):
@@ -1146,7 +1146,7 @@ class TestBandpassScreen:
         form.screen._validate_and_continue()
 
         assert (form.state.qu, form.state.ql, form.state.qc) == (None, 150.0, 900.0)
-        request = form.state.to_design_request(include_build=False)
+        request = form.state.to_design_request()
         assert (request.qu, request.ql, request.qc) == (None, 150.0, 900.0)
 
     @pytest.mark.parametrize(

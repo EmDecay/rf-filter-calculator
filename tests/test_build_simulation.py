@@ -111,15 +111,18 @@ class TestBuildConfig:
             ({"seed": True}, "^Random seed must be a whole number$"),
             ({"grid_points": 20}, "^Frequency points must be a whole number from 51 to 5001$"),
             ({"reference_frequency_hz": 0}, "^The frequency at which the Q values apply must be"),
-            ({"eseries": "E7"}, "^E-series must be E12, E24, or E96$"),
-            ({"eseries": 24}, "^E-series must be E12, E24, or E96$"),
             ({"use_toroid_candidates": 1}, "use_toroid_candidates must be boolean"),
-            ({"match_policy": {}}, "match_policy must be a MatchPolicy"),
         ],
     )
     def test_invalid_config_rejected(self, kwargs, message):
         with pytest.raises(ValueError, match=message):
             BuildConfig(**kwargs)
+
+    @pytest.mark.parametrize("field", ["eseries", "match_policy"])
+    def test_part_policy_is_not_a_build_setting(self, field):
+        """The series and match policy are design inputs, resolved once by ``design()``."""
+        with pytest.raises(TypeError):
+            BuildConfig(**{field: None})
 
     @pytest.mark.parametrize(
         "settings",
@@ -767,12 +770,12 @@ class TestBuildAnalysis:
             result,
             "bandpass",
             BuildConfig(
-                eseries="E96",
                 capacitor_tolerance_pct=50,
                 inductor_tolerance_pct=50,
                 grid_points=51,
                 use_toroid_candidates=False,
             ),
+            eseries="E96",
         )
         # All parts 50% low double the center, pushing the upper skirt past the window.
         censored = next(case for case in analysis.cases if case.case_id == "coherent:low")
@@ -792,7 +795,7 @@ class TestBuildAnalysis:
         """Integer-turn toroids detune a 0.01% fractional-bandwidth design far beyond its
         passband, so no screened case has two half-power edges to summarize."""
         result = calculate_bandpass_filter(10e6, 1e3, 50, 2, "butterworth", "top")
-        analysis = analyze_build(result, "bandpass", BuildConfig(eseries="E96", grid_points=51))
+        analysis = analyze_build(result, "bandpass", BuildConfig(grid_points=51), eseries="E96")
 
         assert analysis.calculated.bw == pytest.approx(1e3, rel=0.03)
         assert analysis.nominal_build.at_grid_edge is True

@@ -50,14 +50,18 @@ NOMINAL_SPICE_NEEDS_ESERIES = (
 
 
 def _document(kind: str, submitted: DesignForm, should_cancel) -> str:
-    request = submitted.request if kind == "json" else replace(submitted.request, build=None)
+    request = (
+        submitted.request
+        if kind == "json"
+        else replace(submitted.request, run_build_analysis=False)
+    )
     outcome = design(request, should_cancel=should_cancel)
     if kind in ("json", "csv"):
         options = replace(submitted.options, output_format=kind, raw=False, show_plot=False)
         return render_lines(outcome, options)[0] + "\n"
     if kind.startswith("spice-"):
         realization = "exact" if kind == "spice-exact" else "nominal_build"
-        return export_spice(outcome, realization, submitted.spice_config)
+        return export_spice(outcome, realization)
     return export_response_data(outcome, kind.removeprefix("response-")) + "\n"
 
 
@@ -68,7 +72,7 @@ async def export(request: Request, category: str, kind: str) -> Response:
         raise ValueError(f"Unknown export: {kind}")
     # The inputs of the result shown, with the visible values of controls it could not use.
     submitted = parse_design_form(category, download_fields(await form_fields(request), kind))
-    if kind == "spice-nominal" and submitted.options.eseries is None:
+    if kind == "spice-nominal" and submitted.request.eseries is None:
         raise ValueError(NOMINAL_SPICE_NEEDS_ESERIES)
     if kind in LOSS_Q_HIDDEN:
         submitted.request.reject_loss_q()

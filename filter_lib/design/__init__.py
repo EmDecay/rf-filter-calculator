@@ -7,7 +7,7 @@ calculator, a category formatter, or the build analysis directly.
 
 from .design_request import DesignRequest, band_from_edges
 from .design_result import DesignResult
-from .design_service import design, synthesize, with_build_analysis
+from .design_service import design, synthesize
 from .export import export_response_data, export_spice, response_series
 from .render import render_lines
 from .render_options import RenderOptions
@@ -23,5 +23,4 @@ __all__ = [
     "render_lines",
     "response_series",
     "synthesize",
-    "with_build_analysis",
 ]

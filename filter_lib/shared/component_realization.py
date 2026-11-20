@@ -6,22 +6,18 @@ from .build_loss_models import _with_loss
 from .build_types import BuildConfig, ComponentSubstitution
 from .circuit_display_names import display_component_name
 from .circuit_model import CircuitElement
-from .eseries import match_component
+from .eseries import MatchPolicy, match_component
 from .toroid_selection import find_core_candidates
 
 
 def _realize_capacitor(
     element: CircuitElement,
-    config: BuildConfig,
+    eseries: str,
+    policy: MatchPolicy,
     quality_factor: float | None,
     reference_frequency_hz: float,
 ) -> tuple[list[CircuitElement], ComponentSubstitution, list[str]]:
-    match = match_component(
-        element.value,
-        config.eseries,
-        parallel_mode="additive",
-        policy=config.match_policy,
-    )
+    match = match_component(element.value, eseries, parallel_mode="additive", policy=policy)
     selected = match.selected_components
     if selected is None:
         warnings = list(match.warnings)

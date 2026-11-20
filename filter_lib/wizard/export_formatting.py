@@ -55,10 +55,11 @@ def _component_document(state: FilterState, document: str) -> str:
 
 
 def format_component_json(state: FilterState) -> str:
-    """Return category JSON, reusing the stored result and build simulation.
+    """Return category JSON, reusing the result shown when its request is the same.
 
-    When the JSON uses a build or resonator Q the result shown did not, its own design
-    must already be in ``state.json_design`` (the results screen calculates it on Save).
+    When the JSON's design differs (a build or resonator Q the result shown did not use,
+    or other standard values), its own design must already be in
+    ``state.document_designs`` (the results screen calculates it on Save).
 
     The document ends with one LF, byte-identical to the CLI's ``--format json``.
     """
@@ -74,12 +75,17 @@ def format_component_csv(state: FilterState) -> str:
 
 
 def prepare_export_payloads(
-    state: FilterState, format_id: str, *, include_component: bool = True
+    state: FilterState,
+    format_id: str,
+    *,
+    include_component: bool = True,
+    include_response: bool = True,
 ) -> list[tuple[str, str]]:
     """Format all requested files before the results screen writes any of them.
 
     ``include_component=False`` leaves out the results file itself (the screen does so
-    when the JSON it asked for could not be calculated) and keeps the response file.
+    when the file it asked for could not be designed) and keeps the response file;
+    ``include_response=False`` leaves out the response file the same way.
     """
     folder = export_folder()
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -98,7 +104,7 @@ def prepare_export_payloads(
             content = format_component_csv(state)
         files.append((os.path.join(folder, f"{category}-{timestamp}.{extension}"), content))
     response_format = state.export_format
-    if response_format in ("json", "csv"):
+    if include_response and response_format in ("json", "csv"):
         response_name = f"{category}-{timestamp}-response.{response_format}"
         files.append(
             (

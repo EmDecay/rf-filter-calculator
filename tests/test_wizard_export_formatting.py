@@ -11,6 +11,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from filter_lib.design import design
 from filter_lib.wizard.calculation_handler import calculate_and_format
 from filter_lib.wizard.export_formatting import (
     format_component_csv,
@@ -51,6 +52,14 @@ def _calculated_state(category: str, **overrides) -> FilterState:
     state = FilterState(**values)
     state.output_text = "\n".join(CALCULATORS[category](state))
     state.calculation_status = "success"
+    return _designed(state)
+
+
+def _designed(state: FilterState) -> FilterState:
+    """Design each saved document whose request differs from the result's, as Save does."""
+    for document in ("json", "csv", f"response-{state.export_format or 'json'}"):
+        if state.document_refusal(document) is None and state.needs_own_design(document):
+            state.document_designs[document] = design(state.document_request(document))
     return state
 
 
@@ -86,7 +95,9 @@ class TestComponentExports:
         state = calculated[category]
 
         matched = json.loads(format_component_json(state))
-        unmatched = json.loads(format_component_json(replace(state, eseries="none")))
+        unmatched = json.loads(
+            format_component_json(_designed(replace(state, eseries="none", document_designs={})))
+        )
 
         assert set(matched["components"]) == component_groups
         assert matched["components"][capacitor_group][0]["standard_match"]["series"] == "E24"
@@ -113,7 +124,13 @@ class TestComponentExports:
 
         matched = list(csv.reader(io.StringIO(format_component_csv(state))))
         unmatched = list(
-            csv.reader(io.StringIO(format_component_csv(replace(state, eseries="none"))))
+            csv.reader(
+                io.StringIO(
+                    format_component_csv(
+                        _designed(replace(state, eseries="none", document_designs={}))
+                    )
+                )
+            )
         )
 
         assert {row[0] for row in matched[1:]} == expected
@@ -122,9 +139,10 @@ class TestComponentExports:
         assert "NearestStdValue" not in unmatched[0]
 
     def test_bandpass_csv_omits_end_caps_absent_from_the_result(self, bandpass_result):
-        state = FilterState(category="bandpass", eseries="none", result=bandpass_result)
+        """The band-pass CSV formatter the wizard's saved CSV uses tolerates no end caps."""
+        from filter_lib.bandpass.formatters import format_csv
 
-        rows = list(csv.reader(io.StringIO(format_component_csv(state))))
+        rows = list(csv.reader(io.StringIO(format_csv(bandpass_result, eseries=None))))
 
         assert [row[0] for row in rows[1:]] == [
             "Cp1",
@@ -161,7 +179,7 @@ class TestComponentExports:
         outcome = calculate_and_format(state)
         revision = state.begin_calculation()
         assert state.publish_success(
-            revision, outcome.output_text, outcome.result, outcome.build_analysis
+            revision, outcome.output_text, outcome.result, outcome.build_analysis, outcome.design
         )
         monkeypatch.setattr(
             "filter_lib.shared.build_simulation.analyze_build",
