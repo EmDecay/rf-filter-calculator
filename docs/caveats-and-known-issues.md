@@ -46,7 +46,8 @@ GRM1885C1H…A01 (0603, 50 V), recorded with its sources in
 | 10–910 pF | ±5% | ±2% |
 | 1–10 nF | ±5% | ±5% |
 
-The series makes 0.5–9.9 pF in 0.1 pF steps and the E24 values from 10 pF to 10 nF, so every
+The sourced table lists 0.5–9.9 pF in 0.1 pF steps and the E24 values from 10 pF to 10 nF
+(values with a current reference sheet; a refused request is only "not found"), so every
 E12 and E24 value from 1 pF to 10 nF is covered, but only the E96 values with two significant
 digits (such as 1.0, 1.1 and 75 pF).
 
@@ -58,17 +59,19 @@ Each capacitor gets one choice, by its worst case within tolerance:
   value for the footprint);
 - its score is the larger distance from the calculated value to either end of that interval;
 - the best single part and the best pair are found by exhaustive search over the values the
-  series makes; the pair is chosen only when it scores at least 0.5 percentage points better;
+  sourced table lists; the pair is chosen only when it scores at least 0.5 percentage points better;
 - ties go to the single part, then to the pair with the smaller ratio, then to the lower
   value; the ratio between the two parts is limited to 10:1;
 - `--capacitor-tolerance` can only loosen the grade: each part uses the larger of that
   percentage and its grade's tolerance;
-- a value the series does not make (most E96 values, and parts above 10 nF) keeps the
+- a value the sourced table does not list (most E96 values, and parts above 10 nF) keeps the
   nominal rule (the nearest single part within 1%, otherwise a pair at least 0.5 points
-  closer), is labelled "tolerance not sourced" (JSON and CSV status `tolerance_not_sourced`),
-  and uses an assumed ±5% (or the override) in the build simulation; and
+  closer), is labelled "tolerance not sourced" (JSON and CSV status `tolerance_not_sourced`; the
+  CSV policy and the chosen-parts SPICE comment state the assumption), and in the build
+  simulation each part not in the table uses an assumed ±5% (or the override) while a listed
+  part of the same pair keeps its own tolerance; and
 - below 1 pF no part is chosen automatically, unless `--allow-sub-pf` (**Allow capacitors below
-  1 pF** in the wizard and web UI) is on. The series makes no E-series value below 1 pF, so
+  1 pF** in the wizard and web UI) is on. The sourced table lists no E-series value below 1 pF, so
   those choices are always "tolerance not sourced".
 
 Without that option, a target below 1 pF keeps its calculated value, the row reads

@@ -635,7 +635,8 @@ class TestRecommendationPolicy:
 
     def test_policy_summary_describes_thresholds_and_floor(self):
         assert DEFAULT_MATCH_POLICY.summary() == (
-            "worst-case;grade=standard;tolerance-override=none;stray=0.2pF(assumed);"
+            "worst-case;grade=standard;tolerance-override=none;"
+            "not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);"
             "parallel-improvement>=0.5pp;minimum-cap=1pF"
         )
         expert = MatchPolicy(
@@ -646,8 +647,8 @@ class TestRecommendationPolicy:
             stray_capacitance_f=0,
         )
         assert expert.summary() == (
-            "worst-case;grade=tight;tolerance-override=3%;stray=0pF(assumed);"
-            "parallel-improvement>=0pp;minimum-cap=disabled"
+            "worst-case;grade=tight;tolerance-override=3%;not-sourced-tolerance=3%(assumed);"
+            "stray=0pF(assumed);parallel-improvement>=0pp;minimum-cap=disabled"
         )
         assert expert.as_dict() == {
             "rule": "worst_case_interval",

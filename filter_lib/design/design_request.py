@@ -129,7 +129,9 @@ class DesignRequest:
             self._validate_ladder()
 
     def _validate_part_policy(self) -> None:
-        if self.eseries is not None and self.eseries not in E_SERIES:
+        if self.eseries is not None and (
+            not isinstance(self.eseries, str) or self.eseries not in E_SERIES
+        ):
             raise ValueError("E-series must be E12, E24, or E96")
         if not isinstance(self.allow_sub_pf, bool):
             raise ValueError(f'"{SUB_PF_OPTION_LABEL}" must be on or off')

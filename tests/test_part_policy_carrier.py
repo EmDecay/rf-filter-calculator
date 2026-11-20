@@ -143,3 +143,44 @@ def test_wizard_values_only_result_and_a_json_with_its_series_are_designed_apart
     assert state.design_outcome.eseries == "E24"
     assert state.needs_own_design(JSON_DOCUMENT)
     assert state.document_request(JSON_DOCUMENT).eseries == "E96"
+
+
+def test_bandpass_usage_errors_come_before_the_build_starts(monkeypatch, capsys):
+    """--q-safety needs JSON output; with a table the CLI refuses it before any analysis."""
+    calls = _count_analyses(monkeypatch)
+    argv = ("bp", "bw", "top", "-f", "10MHz", "-b", "500kHz", "--q-safety", "3", "--sim-build")
+    monkeypatch.setattr("sys.argv", ["filter-calc", *argv])
+
+    from filter_lib import cli
+
+    with pytest.raises(SystemExit):
+        cli.main()
+
+    assert calls == [0]
+    assert "--q-safety only changes q_min in JSON output" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("field", "value"), [("eseries", []), ("capacitor_grade", {})])
+def test_malformed_part_policy_values_are_a_clear_value_error(field, value):
+    from filter_lib.design import DesignRequest
+
+    with pytest.raises(ValueError):
+        DesignRequest("lowpass", "butterworth", "pi", 10e6, 50.0, 3, **{field: value})
+
+
+def test_the_wizard_keeps_one_copy_of_the_result_and_its_build():
+    state = _shown(build_analysis_enabled=True, build_grid_points=51)
+
+    assert state.design_outcome.build_analysis is not None
+    assert state.result is state.design_outcome.result
+    assert state.build_analysis is state.design_outcome.build_analysis
+
+
+def test_the_wizard_response_file_reuses_the_result_shown():
+    """Response data is the ideal response: no capacitor option, Q or build changes it."""
+    state = _shown(eseries="E96", output_format="csv", build_analysis_enabled=True)
+    state.capacitor_input_error = "Capacitor tolerance must be a number"
+
+    for document in ("response-json", "response-csv"):
+        assert not state.needs_own_design(document)
+        assert state.design_result(document) is state.design_outcome

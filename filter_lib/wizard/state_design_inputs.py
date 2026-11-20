@@ -221,8 +221,12 @@ class DesignInputsMixin:
 
         Only a saved JSON can carry the build. A build the result did not use was not
         checked when the result was shown; if its fields could not be read, the saved
-        JSON reports why here.
+        JSON reports why here. The response data file is the ideal response, which no
+        standard-capacitor option, resonator Q or build changes, so it is always the
+        result shown.
         """
+        if document in RESPONSE_DOCUMENTS:
+            return self.design_outcome.request if self.design_outcome else self.to_design_request()
         options = self.document_options(document)
         include_build = document == JSON_DOCUMENT and BUILD in options
         if include_build and self.build_input_error is not None:

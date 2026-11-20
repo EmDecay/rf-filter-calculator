@@ -62,7 +62,8 @@ def test_criterion_two_example_chooses_the_exhaustive_search_winner(grade, parts
     assert expected_parts == tuple(F(part) for part in parts)
     assert expected_score == F(score)
     assert chosen == expected_parts
-    assert match.worst_case_error_f == pytest.approx(float(expected_score) * PF, rel=1e-12)
+    assert F(repr(match.worst_case_error_f)) * 10**12 == pytest.approx(expected_score, rel=1e-12)
+    assert match.worst_case_error_f > 0.4 * PF
     assert match.status == "recommended" and match.tolerance_sourced is True
 
 
@@ -151,7 +152,9 @@ def test_choices_equal_the_brute_force_for_many_targets(config):
             assert not 1 <= target <= 10000, target
             continue
         assert chosen == expected_parts, target
-        assert match.worst_case_error_f == pytest.approx(float(expected_score) * PF, rel=1e-12)
+        assert match.worst_case_error_f == pytest.approx(
+            float(expected_score) * PF, rel=1e-12, abs=0
+        )
         assert max(chosen) <= 10 * min(chosen)
 
 
@@ -163,7 +166,7 @@ def test_equal_single_scores_go_to_the_lower_value():
     chosen, match = _choice("4.5")
 
     assert chosen == (F("4.3"),)
-    assert match.worst_case_error_f == pytest.approx(0.45 * PF, rel=1e-12)
+    assert match.worst_case_error_f == pytest.approx(0.45 * PF, rel=1e-12, abs=0)
 
 
 def test_equal_pair_scores_go_to_the_smaller_ratio_then_the_lower_total():
@@ -174,7 +177,7 @@ def test_equal_pair_scores_go_to_the_smaller_ratio_then_the_lower_total():
         (F("3.3"), F(1, 4)),
     ]
     # 1.0 + 3.3 and 1.3 + 3.0 both total 4.3 pF with ±0.5 pF: the 1.3 + 3.0 pair is balanced.
-    best = capacitor_choice._best_pair(candidates, F("4.3"), F(1), 10.0, DEFAULT_MATCH_POLICY)
+    best = capacitor_choice._best_pair(candidates, F("4.3"), 10.0, DEFAULT_MATCH_POLICY)
 
     assert best[3][0] == F("1.3") and best[4][0] == F("3.0")
 
@@ -254,7 +257,7 @@ def test_override_reaches_the_chosen_parts_tolerances():
     )
 
     assert match.selected_components == (100e-12,)
-    assert match.part_tolerances_f == pytest.approx((8e-12,), rel=1e-12)
+    assert match.part_tolerances_f == pytest.approx((8e-12,), rel=1e-12, abs=0)
     assert match.part_tolerance_fractions == (0.08,)
 
 
@@ -293,3 +296,59 @@ def test_inductor_matching_ignores_the_capacitor_policy():
             other.status,
         )
         assert default.part_tolerances_f is None
+
+
+def test_an_exact_tie_goes_to_the_single_part_even_with_a_zero_margin():
+    """20 pF and 10 + 10 pF both span 19–21 pF with no stray: the single part wins."""
+    assert not pair_wins(F(1), F(1), F(20), F(0))
+    chosen, match = _choice("20", stray_capacitance_f=0.0, min_parallel_improvement_pct_points=0.0)
+
+    assert chosen == (F(20),)
+    assert match.recommendation_reason == "single_worst_case_is_best"
+
+
+def test_the_reported_pair_improvement_is_the_best_pairs_even_when_the_single_wins():
+    """With a 10 pF stray, 3 + 12 pF (worst case 5.85 pF) is the best pair; 20 pF wins."""
+    _chosen, match = _choice("20", stray_capacitance_f=10e-12)
+
+    assert match.selected_components == (20e-12,)
+    assert match.raw_parallel_improvement_pct_points == pytest.approx(-24.25, rel=1e-12)
+
+
+TANK_141_PF = 1.415500014285571e-10
+
+
+def test_a_pair_with_one_part_outside_the_table_keeps_the_sourced_tolerance_of_the_other():
+    """E96 31.6 pF (not in the table) with 110 pF (±5%): only 31.6 pF gets the assumed value.
+
+    141.55 pF is a band-pass tank (``bp bs top -f 21.2MHz -b 500kHz -n 3``, Cp2).
+    """
+    for override, fractions in ((None, (0.05, 0.05)), (0.0, (0.0, 0.05)), (8.0, (0.08, 0.08))):
+        match = match_component(
+            TANK_141_PF,
+            "E96",
+            parallel_mode="additive",
+            policy=MatchPolicy(tolerance_override_pct=override),
+        )
+        assert match.status == TOLERANCE_NOT_SOURCED
+        assert match.selected_components == (31.6e-12, 110e-12)
+        assert match.part_tolerance_fractions == fractions
+
+
+def test_tight_grade_applies_to_the_listed_part_of_a_not_sourced_pair():
+    match = match_component(
+        TANK_141_PF, "E96", parallel_mode="additive", policy=MatchPolicy(grade="tight")
+    )
+
+    assert match.selected_components == (31.6e-12, 110e-12)
+    assert match.part_tolerance_fractions == (0.05, 0.02)
+
+
+def test_not_sourced_assumptions_are_stated_in_csv_and_the_chosen_parts_deck(monkeypatch, capsys):
+    argv = ("lp", "bw", "pi", "146MHz", "-n", "5", "-e", "E96")
+    csv_text = cli_stdout(monkeypatch, capsys, *argv, "--format", "csv")
+    deck = cli_stdout(monkeypatch, capsys, *argv, "--format", "spice")
+
+    c1 = csv_text.splitlines()[1]
+    assert "tolerance_not_sourced" in c1 and "not-sourced-tolerance=5%(assumed)" in c1
+    assert re.search(r"^\* part used: C1 .* tolerance-not-sourced=5%-assumed$", deck, re.M)

@@ -285,6 +285,9 @@ def run(args: Namespace) -> None:
         resonator_inductance=resonator_inductance,
         **part_policy_args(args),
     )
+    if request.run_build_analysis:
+        # The build can run for seconds, so its usage problems come first.
+        validate_bandpass_output_args(args)
     outcome = design(request)
     result = outcome.result
     validate_bandpass_output_args(args)

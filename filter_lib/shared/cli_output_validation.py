@@ -190,10 +190,13 @@ def _validate_primary_output_mode(args: Namespace) -> None:
             "--sim-matched and --sim-build cannot be used together; --sim-matched is "
             "deprecated, so use --sim-build alone",
         )
-    if sim_matched and getattr(args, "allow_sub_pf", False):
+    # The deprecated path uses only the E-series, never the capacitor policy options.
+    policy = [flag for flag in matching if flag != "--eseries"]
+    if sim_matched and policy:
         usage_error(
             args,
-            f"{SUB_PF_CLI_FLAG} cannot be used with the deprecated --sim-matched; use --sim-build",
+            f"{', '.join(policy)} cannot be used with the deprecated --sim-matched; "
+            "use --sim-build",
         )
 
 

@@ -117,8 +117,8 @@ gives values per decade, not tolerance. Each capacitor gets one choice by its wo
 within tolerance (`shared/capacitor_choice.py`): the single part or parallel pair whose
 interval (nominal ± tolerance, plus the assumed stray for a pair) ends closest to the target,
 a pair only when it is at least 0.5 percentage points better. Tolerances come from the sourced
-grade table (`shared/capacitor_grades.py`, `capacitor_grade_data.json`); a value the series
-does not make keeps the nominal rule (single within 1%, else a pair) and is marked
+grade table (`shared/capacitor_grades.py`, `capacitor_grade_data.json`); a value the table
+does not list keeps the nominal rule (single within 1%, else a pair) and is marked
 `tolerance_not_sourced`. Below 1 pF no part is chosen unless `DesignRequest.allow_sub_pf`
 (`--allow-sub-pf`, wizard/web **Allow capacitors below 1 pF**) is set; the warning names that
 option.

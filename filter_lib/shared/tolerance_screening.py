@@ -39,12 +39,13 @@ def screened_elements(circuit: NamedCircuit) -> tuple[tuple[str, float], ...]:
 def perturb_circuit(circuit: NamedCircuit, factors: tuple[tuple[str, float], ...]) -> NamedCircuit:
     """Apply one factor per varied part and keep its loss model coherent.
 
-    An element without a factor (a fixed element) keeps its value.
+    A fixed element (an assumed parasitic) keeps its value even if a factor names it, and
+    so does an element without a factor.
     """
     factor_by_name = dict(factors)
     perturbed: list[CircuitElement] = []
     for element in circuit.elements:
-        if element.name not in factor_by_name:
+        if element.fixed or element.name not in factor_by_name:
             perturbed.append(element)
             continue
         value = element.value * factor_by_name[element.name]

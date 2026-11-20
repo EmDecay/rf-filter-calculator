@@ -430,12 +430,20 @@ class ResultsScreen(Screen):
         )
 
     def _file_not_saved(self, state: FilterState, document: str | None, message: str) -> None:
-        """Report why the results file was not saved; the response data file is still saved."""
+        """Report why the results file was not saved; the response data file is still saved.
+
+        The response file is saved only when it needs no design of its own; one it cannot
+        even describe is left out quietly, since the notice above already says why.
+        """
         self._hide_export_options()
         self.notify(f"{not_saved_prefix(document or 'results')}{message}", severity="error")
-        if state.export_format in ("json", "csv") and not state.needs_own_design(
-            f"response-{state.export_format}"
-        ):
+        if state.export_format not in ("json", "csv"):
+            return
+        try:
+            response_ready = not state.needs_own_design(f"response-{state.export_format}")
+        except ValueError:
+            response_ready = False
+        if response_ready:
             self._write_export(state, "export-json", include_component=False)
 
     def _has_current_result(self, state: FilterState | None = None) -> bool:

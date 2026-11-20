@@ -230,9 +230,15 @@ class FilterState(DesignInputsMixin):
             self.publish_error(revision, INTERNAL_NO_RESULT_MESSAGE)
             return False
         self.output_text = output_text
-        self.result = deepcopy(result)
-        self.build_analysis = deepcopy(build_analysis)
-        self.design_outcome = deepcopy(design)
+        if design is None:
+            self.result = deepcopy(result)
+            self.build_analysis = deepcopy(build_analysis)
+            self.design_outcome = None
+        else:
+            # One copy: the stored result and build analysis are the design result's own.
+            self.design_outcome = deepcopy(design)
+            self.result = self.design_outcome.result
+            self.build_analysis = self.design_outcome.build_analysis
         self.document_designs = {}
         self.calculation_status = "success"
         self.calculation_error = None
