@@ -378,7 +378,9 @@ Components (CSV) and SPICE – calculated values refuse resonator Q (Qu, or the 
 capacitor Q) that the result shown used, as the CLI does. The response data downloads leave the
 resonator Q out, so they equal `--plot-data` without them (the wizard's response data file does
 the same). `POST /api/design/<category>` with the same form fields returns the `--format json`
-document directly, for scripts.
+document directly, for scripts: the same bytes as the Design JSON download. As for that
+download, display-only fields (Format, Raw units, Text plot, the table-only inductor detail)
+are ignored, and a `visible.<name>` value is used where it applies to the JSON.
 
 ### Form fields and CLI flags
 

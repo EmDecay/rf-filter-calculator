@@ -49,7 +49,8 @@ NOMINAL_SPICE_NEEDS_ESERIES = (
 )
 
 
-def _document(kind: str, submitted: DesignForm, should_cancel) -> str:
+def document_body(kind: str, submitted: DesignForm, should_cancel) -> str:
+    """The body of the ``kind`` document for the submitted inputs (the CLI's stdout)."""
     request = (
         submitted.request
         if kind == "json"
@@ -82,7 +83,7 @@ async def export(request: Request, category: str, kind: str) -> Response:
         )
 
     body = await runner(request).run(
-        lambda should_cancel: _document(kind, submitted, should_cancel)
+        lambda should_cancel: document_body(kind, submitted, should_cancel)
     )
     export_kind = EXPORT_KINDS[kind]
     filename = f"{category}-{kind}.{export_kind.extension}"
