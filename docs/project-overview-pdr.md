@@ -207,7 +207,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
   defaults, and error messages
 - The result panel shows the CLI's text output; an optional SVG response graph uses the response-data samples
 - Downloads (Design JSON, Components CSV, SPICE – calculated values, SPICE – chosen parts, response data JSON/CSV) are byte-identical to
-  CLI output; `POST /api/design/<category>` returns the `--format json` document
+  CLI output; `POST /api/design/<category>` returns the `--format json` document, the same
+  bytes as the Design JSON download for the same fields
 - Same options, labels, defaults, and order as the wizard; options that cannot apply are disabled with a reason, and the server refuses them in hand-made requests
 - Downloads use the inputs of the result shown (plus visible values of disabled controls where they apply); a notice appears when the form has changed since
 

@@ -299,3 +299,52 @@ def test_only_the_json_download_carries_the_build_analysis(client):
     assert {"nominal_build", "tolerance_analysis"} <= set(json_body)
     assert csv_response.status_code == 200
     assert csv_response.text == client.post("/export/highpass/csv", data=DESIGNS[1].form()).text
+
+
+_LOWPASS_FIELDS = {
+    "filter_type": "butterworth",
+    "topology": "pi",
+    "frequency": "10MHz",
+    "components": "3",
+    "eseries": "E24",
+}
+_LOWPASS_ARGV = ("lp", "bw", "pi", "10MHz", "-n", "3", "--format", "json")
+
+
+@pytest.mark.parametrize(
+    "fields, flags",
+    [
+        # Display-only fields cannot change the JSON, so both leave them out.
+        (
+            dict(output_format="table", plot="on", raw="on", inductor_suggestions="full"),
+            (),
+        ),
+        # Values only disables the E-series; its visible "None" applies to the JSON.
+        (dict(output_format="quiet", **{"visible.eseries": "none"}), ("--no-match",)),
+        (
+            dict(sim_build="on", build_grid_points="51", capacitor_grade="tight"),
+            ("--sim-build", "--analysis-points", "51", "--capacitor-grade", "tight"),
+        ),
+    ],
+    ids=["display-only-fields", "visible-value", "build"],
+)
+def test_the_json_api_is_the_json_download(monkeypatch, capsys, client, fields, flags):
+    """The same fields give the same bytes at both addresses: the CLI's --format json."""
+    form = {**_LOWPASS_FIELDS, **fields}
+    expected = cli_stdout(monkeypatch, capsys, *_LOWPASS_ARGV, *flags)
+
+    api = client.post("/api/design/lowpass", data=form)
+    download = client.post("/export/lowpass/json", data=form)
+
+    assert api.status_code == download.status_code == 200
+    assert api.content == download.content == expected.encode()
+
+
+def test_the_json_api_refuses_what_the_json_download_refuses(client):
+    form = {**_LOWPASS_FIELDS, "eseries": "none", "sim_build": "on"}
+
+    api = client.post("/api/design/lowpass", data=form)
+    download = client.post("/export/lowpass/json", data=form)
+
+    assert api.status_code == download.status_code == 400
+    assert api.json() == download.json()

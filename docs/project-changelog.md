@@ -195,6 +195,19 @@ RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
 - Filter theory lists the ARRL Handbook names for each ladder: low-pass Pi is capacitor-input
   and T is inductor-input; high-pass T is capacitor-input and Pi is inductor-input.
 
+### Fixed
+
+- **`POST /api/design/<category>` now returns the Design JSON download's bytes.** It used to
+  read the posted fields directly, ignoring the `visible.<name>` values the page sends for a
+  disabled control, so the same fields could give two different JSON documents: Values only
+  with Standard capacitor values "None" gave a document with E24 values from the API and one
+  without standard values (`--format json --no-match`) from the download. The API now builds
+  its inputs with the download's `download_fields(..., "json")` and renders through the same
+  `routes_export.document_body`, so both addresses give identical bytes and the same
+  refusals. Display-only fields (Format, Raw units, Text plot, the table-only inductor detail)
+  stay ignored, not refused: they cannot change the JSON, and refusing them would break
+  scripts that post the page's own form.
+
 ### Python support and CI
 
 - **Python 3.10 is no longer supported.** It reached end of life in October 2026. The
