@@ -144,13 +144,16 @@ def test_enter_reaches_every_output_control_in_the_web_order() -> None:
             app.push_screen(OutputOptionsScreen())
             await pilot.pause()
             visited = []
-            for _ in range(8):
+            for _ in range(11):
                 visited.append(app.screen.focused.id)
                 await pilot.press("enter")
             assert visited == [
                 "format",
                 "eseries",
                 "allow-sub-pf",
+                "capacitor-grade",
+                "capacitor-tolerance",
+                "stray-capacitance",
                 "toroid-detail",
                 "plot",
                 "raw",
@@ -301,7 +304,7 @@ def test_hidden_build_fields_never_block_the_result_or_take_focus() -> None:
             screen = app.screen
             screen.query_one("#build-analysis-enabled", Checkbox).value = True
             await pilot.pause()
-            screen.query_one("#build-capacitor-tolerance", Input).value = "abc"
+            screen.query_one("#build-inductor-tolerance", Input).value = "abc"
             _choose(screen.query_one("#format", RadioSet), "csv")
             await pilot.pause()
             assert not screen.query_one("#build-analysis-options").display
@@ -313,15 +316,15 @@ def test_hidden_build_fields_never_block_the_result_or_take_focus() -> None:
 
             assert isinstance(app.screen, ResultsScreen)
             assert app.filter_state.calculation_status == "success"
-            assert app.focused is None or app.focused.id != "build-capacitor-tolerance"
+            assert app.focused is None or app.focused.id != "build-inductor-tolerance"
             assert app.filter_state.build_input_error == (
-                "Build simulation: Capacitor tolerance must be a number"
+                "Build simulation: Inductor tolerance must be a number"
             )
 
             # Back: the typed text is still there to fix.
             await pilot.press("escape")
             await pilot.pause()
-            assert screen.query_one("#build-capacitor-tolerance", Input).value == "abc"
+            assert screen.query_one("#build-inductor-tolerance", Input).value == "abc"
 
     asyncio.run(exercise())
 

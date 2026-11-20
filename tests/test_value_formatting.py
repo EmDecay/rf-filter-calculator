@@ -209,10 +209,20 @@ class TestEseriesMatchLines:
         assert lines == ["  Use:            100.00 pF (0.0%)"]
 
     def test_single_part_chosen_when_no_pair_is_half_a_point_closer(self):
-        """237.41 pF: 240 pF is +1.09%; the best pair improves that by under 0.5 points."""
+        """237.41 nF (not sourced, nominal rule): no pair improves 240 nF by 0.5 points."""
+        lines = format_eseries_match(237.41e-9, "E24", format_capacitance, "additive")
+
+        assert lines[0] == "  Use:            240.00 nF (+1.1%)"
+        assert lines[1].startswith("  Tolerance not sourced")
+
+    def test_worst_case_rule_can_prefer_a_pair_over_a_closer_single(self):
+        """237.41 pF: 56 + 180 pF (±11.8 pF + stray) beats 240 pF (±12 pF) on worst case."""
         lines = format_eseries_match(237.41e-12, "E24", format_capacitance, "additive")
 
-        assert lines == ["  Use:            240.00 pF (+1.1%)"]
+        assert lines == [
+            "  Use:            56.00 pF || 180.00 pF (-0.6%)",
+            "  Nearest single: 240.00 pF (+1.1%)",
+        ]
 
     def test_inductor_uses_harmonic_parallel_pair(self):
         lines = format_eseries_match(1.457e-6, "E24", format_inductance, "harmonic")

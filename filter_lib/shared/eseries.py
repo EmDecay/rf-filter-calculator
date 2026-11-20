@@ -75,22 +75,71 @@ def _validate_series(series: object) -> str:
     return series
 
 
+# The capacitor part-policy inputs every surface offers; labels name them in messages.
+CAPACITOR_GRADE_FLAG = "--capacitor-grade"
+CAPACITOR_GRADE_LABEL = "Capacitor grade"
+CAPACITOR_TOLERANCE_FLAG = "--capacitor-tolerance"
+CAPACITOR_TOLERANCE_LABEL = "Capacitor tolerance"
+STRAY_CAPACITANCE_FLAG = "--stray-capacitance"
+STRAY_CAPACITANCE_LABEL = "Stray capacitance"
+# The assumed layout capacitance across the second part of a parallel pair. No source
+# gives a pad-to-pad value for the footprint, so it is a labelled assumption.
+DEFAULT_STRAY_CAPACITANCE_F = 0.2e-12
+CAPACITOR_TOLERANCE_RANGE_MESSAGE = (
+    f"{CAPACITOR_TOLERANCE_LABEL} must be at least 0% and less than 100%"
+)
+# CLI help; the wizard and web show the same meaning in their own words.
+CAPACITOR_GRADE_HELP = (
+    "Tolerance grade of the standard capacitors, from the sourced C0G series: standard "
+    "(the manufacturer's standard tolerance codes) or tight (one step tighter). Each "
+    "capacitor is chosen by its worst case within tolerance (default: standard)"
+)
+CAPACITOR_TOLERANCE_HELP = (
+    "Capacitor tolerance in ± percent, 0 to under 100. Each standard capacitor uses the "
+    "larger of this and its grade's tolerance, so it can only loosen the grade; a value "
+    "the series does not make uses it instead of the assumed 5% (default: the grade's "
+    "tolerance)"
+)
+STRAY_CAPACITANCE_HELP = (
+    "Assumed layout capacitance across the second part of a parallel pair, e.g. 0.2pF; "
+    "0 to 10 pF. An assumption, not a sourced value (default: 0.2pF)"
+)
+
+
+def require_capacitor_tolerance_pct(value: object) -> float | None:
+    """Return an optional capacitor tolerance override in percent, else raise ValueError."""
+    if value is None:
+        return None
+    if not _finite_real(value) or not 0 <= value < 100:
+        raise ValueError(CAPACITOR_TOLERANCE_RANGE_MESSAGE)
+    return value  # type: ignore[return-value]
+
+
 @dataclass(frozen=True)
 class MatchPolicy:
     """Policy for turning raw preferred-value matches into a build choice.
 
     The thresholds are calculator policy, not tolerances implied by IEC 60063.
-    ``minimum_capacitance_f`` applies only to additive capacitor matching.
+    ``minimum_capacitance_f`` applies only to additive capacitor matching. ``grade``
+    names the sourced tolerance grade (``capacitor_grades``), ``tolerance_override_pct``
+    an optional percentage that can only loosen it, and ``stray_capacitance_f`` the
+    assumed capacitance across the second part of a parallel pair.
     """
 
-    prefer_single_within_pct: float = 1.0
     min_parallel_improvement_pct_points: float = 0.5
     minimum_capacitance_f: float = 1e-12
     allow_sub_pf: bool = False
+    grade: str = "standard"
+    tolerance_override_pct: float | None = None
+    stray_capacitance_f: float = DEFAULT_STRAY_CAPACITANCE_F
 
     def __post_init__(self) -> None:
-        if not _finite_real(self.prefer_single_within_pct) or self.prefer_single_within_pct < 0:
-            raise ValueError("prefer_single_within_pct must be finite and non-negative")
+        from .capacitor_grades import require_grade
+        from .physical_input_limits import require_stray_capacitance
+
+        require_grade(self.grade)
+        require_capacitor_tolerance_pct(self.tolerance_override_pct)
+        require_stray_capacitance(self.stray_capacitance_f)
         if (
             not _finite_real(self.min_parallel_improvement_pct_points)
             or self.min_parallel_improvement_pct_points < 0
@@ -101,11 +150,24 @@ class MatchPolicy:
         if not isinstance(self.allow_sub_pf, bool):
             raise ValueError("allow_sub_pf must be a boolean")
 
-    def as_dict(self) -> dict[str, float | bool]:
+    def as_dict(self) -> dict[str, object]:
         """JSON-safe policy fields for machine-readable exports."""
+        from .capacitor_grades import ASSUMED_TOLERANCE_PCT, SERIES, tolerance_rule_text
+
         return {
-            "prefer_single_within_pct": self.prefer_single_within_pct,
-            "min_parallel_improvement_pct_points": (self.min_parallel_improvement_pct_points),
+            "rule": "worst_case_interval",
+            "capacitor_series": SERIES.title,
+            "capacitor_grade": self.grade,
+            "grade_tolerances": tolerance_rule_text(self.grade),
+            "tolerance_override_pct": self.tolerance_override_pct,
+            "assumed_tolerance_pct_when_not_sourced": (
+                self.tolerance_override_pct
+                if self.tolerance_override_pct is not None
+                else ASSUMED_TOLERANCE_PCT
+            ),
+            "stray_capacitance_f": self.stray_capacitance_f,
+            "stray_capacitance_basis": "assumption",
+            "min_parallel_improvement_pct_points": self.min_parallel_improvement_pct_points,
             "minimum_capacitance_f": self.minimum_capacitance_f,
             "allow_sub_pf": self.allow_sub_pf,
         }
@@ -114,8 +176,12 @@ class MatchPolicy:
         """Compact, deterministic policy description for CSV output."""
         floor_pf = self.minimum_capacitance_f * 1e12
         floor = "disabled" if self.allow_sub_pf else f"{floor_pf:g}pF"
+        override = (
+            "none" if self.tolerance_override_pct is None else f"{self.tolerance_override_pct:g}%"
+        )
         return (
-            f"single<={self.prefer_single_within_pct:g}%;"
+            f"worst-case;grade={self.grade};tolerance-override={override};"
+            f"stray={self.stray_capacitance_f * 1e12:g}pF(assumed);"
             f"parallel-improvement>={self.min_parallel_improvement_pct_points:g}pp;"
             f"minimum-cap={floor}"
         )
@@ -138,12 +204,27 @@ def sub_pf_warning(floor_pf: float) -> str:
     )
 
 
+# Status of a capacitor choice whose part values the sourced series does not make: it is
+# chosen by the legacy nominal rule and its tolerance is an assumption.
+TOLERANCE_NOT_SOURCED = "tolerance_not_sourced"
+
+
 @dataclass
 class ESeriesMatch:
-    """Result of E-series component matching."""
+    """Result of E-series component matching.
+
+    ``single_value`` is the single part the rule compared (for capacitors chosen by the
+    worst-case rule, the best single part; otherwise the nearest), and
+    ``nearest_value`` the nearest single value, shown for reference. For a capacitor,
+    ``part_tolerances_f`` gives each selected part's ± tolerance in farads (and
+    ``part_tolerance_fractions`` the same as a fraction of the part, exactly rounded),
+    ``tolerance_sourced`` whether those come from the sourced grade table, and
+    ``worst_case_error_f`` the chosen option's score (its larger interval endpoint
+    error), which only the worst-case rule sets.
+    """
 
     target: float  # Original target value
-    single_value: float  # Closest single E-series value
+    single_value: float  # Single part the rule compared
     single_error_pct: float  # Error percentage for single
     parallel: tuple[float, float] | None  # Parallel combo (V1, V2) if better
     parallel_value: float | None  # Resulting parallel value
@@ -154,6 +235,17 @@ class ESeriesMatch:
     warnings: tuple[str, ...] = ()
     policy: MatchPolicy = DEFAULT_MATCH_POLICY
     raw_parallel_improvement_pct_points: float | None = None
+    nearest_value: float | None = None
+    nearest_error_pct: float | None = None
+    part_tolerances_f: tuple[float, ...] | None = None
+    part_tolerance_fractions: tuple[float, ...] | None = None
+    tolerance_sourced: bool | None = None
+    worst_case_error_f: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.nearest_value is None:
+            self.nearest_value = self.single_value
+            self.nearest_error_pct = self.single_error_pct
 
     @property
     def prefers_parallel(self) -> bool:
@@ -459,6 +551,12 @@ def find_parallel_combo(
     return None
 
 
+# The nominal rule's single-part preference: a single part within 1% of the target is
+# kept without looking at pairs. It applies to harmonic (inductor) matching and to
+# capacitor values the sourced series does not make; the worst-case rule has none.
+LEGACY_SINGLE_WITHIN_PCT = 1.0
+
+
 def match_component(
     target: float,
     series: str = "E24",
@@ -468,6 +566,11 @@ def match_component(
     policy: MatchPolicy | None = None,
 ) -> ESeriesMatch:
     """Find best E-series match with optional parallel combination.
+
+    Capacitors (``additive``) are chosen by the worst-case interval rule over the parts
+    the sourced series makes (``capacitor_choice``); a choice whose parts it does not
+    make keeps the nominal rule with status ``tolerance_not_sourced``. Inductors
+    (``harmonic``) keep the nominal rule.
 
     Args:
         target: Target component value
@@ -484,6 +587,22 @@ def match_component(
     if policy is not None and not isinstance(policy, MatchPolicy):
         raise ValueError("policy must be a MatchPolicy or None")
     active_policy = DEFAULT_MATCH_POLICY if policy is None else policy
+    nominal = _nominal_match(target, series, parallel_mode, ratio_limit, active_policy)
+    if parallel_mode != "additive" or nominal.selected_components is None:
+        return nominal
+    from .capacitor_choice import choose_capacitor
+
+    return choose_capacitor(nominal, series, ratio_limit, active_policy)
+
+
+def _nominal_match(
+    target: float,
+    series: str,
+    parallel_mode: str | None,
+    ratio_limit: float,
+    active_policy: MatchPolicy,
+) -> ESeriesMatch:
+    """The nominal rule: nearest single, or a pair that is materially closer."""
     single_val, single_err = find_closest_single(target, series)
     minimum_value = None
     if parallel_mode == "additive" and not active_policy.allow_sub_pf:
@@ -512,7 +631,7 @@ def match_component(
         status = "expert_override_required"
         reason = "target_below_automatic_capacitance_floor"
         warnings.append(sub_pf_warning(floor_pf))
-    elif abs(single_err) <= active_policy.prefer_single_within_pct:
+    elif abs(single_err) <= LEGACY_SINGLE_WITHIN_PCT:
         recommended_kind = "single"
         status = "recommended"
         reason = "single_within_preferred_error"

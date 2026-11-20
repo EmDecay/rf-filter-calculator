@@ -32,8 +32,8 @@ def test_advanced_build_controls_are_keyboard_accessible() -> None:
             # Pre-filled with the CLI defaults (BuildConfig()), as on the web (D10).
             defaults = BuildConfig()
             expected = {
-                "#build-capacitor-tolerance": f"{defaults.capacitor_tolerance_pct:g}",
-                "#build-inductor-tolerance": f"{defaults.inductor_tolerance_pct:g}",
+                # Blank: each inductor's own tolerance (10 % for toroids and calculated values).
+                "#build-inductor-tolerance": "",
                 "#build-inductor-q": "",
                 "#build-capacitor-q": "",
                 "#build-reference-frequency": "",
@@ -53,13 +53,13 @@ def test_advanced_build_controls_are_keyboard_accessible() -> None:
             toggle.focus()
             await pilot.press("space")
             await pilot.pause()
-            first = app.screen.query_one("#build-capacitor-tolerance", Input)
+            first = app.screen.query_one("#build-inductor-tolerance", Input)
             assert toggle.value is True
             assert options.display is True
             assert first.has_focus
 
             await pilot.press("enter")
-            assert app.screen.query_one("#build-inductor-tolerance", Input).has_focus
+            assert app.screen.query_one("#build-inductor-q", Input).has_focus
 
             app.screen.query_one("#build-capacitor-q", Input).focus()
             await pilot.press("enter")

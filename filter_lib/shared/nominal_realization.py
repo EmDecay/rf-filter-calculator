@@ -23,6 +23,16 @@ from .formatting import format_frequency
 NOMINAL_PARTS_LIMITATION = (
     "Chosen parts are simulated at their nominal values, without lead or package parasitics."
 )
+
+
+def stray_limitation(stray_f: float) -> str:
+    """The limitation printed when the build adds the assumed stray across each pair."""
+    return (
+        f"Each parallel pair has an assumed {stray_f * 1e12:g} pF stray across it, the same "
+        "in every tolerance case; it is an assumption, not a measured value."
+    )
+
+
 # Readable text (table and SPICE comments) prints this one only when a toroid winding
 # was actually used; JSON keeps every limitation.
 TOROID_LIMITATION = (
@@ -146,7 +156,11 @@ def realize_nominal_build(
             f"Each Q is modeled as a fixed series resistance that gives that Q at {reference}; "
             f"away from {reference} the modeled Q changes."
         )
-    limitations.extend((NOMINAL_PARTS_LIMITATION, TOROID_LIMITATION))
+    limitations.append(NOMINAL_PARTS_LIMITATION)
+    strays = [item.stray_capacitance_f for item in substitutions if item.stray_capacitance_f]
+    if strays:
+        limitations.append(stray_limitation(strays[0]))
+    limitations.append(TOROID_LIMITATION)
     circuit = NamedCircuit(
         exact.category,
         exact.n_nodes,

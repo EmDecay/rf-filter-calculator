@@ -61,6 +61,7 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
         from pathlib import Path
 
         import filter_lib
+        from filter_lib.shared.capacitor_grades import GRADES, made_values_pf
         from filter_lib.shared.toroid_core_data import list_cores
 
         expected_version = {EXPECTED_VERSION!r}
@@ -85,6 +86,11 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
         loaded_names = [core.name for core in loaded_cores]
         assert loaded_cores
         assert len(loaded_names) == len(set(loaded_names))
+
+        grade_resource = files("filter_lib.shared").joinpath("capacitor_grade_data.json")
+        assert json.loads(grade_resource.read_text(encoding="utf-8"))["schema_version"] == 1
+        assert set(GRADES) == {{"standard", "tight"}}
+        assert len(made_values_pf()) == 168
 
         css_resource = files("filter_lib.wizard").joinpath("styles.tcss")
         assert css_resource.read_text(encoding="utf-8").strip()

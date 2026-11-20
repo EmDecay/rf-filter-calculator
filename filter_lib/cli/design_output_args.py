@@ -6,7 +6,10 @@ from collections.abc import Callable
 from typing import Any
 
 from ..design import RenderOptions
+from ..shared.capacitor_grades import DEFAULT_GRADE
 from ..shared.cli_helpers import SIM_MATCHED_DEPRECATION_WARNING, make_build_config
+from ..shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
+from ..shared.parsing import parse_stray_capacitance
 
 
 def part_policy_args(args: Namespace) -> dict[str, Any]:
@@ -16,9 +19,15 @@ def part_policy_args(args: Namespace) -> dict[str, Any]:
     uses them without ``--sim-build``, and the flags that only the build simulation uses
     are refused elsewhere unless it runs.
     """
+    stray = getattr(args, "stray_capacitance", None)
     return {
         "eseries": None if args.no_match else args.eseries,
         "allow_sub_pf": bool(getattr(args, "allow_sub_pf", False)),
+        "capacitor_grade": getattr(args, "capacitor_grade", None) or DEFAULT_GRADE,
+        "capacitor_tolerance_pct": getattr(args, "capacitor_tolerance_pct", None),
+        "stray_capacitance_f": (
+            DEFAULT_STRAY_CAPACITANCE_F if stray is None else parse_stray_capacitance(stray)
+        ),
         "realization": make_build_config(args),
         "run_build_analysis": bool(getattr(args, "sim_build", False)),
     }

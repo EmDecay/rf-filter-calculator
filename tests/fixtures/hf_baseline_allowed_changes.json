@@ -1,0 +1,3363 @@
+{
+ "changes": [
+  {
+   "case": "lp-bw-pi-1.8MHz-n3",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "lp-bw-pi-1.8MHz-n3",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "lp-bw-pi-1.8MHz-n3",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "lp-bw-pi-1.8MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (1780 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-1.8MHz-n3",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (1780 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-1.8MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2)"
+  },
+  {
+   "case": "lp-bw-t-3.5MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (1820 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-t-3.5MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1)"
+  },
+  {
+   "case": "lp-bw-pi-7.1MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (51.1 pF || 226 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-7.1MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (90.9 pF || 806 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-7.1MHz-n5",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (51.1 pF || 226 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-7.1MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C3)"
+  },
+  {
+   "case": "lp-bw-t-10.1MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (511 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-t-10.1MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (511 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4, capacitor:E96:C5); a fixed stray across each pair (C1, C2, C3, C4, C5)"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4, capacitor:E96:C5); a fixed stray across each pair (C1, C2, C3, C4, C5)"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4, capacitor:E96:C5)"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4, capacitor:E96:C5); a fixed stray across each pair (C1, C2, C3, C4, C5)"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (9.76 pF || 68.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (63.4 pF || 280 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (46.4 pF || 402 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (63.4 pF || 280 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C5: parts unchanged (9.76 pF || 68.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-pi-14.2MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C3, CSTRAY_C4, CSTRAY_C5)"
+  },
+  {
+   "case": "lp-bw-t-18.1MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (80.6 pF || 95.3 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-t-18.1MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (332 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-t-18.1MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (332 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-t-18.1MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (80.6 pF || 95.3 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bw-t-18.1MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C4)"
+  },
+  {
+   "case": "lp-ch-pi-21MHz-n3",
+   "item": "capacitor:E24:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C1: 240 pF [recommended] -> 82 pF || 160 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "lp-ch-pi-21MHz-n3",
+   "item": "capacitor:E24:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C2: 240 pF [recommended] -> 82 pF || 160 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "lp-ch-pi-21MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (243 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-21MHz-n3",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (243 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-21MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2); chosen parts changed (capacitor:E24:C1, capacitor:E24:C2)"
+  },
+  {
+   "case": "lp-ch-t-24.9MHz-n3",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "lp-ch-t-24.9MHz-n3",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "lp-ch-t-24.9MHz-n3",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "lp-ch-t-24.9MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (140 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-t-24.9MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1)"
+  },
+  {
+   "case": "lp-ch-pi-28MHz-n5",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2, C3)"
+  },
+  {
+   "case": "lp-ch-pi-28MHz-n5",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2, C3)"
+  },
+  {
+   "case": "lp-ch-pi-28MHz-n5",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2, C3)"
+  },
+  {
+   "case": "lp-ch-pi-28MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (24.9 pF || 169 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-28MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (287 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-28MHz-n5",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (24.9 pF || 169 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-28MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C3)"
+  },
+  {
+   "case": "lp-ch-pi-1.8MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (3090 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-1.8MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (4750 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-1.8MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (698 pF || 4120 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-1.8MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (4750 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-1.8MHz-n9",
+   "item": "capacitor:E96:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C5: parts unchanged (3090 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-pi-1.8MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C3, CSTRAY_C5)"
+  },
+  {
+   "case": "lp-ch-t-3.5MHz-n9",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4)"
+  },
+  {
+   "case": "lp-ch-t-3.5MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (1150 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-t-3.5MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (1240 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-t-3.5MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (1240 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-t-3.5MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (1150 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-ch-t-3.5MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C3, CSTRAY_C4)"
+  },
+  {
+   "case": "lp-bs-pi-7.1MHz-n3",
+   "item": "capacitor:E24:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C1: 150 pF [recommended] -> 51 pF || 100 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "lp-bs-pi-7.1MHz-n3",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (412 pF || 576 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-pi-7.1MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2); chosen parts changed (capacitor:E24:C1)"
+  },
+  {
+   "case": "lp-bs-t-10.1MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (90.9 pF || 215 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-t-10.1MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1)"
+  },
+  {
+   "case": "lp-bs-pi-14.2MHz-n5",
+   "item": "capacitor:E24:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C3: 510 pF [recommended] -> 75 pF || 430 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "lp-bs-pi-14.2MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (39.2 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-pi-14.2MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (182 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-pi-14.2MHz-n5",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (511 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-pi-14.2MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C3); chosen parts changed (capacitor:E24:C3)"
+  },
+  {
+   "case": "lp-bs-t-18.1MHz-n5",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "lp-bs-t-18.1MHz-n5",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "lp-bs-t-18.1MHz-n5",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "lp-bs-t-18.1MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (88.7 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-t-18.1MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (196 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-t-18.1MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2)"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C5)"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "capacitor:E12:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:C1: 1.8 pF || 10 pF [recommended] -> 12 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "capacitor:E24:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C1: 5.6 pF || 6.2 pF [recommended] -> 12 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "capacitor:E24:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C2: 6.2 pF || 51 pF [recommended] -> 27 pF || 30 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (11.8 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (57.6 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (95.3 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "capacitor:E96:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C5: parts unchanged (340 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-pi-21MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C2, CSTRAY_C3, CSTRAY_C5); chosen parts changed (capacitor:E24:C1, capacitor:E24:C2)"
+  },
+  {
+   "case": "lp-bs-t-24.9MHz-n9",
+   "item": "capacitor:E24:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C1: 5.6 pF || 24 pF [recommended] -> 7.5 pF || 22 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "lp-bs-t-24.9MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (29.4 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-t-24.9MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (64.9 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-t-24.9MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (95.3 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-t-24.9MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (140 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "lp-bs-t-24.9MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C3, CSTRAY_C4); chosen parts changed (capacitor:E24:C1)"
+  },
+  {
+   "case": "hp-bw-pi-28MHz-n3",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "hp-bw-pi-28MHz-n3",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "hp-bw-pi-28MHz-n3",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "hp-bw-pi-28MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (5.76 pF || 51.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-pi-28MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1)"
+  },
+  {
+   "case": "hp-bw-t-30MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (107 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-30MHz-n3",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (107 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-30MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2)"
+  },
+  {
+   "case": "hp-bw-t-3.5MHz-n5",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2, C3)"
+  },
+  {
+   "case": "hp-bw-t-3.5MHz-n5",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2, C3)"
+  },
+  {
+   "case": "hp-bw-t-3.5MHz-n5",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2, C3)"
+  },
+  {
+   "case": "hp-bw-t-3.5MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (1470 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-3.5MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (453 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-3.5MHz-n5",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (1470 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-3.5MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C3)"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4); a fixed stray across each pair (C1, C4)"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4); a fixed stray across each pair (C1, C4)"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4)"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4); a fixed stray across each pair (C1, C4)"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (46.4 pF || 402 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (237 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (237 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (46.4 pF || 402 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-pi-7.1MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C4)"
+  },
+  {
+   "case": "hp-bw-t-10.1MHz-n9",
+   "item": "capacitor:E12:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:C3: 39 pF || 120 pF [recommended] -> 56 pF || 100 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-bw-t-10.1MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (909 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-10.1MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (205 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-10.1MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (158 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-10.1MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (205 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-10.1MHz-n9",
+   "item": "capacitor:E96:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C5: parts unchanged (909 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bw-t-10.1MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C2, CSTRAY_C3, CSTRAY_C4)"
+  },
+  {
+   "case": "hp-ch-pi-14.2MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (205 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-pi-14.2MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1)"
+  },
+  {
+   "case": "hp-ch-t-18.1MHz-n3",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "hp-ch-t-18.1MHz-n3",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "hp-ch-t-18.1MHz-n3",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "hp-ch-pi-21MHz-n5",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "hp-ch-pi-21MHz-n5",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "hp-ch-pi-21MHz-n5",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1, C2)"
+  },
+  {
+   "case": "hp-ch-pi-21MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (124 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-pi-21MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (124 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-pi-21MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2)"
+  },
+  {
+   "case": "hp-ch-t-24.9MHz-n5",
+   "item": "capacitor:E24:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C2: 7.5 pF || 43 pF [recommended] -> 20 pF || 30 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-t-24.9MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (49.9 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-t-24.9MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C2); chosen parts changed (capacitor:E24:C2)"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E12:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:C1: 22 pF || 68 pF [recommended] -> 33 pF || 56 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E12:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:C4: 22 pF || 68 pF [recommended] -> 33 pF || 56 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E24:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C1: 43 pF || 47 pF [recommended] -> 33 pF || 56 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E24:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C2: 8.2 pF || 75 pF [recommended] -> 36 pF || 47 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E24:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C3: 8.2 pF || 75 pF [recommended] -> 36 pF || 47 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E24:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C4: 43 pF || 47 pF [recommended] -> 33 pF || 56 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (88.7 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (82.5 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (82.5 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (88.7 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-pi-28MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C3, CSTRAY_C4); chosen parts changed (capacitor:E24:C1, capacitor:E24:C2, capacitor:E24:C3, capacitor:E24:C4)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4, capacitor:E96:C5); a fixed stray across each pair (C2, C4)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4, capacitor:E96:C5); a fixed stray across each pair (C2, C4)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4, capacitor:E96:C5)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4, capacitor:E96:C5); a fixed stray across each pair (C2, C4)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E12:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:C1: 22 pF || 39 pF [recommended] -> 27 pF || 33 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E12:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:C5: 22 pF || 39 pF [recommended] -> 27 pF || 33 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E24:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C1: 22 pF || 39 pF [recommended] -> 9.1 pF || 51 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E24:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C2: 6.8 pF || 33 pF [recommended] -> 3.6 pF || 36 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E24:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C4: 6.8 pF || 33 pF [recommended] -> 3.6 pF || 36 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E24:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C5: 22 pF || 39 pF [recommended] -> 9.1 pF || 51 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (60.4 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (8.87 pF || 30.9 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (39.2 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (8.87 pF || 30.9 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "capacitor:E96:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C5: parts unchanged (60.4 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-ch-t-30MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C4, CSTRAY_C5); chosen parts changed (capacitor:E24:C1, capacitor:E24:C2, capacitor:E24:C4, capacitor:E24:C5)"
+  },
+  {
+   "case": "hp-bs-pi-1.8MHz-n3",
+   "item": "build_cases",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "hp-bs-pi-1.8MHz-n3",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "hp-bs-pi-1.8MHz-n3",
+   "item": "build_summaries",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (C1)"
+  },
+  {
+   "case": "hp-bs-pi-1.8MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (1820 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-pi-1.8MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1)"
+  },
+  {
+   "case": "hp-bs-t-3.5MHz-n3",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (2670 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-3.5MHz-n3",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (412 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-3.5MHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C2)"
+  },
+  {
+   "case": "hp-bs-pi-7.1MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (887 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-pi-7.1MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (402 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-pi-7.1MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2)"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:C3); a fixed stray across each pair (C3)"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:C3); a fixed stray across each pair (C3)"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E24:C3)"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:C3); a fixed stray across each pair (C3)"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "capacitor:E24:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C3: 30 pF || 110 pF [recommended] -> 39 pF || 100 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (1820 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (392 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (140 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-10.1MHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C3); chosen parts changed (capacitor:E24:C3)"
+  },
+  {
+   "case": "hp-bs-pi-14.2MHz-n9",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E96:C1, capacitor:E96:C2, capacitor:E96:C3, capacitor:E96:C4)"
+  },
+  {
+   "case": "hp-bs-pi-14.2MHz-n9",
+   "item": "capacitor:E24:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C3: 300 pF [recommended] -> 33 pF || 270 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-bs-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (976 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (442 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (301 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-pi-14.2MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (205 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-pi-14.2MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C2, CSTRAY_C3, CSTRAY_C4); chosen parts changed (capacitor:E24:C3)"
+  },
+  {
+   "case": "hp-bs-t-18.1MHz-n9",
+   "item": "capacitor:E24:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C4: 24 pF || 180 pF [recommended] -> 43 pF || 160 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-bs-t-18.1MHz-n9",
+   "item": "capacitor:E24:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:C5: 39 pF || 39 pF [recommended] -> 9.1 pF || 68 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "hp-bs-t-18.1MHz-n9",
+   "item": "capacitor:E96:C1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C1: parts unchanged (2260 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-18.1MHz-n9",
+   "item": "capacitor:E96:C2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C2: parts unchanged (464 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-18.1MHz-n9",
+   "item": "capacitor:E96:C3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C3: parts unchanged (280 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-18.1MHz-n9",
+   "item": "capacitor:E96:C4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C4: parts unchanged (205 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-18.1MHz-n9",
+   "item": "capacitor:E96:C5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:C5: parts unchanged (9.53 pF || 68.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "hp-bs-t-18.1MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_C1, CSTRAY_C3, CSTRAY_C4, CSTRAY_C5); chosen parts changed (capacitor:E24:C4, capacitor:E24:C5)"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "build_cases",
+   "kinds": [
+    "c",
+    "e"
+   ],
+   "reason": "a fixed stray across each pair (CT1, CT2, CT3, CK1, CK2, CIN, COUT); parts at their own tolerance (CK1, CK2)"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "build_nominal",
+   "kinds": [
+    "c"
+   ],
+   "reason": "a fixed stray across each pair (CT1, CT2, CT3, CK1, CK2, CIN, COUT)"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "build_summaries",
+   "kinds": [
+    "c",
+    "e"
+   ],
+   "reason": "a fixed stray across each pair (CT1, CT2, CT3, CK1, CK2, CIN, COUT); parts at their own tolerance (CK1, CK2)"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E24:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp2: 1600 pF [recommended] -> 510 pF || 1100 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E24:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs12: 9.1 pF || 22 pF [recommended] -> 15 pF || 16 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E24:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs23: 9.1 pF || 22 pF [recommended] -> 15 pF || 16 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E96:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_in: parts unchanged (274 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (274 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E96:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp1: parts unchanged (1370 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (1620 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (1370 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (30.9 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (30.9 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-1.9MHz-50kHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CIN, CSTRAY_CK1, CSTRAY_CK2, CSTRAY_COUT, CSTRAY_CT1, CSTRAY_CT2, CSTRAY_CT3); chosen parts changed (capacitor:E24:Cp2, capacitor:E24:Cs12, capacitor:E24:Cs23)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c",
+    "e"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:Cs12, capacitor:E24:Cs23, capacitor:E24:Cs34, capacitor:E24:Cs45); a fixed stray across each pair (CT2, CT3, CT4, CK1, CK2, CK3, CK4, CIN, COUT); parts at their own tolerance (CK1, CK2, CK3, CK4)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:Cs12, capacitor:E24:Cs23, capacitor:E24:Cs34, capacitor:E24:Cs45); a fixed stray across each pair (CT2, CT3, CT4, CK1, CK2, CK3, CK4, CIN, COUT)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E24:Cs12, capacitor:E24:Cs23, capacitor:E24:Cs34, capacitor:E24:Cs45)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c",
+    "e"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:Cs12, capacitor:E24:Cs23, capacitor:E24:Cs34, capacitor:E24:Cs45); a fixed stray across each pair (CT2, CT3, CT4, CK1, CK2, CK3, CK4, CIN, COUT); parts at their own tolerance (CK1, CK2, CK3, CK4)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E12:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs23: 6.8 pF || 6.8 pF [recommended] -> 1.5 pF || 12 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E12:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs34: 6.8 pF || 6.8 pF [recommended] -> 1.5 pF || 12 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E24:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs12: 4.7 pF || 20 pF [recommended] -> 4.3 pF || 20 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E24:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs23: 6.2 pF || 7.5 pF [recommended] -> 3.6 pF || 10 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E24:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs34: 6.2 pF || 7.5 pF [recommended] -> 3.6 pF || 10 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E24:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs45: 4.7 pF || 20 pF [recommended] -> 4.3 pF || 20 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_in: parts unchanged (191 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (191 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp1: parts unchanged (681 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (845 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (267 pF || 590 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cp4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp4: parts unchanged (845 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cp5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp5: parts unchanged (681 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (5.49 pF || 19.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (13.7 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs34: parts unchanged (13.7 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "capacitor:E96:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs45: parts unchanged (5.49 pF || 19.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-3.6MHz-100kHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CIN, CSTRAY_CK1, CSTRAY_CK2, CSTRAY_CK3, CSTRAY_CK4, CSTRAY_COUT, CSTRAY_CT2, CSTRAY_CT3, CSTRAY_CT4); chosen parts changed (capacitor:E24:Cs12, capacitor:E24:Cs23, capacitor:E24:Cs34, capacitor:E24:Cs45)"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E12:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs23: 3.3 pF || 6.8 pF [recommended] -> 10 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E12:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs78: 3.3 pF || 6.8 pF [recommended] -> 10 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E24:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp1: 36 pF || 270 pF [recommended] -> 33 pF || 270 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E24:Cp9",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp9: 36 pF || 270 pF [recommended] -> 33 pF || 270 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E24:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs23: 5.1 pF || 5.1 pF [recommended] -> 10 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E24:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs78: 5.1 pF || 5.1 pF [recommended] -> 10 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_in: parts unchanged (133 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (133 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp1: parts unchanged (78.7 pF || 226 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (76.8 pF || 340 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (432 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp4: parts unchanged (432 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp5: parts unchanged (432 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp6",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp6: parts unchanged (432 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp7",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp7: parts unchanged (432 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp8",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp8: parts unchanged (76.8 pF || 340 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cp9",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp9: parts unchanged (78.7 pF || 226 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (21.5 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (10.2 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs45: parts unchanged (6.49 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cs56",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs56: parts unchanged (6.49 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs78: parts unchanged (10.2 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "capacitor:E96:Cs89",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs89: parts unchanged (21.5 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bw-top-7.1MHz-200kHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CIN, CSTRAY_CK1, CSTRAY_CK4, CSTRAY_CK5, CSTRAY_CK8, CSTRAY_COUT, CSTRAY_CT1, CSTRAY_CT2, CSTRAY_CT4, CSTRAY_CT5, CSTRAY_CT6, CSTRAY_CT8, CSTRAY_CT9); chosen parts changed (capacitor:E24:Cp1, capacitor:E24:Cp9, capacitor:E24:Cs23, capacitor:E24:Cs78)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c",
+    "e"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:Ce_in, capacitor:E24:Ce_out, capacitor:E24:Cp2, capacitor:E24:Cs12, capacitor:E24:Cs23); a fixed stray across each pair (CT2, CK1, CK2, CIN, COUT); parts at their own tolerance (CK1, CK2, CIN, COUT)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:Ce_in, capacitor:E24:Ce_out, capacitor:E24:Cp2, capacitor:E24:Cs12, capacitor:E24:Cs23); a fixed stray across each pair (CT2, CK1, CK2, CIN, COUT)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E24:Ce_in, capacitor:E24:Ce_out, capacitor:E24:Cp2, capacitor:E24:Cs12, capacitor:E24:Cs23)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c",
+    "e"
+   ],
+   "reason": "new capacitor choices (capacitor:E24:Ce_in, capacitor:E24:Ce_out, capacitor:E24:Cp2, capacitor:E24:Cs12, capacitor:E24:Cs23); a fixed stray across each pair (CT2, CK1, CK2, CIN, COUT); parts at their own tolerance (CK1, CK2, CIN, COUT)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E12:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cp2: 33 pF || 270 pF [recommended] -> 82 pF || 220 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E12:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs12: 2.7 pF || 3.3 pF [recommended] -> 1.2 pF || 4.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E12:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs23: 2.7 pF || 3.3 pF [recommended] -> 1.2 pF || 4.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E24:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Ce_in: 20 pF || 20 pF [recommended] -> 3.9 pF || 36 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E24:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Ce_out: 20 pF || 20 pF [recommended] -> 3.9 pF || 36 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E24:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp2: 300 pF [recommended] -> 82 pF || 220 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E24:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs12: 3 pF || 3 pF [recommended] -> 2 pF || 3.9 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E24:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs23: 3 pF || 3 pF [recommended] -> 2 pF || 3.9 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E96:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_in: parts unchanged (40.2 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (40.2 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E96:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp1: parts unchanged (267 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (301 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (267 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (6.04 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (6.04 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-10.12MHz-300kHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CIN, CSTRAY_CK1, CSTRAY_CK2, CSTRAY_COUT, CSTRAY_CT2); chosen parts changed (capacitor:E24:Ce_in, capacitor:E24:Ce_out, capacitor:E24:Cp2, capacitor:E24:Cs12, capacitor:E24:Cs23)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:Ce_in, capacitor:E96:Ce_out, capacitor:E96:Cp1, capacitor:E96:Cp2, capacitor:E96:Cp3, capacitor:E96:Cp4, capacitor:E96:Cp5, capacitor:E96:Cs12, capacitor:E96:Cs23, capacitor:E96:Cs34, capacitor:E96:Cs45); a fixed stray across each pair (CT2, CT3, CT4)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:Ce_in, capacitor:E96:Ce_out, capacitor:E96:Cp1, capacitor:E96:Cp2, capacitor:E96:Cp3, capacitor:E96:Cp4, capacitor:E96:Cp5, capacitor:E96:Cs12, capacitor:E96:Cs23, capacitor:E96:Cs34, capacitor:E96:Cs45); a fixed stray across each pair (CT2, CT3, CT4)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E96:Ce_in, capacitor:E96:Ce_out, capacitor:E96:Cp1, capacitor:E96:Cp2, capacitor:E96:Cp3, capacitor:E96:Cp4, capacitor:E96:Cp5, capacitor:E96:Cs12, capacitor:E96:Cs23, capacitor:E96:Cs34, capacitor:E96:Cs45)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:Ce_in, capacitor:E96:Ce_out, capacitor:E96:Cp1, capacitor:E96:Cp2, capacitor:E96:Cp3, capacitor:E96:Cp4, capacitor:E96:Cp5, capacitor:E96:Cs12, capacitor:E96:Cs23, capacitor:E96:Cs34, capacitor:E96:Cs45); a fixed stray across each pair (CT2, CT3, CT4)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E12:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cp3: 220 pF [recommended] -> 68 pF || 150 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E12:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs12: 1.8 pF || 1.8 pF [recommended] -> 3.9 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E12:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs23: 1.5 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E12:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs34: 1.5 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E12:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs45: 1.8 pF || 1.8 pF [recommended] -> 3.9 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E24:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Ce_in: 2.4 pF || 24 pF [recommended] -> 4.3 pF || 22 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E24:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Ce_out: 2.4 pF || 24 pF [recommended] -> 4.3 pF || 22 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E24:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp3: 220 pF [recommended] -> 68 pF || 150 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_in: parts unchanged (26.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (26.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp1: parts unchanged (196 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (80.6 pF || 137 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (56.2 pF || 162 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cp4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp4: parts unchanged (80.6 pF || 137 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cp5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp5: parts unchanged (196 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (3.57 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (2.94 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs34: parts unchanged (2.94 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "capacitor:E96:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs45: parts unchanged (3.57 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-14.2MHz-350kHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CIN, CSTRAY_COUT, CSTRAY_CT1, CSTRAY_CT2, CSTRAY_CT3, CSTRAY_CT4, CSTRAY_CT5); chosen parts changed (capacitor:E24:Ce_in, capacitor:E24:Ce_out, capacitor:E24:Cp3)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cp2: 22 pF || 150 pF [recommended] -> 68 pF || 100 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cp8",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cp8: 22 pF || 150 pF [recommended] -> 68 pF || 100 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs12: 1 pF || 2.2 pF [recommended] -> 3.3 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs23: 1 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs34: 1 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs45: 1 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cs56",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs56: 1 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cs67",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs67: 1 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs78: 1 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E12:Cs89",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs89: 1 pF || 2.2 pF [recommended] -> 3.3 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E24:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs12: 1.6 pF || 1.6 pF [recommended] -> 3.3 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E24:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs23: 1.3 pF || 1.3 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E24:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs34: 1.2 pF || 1.3 pF [recommended] -> 2.4 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E24:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs45: 1.2 pF || 1.3 pF [recommended] -> 2.4 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E24:Cs56",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs56: 1.2 pF || 1.3 pF [recommended] -> 2.4 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E24:Cs67",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs67: 1.2 pF || 1.3 pF [recommended] -> 2.4 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E24:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs78: 1.3 pF || 1.3 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E24:Cs89",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs89: 1.6 pF || 1.6 pF [recommended] -> 3.3 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_in: parts unchanged (22.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (22.1 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (169 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (73.2 pF || 97.6 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cp4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp4: parts unchanged (49.9 pF || 121 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cp5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp5: parts unchanged (49.9 pF || 121 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cp6",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp6: parts unchanged (49.9 pF || 121 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cp7",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp7: parts unchanged (73.2 pF || 97.6 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cp8",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp8: parts unchanged (169 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (1.58 pF || 1.62 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (2.61 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs34: parts unchanged (2.49 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs45: parts unchanged (2.49 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cs56",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs56: parts unchanged (2.49 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cs67",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs67: parts unchanged (2.49 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs78: parts unchanged (2.61 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "capacitor:E96:Cs89",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs89: parts unchanged (1.58 pF || 1.62 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-ch-top-18.1MHz-500kHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CT2, CSTRAY_CT3, CSTRAY_CT4, CSTRAY_CT5, CSTRAY_CT6, CSTRAY_CT7, CSTRAY_CT8); chosen parts changed (capacitor:E24:Cs12, capacitor:E24:Cs23, capacitor:E24:Cs34, capacitor:E24:Cs45, capacitor:E24:Cs56, capacitor:E24:Cs67, capacitor:E24:Cs78, capacitor:E24:Cs89)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:Ce_in, capacitor:E96:Ce_out, capacitor:E96:Cp1, capacitor:E96:Cp2, capacitor:E96:Cp3, capacitor:E96:Cs12, capacitor:E96:Cs23); a fixed stray across each pair (CT2, COUT)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:Ce_in, capacitor:E96:Ce_out, capacitor:E96:Cp1, capacitor:E96:Cp2, capacitor:E96:Cp3, capacitor:E96:Cs12, capacitor:E96:Cs23); a fixed stray across each pair (CT2, COUT)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E96:Ce_in, capacitor:E96:Ce_out, capacitor:E96:Cp1, capacitor:E96:Cp2, capacitor:E96:Cp3, capacitor:E96:Cs12, capacitor:E96:Cs23)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E96:Ce_in, capacitor:E96:Ce_out, capacitor:E96:Cp1, capacitor:E96:Cp2, capacitor:E96:Cp3, capacitor:E96:Cs12, capacitor:E96:Cs23); a fixed stray across each pair (CT2, COUT)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E12:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cp1: 39 pF || 68 pF [recommended] -> 22 pF || 82 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E12:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs12: 1.5 pF || 4.7 pF [recommended] -> 2.2 pF || 3.9 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E12:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs23: 1.2 pF || 1.2 pF [recommended] -> 2.2 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E24:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Ce_in: 8.2 pF || 33 pF [recommended] -> 11 pF || 30 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E24:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Ce_out: 5.6 pF || 10 pF [recommended] -> 3.6 pF || 12 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E96:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_in: parts unchanged (41.2 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (3.83 pF || 11.8 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E96:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp1: parts unchanged (105 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (31.6 pF || 110 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (133 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (6.19 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (2.43 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-21.2MHz-500kHz-n3",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CIN, CSTRAY_COUT, CSTRAY_CT1, CSTRAY_CT2, CSTRAY_CT3); chosen parts changed (capacitor:E24:Ce_in, capacitor:E24:Ce_out)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "build_cases",
+   "kinds": [
+    "a",
+    "c",
+    "e"
+   ],
+   "reason": "new capacitor choices (capacitor:E12:Cs12, capacitor:E12:Cs23, capacitor:E12:Cs34); a fixed stray across each pair (CT1, CT2, CT3, CT5, CK1, CK2, CIN, COUT); parts at their own tolerance (CT1, CK1, CK2, CK3, CK4, COUT)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "build_nominal",
+   "kinds": [
+    "a",
+    "c"
+   ],
+   "reason": "new capacitor choices (capacitor:E12:Cs12, capacitor:E12:Cs23, capacitor:E12:Cs34); a fixed stray across each pair (CT1, CT2, CT3, CT5, CK1, CK2, CIN, COUT)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "build_parts",
+   "kinds": [
+    "a"
+   ],
+   "reason": "chosen parts changed (capacitor:E12:Cs12, capacitor:E12:Cs23, capacitor:E12:Cs34)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "build_summaries",
+   "kinds": [
+    "a",
+    "c",
+    "e"
+   ],
+   "reason": "new capacitor choices (capacitor:E12:Cs12, capacitor:E12:Cs23, capacitor:E12:Cs34); a fixed stray across each pair (CT1, CT2, CT3, CT5, CK1, CK2, CIN, COUT); parts at their own tolerance (CT1, CK1, CK2, CK3, CK4, COUT)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E12:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs12: 5.6 pF || 8.2 pF [recommended] -> 3.9 pF || 10 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E12:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs23: 1.8 pF || 4.7 pF [recommended] -> 1.5 pF || 4.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E12:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs34: 2.2 pF || 2.2 pF [recommended] -> 4.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E24:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Ce_out: 2.4 pF || 13 pF [recommended] -> 4.3 pF || 11 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E24:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp2: 33 pF || 75 pF [recommended] -> 51 pF || 56 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E24:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp3: 56 pF || 62 pF [recommended] -> 16 pF || 100 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E24:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs12: 5.6 pF || 8.2 pF [recommended] -> 4.7 pF || 9.1 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E24:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs23: 1.3 pF || 5.1 pF [recommended] -> 3 pF || 3.3 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E24:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs45: 1.3 pF || 1.3 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Ce_in",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_in: parts unchanged (60.4 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (15.4 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp1: parts unchanged (64.9 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (107 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (118 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Cp4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp4: parts unchanged (121 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (13.7 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (6.49 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs34: parts unchanged (4.32 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "capacitor:E96:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs45: parts unchanged (2.61 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-24.9MHz-800kHz-n5",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CIN, CSTRAY_CK1, CSTRAY_CK2, CSTRAY_COUT, CSTRAY_CT1, CSTRAY_CT2, CSTRAY_CT3); chosen parts changed (capacitor:E24:Ce_out, capacitor:E24:Cp2, capacitor:E24:Cp3, capacitor:E24:Cs12, capacitor:E24:Cs23, capacitor:E24:Cs45)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E12:Cp4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cp4: 15 pF || 82 pF [recommended] -> 39 pF || 56 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E12:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs23: 1.2 pF || 12 pF [recommended] -> 4.7 pF || 8.2 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E12:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs34: 3.3 pF || 5.6 pF [recommended] -> 3.9 pF || 4.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E12:Cs56",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs56: 1.8 pF || 3.9 pF [recommended] -> 5.6 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E12:Cs67",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs67: 1.5 pF || 3.3 pF [recommended] -> 4.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E12:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs78: 1.8 pF || 2.2 pF [recommended] -> 3.9 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E12:Cs89",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E12:Cs89: 1 pF || 1.5 pF [recommended] -> 2.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Ce_out: 3.9 pF || 10 pF [recommended] -> 4.7 pF || 9.1 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp1: 3.3 pF || 24 pF [recommended] -> 27 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cp4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp4: 22 pF || 75 pF [recommended] -> 39 pF || 56 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cp5",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cp5: 100 pF [recommended] -> 43 pF || 56 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs12: 6.8 pF || 22 pF [recommended] -> 4.7 pF || 24 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs23: 5.6 pF || 7.5 pF [recommended] -> 13 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs34: 2 pF || 6.8 pF [recommended] -> 9.1 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cs56",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs56: 2.7 pF || 3 pF [recommended] -> 5.6 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cs67",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs67: 2.4 pF || 2.4 pF [recommended] -> 4.7 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs78: 2 pF || 2 pF [recommended] -> 3.9 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E24:Cs89",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E24:Cs89: 1.2 pF || 1.3 pF [recommended] -> 2.4 pF [recommended] (worst-case interval rule)"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Ce_out",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Ce_out: parts unchanged (14 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cp1",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp1: parts unchanged (27.4 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cp2",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp2: parts unchanged (69.8 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cp3",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp3: parts unchanged (29.4 pF || 60.4 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cp4",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp4: parts unchanged (95.3 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cp6",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp6: parts unchanged (102 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cp7",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp7: parts unchanged (102 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cp8",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp8: parts unchanged (105 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cp9",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cp9: parts unchanged (95.3 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cs12",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs12: parts unchanged (28.7 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cs23",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs23: parts unchanged (2.43 pF || 10.7 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cs34",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs34: parts unchanged (8.87 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cs45",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs45: parts unchanged (6.81 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cs56",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs56: parts unchanged (5.62 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cs67",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs67: parts unchanged (4.87 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cs78",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs78: parts unchanged (4.02 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "capacitor:E96:Cs89",
+   "kinds": [
+    "a"
+   ],
+   "reason": "E96:Cs89: parts unchanged (2.49 pF [tolerance_not_sourced]); the sourced series does not make them, so the nominal rule is kept and labelled"
+  },
+  {
+   "case": "bp-bs-top-28.5MHz-1MHz-n9",
+   "item": "spice_nominal",
+   "kinds": [
+    "c",
+    "a"
+   ],
+   "reason": "stray capacitor across each pair (CSTRAY_CK1, CSTRAY_COUT, CSTRAY_CT2, CSTRAY_CT3, CSTRAY_CT4, CSTRAY_CT5, CSTRAY_CT6, CSTRAY_CT7, CSTRAY_CT8, CSTRAY_CT9); chosen parts changed (capacitor:E24:Ce_out, capacitor:E24:Cp1, capacitor:E24:Cp4, capacitor:E24:Cp5, capacitor:E24:Cs12, capacitor:E24:Cs23, capacitor:E24:Cs34, capacitor:E24:Cs56, capacitor:E24:Cs67, capacitor:E24:Cs78, capacitor:E24:Cs89)"
+  }
+ ]
+}

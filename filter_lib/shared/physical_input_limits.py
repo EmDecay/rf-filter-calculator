@@ -18,6 +18,10 @@ from decimal import Decimal
 
 from .numeric import is_finite_real
 
+# Assumed stray capacitance across a pair's second part: zero (none) up to 10 pF, far above
+# any pad-to-pad value of a small chip footprint.
+MAX_STRAY_CAPACITANCE_F = 10e-12
+STRAY_CAPACITANCE_RANGE_MESSAGE = "Stray capacitance must be from 0 to 10 pF"
 MIN_COMPONENT_Q = 0.01
 MAX_COMPONENT_Q = 1e9
 PORT_RESISTANCE_RATIO_LIMIT = 1e6
@@ -43,6 +47,13 @@ def require_component_q(value: object, name: str) -> int | float:
             f"{_plain_number(MAX_COMPONENT_Q)}"
         )
     return value
+
+
+def require_stray_capacitance(value: object) -> float:
+    """Return a stray capacitance in farads inside the accepted range, else raise ValueError."""
+    if not is_finite_real(value) or not 0 <= value <= MAX_STRAY_CAPACITANCE_F:
+        raise ValueError(STRAY_CAPACITANCE_RANGE_MESSAGE)
+    return value  # type: ignore[return-value]
 
 
 def require_port_resistance(value: float, design_impedance: float, label: str) -> float:

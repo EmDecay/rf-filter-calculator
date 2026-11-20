@@ -14,6 +14,7 @@ from filter_lib.shared.build_output import (
 from filter_lib.shared.build_output_formatting import _format_measurement
 from filter_lib.shared.build_output_payloads import _measurement_payload
 from filter_lib.shared.build_simulation import BuildConfig, CircuitMeasurement, analyze_build
+from filter_lib.shared.eseries import MatchPolicy
 from filter_lib.shared.toroid_selection import recommend_cores
 
 
@@ -254,12 +255,8 @@ def test_metric_outputs_expose_included_omitted_and_grid_censored_counts():
     analysis = analyze_build(
         result,
         "lowpass",
-        BuildConfig(
-            capacitor_tolerance_pct=99,
-            inductor_tolerance_pct=99,
-            grid_points=101,
-            use_toroid_candidates=False,
-        ),
+        BuildConfig(inductor_tolerance_pct=99, grid_points=101, use_toroid_candidates=False),
+        policy=MatchPolicy(tolerance_override_pct=99),
     )
     cutoff = next(item for item in analysis.metric_summaries if item.metric == "cutoff_hz")
     payload = build_analysis_fields(result, analysis)

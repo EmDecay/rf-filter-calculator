@@ -80,7 +80,7 @@ def test_checked_boxes_are_recognized(value):
 
 
 def test_build_fields_are_ignored_until_the_build_section_is_enabled():
-    form = {"frequency": "1MHz", "build_capacitor_tolerance_pct": "not a number", "eseries": "E96"}
+    form = {"frequency": "1MHz", "build_inductor_tolerance_pct": "not a number", "eseries": "E96"}
 
     parsed = parse_design_form("lowpass", form)
 
@@ -94,7 +94,7 @@ def test_build_fields_follow_make_build_config():
         "frequency": "10MHz",
         "eseries": "E12",
         "sim_build": "on",
-        "build_capacitor_tolerance_pct": "2",
+        "capacitor_tolerance_pct": "2",
         "build_inductor_tolerance_pct": "",
         "build_inductor_q": "150",
         "build_source_resistance": "1k",
@@ -108,9 +108,9 @@ def test_build_fields_follow_make_build_config():
     request = parse_design_form("lowpass", form).request
 
     assert (request.eseries, request.run_build_analysis) == ("E12", True)
+    assert request.capacitor_tolerance_pct == 2.0
     assert request.realization == BuildConfig(
-        capacitor_tolerance_pct=2.0,
-        inductor_tolerance_pct=10.0,
+        inductor_tolerance_pct=None,
         inductor_q=150.0,
         source_resistance_ohm=1000.0,
         reference_frequency_hz=5e6,

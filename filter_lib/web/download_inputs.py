@@ -15,15 +15,19 @@ from __future__ import annotations
 from ..design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    CAPACITOR_GRADE,
+    CAPACITOR_TOLERANCE,
     DOCUMENT_FORMATS,
     ESERIES,
     LOSS_Q,
     RAW_UNITS,
+    STRAY_CAPACITANCE,
     TEXT_PLOT,
     TOROID_BUILD,
     TOROID_DETAIL,
     OutputChoices,
     document_options,
+    document_own_options,
 )
 from ..shared.cli_aliases import DEFAULT_ESERIES
 from .form_values import FormData, flag, text
@@ -33,6 +37,9 @@ VISIBLE_PREFIX = "visible."
 FIELD_OPTIONS = {
     "eseries": ESERIES,
     "allow_sub_pf": ALLOW_SUB_PF,
+    "capacitor_grade": CAPACITOR_GRADE,
+    "capacitor_tolerance_pct": CAPACITOR_TOLERANCE,
+    "stray_capacitance": STRAY_CAPACITANCE,
     "toroids": TOROID_DETAIL,
     "plot": TEXT_PLOT,
     "raw": RAW_UNITS,
@@ -61,10 +68,17 @@ def _choices(fields: FormData) -> OutputChoices:
 def download_fields(fields: FormData, kind: str) -> dict[str, str]:
     """Return the fields the ``kind`` download is calculated from.
 
-    Fields sent normally are kept as they are. Each ``visible.<name>`` value is added
-    as ``<name>`` when its option applies to the download's document.
+    Fields sent normally are kept as they are, except those a document's own rule leaves
+    out (the calculated-values deck uses no standard capacitors, so it drops them, as if
+    their controls were disabled). Each ``visible.<name>`` value is added as ``<name>``
+    when its option applies to the download's document.
     """
-    shown = {name: value for name, value in fields.items() if not name.startswith(VISIBLE_PREFIX)}
+    dropped = document_own_options(kind)
+    shown = {
+        name: value
+        for name, value in fields.items()
+        if not name.startswith(VISIBLE_PREFIX) and FIELD_OPTIONS.get(name) not in dropped
+    }
     visible = {
         name.removeprefix(VISIBLE_PREFIX): value
         for name, value in fields.items()

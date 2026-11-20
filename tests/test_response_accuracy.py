@@ -93,8 +93,10 @@ def test_high_order_worst_gain_includes_exact_endpoints_and_refined_skirts(point
 def test_perturbed_high_order_filter_reports_separate_regions_and_local_reference():
     result = _bp()
     nominal = realize_nominal_build(result, "bandpass", BuildConfig()).circuit
+    # LT1 20 % low splits the response; the region holding the center is not the peak's.
     perturbed = perturb_circuit(
-        nominal, tuple((e.name, 0.9 if e.name == "LT1" else 1.0) for e in nominal.elements)
+        nominal,
+        tuple((e.name, 0.8 if e.name == "LT1" else 1.0) for e in nominal.elements if not e.fixed),
     )
     measured = measure_circuit(
         perturbed, result, "bandpass", build_frequency_grid(result, "bandpass", 51), 50, 50

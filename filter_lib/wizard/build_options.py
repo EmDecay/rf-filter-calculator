@@ -17,6 +17,7 @@ from filter_lib.design.q_reference_frequency import (
 )
 from filter_lib.shared.build_simulation import BuildConfig
 from filter_lib.shared.build_types import (
+    DEFAULT_INDUCTOR_TOLERANCE_PCT,
     RESONATOR_AND_COMPONENT_Q_MESSAGE,
     require_seed_with_samples,
 )
@@ -53,14 +54,10 @@ class BuildField:
 # In the web form's order; Enter moves through them in this order.
 BUILD_FIELDS = (
     BuildField(
-        "build-capacitor-tolerance",
-        "Capacitor tolerance (±%)",
-        f"Blank = {_DEFAULTS.capacitor_tolerance_pct:g}.",
-    ),
-    BuildField(
         "build-inductor-tolerance",
         "Inductor tolerance (±%)",
-        f"Blank = {_DEFAULTS.inductor_tolerance_pct:g}.",
+        "Applies to every inductor. Blank = "
+        f"{DEFAULT_INDUCTOR_TOLERANCE_PCT:g} for toroid windings and calculated values.",
     ),
     BuildField(
         "build-inductor-q",
@@ -121,8 +118,7 @@ class BuildOptionError(ValueError):
 class BuildOptionValues:
     """Raw values collected from the build-simulation form, in form order."""
 
-    capacitor_tolerance: str = f"{_DEFAULTS.capacitor_tolerance_pct:g}"
-    inductor_tolerance: str = f"{_DEFAULTS.inductor_tolerance_pct:g}"
+    inductor_tolerance: str = ""
     inductor_q: str = ""
     capacitor_q: str = ""
     reference_frequency: str = ""
@@ -149,7 +145,6 @@ def build_field_values(state: FilterState) -> dict[str, str]:
         return short if float(short) == value else repr(value)
 
     values = {
-        "build-capacitor-tolerance": number(state.build_capacitor_tolerance_pct),
         "build-inductor-tolerance": number(state.build_inductor_tolerance_pct),
         "build-inductor-q": number(state.build_inductor_q),
         "build-capacitor-q": number(state.build_capacitor_q),
@@ -207,13 +202,6 @@ def parse_build_config(
 
     # (BuildConfig field, Input id, parser, raw text, label used in messages), in form order.
     fields = (
-        (
-            "capacitor_tolerance_pct",
-            "build-capacitor-tolerance",
-            number,
-            values.capacitor_tolerance,
-            "Capacitor tolerance",
-        ),
         (
             "inductor_tolerance_pct",
             "build-inductor-tolerance",
@@ -294,7 +282,6 @@ def parse_build_config(
 def apply_build_config(state: FilterState, enabled: bool, config: BuildConfig) -> None:
     """Persist a validated shared-engine configuration into wizard state."""
     state.build_analysis_enabled = enabled
-    state.build_capacitor_tolerance_pct = config.capacitor_tolerance_pct
     state.build_inductor_tolerance_pct = config.inductor_tolerance_pct
     state.build_inductor_q = config.inductor_q
     state.build_capacitor_q = config.capacitor_q

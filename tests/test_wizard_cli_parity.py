@@ -228,8 +228,12 @@ def test_response_sidecar_is_the_cli_plot_data(monkeypatch, capsys, state, fmt):
 
 _BUILD_ARGV = (
     "--sim-build",
+    "--capacitor-grade",
+    "tight",
     "--capacitor-tolerance",
     "2",
+    "--stray-capacitance",
+    "0.1pF",
     "--inductor-tolerance",
     "7.5",
     "--inductor-q",
@@ -250,7 +254,11 @@ _BUILD_ARGV = (
 )
 _BUILD_STATE = dict(
     build_analysis_enabled=True,
-    build_capacitor_tolerance_pct=2.0,
+    capacitor_grade="tight",
+    capacitor_tolerance_pct=2.0,
+    capacitor_tolerance_text="2",
+    stray_capacitance_f=0.1e-12,
+    stray_capacitance_text="0.1pF",
     build_inductor_tolerance_pct=7.5,
     build_inductor_q=120.0,
     build_capacitor_q=500.0,

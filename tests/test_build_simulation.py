@@ -26,6 +26,7 @@ from filter_lib.shared.build_simulation import (
     realize_nominal_build,
 )
 from filter_lib.shared.build_types import BuildAnalysisCancelled
+from filter_lib.shared.eseries import MatchPolicy
 from filter_lib.shared.parsing import parse_impedance
 from filter_lib.shared.tolerance_screening import summarize_cases
 
@@ -88,8 +89,8 @@ class TestBuildConfig:
     @pytest.mark.parametrize(
         "kwargs, message",
         [
-            ({"capacitor_tolerance_pct": -1}, "^Capacitor tolerance must be at least 0%"),
-            ({"capacitor_tolerance_pct": True}, "^Capacitor tolerance must be at least 0%"),
+            ({"inductor_tolerance_pct": -1}, "^Inductor tolerance must be at least 0%"),
+            ({"inductor_tolerance_pct": True}, "^Inductor tolerance must be at least 0%"),
             ({"inductor_tolerance_pct": 100}, "^Inductor tolerance must be .* less than 100%$"),
             ({"inductor_q": 0}, "^Inductor Q must be between"),
             ({"inductor_q": "100"}, "^Inductor Q must be between"),
@@ -118,7 +119,7 @@ class TestBuildConfig:
         with pytest.raises(ValueError, match=message):
             BuildConfig(**kwargs)
 
-    @pytest.mark.parametrize("field", ["eseries", "match_policy"])
+    @pytest.mark.parametrize("field", ["eseries", "match_policy", "capacitor_tolerance_pct"])
     def test_part_policy_is_not_a_build_setting(self, field):
         """The series and match policy are design inputs, resolved once by ``design()``."""
         with pytest.raises(TypeError):
@@ -263,15 +264,22 @@ class TestNominalRealization:
             BuildConfig(use_toroid_candidates=False),
         )
 
-        assert [element.name for element in realization.circuit.elements] == ["C1A", "C1B"]
+        elements = realization.circuit.elements
+        assert [element.name for element in elements] == ["C1A", "C1B", "CSTRAY_C1"]
         # abs=0: pytest.approx's default 1e-12 absolute tolerance would accept +/-1 pF.
-        assert [element.value for element in realization.circuit.elements] == pytest.approx(
-            [47e-12, 270e-12], rel=1e-9, abs=0
+        assert [element.value for element in elements] == pytest.approx(
+            [47e-12, 270e-12, 0.2e-12], rel=1e-9, abs=0
         )
+        # Each part varies by its own (standard-grade, 5 %) tolerance; the assumed stray
+        # sits across the same terminals and stays fixed in every tolerance case.
+        assert [element.tolerance for element in elements] == [0.05, 0.05, None]
+        assert [element.fixed for element in elements] == [False, False, True]
+        assert {(element.node1, element.node2) for element in elements} == {(1, 0)}
         substitution = realization.substitutions[0]
         assert substitution.method == "e_series_parallel"
         assert substitution.physical_parts == pytest.approx((47e-12, 270e-12), rel=1e-9, abs=0)
         assert substitution.nominal_value == pytest.approx(317e-12, rel=1e-9, abs=0)
+        assert substitution.stray_capacitance_f == pytest.approx(0.2e-12, rel=1e-12, abs=0)
 
     def test_sub_pf_policy_refusal_is_an_explicit_exact_fallback(self):
         target = 0.5e-12
@@ -385,6 +393,10 @@ class TestNominalRealization:
 
         omega = 2 * math.pi * 10e6  # the design frequency is the default loss reference
         for element in realization.circuit.elements:
+            if element.fixed:
+                # The assumed stray across a pair is a lossless parasitic, not a part.
+                assert (element.quality_factor, element.series_resistance_ohm) == (None, 0.0)
+                continue
             assert element.loss_reference_frequency_hz == 10e6
             if element.kind == "L":
                 # Series loss of an inductor with Q at the reference: R = omega * L / Q.
@@ -500,7 +512,7 @@ class TestNominalRealization:
         assert all(
             element.quality_factor == 400
             for element in realization.circuit.elements
-            if element.kind == "C"
+            if element.kind == "C" and not element.fixed
         )
 
 
@@ -510,18 +522,12 @@ class TestBuildAnalysis:
         lossless = analyze_build(
             result,
             "lowpass",
-            BuildConfig(
-                capacitor_tolerance_pct=0,
-                inductor_tolerance_pct=0,
-                grid_points=101,
-                use_toroid_candidates=False,
-            ),
+            BuildConfig(inductor_tolerance_pct=0, grid_points=101, use_toroid_candidates=False),
         )
         lossy = analyze_build(
             result,
             "lowpass",
             BuildConfig(
-                capacitor_tolerance_pct=0,
                 inductor_tolerance_pct=0,
                 inductor_q=40,
                 capacitor_q=80,
@@ -555,7 +561,6 @@ class TestBuildAnalysis:
 
     def test_screening_case_order_and_seeded_samples_are_reproducible(self):
         config = BuildConfig(
-            capacitor_tolerance_pct=5,
             inductor_tolerance_pct=10,
             sample_count=3,
             seed=73,
@@ -747,12 +752,8 @@ class TestBuildAnalysis:
         analysis = analyze_build(
             _lp_result(),
             "lowpass",
-            BuildConfig(
-                capacitor_tolerance_pct=99,
-                inductor_tolerance_pct=99,
-                grid_points=101,
-                use_toroid_candidates=False,
-            ),
+            BuildConfig(inductor_tolerance_pct=99, grid_points=101, use_toroid_candidates=False),
+            policy=MatchPolicy(tolerance_override_pct=99),
         )
 
         cutoff = next(item for item in analysis.metric_summaries if item.metric == "cutoff_hz")
@@ -769,13 +770,9 @@ class TestBuildAnalysis:
         analysis = analyze_build(
             result,
             "bandpass",
-            BuildConfig(
-                capacitor_tolerance_pct=50,
-                inductor_tolerance_pct=50,
-                grid_points=51,
-                use_toroid_candidates=False,
-            ),
+            BuildConfig(inductor_tolerance_pct=50, grid_points=51, use_toroid_candidates=False),
             eseries="E96",
+            policy=MatchPolicy(tolerance_override_pct=50),
         )
         # All parts 50% low double the center, pushing the upper skirt past the window.
         censored = next(case for case in analysis.cases if case.case_id == "coherent:low")

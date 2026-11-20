@@ -32,18 +32,26 @@ from dataclasses import dataclass, replace
 
 from ..shared.cli_aliases import DEFAULT_ESERIES
 from ..shared.cli_bandpass_output_validation import RESONATOR_Q_LABELS, loss_q_not_shown_message
-from ..shared.eseries import SUB_PF_OPTION_LABEL
+from ..shared.eseries import (
+    CAPACITOR_GRADE_LABEL,
+    CAPACITOR_TOLERANCE_LABEL,
+    STRAY_CAPACITANCE_LABEL,
+    SUB_PF_OPTION_LABEL,
+)
 from .render_options import (
     BUILD_NEEDS_ESERIES_MESSAGE,
     BUILD_NEEDS_TABLE_OR_JSON_MESSAGE,
     BUILD_NOT_WITH_VALUES_ONLY_MESSAGE,
     OUTPUT_FORMATS,
-    SUB_PF_NEEDS_ESERIES_MESSAGE,
+    needs_eseries_message,
 )
 
 # Option names; the web uses them as ``data-option`` values.
 ESERIES = "eseries"  # Standard capacitor values (E12/E24/E96/None)
 ALLOW_SUB_PF = "allow_sub_pf"  # Allow capacitors below 1 pF
+CAPACITOR_GRADE = "capacitor_grade"  # Capacitor grade (CLI --capacitor-grade)
+CAPACITOR_TOLERANCE = "capacitor_tolerance"  # Capacitor tolerance (CLI --capacitor-tolerance)
+STRAY_CAPACITANCE = "stray_capacitance"  # Stray capacitance (CLI --stray-capacitance)
 TOROID_DETAIL = "toroid_detail"  # Up to 3, detailed / Best, one line (CLI --toroid-full/-compact)
 TEXT_PLOT = "plot"  # Text plot in the table (CLI --plot)
 RAW_UNITS = "raw"  # Raw units (F, H) (CLI --raw)
@@ -53,6 +61,9 @@ LOSS_Q = "loss_q"  # Band-pass resonator Q (CLI --qu/--ql/--qc)
 OPTIONS = (
     ESERIES,
     ALLOW_SUB_PF,
+    CAPACITOR_GRADE,
+    CAPACITOR_TOLERANCE,
+    STRAY_CAPACITANCE,
     TOROID_DETAIL,
     TEXT_PLOT,
     RAW_UNITS,
@@ -94,6 +105,26 @@ ESERIES_VALUES_ONLY_MESSAGE = _no_effect_with_values_only("Standard capacitor va
 ESERIES_RAW_MESSAGE = _no_effect_with_raw("Standard capacitor values", "have")
 SUB_PF_VALUES_ONLY_MESSAGE = _no_effect_with_values_only(_SUB_PF_SUBJECT, "has")
 SUB_PF_RAW_MESSAGE = _no_effect_with_raw(_SUB_PF_SUBJECT, "has")
+# Options that change only which standard capacitors are chosen, and their labels; each
+# follows the sub-pF option's rule.
+CAPACITOR_POLICY_LABELS = {
+    ALLOW_SUB_PF: SUB_PF_OPTION_LABEL,
+    CAPACITOR_GRADE: CAPACITOR_GRADE_LABEL,
+    CAPACITOR_TOLERANCE: CAPACITOR_TOLERANCE_LABEL,
+    STRAY_CAPACITANCE: STRAY_CAPACITANCE_LABEL,
+}
+# Options that only change the standard capacitor choices: the series and the policy.
+MATCHING_OPTIONS = (ESERIES, *CAPACITOR_POLICY_LABELS)
+
+
+def _policy_reasons(make) -> dict[str, str]:
+    """``{option: reason}`` for every capacitor policy option, worded by ``make(subject)``."""
+    return {option: make(f'"{label}"') for option, label in CAPACITOR_POLICY_LABELS.items()}
+
+
+_POLICY_VALUES_ONLY = _policy_reasons(lambda subject: _no_effect_with_values_only(subject, "has"))
+_POLICY_RAW = _policy_reasons(lambda subject: _no_effect_with_raw(subject, "has"))
+_POLICY_NEEDS_ESERIES = _policy_reasons(needs_eseries_message)
 
 
 @dataclass(frozen=True)
@@ -154,12 +185,12 @@ def inapplicable_options(choices: OutputChoices) -> dict[str, str]:
 
     if values_only:
         reasons[ESERIES] = ESERIES_VALUES_ONLY_MESSAGE
-        reasons[ALLOW_SUB_PF] = SUB_PF_VALUES_ONLY_MESSAGE
+        reasons.update(_POLICY_VALUES_ONLY)
     elif raw and not build_needs_eseries:
         reasons[ESERIES] = ESERIES_RAW_MESSAGE
-        reasons[ALLOW_SUB_PF] = SUB_PF_RAW_MESSAGE
+        reasons.update(_POLICY_RAW)
     elif choices.eseries is None:
-        reasons[ALLOW_SUB_PF] = SUB_PF_NEEDS_ESERIES_MESSAGE
+        reasons.update(_POLICY_NEEDS_ESERIES)
 
     if not choices.include_toroids:
         reasons[TOROID_BUILD] = TOROID_BUILD_NEEDS_TOROIDS_MESSAGE
@@ -195,7 +226,8 @@ def require_applicable(choices: OutputChoices, selected: Iterable[str]) -> None:
 
 # The output format whose rules each other document of a design follows: the design
 # JSON and the chosen-parts SPICE deck carry the build and the loss model; the CSV, the
-# calculated-values deck, and the response data carry neither.
+# calculated-values deck, and the response data carry neither. A document with rules of
+# its own adds them in ``_DOCUMENT_REASONS``.
 DOCUMENT_FORMATS = {
     "json": "json",
     "spice-nominal": "json",
@@ -209,15 +241,46 @@ DOCUMENT_FORMATS = {
 RESPONSE_DOCUMENTS = frozenset({"response-json", "response-csv"})
 
 
-def document_reason(document: str, option: str) -> str | None:
-    """Why ``option`` cannot apply to ``document`` (a ``DOCUMENT_FORMATS`` key), or None.
+# The calculated-values deck uses no standard capacitors, so the options that only choose
+# them do not apply to it (the CLI refuses them with an exact deck).
+EXACT_SPICE_MATCHING_MESSAGE = (
+    "Standard capacitor choices have no effect on the calculated-values SPICE deck, which "
+    "uses the calculated values"
+)
+_DOCUMENT_REASONS = {
+    "spice-exact": {option: EXACT_SPICE_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
+}
 
-    Judged on the document's own format with the other choices at their defaults, for
-    options that depend only on the format (resonator Q, the text plot, raw units).
+
+def document_own_options(document: str) -> frozenset[str]:
+    """The options ``document``'s own rule leaves out, whatever the other choices."""
+    if document not in DOCUMENT_FORMATS:
+        raise ValueError(f"Unknown document: {document}")
+    return frozenset(_DOCUMENT_REASONS.get(document, {}))
+
+
+def document_reasons(choices: OutputChoices, document: str) -> dict[str, str]:
+    """``{option: reason}`` for every option that cannot apply to ``document``.
+
+    ``document`` is a ``DOCUMENT_FORMATS`` key; ``choices.output_format`` is replaced by
+    the document's format, and the document's own rules are added.
     """
     if document not in DOCUMENT_FORMATS:
         raise ValueError(f"Unknown document: {document}")
-    return option_reason(OutputChoices(output_format=DOCUMENT_FORMATS[document]), option)
+    reasons = inapplicable_options(replace(choices, output_format=DOCUMENT_FORMATS[document]))
+    reasons.update(_DOCUMENT_REASONS.get(document, {}))
+    return {option: reasons[option] for option in OPTIONS if option in reasons}
+
+
+def document_reason(document: str, option: str) -> str | None:
+    """Why ``option`` cannot apply to ``document`` (a ``DOCUMENT_FORMATS`` key), or None.
+
+    Judged on the document's own rules with the other choices at their defaults, for
+    options that depend only on the document (resonator Q, the text plot, raw units).
+    """
+    if option not in OPTIONS:
+        raise ValueError(f"Unknown option: {option}")
+    return document_reasons(OutputChoices(), document).get(option)
 
 
 def document_options(
@@ -236,7 +299,5 @@ def document_options(
     added when it applies to ``document``. So Values only with E-series "None" gives a
     JSON document without standard values, never one with a substituted E24.
     """
-    if document not in DOCUMENT_FORMATS:
-        raise ValueError(f"Unknown document: {document}")
-    reasons = inapplicable_options(replace(choices, output_format=DOCUMENT_FORMATS[document]))
+    reasons = document_reasons(choices, document)
     return frozenset(applied) | {option for option in visible if option not in reasons}

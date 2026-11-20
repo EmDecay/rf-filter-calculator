@@ -10,7 +10,9 @@ import textwrap
 from .build_analysis import RANDOM_CASES_LIMITATION
 from .build_types import BuildAnalysisResult, CircuitMeasurement, ComponentSubstitution
 from .circuit_display_names import display_component_name
+from .component_realization import inductor_case_tolerance_pct
 from .display_helpers import SECTION_RULE
+from .eseries import TOLERANCE_NOT_SOURCED
 from .formatting import format_capacitance, format_fixed, format_frequency, format_inductance
 from .nominal_realization import TOROID_LIMITATION, grouped_part_warnings, uses_toroid
 
@@ -124,6 +126,8 @@ def _format_substitution(substitution: ComponentSubstitution, eseries: str | Non
             detail += f" ({substitution.wire_length_mm:.0f} mm wire)"
     elif eseries is not None:
         detail += f" ({eseries})"
+    if substitution.stray_capacitance_f:
+        detail += f", plus {formatter(substitution.stray_capacitance_f)} stray (assumed)"
     return f"  {name}: {detail}"
 
 
@@ -207,10 +211,10 @@ def _format_summary(summary, width: int = 0) -> list[str]:
 def _tolerance_lines(analysis: BuildAnalysisResult) -> list[str]:
     config = analysis.config
     first = (
-        f"Tolerance cases: C ±{config.capacitor_tolerance_pct:g}%, "
-        f"L ±{config.inductor_tolerance_pct:g}%. "
-        f"{len(analysis.cases)} cases: nominal, all low, all high,"
+        f"Tolerance cases: {capacitor_tolerance_text(analysis)}, "
+        f"L ±{inductor_case_tolerance_pct(config):g}%."
     )
+    cases = f"{len(analysis.cases)} cases: nominal, all low, all high,"
     samples = config.sample_count
     if samples:
         noun = "case" if samples == 1 else "cases"
@@ -220,7 +224,29 @@ def _tolerance_lines(analysis: BuildAnalysisResult) -> list[str]:
         )
     else:
         second = "  and each part low and high alone."
-    return [first, second]
+    return [first, f"  {cases}", second]
+
+
+def capacitor_tolerance_text(analysis: BuildAnalysisResult) -> str:
+    """How the capacitors' tolerances were set: the grade, any override, any assumption."""
+    from .capacitor_choice import assumed_tolerance_pct
+    from .capacitor_grades import require_grade
+
+    policy = analysis.match_policy
+    grade = require_grade(policy.grade).label.lower()
+    text = f"each capacitor at its {grade}-grade tolerance"
+    if policy.tolerance_override_pct is not None:
+        text = (
+            f"each capacitor at the larger of ±{policy.tolerance_override_pct:g}% and its "
+            f"{grade}-grade tolerance"
+        )
+    assumed = any(
+        item.kind == "C" and item.status in (TOLERANCE_NOT_SOURCED, "expert_override_required")
+        for item in analysis.nominal_realization.substitutions
+    )
+    if assumed:
+        text += f" (±{assumed_tolerance_pct(policy):g}% where not sourced)"
+    return text
 
 
 def _bullets(items) -> list[str]:

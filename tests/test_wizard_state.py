@@ -32,8 +32,9 @@ class TestFilterState:
         assert state.toroid_detail == "best"
         assert state.build_analysis_enabled is False
         defaults = BuildConfig()
-        assert state.build_capacitor_tolerance_pct == defaults.capacitor_tolerance_pct
-        assert state.build_inductor_tolerance_pct == defaults.inductor_tolerance_pct
+        assert state.build_inductor_tolerance_pct == defaults.inductor_tolerance_pct is None
+        assert (state.capacitor_grade, state.capacitor_tolerance_pct) == ("standard", None)
+        assert (state.capacitor_tolerance_text, state.stray_capacitance_text) == ("", "")
         assert state.build_inductor_q is None
         assert state.build_capacitor_q is None
         assert state.build_reference_frequency_hz is None
@@ -175,7 +176,8 @@ class TestFilterState:
     def test_build_config_uses_wizard_advanced_values(self):
         state = FilterState(
             eseries="E96",
-            build_capacitor_tolerance_pct=2.0,
+            capacitor_tolerance_pct=2.0,
+            capacitor_tolerance_text="2",
             build_inductor_tolerance_pct=7.5,
             build_inductor_q=120.0,
             build_capacitor_q=500.0,
@@ -191,8 +193,7 @@ class TestFilterState:
 
         assert isinstance(config, BuildConfig)
         request = replace(state, category="lowpass", frequency_hz=10e6).to_design_request()
-        assert request.eseries == "E96"
-        assert config.capacitor_tolerance_pct == 2.0
+        assert (request.eseries, request.capacitor_tolerance_pct) == ("E96", 2.0)
         assert config.inductor_tolerance_pct == 7.5
         assert config.inductor_q == 120.0
         assert config.capacitor_q == 500.0

@@ -221,7 +221,9 @@ def test_realized_build_output_is_the_cli_output(
         build_grid_points="101",
         build_sample_count="2",
         build_seed="5",
-        build_capacitor_tolerance_pct="2",
+        capacitor_grade="tight",
+        capacitor_tolerance_pct="2",
+        stray_capacitance="0.1pF",
     )
     build_flags = (
         "--sim-build",
@@ -231,8 +233,12 @@ def test_realized_build_output_is_the_cli_output(
         "2",
         "--seed",
         "5",
+        "--capacitor-grade",
+        "tight",
         "--capacitor-tolerance",
         "2",
+        "--stray-capacitance",
+        "0.1pF",
     )
     if design.category == "lowpass":
         build_fields["build_inductor_q"] = "120"

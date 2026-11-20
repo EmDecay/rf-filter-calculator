@@ -275,8 +275,11 @@ def test_build_fields_are_filled_with_the_cli_defaults(client):
     page = client.get("/").text
 
     for name, value in (
-        ("build_capacitor_tolerance_pct", f"{defaults.capacitor_tolerance_pct:g}"),
-        ("build_inductor_tolerance_pct", f"{defaults.inductor_tolerance_pct:g}"),
+        # Blank means each inductor's own tolerance (10 % for toroids and calculated values).
+        ("build_inductor_tolerance_pct", ""),
+        # The capacitor tolerance and stray are blank: the grade's tolerance, the 0.2 pF stray.
+        ("capacitor_tolerance_pct", ""),
+        ("stray_capacitance", ""),
         ("build_sample_count", str(defaults.sample_count)),
         ("build_seed", str(defaults.seed)),
         ("build_grid_points", str(defaults.grid_points)),

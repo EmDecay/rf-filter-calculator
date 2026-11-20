@@ -3,7 +3,8 @@
 Field names mirror the CLI flags (``frequency``, ``impedance``, ``components`` or
 ``resonators``, ``ripple``, ``bandwidth``, ``f_low``, ``f_high``, ``qu``, ``ql``,
 ``qc``, ``resonator_impedance``, ``resonator_inductance``, ``eseries``,
-``allow_sub_pf``, ``raw``, ``plot``, ``sim_build``, ``build_*``, ``toroid_build``). Units are parsed with the CLI's parsers and
+``allow_sub_pf``, ``capacitor_grade``, ``capacitor_tolerance_pct``, ``stray_capacitance``,
+``raw``, ``plot``, ``sim_build``, ``build_*``, ``toroid_build``). Units are parsed with the CLI's parsers and
 labels (so a value the CLI would reject gets the CLI's message), defaults come from the
 CLI's constants, and all cross-field rules are left to ``DesignRequest`` and
 ``RenderOptions`` so the web reports the CLI's messages. Messages only the form can
@@ -16,12 +17,20 @@ from dataclasses import dataclass, replace
 
 from ..bandpass.input_validation import RESONATOR_COUNT_MESSAGE
 from ..design import DesignRequest, RenderOptions, band_from_edges
+from ..design.capacitor_policy_inputs import (
+    CAPACITOR_GRADE_LABEL,
+    parse_stray_field,
+    parse_tolerance_field,
+)
 from ..design.design_request import CATEGORIES
 from ..design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    CAPACITOR_GRADE,
+    CAPACITOR_TOLERANCE,
     LOSS_Q,
     RAW_UNITS,
+    STRAY_CAPACITANCE,
     TEXT_PLOT,
     TOROID_DETAIL,
     OutputChoices,
@@ -30,6 +39,7 @@ from ..design.option_applicability import (
 )
 from ..design.render_options import BUILD_NEEDS_ESERIES_MESSAGE
 from ..shared.build_types import BuildConfig
+from ..shared.capacitor_grades import DEFAULT_GRADE, GRADE_NAMES
 from ..shared.cli_aliases import (
     DEFAULT_COMPONENTS,
     DEFAULT_ESERIES,
@@ -69,6 +79,8 @@ class DesignForm:
     request: DesignRequest
     options: RenderOptions
     svg_plot: bool
+    # Whether a stray capacitance was typed (blank takes the default, like the CLI).
+    stray_entered: bool = False
 
     def option_choices(self) -> OutputChoices:
         """The submitted choices, as the shared applicability rule judges them."""
@@ -95,6 +107,9 @@ class DesignForm:
             (TEXT_PLOT, options.show_plot),
             (TOROID_DETAIL, options.toroid_full or options.toroid_compact),
             (ALLOW_SUB_PF, self.request.allow_sub_pf),
+            (CAPACITOR_GRADE, self.request.capacitor_grade != DEFAULT_GRADE),
+            (CAPACITOR_TOLERANCE, self.request.capacitor_tolerance_pct is not None),
+            (STRAY_CAPACITANCE, self.stray_entered),
             (BUILD, self.request.run_build_analysis),
         )
         choices = self.option_choices()
@@ -138,6 +153,7 @@ def form_defaults(category: str) -> dict[str, str]:
         "impedance": DEFAULT_IMPEDANCE,
         "ripple": f"{DEFAULT_RIPPLE_DB:g}",
         "eseries": DEFAULT_ESERIES,
+        "capacitor_grade": DEFAULT_GRADE,
         "toroids": "best",
         "output_format": "table",
         "svg_plot": "on",
@@ -258,9 +274,18 @@ def parse_design_form(category: str, form: FormData) -> DesignForm:
     else:
         request = _ladder_request(category, form, filter_type)
     options = _render_options(form)
-    # The request checks the standard values that sub-pF parts and the build need, so
-    # every download gives the same answer.
-    request = replace(request, eseries=_eseries(form))
+    # The request checks the standard values that sub-pF parts, the capacitor policy and
+    # the build need, so every download gives the same answer.
+    stray_text = text(form, "stray_capacitance")
+    request = replace(
+        request,
+        eseries=_eseries(form),
+        capacitor_grade=choice(
+            form, "capacitor_grade", GRADE_NAMES, DEFAULT_GRADE, CAPACITOR_GRADE_LABEL
+        ),
+        capacitor_tolerance_pct=parse_tolerance_field(text(form, "capacitor_tolerance_pct")),
+        stray_capacitance_f=parse_stray_field(stray_text),
+    )
     run_build = flag(form, "sim_build")
     if run_build:
         # Whether the chosen output can show the build is checked by each route against
@@ -280,4 +305,5 @@ def parse_design_form(category: str, form: FormData) -> DesignForm:
         request=replace(request, realization=realization, run_build_analysis=run_build),
         options=options,
         svg_plot=flag(form, "svg_plot"),
+        stray_entered=bool(stray_text.strip()),
     )
