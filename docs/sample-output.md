@@ -253,7 +253,7 @@ what was and was not checked) left out here:
             "srf_accuracy": null,
             "error_budget": {
               "nominal_mismatch_pct": -0.2481500632168454,
-              "tolerance_pct": 5.0,
+              "tolerance_pct": 4.987592496839158,
               "srf_drift_pct": null
             },
             "source": {
@@ -300,15 +300,16 @@ uv run filter-calc lp bw pi 10MHz --format csv
 ```
 
 ```csv
-Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy,InductorKind,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidWireDCRReactanceRatioCeiling,ToroidTempCoeff_ppm,ToroidCandidateStatus,ToroidProvenanceStatus,ToroidCoreSourceURL,ToroidFrequencySourceURL,ToroidMechanicalStatus,ToroidMechanicalSourceURL,ToroidRFQStatus,ToroidSRFStatus,ToroidPowerStatus,ToroidWarnings
-C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,
-C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,
-L1,1.59,µH,,,,,,,,,,,,,,toroid,T50-2,2,18,20,1.5876,-0.25,310.8,12.15,8210,95,screened_candidate,primary_verified,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,https://www.amidoncorp.com/2ipt/,manufacturer_single_layer,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,not_assessed,not_assessed,not_assessed,"Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
+Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy,InductorKind,InductorPart,InductorSRFBasis,InductorBudgetNominalPct,InductorBudgetTolerancePct,InductorBudgetSRFDriftLowPct,InductorBudgetSRFDriftHighPct,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidWireDCRReactanceRatioCeiling,ToroidTempCoeff_ppm,ToroidCandidateStatus,ToroidProvenanceStatus,ToroidCoreSourceURL,ToroidFrequencySourceURL,ToroidMechanicalStatus,ToroidMechanicalSourceURL,ToroidRFQStatus,ToroidSRFStatus,ToroidPowerStatus,ToroidWarnings
+C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,
+C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,
+L1,1.59,µH,,,,,,,,,,,,,,toroid,T50-2,not_checked,-0.25,4.99,,,T50-2,2,18,20,1.5876,-0.25,310.8,12.15,8210,95,screened_candidate,primary_verified,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,https://www.amidoncorp.com/2ipt/,manufacturer_single_layer,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,not_assessed,not_assessed,not_assessed,"Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
 ```
 
 All rows have the same column count. Warning fields are CSV-quoted when necessary.
-`InductorKind` names the kind of the inductor's best suggestion, and the `Toroid*` columns give
-its details; with `--inductor-suggestions none` the inductor columns are left out.
+The inductor columns describe each inductor's best suggestion: its kind, part, SRF basis and
+error budget (each term in percent of the target; the drift is blank when the SRF is not
+checked), then the `Toroid*` details; with `--inductor-suggestions none` they are left out.
 
 ## Inductor Suggestions
 

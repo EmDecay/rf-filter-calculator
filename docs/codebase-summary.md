@@ -180,7 +180,7 @@ provide independent circuit evidence.
 |---|---|
 | Table | Human-oriented circuit, values, standard-value choices, warnings, plots, optional build-simulation block |
 | JSON | Strict finite JSON with explicit requested/calculated/nominal/simulated semantics |
-| CSV | Quoted rectangular component rows; each inductor's best suggestion (`InductorKind` and the `Toroid*` columns) |
+| CSV | Quoted rectangular component rows; each inductor's best suggestion (`InductorKind`, part, SRF basis, `InductorBudget*` and the `Toroid*` columns) |
 | SPICE | Generic deck (`exact` calculated values or `nominal-build` chosen parts) from the shared named circuit; BP decks add a `* names:` map |
 | Plot data | Shared JSON/CSV response schema; analytic LP/HP, nodal BP |
 | Wizard save | Component export plus independent optional response-data sidecar |

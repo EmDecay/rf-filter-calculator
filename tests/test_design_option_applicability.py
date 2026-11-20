@@ -21,6 +21,7 @@ from filter_lib.design.option_applicability import (
     BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE,
     CAPACITOR_GRADE,
     CAPACITOR_TOLERANCE,
+    CSV_BUILD_INDUCTORS_MESSAGE,
     ESERIES,
     ESERIES_RAW_MESSAGE,
     ESERIES_VALUES_ONLY_MESSAGE,
@@ -165,8 +166,11 @@ def test_the_calculated_values_deck_has_its_own_rule_for_chosen_parts():
     assert set(MATCHING_OPTIONS) == {ESERIES, ALLOW_SUB_PF, *POLICY_LABELS}
     chosen_parts = frozenset({*MATCHING_OPTIONS, BUILD_INDUCTORS})
     assert document_own_options("spice-exact") == chosen_parts
-    for document in ("json", "csv", "spice-nominal"):
+    for document in ("json", "spice-nominal"):
         assert document_own_options(document) == frozenset()
+    # The CSV has no build, so its best suggestion is the one Auto would build.
+    assert document_own_options("csv") == frozenset({BUILD_INDUCTORS})
+    assert document_reason("csv", BUILD_INDUCTORS) == CSV_BUILD_INDUCTORS_MESSAGE
     # Response data is the ideal response, which no chosen part changes.
     for document in ("response-json", "response-csv"):
         assert document_own_options(document) == chosen_parts

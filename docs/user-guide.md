@@ -423,7 +423,8 @@ data** downloads leave out every standard-capacitor field, as if disabled.
 ### Long calculations
 
 A request waits up to 60 seconds. When that runs out, the page reports "Calculation stopped
-after 60 s. Try fewer extra random tolerance cases or frequency points." and the calculation
+after 60 s. Try fewer resonators, or with the build simulation, fewer extra random tolerance
+cases or frequency points." and the calculation
 stops at its next check: a band-pass calibration or response check before its next circuit
 evaluation, part resolution before its next part, and the build simulation before its next
 case. A low-pass or high-pass synthesis is one closed-form step and is checked before it
@@ -466,9 +467,11 @@ uv run filter-calc lp bw pi 10MHz --format csv
 
 RFC-style quoted CSV; every row has the same number of columns, even when warning text
 contains commas. The standard-value columns give the one choice
-made for each capacitor and the selection rule (`RecommendationPolicy`). `InductorKind` names
-the kind of each inductor's best suggestion, and the `Toroid*` columns give a toroid's details
-and repeat that RF Q, SRF, and power handling are not checked.
+made for each capacitor and the selection rule (`RecommendationPolicy`). For each inductor's best
+suggestion, `InductorKind`, `InductorPart` and `InductorSRFBasis` name it, the
+`InductorBudget*` columns give its error budget in percent of the target (the SRF drift columns
+blank when it is not checked), and the `Toroid*` columns give a toroid's details and repeat
+that RF Q, SRF, and power handling are not checked.
 
 ### SPICE
 
@@ -789,6 +792,7 @@ separate reason, the [worst-case rule](#how-a-value-is-chosen).) Each old name m
 | Method `verified_toroid_integer_turns`; status `candidate_screen_disabled`, `calculated_exact_value_toroid_selection_disabled` | method `suggested_inductor` with `inductor_kind`; status `suggestions_not_used` |
 
 The table's "Toroid Winding Suggestions (iron-powder T-series)" section is now **Inductor
-Suggestions**, CSV gains an `InductorKind` column before the `Toroid*` columns, and the
+Suggestions**, CSV gains the `InductorKind`, `InductorPart`, `InductorSRFBasis` and
+`InductorBudget*` columns before the `Toroid*` columns, and the
 chosen-parts SPICE deck writes `part=T50-2` where it wrote `core=T50-2`. The Python API changes
 are listed in the [changelog](project-changelog.md).

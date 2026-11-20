@@ -149,6 +149,44 @@ def _assert_core_metadata(metadata_text: str) -> None:
     assert not any(value.startswith("License ::") for value in metadata.get_all("Classifier", []))
 
 
+def _source_modules() -> set[str]:
+    """Every Python module of the package in this checkout (``filter_lib/...py``)."""
+    package = PROJECT_ROOT / "filter_lib"
+    return {
+        path.relative_to(PROJECT_ROOT).as_posix()
+        for path in package.rglob("*.py")
+        if "__pycache__" not in path.parts
+    }
+
+
+def test_built_archives_hold_exactly_the_source_modules() -> None:
+    """No stale module (a removed one left in a build directory) ships, and none is missing."""
+    dist_dir = _distribution_directory()
+    wheel = _single_artifact(dist_dir, "*.whl")
+    sdist = _single_artifact(dist_dir, "*.tar.gz")
+    expected = _source_modules()
+
+    with zipfile.ZipFile(wheel) as wheel_archive:
+        wheel_modules = {
+            name
+            for name in wheel_archive.namelist()
+            if name.startswith("filter_lib/") and name.endswith(".py")
+        }
+    with tarfile.open(sdist, mode="r:gz") as sdist_archive:
+        sdist_modules = {
+            name.split("/", 1)[1]
+            for name in sdist_archive.getnames()
+            if name.count("/") >= 2
+            and name.split("/", 1)[1].startswith("filter_lib/")
+            and name.endswith(".py")
+        }
+
+    assert wheel_modules == expected
+    assert sdist_modules == expected
+    for removed in ("filter_lib/cli/toroid_flags.py", "filter_lib/shared/matched_simulation.py"):
+        assert removed not in wheel_modules | sdist_modules
+
+
 def test_built_archives_contain_metadata_license_and_runtime_resources() -> None:
     """The wheel and sdist must each be self-contained runtime artifacts."""
     dist_dir = _distribution_directory()

@@ -142,7 +142,8 @@ only labels changed.
   inductance, tolerance, SRF basis, error budget, source, `build` details, and warnings. The
   toroid `build` record drops `rank`, `candidate_status` (now the suggestion's `status`), and
   the deprecated `q_dc_upper_bound`. Build substitutions gain `inductor_kind` and `part_name`.
-  CSV gains an `InductorKind` column before the `Toroid*` columns.
+  CSV gains the generic columns `InductorKind`, `InductorPart`, `InductorSRFBasis`, `InductorBudgetNominalPct`, `InductorBudgetTolerancePct`, `InductorBudgetSRFDriftLowPct` and `InductorBudgetSRFDriftHighPct` columns (the best suggestion's error budget in percent of the
+  target) before the `Toroid*` columns.
 - **Web timeout.** The 60-second limit now also stops a band-pass calibration (before its next
   circuit evaluation) and part resolution (before its next part), not only the build
   simulation; a ladder synthesis is one closed-form step, checked before it starts.

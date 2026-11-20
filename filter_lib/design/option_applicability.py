@@ -41,6 +41,7 @@ from ..shared.eseries import (
 from ..shared.inductor_suggestion import (
     DEFAULT_INDUCTOR_DETAIL,
     FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE,
+    forced_kinds_unavailable,
     require_inductor_detail,
 )
 from .render_options import (
@@ -201,7 +202,7 @@ def inapplicable_options(choices: OutputChoices) -> dict[str, str]:
     elif choices.eseries is None:
         reasons.update(_POLICY_NEEDS_ESERIES)
 
-    if choices.inductor_detail == "none":
+    if forced_kinds_unavailable(choices.inductor_detail):
         reasons[BUILD_INDUCTORS] = BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE
     if choices.output_format not in _LOSS_Q_FORMATS:
         reasons[LOSS_Q] = LOSS_Q_DISABLED_MESSAGE
@@ -271,7 +272,13 @@ EXACT_SPICE_BUILD_INDUCTORS_MESSAGE = (
 RESPONSE_DATA_BUILD_INDUCTORS_MESSAGE = (
     "Inductors in the build have no effect on response data, which is the ideal response"
 )
+# The CSV never carries the build (the CLI refuses --build-inductors with --format csv), so
+# its best suggestion is the one Auto would build.
+CSV_BUILD_INDUCTORS_MESSAGE = (
+    "Inductors in the build do not apply to the Components CSV, which has no build simulation"
+)
 _DOCUMENT_REASONS = {
+    "csv": {BUILD_INDUCTORS: CSV_BUILD_INDUCTORS_MESSAGE},
     "spice-exact": {
         **{option: EXACT_SPICE_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
         BUILD_INDUCTORS: EXACT_SPICE_BUILD_INDUCTORS_MESSAGE,

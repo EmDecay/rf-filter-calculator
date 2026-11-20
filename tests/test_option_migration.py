@@ -194,6 +194,17 @@ def test_the_toroid_flag_module_is_gone():
     assert importlib.util.find_spec("filter_lib.cli.toroid_flags") is None
 
 
+def test_the_print_functions_are_gone():
+    """``design()`` + ``render_lines`` replace them; they selected parts themselves."""
+    from filter_lib import bandpass, highpass, lowpass
+    from filter_lib.bandpass import display as bandpass_display
+    from filter_lib.shared import lp_hp_display
+
+    assert not hasattr(lp_hp_display, "display_results_for_config")
+    for module in (lowpass, highpass, bandpass, bandpass_display):
+        assert not hasattr(module, "display_results")
+
+
 # -- BuildConfig.use_toroid_candidates -> DesignRequest.build_inductors ----------------------
 
 
@@ -429,7 +440,7 @@ _REMOVED = re.compile(
     r"|\buse_toroid_candidates\b|\binclude_toroids\b|\btoroid_build\b|\bno_toroid_build\b"
     r"|\bno_toroids\b|\btoroid_full\b|\btoroid_compact\b|\btoroid_detail\b|\bTOROID_DETAIL\b"
     r"|\bTOROID_BUILD\b|\bsimulate_toroid_windings\b|\bverified_toroid_|\bcandidate_screen_"
-    r"|\bdisplay_results\b"
+    r"|\bdisplay_results(_for_config)?\b"
 )
 
 
