@@ -333,7 +333,9 @@ class TestParseCapacitance:
     def test_units_and_zero(self, text, farads):
         from filter_lib.shared.parsing import parse_capacitance
 
-        assert parse_capacitance(text, "Stray capacitance") == pytest.approx(farads, rel=1e-12)
+        assert parse_capacitance(text, "Stray capacitance") == pytest.approx(
+            farads, rel=1e-12, abs=0
+        )
 
     @pytest.mark.parametrize(
         ("text", "message"),
@@ -353,6 +355,6 @@ class TestParseCapacitance:
     def test_stray_parser_checks_the_range(self):
         from filter_lib.shared.parsing import parse_stray_capacitance
 
-        assert parse_stray_capacitance("10pF") == pytest.approx(10e-12)
+        assert parse_stray_capacitance("10pF") == pytest.approx(10e-12, rel=1e-12, abs=0)
         with pytest.raises(ValueError, match="^Stray capacitance must be from 0 to 10 pF$"):
             parse_stray_capacitance("10.1pF")

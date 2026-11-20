@@ -1068,7 +1068,9 @@ EXPECTED_POLICY = {
     "allow_sub_pf": False,
 }
 EXPECTED_POLICY_SUMMARY = (
-    "worst-case;grade=standard;tolerance-override=none;not-sourced-tolerance=5%(assumed);"
+    "worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;"
+    "part-tolerance=larger-of-grade-and-override;"
+    "tolerance-override=none;not-sourced-tolerance=5%(assumed);"
     "stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF"
 )
 SINGLE_REASONS = {

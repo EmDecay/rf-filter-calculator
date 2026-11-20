@@ -27,10 +27,21 @@ def test_loader_returns_an_object_with_the_expected_schema(monkeypatch, tmp_path
     }
 
 
-@pytest.mark.parametrize("document", ['{"schema_version": 2}', "[3]", '{"x": 1}'])
-def test_loader_refuses_another_schema_or_shape(monkeypatch, tmp_path, document):
-    with pytest.raises(RuntimeError, match="Unsupported test data schema; expected version 3"):
-        _load(monkeypatch, tmp_path, document)
+@pytest.mark.parametrize(
+    ("document", "version"),
+    [
+        ('{"schema_version": 2}', 3),
+        ("[3]", 3),
+        ('{"x": 1}', 3),
+        ('{"schema_version": "3"}', 3),
+        ('{"schema_version": 3.0}', 3),
+        # JSON true loads as a bool, and True == 1.
+        ('{"schema_version": true}', 1),
+    ],
+)
+def test_loader_refuses_another_schema_or_shape(monkeypatch, tmp_path, document, version):
+    with pytest.raises(RuntimeError, match="Unsupported test data schema; expected version"):
+        _load(monkeypatch, tmp_path, document, version)
 
 
 @pytest.mark.parametrize("literal", ["1e999", "-1e999", "NaN", "Infinity", "-Infinity"])
@@ -41,7 +52,7 @@ def test_loader_refuses_non_finite_numbers(monkeypatch, tmp_path, literal):
 
 def test_https_url_guard():
     assert require_https_url("https://example.com/a.pdf", "Source") == "https://example.com/a.pdf"
-    for url in ("http://example.com", "ftp://x", None, 3, "https://a\nb"):
+    for url in ("http://example.com", "ftp://x", None, 3, "https://a\nb", "https://", "https:///a"):
         with pytest.raises(RuntimeError, match="Source"):
             require_https_url(url, "Source")
 

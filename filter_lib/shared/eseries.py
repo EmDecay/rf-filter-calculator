@@ -89,12 +89,6 @@ DEFAULT_STRAY_CAPACITANCE_F = 0.2e-12
 CAPACITOR_TOLERANCE_RANGE_MESSAGE = (
     f"{CAPACITOR_TOLERANCE_LABEL} must be at least 0% and less than 100%"
 )
-# CLI help; the wizard and web show the same meaning in their own words.
-CAPACITOR_GRADE_HELP = (
-    "Tolerance grade of the standard capacitors, from the sourced C0G series: standard "
-    "(the manufacturer's standard tolerance codes) or tight (one step tighter). Each "
-    "capacitor is chosen by its worst case within tolerance (default: standard)"
-)
 CAPACITOR_TOLERANCE_HELP = (
     "Capacitor tolerance in ± percent, 0 to under 100. Each standard capacitor uses the "
     "larger of this and its grade's tolerance, so it can only loosen the grade; a value "
@@ -177,9 +171,14 @@ class MatchPolicy:
             "none" if self.tolerance_override_pct is None else f"{self.tolerance_override_pct:g}%"
         )
         from .capacitor_choice import assumed_tolerance_pct
+        from .capacitor_grades import tolerance_rule_compact
 
+        # Each part uses the larger of the override and its grade's tolerance.
         return (
-            f"worst-case;grade={self.grade};tolerance-override={override};"
+            f"worst-case;grade={self.grade};"
+            f"grade-tolerance={tolerance_rule_compact(self.grade)};"
+            "part-tolerance=larger-of-grade-and-override;"
+            f"tolerance-override={override};"
             f"not-sourced-tolerance={assumed_tolerance_pct(self):g}%(assumed);"
             f"stray={self.stray_capacitance_f * 1e12:g}pF(assumed);"
             f"parallel-improvement>={self.min_parallel_improvement_pct_points:g}pp;"

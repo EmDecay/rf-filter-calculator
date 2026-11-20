@@ -58,7 +58,8 @@ def test_spice_deck_holds_the_solver_branches_with_their_kinds(request_fields):
         # SPICE reads an element's kind from its first letter.
         assert name[0] == element.kind
         assert (node1, node2) == (element.node1, element.node2)
-        assert value == pytest.approx(element.value, rel=1e-11)
+        # abs=0: pytest.approx's default absolute tolerance would accept a 0 F stray.
+        assert value == pytest.approx(element.value, rel=1e-11, abs=0)
     strays = [element for element in elements if element.fixed]
     assert strays and all(element.name.startswith("CSTRAY_") for element in strays)
     assert all(element.value == pytest.approx(0.2e-12, rel=1e-12, abs=0) for element in strays)
@@ -112,3 +113,36 @@ def test_a_fixed_element_keeps_its_value_even_when_a_factor_names_it():
     perturbed = perturb_circuit(circuit, ((stray.name, 2.0),))
 
     assert next(e for e in perturbed.elements if e.name == stray.name).value == stray.value
+
+
+@pytest.mark.parametrize(
+    ("stray", "note"),
+    [
+        # A 10 pF stray rules out every pair, so no row shows it.
+        (
+            "10pF",
+            "  Stray across a pair's second part: 10.00 pF (assumed); no parallel pair chosen.",
+        ),
+        # Pairs are chosen, but with no stray to show on them.
+        ("0", "  Stray across a pair's second part: none."),
+    ],
+)
+def test_the_build_states_the_stray_that_shaped_the_choice(monkeypatch, capsys, stray, note):
+    from tests.cli_parity_helpers import cli_stdout
+
+    argv = ("lp", "bw", "pi", "146MHz", "-n", "5", "--raw", "--sim-build")
+    output = cli_stdout(
+        monkeypatch, capsys, *argv, "--analysis-points", "51", "--stray-capacitance", stray
+    )
+
+    assert note in output.splitlines()
+
+
+def test_no_stray_note_when_the_rows_show_it(monkeypatch, capsys):
+    from tests.cli_parity_helpers import cli_stdout
+
+    argv = ("lp", "bw", "pi", "146MHz", "-n", "5", "--raw", "--sim-build")
+    output = cli_stdout(monkeypatch, capsys, *argv, "--analysis-points", "51")
+
+    assert "plus 200.00 fF stray (assumed)" in output
+    assert "Stray across a pair's second part" not in output

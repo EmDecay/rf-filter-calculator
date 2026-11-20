@@ -104,7 +104,8 @@ tolerance.
   1–5 pF C / W, B; 5.1–9.9 pF D / W, B, C; ≥10 pF J / G. The GRM availability boundaries match
   that table exactly, but the GRM page has no such table, so the designation is carried over by
   analogy. **Standard** is Murata's standard code. **Tight** is the loosest of Murata's narrow
-  codes, which is one step tighter than standard. Every code in the
+  codes, one step tighter than standard below 1000 pF; from 1000 pF no tighter code has a
+  current sheet, so both grades are J ±5 %. Every code in the
   table has a current sheet, so a tighter custom choice (W everywhere below 10 pF) remains
   possible.
 - **Ineligible parts.** None: the smallest part is 0.5 pF with at most ±0.1 pF. The worst
