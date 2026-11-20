@@ -10,8 +10,9 @@ perform (frequency, impedance, order) are not repeated here.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
+from ..shared.build_types import BuildConfig
+from ..shared.capacitor_grades import DEFAULT_GRADE, require_grade
 from ..shared.cli_aliases import (
     DEFAULT_ESERIES,
     DEFAULT_Q_SAFETY,
@@ -32,14 +33,12 @@ from ..shared.eseries import (
     require_capacitor_tolerance_pct,
 )
 from ..shared.numeric import is_finite_real, positive_geometric_mean, require_positive_finite
+from ..shared.physical_input_limits import require_stray_capacitance
 from .render_options import (
     BUILD_NEEDS_ESERIES_MESSAGE,
     SUB_PF_NEEDS_ESERIES_MESSAGE,
     needs_eseries_message,
 )
-
-if TYPE_CHECKING:
-    from ..shared.build_types import BuildConfig
 
 CATEGORIES = ("lowpass", "highpass", "bandpass")
 
@@ -112,7 +111,7 @@ class DesignRequest:
     resonator_inductance: float | None = None
     eseries: str | None = DEFAULT_ESERIES
     allow_sub_pf: bool = False
-    capacitor_grade: str = "standard"
+    capacitor_grade: str = DEFAULT_GRADE
     capacitor_tolerance_pct: float | None = None
     stray_capacitance_f: float = DEFAULT_STRAY_CAPACITANCE_F
     realization: BuildConfig | None = None
@@ -130,8 +129,6 @@ class DesignRequest:
             self._validate_ladder()
 
     def _validate_part_policy(self) -> None:
-        from ..shared.build_types import BuildConfig
-
         if self.eseries is not None and self.eseries not in E_SERIES:
             raise ValueError("E-series must be E12, E24, or E96")
         if not isinstance(self.allow_sub_pf, bool):
@@ -147,9 +144,6 @@ class DesignRequest:
             raise ValueError(BUILD_NEEDS_ESERIES_MESSAGE)
 
     def _validate_capacitor_policy(self) -> None:
-        from ..shared.capacitor_grades import DEFAULT_GRADE, require_grade
-        from ..shared.physical_input_limits import require_stray_capacitance
-
         require_grade(self.capacitor_grade)
         require_capacitor_tolerance_pct(self.capacitor_tolerance_pct)
         require_stray_capacitance(self.stray_capacitance_f)

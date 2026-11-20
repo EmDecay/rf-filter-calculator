@@ -9,6 +9,7 @@ from decimal import Decimal
 from fractions import Fraction
 
 from .numeric import is_finite_real, require_positive_finite
+from .physical_input_limits import require_stray_capacitance
 
 # E-series normalized values (1.0-10.0 range), geometric progression
 # fmt: off
@@ -135,7 +136,6 @@ class MatchPolicy:
 
     def __post_init__(self) -> None:
         from .capacitor_grades import require_grade
-        from .physical_input_limits import require_stray_capacitance
 
         require_grade(self.grade)
         require_capacitor_tolerance_pct(self.tolerance_override_pct)
@@ -152,7 +152,8 @@ class MatchPolicy:
 
     def as_dict(self) -> dict[str, object]:
         """JSON-safe policy fields for machine-readable exports."""
-        from .capacitor_grades import ASSUMED_TOLERANCE_PCT, SERIES, tolerance_rule_text
+        from .capacitor_choice import assumed_tolerance_pct
+        from .capacitor_grades import SERIES, tolerance_rule_text
 
         return {
             "rule": "worst_case_interval",
@@ -160,11 +161,7 @@ class MatchPolicy:
             "capacitor_grade": self.grade,
             "grade_tolerances": tolerance_rule_text(self.grade),
             "tolerance_override_pct": self.tolerance_override_pct,
-            "assumed_tolerance_pct_when_not_sourced": (
-                self.tolerance_override_pct
-                if self.tolerance_override_pct is not None
-                else ASSUMED_TOLERANCE_PCT
-            ),
+            "assumed_tolerance_pct_when_not_sourced": assumed_tolerance_pct(self),
             "stray_capacitance_f": self.stray_capacitance_f,
             "stray_capacitance_basis": "assumption",
             "min_parallel_improvement_pct_points": self.min_parallel_improvement_pct_points,

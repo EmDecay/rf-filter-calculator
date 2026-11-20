@@ -8,10 +8,9 @@ and ``filter_lib.shared.build_simulation.analyze_build`` at one place.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
 
 from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
-from ..shared.eseries import DEFAULT_MATCH_POLICY, MatchPolicy
+from ..shared.eseries import MatchPolicy
 from .design_request import DesignRequest
 from .design_result import DesignResult
 
@@ -108,8 +107,7 @@ def synthesize(request: DesignRequest) -> dict:
 
 def resolve_match_policy(request: DesignRequest) -> MatchPolicy:
     """The capacitor match policy for ``request``; ``design()`` is its only caller."""
-    return replace(
-        DEFAULT_MATCH_POLICY,
+    return MatchPolicy(
         allow_sub_pf=request.allow_sub_pf,
         grade=request.capacitor_grade,
         tolerance_override_pct=request.capacitor_tolerance_pct,

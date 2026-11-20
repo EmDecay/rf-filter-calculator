@@ -130,15 +130,16 @@ def _load() -> tuple[CapacitorSeries, dict[str, CapacitorGrade], dict[str, Any]]
         require_printable_line(sheet["as_of"], label)
         if not isinstance(sheet["sha256"], str) or not _SHA256.match(sheet["sha256"]):
             raise RuntimeError(f"{label} needs a SHA-256 of the copy read")
-    grades = {}
     if tuple(raw["grades"]) != GRADE_NAMES:
         raise RuntimeError(f"Capacitor grades must be {', '.join(GRADE_NAMES)}")
+    grades = {}
     for name, grade_raw in raw["grades"].items():
         rows = tuple(_row(name, row, sheets) for row in grade_raw["rows"])
+        label = f"Capacitor grade {name}"
         grades[name] = CapacitorGrade(
             name=name,
-            label=require_printable_line(grade_raw["label"], f"Capacitor grade {name}"),
-            description=require_printable_line(grade_raw["description"], f"Capacitor grade {name}"),
+            label=require_printable_line(grade_raw["label"], label),
+            description=require_printable_line(grade_raw["description"], label),
             rows=rows,
         )
     return series, grades, raw["coverage"]

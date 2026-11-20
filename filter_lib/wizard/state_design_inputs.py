@@ -32,6 +32,7 @@ from filter_lib.design.option_applicability import (
     inapplicable_options,
 )
 from filter_lib.shared.build_types import BuildConfig
+from filter_lib.shared.capacitor_grades import DEFAULT_GRADE
 from filter_lib.shared.cli_aliases import DEFAULT_ESERIES
 from filter_lib.shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
 
@@ -89,7 +90,7 @@ class DesignInputsMixin:
         chosen = {
             ESERIES: True,
             ALLOW_SUB_PF: self.allow_sub_pf,
-            CAPACITOR_GRADE: self.capacitor_grade != "standard",
+            CAPACITOR_GRADE: self.capacitor_grade != DEFAULT_GRADE,
             CAPACITOR_TOLERANCE: bool(self.capacitor_tolerance_text.strip()),
             STRAY_CAPACITANCE: bool(self.stray_capacitance_text.strip()),
             TOROID_DETAIL: self.toroid_detail in ("full", "compact"),
@@ -153,9 +154,8 @@ class DesignInputsMixin:
             return DEFAULT_ESERIES
         return None if self.eseries == "none" else self.eseries
 
-    def make_build_config(self, options: frozenset[str] | None = None) -> BuildConfig:
-        """Return the shared engine configuration for the current controls."""
-        options = self.applied_options() if options is None else options
+    def make_build_config(self) -> BuildConfig:
+        """Return the shared build settings for the current controls."""
         return BuildConfig(
             inductor_tolerance_pct=self.build_inductor_tolerance_pct,
             inductor_q=self.build_inductor_q,
@@ -193,7 +193,7 @@ class DesignInputsMixin:
             resonator_inductance=self.resonator_inductance if bandpass else None,
             eseries=self._eseries_for(options),
             allow_sub_pf=ALLOW_SUB_PF in options,
-            capacitor_grade=self.capacitor_grade if CAPACITOR_GRADE in options else "standard",
+            capacitor_grade=self.capacitor_grade if CAPACITOR_GRADE in options else DEFAULT_GRADE,
             capacitor_tolerance_pct=(
                 self.capacitor_tolerance_pct if CAPACITOR_TOLERANCE in options else None
             ),
@@ -203,7 +203,7 @@ class DesignInputsMixin:
                 else DEFAULT_STRAY_CAPACITANCE_F
             ),
             # The wizard has no SPICE output, so the build settings matter only to a build.
-            realization=self.make_build_config(options) if include_build else None,
+            realization=self.make_build_config() if include_build else None,
             run_build_analysis=include_build,
         )
 

@@ -46,6 +46,11 @@ def part_pf(value_f: float) -> Fraction:
     return _exact(value_f) * _PF_PER_F
 
 
+def _farads(value_pf: Fraction) -> float:
+    """An exact pF value as the nearest float in farads."""
+    return float(value_pf / _PF_PER_F)
+
+
 @cache
 def _series_values_pf(series: str) -> tuple[Fraction, ...]:
     """The values of ``series`` that the sourced series makes, ascending, in pF."""
@@ -132,7 +137,7 @@ def choose_capacitor(
         "policy": policy,
         "tolerance_sourced": True,
     }
-    single_f = float(single_value / _PF_PER_F)
+    single_f = _farads(single_value)
     improvement = None
     if pair is not None:
         pair_score = pair[0]
@@ -140,23 +145,19 @@ def choose_capacitor(
         margin = _exact(policy.min_parallel_improvement_pct_points)
         if pair_wins(single_score, pair_score, target, margin):
             _score, _ratio, total, (low, low_tol), (high, high_tol) = pair
-            low_f, high_f = float(low / _PF_PER_F), float(high / _PF_PER_F)
-            total_f = float(total / _PF_PER_F)
+            total_f = _farads(total)
             return ESeriesMatch(
                 single_value=single_f,
                 single_error_pct=_error_pct(single_f, nominal.target),
-                parallel=(low_f, high_f),
+                parallel=(_farads(low), _farads(high)),
                 parallel_value=total_f,
                 parallel_error_pct=_error_pct(total_f, nominal.target),
                 recommended_kind="parallel",
                 recommendation_reason="parallel_worst_case_materially_better",
                 raw_parallel_improvement_pct_points=improvement,
-                part_tolerances_f=(
-                    float(low_tol / _PF_PER_F),
-                    float(high_tol / _PF_PER_F),
-                ),
+                part_tolerances_f=(_farads(low_tol), _farads(high_tol)),
                 part_tolerance_fractions=(float(low_tol / low), float(high_tol / high)),
-                worst_case_error_f=float(pair_score / _PF_PER_F),
+                worst_case_error_f=_farads(pair_score),
                 **common,
             )
     return ESeriesMatch(
@@ -172,9 +173,9 @@ def choose_capacitor(
             else "parallel_worst_case_improvement_below_policy_threshold"
         ),
         raw_parallel_improvement_pct_points=improvement,
-        part_tolerances_f=(float(single_tolerance / _PF_PER_F),),
+        part_tolerances_f=(_farads(single_tolerance),),
         part_tolerance_fractions=(float(single_tolerance / single_value),),
-        worst_case_error_f=float(single_score / _PF_PER_F),
+        worst_case_error_f=_farads(single_score),
         **common,
     )
 
