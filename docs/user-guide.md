@@ -476,7 +476,7 @@ blank when it is not checked), the `Toroid*` columns give a toroid's details and
 that RF Q, SRF, and power handling are not checked, and the `Chip*` columns give a chip
 inductor's maker, tolerance and catalog test frequency, minimum SRF, minimum Q with its test
 frequency, the inductance at the top of the check window with that frequency, the
-self-capacitance, the range within its allowances, the source URL, the model basis (the
+self-capacitance, the range within its allowances, the two allowances, the source URL, the model basis (the
 parallel-LC model and the maker's fixture; board mounting changes the SRF) and the chip
 caveats.
 
@@ -825,8 +825,10 @@ plus drift within ±10% of the target.
 Not checked: Q (the minimum is shown, not used), current rating, heating, power
 handling, and the SRF once mounted on a board. Measure before use.
 L at 146 MHz: the part's inductance there at its minimum SRF. Self-capacitance: the
-upper bound from that SRF at the catalog inductance. Both come from the maker's fixture;
-board mounting changes the SRF.
+upper bound from that SRF at the catalog inductance.
+Inductance, self-capacitance and allowance range come from the parallel-LC part model
+with the maker's minimum SRF and catalog values measured in its fixture; board mounting
+changes the SRF.
 
   L1 target: 74.74 nH at 146 MHz
   ────────────────────────────────────────────────

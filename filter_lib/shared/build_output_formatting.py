@@ -15,7 +15,14 @@ from .circuit_display_names import display_component_name
 from .component_realization import inductor_case_tolerance_pct
 from .display_helpers import SECTION_RULE
 from .eseries import TOLERANCE_NOT_SOURCED
-from .formatting import format_capacitance, format_fixed, format_frequency, format_inductance
+from .formatting import (
+    band_edge_digits,
+    format_capacitance,
+    format_fixed,
+    format_frequency,
+    format_inductance,
+    format_restated_frequency,
+)
 from .inductor_suggestion import KIND_LABELS, NO_QUALIFYING_SUGGESTION, SUGGESTIONS_NOT_USED
 from .nominal_realization import TOROID_LIMITATION, grouped_part_warnings, uses_toroid
 from .srf_screen import describe_range, format_range_top
@@ -116,16 +123,29 @@ def _lossy_chips(analysis: BuildAnalysisResult) -> bool:
     )
 
 
+def _edge_digits(measurement: CircuitMeasurement) -> int | None:
+    """Digits a band-pass measurement's center and edges need to restate its bandwidth
+    (as the design header prints its edges); ``None`` without both edges."""
+    if measurement.f_high is None or measurement.bw is None or measurement.bw <= 0:
+        return None
+    return band_edge_digits(measurement.f_high, measurement.bw)
+
+
+def _band_frequency(value: float, digits: int | None) -> str:
+    return format_frequency(value) if digits is None else format_restated_frequency(value, digits)
+
+
 def _landmark_text(category: str, measurement: CircuitMeasurement) -> str | None:
     """Return the -3 dB landmarks, or ``None`` when the sweep does not contain them."""
     if category == "bandpass":
         if measurement.f0 is None or measurement.bw is None:
             return None
+        digits = _edge_digits(measurement)
         return (
-            f"center {format_frequency(measurement.f0)}, "
+            f"center {_band_frequency(measurement.f0, digits)}, "
             f"-3 dB bandwidth {format_frequency(measurement.bw)}, "
-            f"edges {format_frequency(measurement.f_low)} / "
-            f"{format_frequency(measurement.f_high)}"
+            f"edges {_band_frequency(measurement.f_low, digits)} / "
+            f"{_band_frequency(measurement.f_high, digits)}"
         )
     cutoff = measurement.ladder_cutoff(category)
     return None if cutoff is None else f"-3 dB cutoff {format_frequency(cutoff)}"
@@ -149,9 +169,10 @@ def _format_measurement(category: str, measurement: CircuitMeasurement) -> list[
     if reference is not None and not math.isclose(
         reference, measurement.peak_transducer_gain_db, abs_tol=5e-4
     ):
+        digits = _edge_digits(measurement) if category == "bandpass" else None
         lines.append(
             f"-3 dB measured from the {format_fixed(reference, 2)} dB peak at "
-            f"{format_frequency(measurement.reference_peak_frequency_hz)}"
+            f"{_band_frequency(measurement.reference_peak_frequency_hz, digits)}"
         )
     if len(measurement.threshold_regions) > 1:
         taken = (
@@ -285,16 +306,22 @@ def _loss_line(analysis: BuildAnalysisResult) -> str:
     return f"Part losses (Q at {reference}): {', '.join(parts)}."
 
 
-def _format_metric_value(metric: str, value: float) -> str:
+# Band-pass spread rows of positions in the band, printed with the edges' digits.
+_BAND_POSITION_METRICS = frozenset({"f_low_hz", "f_high_hz", "f0_hz"})
+
+
+def _format_metric_value(metric: str, value: float, digits: int | None = None) -> str:
+    if metric in _BAND_POSITION_METRICS:
+        return _band_frequency(value, digits)
     if metric.endswith("_hz"):
         return format_frequency(value)
     return f"{format_fixed(value, 3)} dB"
 
 
-def _metric_values(summary) -> str:
+def _metric_values(summary, digits: int | None = None) -> str:
     """Join min / p05 / median / p95 / max, printing a shared unit once."""
     texts = [
-        _format_metric_value(summary.metric, value)
+        _format_metric_value(summary.metric, value, digits)
         for value in (summary.minimum, summary.p05, summary.p50, summary.p95, summary.maximum)
     ]
     units = {text.rsplit(" ", 1)[-1] for text in texts}
@@ -304,14 +331,16 @@ def _metric_values(summary) -> str:
     return " / ".join(texts)
 
 
-def _format_summary(summary, width: int = 0, outside: bool = False) -> list[str]:
+def _format_summary(
+    summary, width: int = 0, outside: bool = False, digits: int | None = None
+) -> list[str]:
     """Return one metric row, plus a case-count line when any case was left out.
 
     ``outside``: some case's value rests on frequencies outside the qualified range, so
     the row says it is predicted with the parasitic model, not qualified.
     """
     label = METRIC_LABELS.get(summary.metric, summary.metric) + ":"
-    lines = [f"  {label:<{width + 1}} {_metric_values(summary)}"]
+    lines = [f"  {label:<{width + 1}} {_metric_values(summary, digits)}"]
     if outside:
         lines.extend(
             textwrap.wrap(
@@ -462,8 +491,10 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
         default=0,
     )
     outside = analysis.metrics_outside_qualified_range()
+    # The design's own band sets how finely band-pass positions print.
+    digits = _edge_digits(analysis.calculated) if category == "bandpass" else None
     for summary in analysis.metric_summaries:
-        lines.extend(_format_summary(summary, width, summary.metric in outside))
+        lines.extend(_format_summary(summary, width, summary.metric in outside, digits))
     warnings = grouped_part_warnings(analysis.nominal_realization.substitutions)
     if warnings:
         lines.append("Build warnings:")

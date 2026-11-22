@@ -284,3 +284,12 @@ def test_the_common_range_is_where_every_range_holds():
     assert common_range([]) is None
     assert common_range([(0.0, 5e8), (1e8, 9e8)]) == (1e8, 5e8)
     assert describe_range((1e8, 5e8)) == "100 MHz to 500 MHz"
+
+
+def test_frequencies_that_round_to_the_srf_count_as_reaching_it():
+    # An integer just below 1e18 passes an exact comparison but is 1e18 as a float.
+    screen = screen_part(1e-8, CheckWindow(0, 10**18 - 1), PartModel(1e-8, 1e8, 10**18), 2.0)
+
+    assert screen.failed_limits == {LIMIT_DRIFT}
+    with pytest.raises(ValueError, match="below its SRF"):
+        PartModel(1e-8, 10**18 - 1, 10**18)

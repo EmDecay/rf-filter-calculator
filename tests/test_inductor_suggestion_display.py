@@ -578,6 +578,7 @@ def test_chip_json_and_csv_carry_the_part_s_guarantees_and_model():
         "LQW15AN75NG80D",
     )
     assert build["source"]["page"] == "p. 8"
+    assert build["model_basis"] == CHIP_MODEL_BASIS
     assert len(build["source"]["sha256"]) == 64
     assert build["model"]["self_capacitance_farads"] == pytest.approx(58.737e-15, rel=1e-4)
     assert (build["drift_allowance_pct"], build["design_allowance_pct"]) == (5.0, 10.0)
@@ -615,6 +616,8 @@ def test_chip_json_and_csv_carry_the_part_s_guarantees_and_model():
         "ChipAllowanceLow_MHz": "0",
         "ChipAllowanceHigh_MHz": "532.7",
         "ChipSourceURL": "https://pim.murata.com/asset/pim4/inductor/JELF243A-0100_PDF_INDUCTOR",
+        "ChipDriftAllowancePct": "5",
+        "ChipDesignAllowancePct": "10",
         "ChipModelBasis": CHIP_MODEL_BASIS,
         "ChipWarnings": CHIP_NOT_ASSESSED_WARNING,
     }

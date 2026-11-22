@@ -123,3 +123,22 @@ def test_a_capacitor_change_explains_only_that_capacitor_s_rows():
         "b",
         "c",
     ]
+
+
+def test_a_capacitor_change_must_be_its_recorded_parts_and_a_stray_a_pair_s():
+    design = next(item for item in tool.designs() if item.case_id == "hp-ch-pi-28MHz-n9")
+    before = [["L1", "1", "0", 1e-7], ["C1", "1", "2", 1e-11]]
+    changes = {"capacitor:E24:C1": ({"parts": [1e-11]}, {"parts": [1.1e-11]})}
+
+    def kinds(after, recorded=changes):
+        return tool.classify(design, "spice_nominal", before, after, recorded, {})[0]
+
+    assert kinds([["L1", "1", "0", 1e-7], ["C1", "1", "2", 1.1e-11]]) == ["a"]
+    assert kinds([["L1", "1", "0", 1e-7]]) == []  # deleted
+    assert kinds([["L1", "1", "0", 1e-7], ["C1", "1", "0", 1.1e-11]]) == []  # moved
+    assert kinds([["L1", "1", "0", 1e-7], ["C1", "1", "2", 1.2e-11]]) == []  # other value
+    # A stray must be the assumed 0.2 pF across a pair of the same capacitor.
+    pair = [["L1", "1", "0", 1e-7], ["C1A", "1", "2", 4.7e-12], ["C1B", "1", "2", 5.6e-12]]
+    pair_changes = {"capacitor:E24:C1": ({"parts": [1e-11]}, {"parts": [4.7e-12, 5.6e-12]})}
+    assert sorted(kinds([*pair, ["CSTRAY_C1", "1", "2", 2e-13]], pair_changes)) == ["a", "c"]
+    assert kinds([*before, ["CSTRAY_L1", "1", "0", 1.0]], {}) == []

@@ -13,11 +13,11 @@ from .numeric import is_finite_real, require_positive_finite
 from .plot_threshold_analysis import find_threshold_regions
 
 GAIN_TOLERANCE_DB = 0.001
-# Two frequencies closer than this (a fraction of the frequency scale, or of the frequency
-# itself, whichever is larger) are one frequency in the peak test: the sweep's middle point
-# and an exact reference frequency differ by rounding, which grows with the frequency.
-SAME_FREQUENCY_SCALE_FRACTION = 1e-9
-SAME_FREQUENCY_FRACTION = 1e-12
+# A local maximum is a peak only if it stands this far above the lowest point between it
+# and higher ground on either side (its prominence). A smaller bump is numerical noise: a
+# rounding-step pair on a slope, or the solver's wobble at the bottom of a dip, which the
+# peak nearest the center would otherwise be taken from.
+PEAK_PROMINENCE_DB = GAIN_TOLERANCE_DB
 FREQUENCY_TOLERANCE_FRACTION = 1e-5
 MAX_REFINEMENT_PASSES = 4
 
@@ -115,26 +115,20 @@ def _landmarks(fn, grid, passband, reference, scale, drop_db, peak_range=None):
         i for i, f in enumerate(grid) if peak_range is None or peak_range[0] <= f <= peak_range[1]
     ]
 
-    # A peak is at least as high as its nearest distinct neighbour on each side inside the
-    # range (without a range, on the grid). Points closer than the same-frequency limit are
-    # one frequency, so a rounding-step pair on a slope never passes for a flat peak.
-    def neighbour(position: int, step: int) -> int | None:
-        here = grid[candidates[position]]
-        same = max(scale * SAME_FREQUENCY_SCALE_FRACTION, here * SAME_FREQUENCY_FRACTION)
-        other = position + step
-        while 0 <= other < len(candidates) and abs(grid[candidates[other]] - here) <= same:
-            other += step
-        return candidates[other] if 0 <= other < len(candidates) else None
-
+    # A peak is at least as high as its neighbours inside the range (without a range, on
+    # the grid) and stands out from the noise.
     peaks = [
-        i
-        for position, i in enumerate(candidates)
-        if all(
-            other is None or values[i] >= values[other]
-            for other in (neighbour(position, -1), neighbour(position, 1))
+        candidates[position]
+        for position in range(len(candidates))
+        if (position == 0 or values[candidates[position]] >= values[candidates[position - 1]])
+        and (
+            position == len(candidates) - 1
+            or values[candidates[position]] >= values[candidates[position + 1]]
         )
+        and _prominence(values, candidates, position) >= PEAK_PROMINENCE_DB
     ]
     highest = max(candidates, key=values.__getitem__)
+    peaks = peaks or [highest]
     peak_index = (
         min(peaks, key=lambda i: (abs(grid[i] - reference), -values[i]))
         if reference is not None
@@ -259,24 +253,58 @@ def refine_response(
             cache[frequency] = value
         return cache[frequency]
 
-    if peak_range is not None and (peak_range[1] < freqs[0] or peak_range[0] > freqs[-1]):
-        # Checked against the supplied frequencies, before any anchor widens them.
-        raise ValueError("peak_range must overlap the frequencies")
-    grid = sorted(
-        set(list(freqs) + list(passband) + ([reference_frequency] if reference_frequency else []))
-    )
     if peak_range is not None:
-        # The range's ends are measured, so the range always holds a grid point.
-        grid = sorted(set(grid) | {f for f in peak_range if grid[0] <= f <= grid[-1]})
+        # Checked against, and cut to, the supplied frequencies before any anchor widens
+        # them, so the peak is never taken outside the sweep.
+        if peak_range[1] < freqs[0] or peak_range[0] > freqs[-1]:
+            raise ValueError("peak_range must overlap the frequencies")
+        peak_range = (max(peak_range[0], freqs[0]), min(peak_range[1], freqs[-1]))
+    anchors = [*passband, *([reference_frequency] if reference_frequency else [])]
+    anchors += list(peak_range or ())
+    grid = sorted(set(freqs) | set(anchors))
     previous = None
     for _ in range(max_passes):
         current = _landmarks(
             evaluate, grid, passband, reference_frequency, frequency_scale, drop_db, peak_range
         )
-        if previous is not None and _agrees(previous, current, frequency_scale):
+        # An evaluation inside a reported range above -3 dB that is below the threshold
+        # shows a dip the grid missed: it joins the grid, and the result has not converged.
+        dips = _hidden_dips(current, cache, drop_db)
+        if previous is not None and not dips and _agrees(previous, current, frequency_scale):
             return replace(current, converged=True, evaluations=len(cache))
         previous = current
         grid = sorted(
-            grid + [a + (b - a) / 2 for a, b in zip(grid, grid[1:]) if a < a + (b - a) / 2 < b]
+            set(grid)
+            | set(dips)
+            | {a + (b - a) / 2 for a, b in zip(grid, grid[1:]) if a < a + (b - a) / 2 < b}
         )
     return replace(current, evaluations=len(cache))
+
+
+def _prominence(values: list[float], candidates: list[int], position: int) -> float:
+    """How far the candidate at ``position`` stands above the lowest point between it and
+    higher ground; the highest point of all stands above everything (infinite)."""
+    value = values[candidates[position]]
+    cols = []
+    for step in (-1, 1):
+        lowest = value
+        other = position + step
+        while 0 <= other < len(candidates) and values[candidates[other]] <= value:
+            lowest = min(lowest, values[candidates[other]])
+            other += step
+        if 0 <= other < len(candidates):
+            cols.append(lowest)
+    return value - max(cols) if cols else math.inf
+
+
+def _hidden_dips(current: RefinedResponse, cache: dict[float, float], drop_db: float) -> list:
+    """Evaluated frequencies below the threshold that lie inside a reported region."""
+    threshold = current.reference_db - drop_db
+    return [
+        f
+        for f, value in cache.items()
+        if value < threshold
+        and any(
+            (low is None or low < f) and (high is None or f < high) for low, high in current.regions
+        )
+    ]

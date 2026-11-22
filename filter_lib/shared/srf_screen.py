@@ -103,7 +103,9 @@ class PartModel:
         for value in (self.catalog_inductance_h, self.test_frequency_hz, self.srf_hz):
             if not is_finite_real(value) or value <= 0:
                 raise ValueError("A part model needs positive finite values")
-        if self.test_frequency_hz >= self.srf_hz:
+        # Compared as the floats the model computes with, so a test frequency that rounds
+        # to the SRF (and would give an L0 of zero) is refused too.
+        if float(self.test_frequency_hz) >= float(self.srf_hz) or self.l0_h <= 0:
             raise ValueError("A part's test frequency must be below its SRF")
 
     @property
@@ -245,7 +247,8 @@ def screen_part(
 ) -> ScreenResult:
     """Screen one part (see the module docstring); a part exactly at a limit is within it."""
     _require_screen_inputs(target_h, tolerance_pct)
-    if window.high_hz >= model.srf_hz:
+    # As floats, so a window top that rounds to the SRF counts as reaching it.
+    if float(window.high_hz) >= float(model.srf_hz):
         return ScreenResult(frozenset({LIMIT_DRIFT}), None, None, None, None, None)
     exact = _ExactModel(model)
     target = _exact(target_h)

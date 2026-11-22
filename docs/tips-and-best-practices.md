@@ -122,9 +122,13 @@ stability or select parts. For a real loss model:
 
 - Air-core for highest Q at RF
 - Choose core material from manufacturer frequency/loss data; the built-in inductor
-  suggestions currently offer only toroid windings on primary-sourced T25-6, T50-2, and T68-2
-  iron-powder cores (VHF toroids and air-core coils are not offered; see
+  suggestions offer toroid windings on primary-sourced T25-6, T50-2, and T68-2 iron-powder
+  cores at HF, and Coilcraft and Murata wirewound chip inductors (catalog values 10–100 nH)
+  checked for SRF drift and worst case from their guaranteed tolerance and minimum SRF (VHF
+  toroids and air-core coils are not offered; see
   [Component Data Sources](component-data-sources.md#decisions))
+- A chip inductor's checks use the maker's fixture: mount it as the maker describes, keep
+  its pads small, and measure its inductance and SRF on the board
 - Consider using adjustable cores for tuning
 - Minimize lead length
 
@@ -177,9 +181,11 @@ uv run filter-calc lp bw pi 10MHz --format csv > bom.csv
 
 ### SPICE
 
-Best for reviewing the calculated values or the chosen parts in another simulator. The deck
-does not include layout, package parasitics, measured core loss, SRF, or nonlinear power
-behavior unless you add suitable models.
+Best for reviewing the calculated values or the chosen parts in another simulator. A
+chosen-parts deck models each chip inductor with a fixed self-capacitance across it
+(`CSELF_<inductor>`, from its minimum SRF) and each parallel pair with its assumed stray; it
+does not include layout, other package parasitics, capacitor ESL, a toroid's SRF, measured core
+loss, or nonlinear power behavior unless you add suitable models.
 
 ---
 

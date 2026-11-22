@@ -252,10 +252,12 @@ class CircuitMeasurement:
             keys.append("reference_peak_frequency_hz")
         if outside(self.peak_frequency_hz):
             keys.append("peak_frequency_hz")
+        # Every region is measured against the reference's threshold, so an outside
+        # reference makes each of them outside too.
         open_ends, other_ends = self._region_ends()
-        if any(outside(end) for end in open_ends):
+        if open_ends and (reference_outside or any(outside(end) for end in open_ends)):
             keys.append("open_half_power_region")
-        if any(outside(end) for end in other_ends):
+        if other_ends and (reference_outside or any(outside(end) for end in other_ends)):
             keys.append("half_power_regions")
         return tuple(keys)
 

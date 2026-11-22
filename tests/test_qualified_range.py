@@ -465,3 +465,99 @@ def test_the_lossless_range_caveat_reaches_the_json_limitations():
 
     assert "does not include that Q" in CHIP_Q_LIMITATION
     assert CHIP_Q_LIMITATION in payload["nominal_build"]["limitations"]
+
+
+def test_a_dip_the_grid_missed_splits_the_range_and_is_not_converged():
+    # bp ch top -f 400MHz -b 800kHz -n 5 -r 0.5 --tank-inductance 91nH, ports at 0.5 ohm: with
+    # Cp2 low, an evaluation inside the one reported range was below its threshold; bisection
+    # gives two ranges, 5.49 and 5.48 kHz wide.
+    request = DesignRequest(
+        "bandpass",
+        "chebyshev",
+        "top",
+        400e6,
+        50.0,
+        5,
+        ripple_db=0.5,
+        bandwidth_hz=800e3,
+        resonator_inductance=91e-9,
+        realization=BuildConfig(source_resistance_ohm=0.5, load_resistance_ohm=0.5),
+        run_build_analysis=True,
+    )
+    case = next(c for c in design(request).build_analysis.cases if c.case_id == "one:CT2:low")
+    regions = case.measurement.threshold_regions
+
+    assert len(regions) == 2
+    assert [high - low for low, high in regions] == [
+        pytest.approx(5.494e3, abs=5.0),
+        pytest.approx(5.482e3, abs=5.0),
+    ]
+
+
+def test_a_band_of_microhertz_finds_both_peaks_around_its_dip():
+    # bp bw top -f 146.0187MHz -b 0.0003Hz -n 2 --tank-inductance 91nH at 10 ohm ports: the
+    # center is a dip (-8.3 dB) between two 0 dB peaks about 104 microhertz away.
+    request = DesignRequest(
+        "bandpass",
+        "butterworth",
+        "top",
+        146.0187e6,
+        50.0,
+        2,
+        bandwidth_hz=0.0003,
+        resonator_inductance=91e-9,
+        realization=BuildConfig(
+            grid_points=51, source_resistance_ohm=10.0, load_resistance_ohm=10.0
+        ),
+        run_build_analysis=True,
+    )
+    ideal = design(request).build_analysis.calculated
+
+    assert abs(ideal.reference_peak_frequency_hz - 146.0187e6) == pytest.approx(1.04e-4, abs=5e-6)
+    assert ideal.reference_peak_gain_db == pytest.approx(0.0, abs=1e-3)
+    assert len(ideal.threshold_regions) == 2
+    assert all(
+        high - low == pytest.approx(4.4e-5, abs=2e-6) for low, high in ideal.threshold_regions
+    )
+
+
+def test_every_range_measured_from_an_outside_peak_is_outside():
+    from filter_lib.shared.build_types import CircuitMeasurement
+
+    measurement = CircuitMeasurement(
+        428e6,
+        430.7e6,
+        -30.0,
+        False,
+        reference_peak_frequency_hz=429.4e6,
+        peak_frequency_hz=429.4e6,
+        threshold_regions=((388.6e6, 388.7e6), (428e6, 430.7e6)),
+        selected_region_index=1,
+        sweep_hz=(380e6, 440e6),
+    )
+
+    assert "half_power_regions" in measurement.outside_range("bandpass", (0.0, 425.9e6))
+
+
+def test_a_narrow_band_s_edges_print_apart(monkeypatch, capsys):
+    text = cli_stdout(
+        monkeypatch,
+        capsys,
+        "bp",
+        "bw",
+        "top",
+        "-f",
+        "146.0187MHz",
+        "-b",
+        "100Hz",
+        "-n",
+        "3",
+        "--tank-inductance",
+        "91nH",
+        "--sim-build",
+        "--analysis-points",
+        "51",
+    )
+
+    chosen = next(line for line in text.splitlines() if line.startswith("Chosen parts:"))
+    assert "edges 146.01938157 MHz / 146.019445753 MHz" in chosen

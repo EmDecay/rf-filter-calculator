@@ -199,8 +199,9 @@ only labels changed.
   drift), worst case, allowances and source with SHA-256; CSV gains `ChipManufacturer`,
   `ChipTolerancePct`, `ChipLTest_MHz`, `ChipSRFMin_MHz`, `ChipQMin`, `ChipQTest_MHz`,
   `ChipAchievedL_nH`, `ChipAchievedLAt_MHz`, `ChipSelfCapacitance_fF`, `ChipAllowanceLow_MHz`,
-  `ChipAllowanceHigh_MHz`, `ChipSourceURL`, `ChipModelBasis` and `ChipWarnings` after the
-  `Toroid*` columns. The compact line names the maker.
+  `ChipAllowanceHigh_MHz`, `ChipSourceURL`, `ChipDriftAllowancePct`, `ChipDesignAllowancePct`,
+  `ChipModelBasis` and `ChipWarnings` after the `Toroid*` columns; the chip build record and
+  the table preamble give the same model basis. The compact line names the maker.
 - **Build simulation and chosen-parts SPICE.** `--build-inductors chip` (and `auto` where no
   toroid qualifies) now builds real parts: each chip inductor is its `L0` with a fixed capacitor
   `CSELF_<inductor>` across it (`L1 self-capacitance`), the same in the build and the deck and
@@ -281,9 +282,14 @@ RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
 
 - **Band-pass build measurements are taken from the true peak nearest the center.** The
   refinement adds the exact center frequency next to the sweep's middle point, one rounding
-  step away; on a slope the two could have equal gains and pass for a flat peak, so the −3 dB
-  edges were measured from the gain at the center instead of the peak. A peak now has to be at
-  least as high as its nearest distinct neighbour on each side. Detuned tolerance cases and
+  step away; on a slope the two could have equal gains and pass for a flat peak, and at the
+  bottom of a dip the solver's wobble could too, so the −3 dB edges were measured from the
+  gain at the center instead of the peak. A peak now needs a prominence of at least the
+  0.001 dB gain tolerance (`PEAK_PROMINENCE_DB`), and an evaluation inside a reported range
+  above −3 dB that falls below the threshold (a dip the grid missed) splits the range and
+  keeps the measurement from counting as converged. The build table prints band-pass centers
+  and edges with the digits the design header uses for its edges, so narrow bands show
+  distinct edges. Detuned tolerance cases and
   chosen-parts builds change most: for `bp bs top -f 21.2MHz -b 500kHz -n 3 --sim-build
   --eseries E96` the chosen-parts −3 dB bandwidth is 507.0 kHz, not 676.4 kHz; the ideal values
   move by tens of hertz. In the HF baseline this is permitted change (f), listed for the six band-pass builds.

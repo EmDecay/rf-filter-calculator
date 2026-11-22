@@ -17,7 +17,8 @@ A later change may alter these facts only in the ways the VHF/UHF work permits:
 (e) tolerance cases that use each part's own tolerance;
 (f) band-pass build measurements taken from the true peak nearest the center (the
     refinement once took a two-point "plateau" at f0, the sweep's middle point and the
-    exact center one rounding step apart, as the peak on a slope; user decision 2026-11-22).
+    exact center one rounding step apart, or a noise bump, as the peak; a peak now needs a
+    prominence of at least the gain tolerance; user decision 2026-11-22).
 
 Each changed item is listed in ``tests/fixtures/hf_baseline_allowed_changes.json`` with
 its kind and reason; ``tests/test_hf_baseline.py`` fails on any change that is not listed,
@@ -446,6 +447,45 @@ _STRAY_NAME = re.compile(r"^CSTRAY_")
 _SELF_CAPACITANCE_NAME = re.compile(r"^CSELF_(?P<inductor>\S+)$")
 
 
+# The assumed stray across each pair in the corpus decks (the default policy).
+_DEFAULT_STRAY_F = 0.2e-12
+
+
+def _part_rows(rows: list | None, table_name: str) -> list:
+    """The deck rows of a capacitor's parts (not its stray)."""
+    return [
+        row
+        for row in rows or []
+        if not _STRAY_NAME.match(str(row[0])) and _table_name(str(row[0])) == table_name
+    ]
+
+
+def _stray_across_a_pair(name: str, rows: list | None) -> bool:
+    """Whether stray ``name`` is the default stray across a pair on the same terminals."""
+    stray = next(row for row in rows or [] if row[0] == name)
+    parts = _part_rows(rows, _table_name(name.removeprefix("CSTRAY_")))
+    return (
+        len(parts) >= 2
+        and all(tuple(part[1:3]) == tuple(stray[1:3]) for part in parts)
+        and math.isclose(stray[3], _DEFAULT_STRAY_F, rel_tol=1e-9)
+    )
+
+
+def _rows_are_the_recorded_parts(item_name: str, before: list, after: list, changes) -> bool:
+    """Whether a changed capacitor's deck rows are its recorded parts on its old terminals."""
+    table_name = item_name.split(":", 2)[2]
+    old_rows = _part_rows(before, table_name)
+    new_rows = _part_rows(after, table_name)
+    recorded = (changes[item_name][1] or {}).get("parts") or []
+    terminals = {tuple(row[1:3]) for row in old_rows}
+    return (
+        len(new_rows) == len(recorded)
+        and len(terminals) == 1
+        and all(tuple(row[1:3]) in terminals for row in new_rows)
+        and _close(sorted(row[3] for row in new_rows), sorted(recorded), MEASUREMENT_REL_TOL)
+    )
+
+
 def _table_name(element: str) -> str:
     """The component-table name a deck element belongs to (``CT1A`` is Cp1, ``C1B`` is C1)."""
     from filter_lib.shared.circuit_display_names import display_component_name
@@ -524,6 +564,10 @@ def classify(
         names_before = {row[0] for row in before or []}
         names_after = {row[0] for row in after or []}
         added = sorted(name for name in names_after - names_before if _STRAY_NAME.match(name))
+        # A stray is the assumed 0.2 pF across a parallel pair: two or more parts of the
+        # same capacitor on the stray's own terminals.
+        if any(not _stray_across_a_pair(name, after) for name in added):
+            return [], "not a permitted change"
         if added:
             kinds.append("c")
             reasons.append(f"stray capacitor across each pair ({', '.join(added)})")
@@ -565,11 +609,19 @@ def classify(
 
         if _close(unexplained(before), unexplained(after), MEASUREMENT_REL_TOL):
             return kinds, "; ".join(reasons)
-        # Every remaining difference must be in a changed capacitor's own rows.
-        if not changed or not _close(
-            unexplained(before, changed_names),
-            unexplained(after, changed_names),
-            MEASUREMENT_REL_TOL,
+        # Every remaining difference must be in a changed capacitor's own rows, and those
+        # rows must be its recorded new parts on its original terminals.
+        if (
+            not changed
+            or not _close(
+                unexplained(before, changed_names),
+                unexplained(after, changed_names),
+                MEASUREMENT_REL_TOL,
+            )
+            or not all(
+                _rows_are_the_recorded_parts(item_name, before, after, changes)
+                for item_name in changed
+            )
         ):
             return [], "not a permitted change"
         kinds.append("a")
@@ -617,27 +669,21 @@ def classify(
 
 
 def record_with_old_peak_rule(design: Design) -> dict[str, object]:
-    """``record(design)`` with the peak test before the reference-peak fix.
+    """``record(design)`` with response refinement as before the reference-peak fix.
 
-    With no same-frequency limit, a candidate is compared with its adjacent grid points,
-    as before the fix, so a rounding-step pair at the center can pass for a flat peak.
-    Only the difference between this and ``record`` is the fix's effect (kind f).
+    Every local maximum counts as a peak (no prominence), and no evaluated dip splits a
+    region, so a rounding-step pair or a noise bump near the center can be taken as the
+    peak. Only the difference between this and ``record`` is the fix's effect (kind f).
     """
     from filter_lib.shared import response_refinement
 
-    saved = (
-        response_refinement.SAME_FREQUENCY_SCALE_FRACTION,
-        response_refinement.SAME_FREQUENCY_FRACTION,
-    )
-    response_refinement.SAME_FREQUENCY_SCALE_FRACTION = 0.0
-    response_refinement.SAME_FREQUENCY_FRACTION = 0.0
+    saved = (response_refinement.PEAK_PROMINENCE_DB, response_refinement._hidden_dips)
+    response_refinement.PEAK_PROMINENCE_DB = 0.0
+    response_refinement._hidden_dips = lambda *_args: []
     try:
         return record(design)
     finally:
-        (
-            response_refinement.SAME_FREQUENCY_SCALE_FRACTION,
-            response_refinement.SAME_FREQUENCY_FRACTION,
-        ) = saved
+        response_refinement.PEAK_PROMINENCE_DB, response_refinement._hidden_dips = saved
 
 
 def current_changes() -> list[dict]:

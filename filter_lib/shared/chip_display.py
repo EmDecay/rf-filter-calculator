@@ -30,6 +30,8 @@ CSV_CHIP_HEADER: list[str] = [
     "ChipAllowanceLow_MHz",
     "ChipAllowanceHigh_MHz",
     "ChipSourceURL",
+    "ChipDriftAllowancePct",
+    "ChipDesignAllowancePct",
     "ChipModelBasis",
     "ChipWarnings",
 ]
@@ -46,8 +48,7 @@ _WRAP_WIDTH = 88
 CHIP_HEADING = "Chip inductors (wirewound; the maker's guaranteed tolerance and minimum SRF):"
 CHIP_MODEL_LINE = (
     "L at {top}: the part's inductance there at its minimum SRF. Self-capacitance: the "
-    "upper bound from that SRF at the catalog inductance. Both come from the maker's "
-    "fixture; board mounting changes the SRF."
+    "upper bound from that SRF at the catalog inductance."
 )
 
 
@@ -125,6 +126,7 @@ def chip_preamble_lines(shown: Sequence[ChipSuggestion]) -> list[str]:
         checked_line(window.describe()),
         CHIP_NOT_ASSESSED_WARNING,
         CHIP_MODEL_LINE.format(top=format_frequency(window.high_hz)),
+        CHIP_MODEL_BASIS,
     ):
         lines.extend(textwrap.wrap(text, width=_WRAP_WIDTH, break_on_hyphens=False))
     return lines
@@ -163,6 +165,7 @@ def chip_build_payload(chip: ChipSuggestion) -> dict:
             "inductance_at_check_top_henries": screen.achieved_h,
         },
         "check_window_hz": [chip.window.low_hz, chip.window.high_hz],
+        "model_basis": CHIP_MODEL_BASIS,
         "drift_allowance_pct": DRIFT_ALLOWANCE_PCT,
         "design_allowance_pct": DESIGN_ALLOWANCE_PCT,
         # The drift at the minimum SRF at the window's ends, and the range a real part's
@@ -200,6 +203,8 @@ def chip_csv_columns(chip: ChipSuggestion | None) -> list[str]:
         f"{math.ceil(low / 1e5) / 10:g}",
         f"{math.floor(high / 1e5) / 10:g}",
         part.family.source.url,
+        f"{DRIFT_ALLOWANCE_PCT:g}",
+        f"{DESIGN_ALLOWANCE_PCT:g}",
         CHIP_MODEL_BASIS,
         CHIP_NOT_ASSESSED_WARNING,
     ]
