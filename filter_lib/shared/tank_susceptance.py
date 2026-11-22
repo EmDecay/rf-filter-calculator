@@ -113,11 +113,9 @@ def node_admittance(
         return matrix[0][0]
     # Schur complement onto ``node`` (index 0): Y00 - Y0I · inv(YII) · YI0.
     inner = [row[1:] for row in matrix[1:]]
-    coupling = [matrix[position][0] for position in range(1, size)]
+    coupling = [row[0] for row in matrix[1:]]
     solved = _solve(inner, coupling)
-    return matrix[0][0] - sum(
-        matrix[0][position + 1] * solved[position] for position in range(size - 1)
-    )
+    return matrix[0][0] - sum(entry * value for entry, value in zip(matrix[0][1:], solved))
 
 
 def node_susceptance(

@@ -151,13 +151,22 @@ def series_inductance(trimmer: TrimmerPart) -> tuple[float, bool]:
     return bound, False
 
 
-def _capacitor_admittance(value: float, omega: float, q: float | None, reference_hz: float):
-    resistance = 0.0 if q is None else derive_series_resistance("C", value, q, reference_hz)
+def _series_resistance(kind: str, value: float, q: float | None, reference_hz: float) -> float:
+    """The series resistance that gives a part its Q; none for a lossless part."""
+    return 0.0 if q is None else derive_series_resistance(kind, value, q, reference_hz)
+
+
+def _capacitor_admittance(
+    value: float, omega: float, q: float | None, reference_hz: float
+) -> complex:
+    resistance = _series_resistance("C", value, q, reference_hz)
     return 1.0 / complex(resistance, -1.0 / (omega * value))
 
 
-def _inductor_admittance(value: float, omega: float, q: float | None, reference_hz: float):
-    resistance = 0.0 if q is None else derive_series_resistance("L", value, q, reference_hz)
+def _inductor_admittance(
+    value: float, omega: float, q: float | None, reference_hz: float
+) -> complex:
+    resistance = _series_resistance("L", value, q, reference_hz)
     return 1.0 / complex(resistance, omega * value)
 
 
@@ -169,7 +178,7 @@ def trimmer_admittance(
     reference_hz: float,
 ) -> complex:
     """A trimmer at knob value ``setting_f`` with its series inductance and Q."""
-    resistance = 0.0 if q is None else derive_series_resistance("C", setting_f, q, reference_hz)
+    resistance = _series_resistance("C", setting_f, q, reference_hz)
     return 1.0 / complex(resistance, omega * inductance_h - 1.0 / (omega * setting_f))
 
 
@@ -255,6 +264,16 @@ def port_branch_range(
     return min(values), max(values)
 
 
+def _tolerance_ends(
+    values: tuple[float, ...], tolerances: tuple[float, ...]
+) -> tuple[float, float]:
+    """The sum of parts with every one at the low end of its tolerance, then the high end."""
+    return (
+        math.fsum(v - t for v, t in zip(values, tolerances)),
+        math.fsum(v + t for v, t in zip(values, tolerances)),
+    )
+
+
 @dataclass(frozen=True)
 class _Values:
     """A capacitor's parts as (values, tolerances), its stray, and any assumption."""
@@ -263,14 +282,6 @@ class _Values:
     tolerances: tuple[float, ...]
     stray_f: float
     assumption: str | None
-
-    @property
-    def low(self) -> float:
-        return math.fsum(v - t for v, t in zip(self.values, self.tolerances))
-
-    @property
-    def high(self) -> float:
-        return math.fsum(v + t for v, t in zip(self.values, self.tolerances))
 
 
 def not_sourced_assumption(pct: float) -> str:
@@ -357,15 +368,30 @@ def _capacitor_range(
 ) -> tuple[float, float]:
     q = losses.capacitor_q_for(element.name)
     reference = losses.reference_frequency_hz
+    parts_low, parts_high = _tolerance_ends(values.values, values.tolerances)
     if port_resistance is not None:
         return port_branch_range(
-            (values.low, values.high), values.stray_f, port_resistance, omega, q, reference
+            (parts_low, parts_high), values.stray_f, port_resistance, omega, q, reference
         )
-    low = _capacitor_admittance(values.low, omega, q, reference).imag
+    low = _capacitor_admittance(parts_low, omega, q, reference).imag
     high = (
-        _capacitor_admittance(values.high, omega, q, reference) + 1j * omega * values.stray_f
+        _capacitor_admittance(parts_high, omega, q, reference) + 1j * omega * values.stray_f
     ).imag
     return low, high
+
+
+def _exact_pf(value_f: float) -> Fraction:
+    """A float capacitance in exact pF (its own binary value, not its decimal text)."""
+    return Fraction(value_f) * _PF_PER_F
+
+
+def _farads(value_pf: Fraction) -> float:
+    """An exact pF value as the nearest float in farads."""
+    return float(value_pf / _PF_PER_F)
+
+
+# A fixed part as its values and their ± tolerances, in farads (both empty: no fixed part).
+_FixedOption = tuple[tuple[float, ...], tuple[float, ...]]
 
 
 def _fixed_options(
@@ -374,7 +400,7 @@ def _fixed_options(
     stray_per_part_f: float,
     scale: float,
     candidates: list[tuple[Fraction, Fraction]],
-) -> list[tuple[tuple[float, ...], tuple[float, ...]]]:
+) -> list[_FixedOption]:
     """The best single part and the best pair for ``target_f`` (capacitance equivalent).
 
     ``scale`` converts a part's value to its capacitance equivalent (its Q lowers it);
@@ -383,27 +409,20 @@ def _fixed_options(
     """
     if target_f <= 0:
         return []
-    upper = Fraction(upper_f / scale) * _PF_PER_F
+    upper = _exact_pf(upper_f / scale)
     candidates = candidates[: bisect_right([value for value, _t in candidates], upper)]
     if not candidates:
         return []
-    target = Fraction(target_f / scale) * _PF_PER_F
-    stray_one = Fraction(stray_per_part_f / scale) * _PF_PER_F
+    target = _exact_pf(target_f / scale)
+    stray_one = _exact_pf(stray_per_part_f / scale)
     _score, value, tolerance = min(
         (max(abs(v - t - target), abs(v + t + stray_one - target)), v, t) for v, t in candidates
     )
-    options: list[tuple[tuple[float, ...], tuple[float, ...]]] = [
-        ((float(value / _PF_PER_F),), (float(tolerance / _PF_PER_F),))
-    ]
+    options: list[_FixedOption] = [((_farads(value),), (_farads(tolerance),))]
     pair = best_pair(candidates, target, PAIR_RATIO_LIMIT, 2 * stray_one)
     if pair is not None:
         _pair_score, _ratio, _total, (low, low_tol), (high, high_tol) = pair
-        options.append(
-            (
-                (float(low / _PF_PER_F), float(high / _PF_PER_F)),
-                (float(low_tol / _PF_PER_F), float(high_tol / _PF_PER_F)),
-            )
-        )
+        options.append(((_farads(low), _farads(high)), (_farads(low_tol), _farads(high_tol))))
     return options
 
 
@@ -430,33 +449,31 @@ def _best_split_for(
     # A part's capacitance equivalent with its Q (exactly linear in its value).
     scale = _capacitor_admittance(1e-12, omega, q, reference_hz).imag / (omega * 1e-12)
     stray = policy.stray_capacitance_f
-    options: list[tuple[tuple[float, ...], tuple[float, ...]]] = [((), ())]
+    options: list[_FixedOption] = [((), ())]
     options.extend(_fixed_options(middle, window_high, stray, scale, candidates))
-    best = None
+    fits = []
     for values, tolerances in options:
         extra_stray = stray * len(values)
-        low = scale * math.fsum(v - t for v, t in zip(values, tolerances))
-        high = scale * math.fsum(v + t for v, t in zip(values, tolerances)) + extra_stray
+        parts_low, parts_high = _tolerance_ends(values, tolerances)
+        low = scale * parts_low
+        high = scale * parts_high + extra_stray
         if low < window_low or high > window_high:
             continue
-        centring = max(abs(low - middle), abs(high - middle))
-        key = (centring, len(values))
-        if best is None or key < best[0]:
-            best = (key, values, tolerances, extra_stray, low, high)
-    if best is None:
-        return None
-    (centring, _count), values, tolerances, extra_stray, low, high = best
-    return TankSplit(
-        trimmer=trimmer,
-        fixed_parts_f=values,
-        fixed_tolerances_f=tolerances,
-        stray_f=extra_stray,
-        series_inductance_h=inductance,
-        series_inductance_assumed=assumed,
-        trimmer_range_f=trimmer_range,
-        required_f=(need.low_f - high, need.high_f - low),
-        centring_f=centring,
-    )
+        fits.append(
+            TankSplit(
+                trimmer=trimmer,
+                fixed_parts_f=values,
+                fixed_tolerances_f=tolerances,
+                stray_f=extra_stray,
+                series_inductance_h=inductance,
+                series_inductance_assumed=assumed,
+                trimmer_range_f=trimmer_range,
+                required_f=(need.low_f - high, need.high_f - low),
+                centring_f=max(abs(low - middle), abs(high - middle)),
+            )
+        )
+    # The best-centred fit; on a tie, the one with fewer parts, then the first listed.
+    return min(fits, key=lambda split: (split.centring_f, len(split.fixed_parts_f)), default=None)
 
 
 def tank_nodes(result: Mapping) -> tuple[int, ...]:
@@ -474,6 +491,12 @@ def tuning_frequency(result: Mapping) -> float:
     return float(result.get("f_tank_hz") or result["f0"])
 
 
+def _split_rank(split: TankSplit) -> tuple[float, float, int, str]:
+    """Smallest trimmer range, then best-centred fixed part, then fewer parts, then part number."""
+    low, high = split.trimmer_range_f
+    return (high - low, split.centring_f, len(split.fixed_parts_f), split.trimmer.part_name)
+
+
 def size_tanks(
     result: dict,
     circuit: NamedCircuit,
@@ -488,8 +511,10 @@ def size_tanks(
     """Size every tank of a band-pass design (see the module docstring)."""
     frequency = tuning_frequency(result)
     omega = TWO_PI * frequency
+    reference = losses.reference_frequency_hz
     nodes = tank_nodes(result)
-    design_ports = {node: float(result["z0"]) for node in ports}
+    design_ports = {port: float(result["z0"]) for port in ports}
+    ports_ohm = (ports[circuit.in_node], ports[circuit.out_node])
     # Every part the worst-case rule may choose, ascending, for the fixed part's search.
     candidates = eligible_parts_pf(policy, eseries)
     tanks: dict[str, TankParts] = {}
@@ -501,12 +526,12 @@ def size_tanks(
         for element in circuit.elements:
             if element.name == name or node not in (element.node1, element.node2):
                 continue
-            other = element.node2 if element.node1 == node else element.node1
             if element.kind == "L":
                 low, high, assumption = _inductor_range(
                     element, inductors[element.name], config, omega, losses
                 )
             else:
+                other = element.node2 if element.node1 == node else element.node1
                 values = _capacitor_values(element, capacitors[element.name], policy)
                 low, high = _capacitor_range(element, values, ports.get(other), omega, losses)
                 assumption = values.assumption
@@ -520,31 +545,18 @@ def size_tanks(
             assumptions=tuple(assumptions),
         )
         q = losses.capacitor_q_for(name)
-        splits = [
-            split
+        fits = (
+            _best_split_for(trimmer, need, frequency, q, reference, policy, candidates)
             for trimmer in trimmer_parts()
-            if (
-                split := _best_split_for(
-                    trimmer, need, frequency, q, losses.reference_frequency_hz, policy, candidates
-                )
-            )
-            is not None
-        ]
-        splits.sort(
-            key=lambda item: (
-                item.trimmer_range_f[1] - item.trimmer_range_f[0],
-                item.centring_f,
-                len(item.fixed_parts_f),
-                item.trimmer.part_name,
-            )
         )
+        splits = sorted((split for split in fits if split is not None), key=_split_rank)
         tanks[name] = TankParts(
             name=name,
             node=node,
             tuning_frequency_hz=frequency,
             target_susceptance_s=target,
             need=need,
-            ports_ohm=(ports[circuit.in_node], ports[circuit.out_node]),
+            ports_ohm=ports_ohm,
             splits=tuple(splits[:MAX_TANK_SPLITS]),
         )
     return tanks

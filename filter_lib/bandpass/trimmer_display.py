@@ -54,13 +54,21 @@ def _range(low: float, high: float) -> str:
     return f"{_pf(low)}–{_pf(high)} pF"
 
 
+def _parallel_text(values_f: tuple[float, ...]) -> str:
+    """Parts in parallel, joined by ``||``; empty for no part."""
+    return " || ".join(format_capacitance(value) for value in values_f)
+
+
+def _need_basis(tank: TankParts) -> str:
+    return "conditional" if tank.need.conditional else "sourced"
+
+
 def series_inductance_text(split: TankSplit) -> str:
     """The series inductance a fit assumes, and where it comes from."""
-    trimmer = split.trimmer
     inductance = format_inductance(split.series_inductance_h)
     if split.series_inductance_assumed:
         return f"at most {inductance} series inductance (an assumption; the maker states no bound)"
-    srf = format_tank_frequency(trimmer.srf_min_at_cmax_hz)
+    srf = format_tank_frequency(split.trimmer.srf_min_at_cmax_hz)
     return (
         f"at most {inductance} series inductance (the bound from its minimum SRF of {srf} at "
         "its maximum)"
@@ -72,7 +80,7 @@ def _trimmer_title(trimmer: TrimmerPart) -> str:
     others = f" (or {', '.join(alternatives)})" if alternatives else ""
     return (
         f"{trimmer.maker} {trimmer.part_name}{others}, "
-        f"{_pf(trimmer.cmin_max_f)}–{_pf(trimmer.cmax_min_f)} pF guaranteed"
+        f"{_range(trimmer.cmin_max_f, trimmer.cmax_min_f)} guaranteed"
     )
 
 
@@ -112,7 +120,7 @@ def assumptions_text(tank: TankParts) -> str:
 def _fixed_text(split: TankSplit) -> str:
     if not split.fixed_parts_f:
         return "no fixed part,"
-    return " || ".join(format_capacitance(value) for value in split.fixed_parts_f) + " +"
+    return _parallel_text(split.fixed_parts_f) + " +"
 
 
 def tank_lines(tank: TankParts) -> list[str]:
@@ -223,7 +231,7 @@ def tank_trimmers_payload(parts: ResolvedParts) -> dict[str, Any] | None:
                 "circuit_name": tank.name,
                 "target_susceptance_s": tank.target_susceptance_s,
                 "need_f": [tank.need.low_f, tank.need.high_f],
-                "need_basis": "conditional" if tank.need.conditional else "sourced",
+                "need_basis": _need_basis(tank),
                 "assumptions": [
                     {"part": part, "assumption": assumption}
                     for part, assumption in tank.need.assumptions
@@ -254,13 +262,12 @@ def trimmer_csv_columns(tank: TankParts | None) -> list[str]:
     if tank is None:
         return [""] * len(CSV_TRIMMER_HEADER)
     need = [_pf(tank.need.low_f), _pf(tank.need.high_f)]
-    basis = "conditional" if tank.need.conditional else "sourced"
+    basis = _need_basis(tank)
     split = tank.split
     if split is None:
         return ["", "", "", "", "", "", *need, basis]
-    fixed = " || ".join(format_capacitance(value) for value in split.fixed_parts_f) or "none"
     return [
-        fixed,
+        _parallel_text(split.fixed_parts_f) or "none",
         split.trimmer.part_name,
         _pf(split.required_f[0]),
         _pf(split.required_f[1]),

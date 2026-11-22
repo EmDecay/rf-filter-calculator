@@ -18,7 +18,7 @@ Q, so a tuned response is not the design's response.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 
 from .build_loss_models import derive_series_resistance
@@ -73,6 +73,11 @@ class TuningPlan:
     ports: Mapping[int, float]
 
 
+def _trimmer_resistance(setting_f: float, q: float | None, reference_hz: float) -> float:
+    """The series resistance that gives a trimmer at ``setting_f`` its Q; none when lossless."""
+    return 0.0 if q is None else derive_series_resistance("C", setting_f, q, reference_hz)
+
+
 def trimmer_element(
     element: CircuitElement,
     series_inductance_h: float,
@@ -90,15 +95,13 @@ def trimmer_element(
         logical_name=element.name,
         quality_factor=q,
         loss_reference_frequency_hz=reference_hz if q is not None else None,
-        series_resistance_ohm=(
-            0.0 if q is None else derive_series_resistance("C", setting_f, q, reference_hz)
-        ),
+        series_resistance_ohm=_trimmer_resistance(setting_f, q, reference_hz),
         fixed=True,
         series_inductance_h=series_inductance_h,
     )
 
 
-def _bisect(function, target: float, low: float, high: float) -> float:
+def _bisect(function: Callable[[float], float], target: float, low: float, high: float) -> float:
     """The knob setting in ``[low, high]`` where the increasing ``function`` is ``target``."""
     for _ in range(_BISECTION_STEPS):
         middle = (low + high) / 2.0
@@ -120,18 +123,16 @@ def plan_trimmer(
     """The tuning plan of a tank with a fitting split (``tank.split``)."""
     split = tank.split
     assert split is not None
-    trimmer = split.trimmer
     inductance = split.series_inductance_h
     frequency = tank.tuning_frequency_hz
     omega = TWO_PI * frequency
-    range_high = split.trimmer_range_f[1] * omega
-    low = trimmer.cmin_max_f
-    high = trimmer.cmax_min_f
+    low, high = split.trimmer.cmin_max_f, split.trimmer.cmax_min_f
 
     def susceptance(setting: float) -> float:
         return trimmer_admittance(setting, inductance, omega, q, reference_hz).imag
 
     # The knob setting that reaches the unraised maximum with this inductance.
+    range_high = split.trimmer_range_f[1] * omega
     knob_high = high if inductance == 0 else _bisect(susceptance, range_high, low, high)
     return TrimmerPlan(
         tank=tank.name,
@@ -188,11 +189,7 @@ def tune(
     for element in circuit.elements:
         if element.name in by_element:
             plan, setting = by_element[element.name]
-            resistance = (
-                0.0
-                if plan.q is None
-                else derive_series_resistance("C", setting.setting_f, plan.q, plan.reference_hz)
-            )
+            resistance = _trimmer_resistance(setting.setting_f, plan.q, plan.reference_hz)
             element = replace(element, value=setting.setting_f, series_resistance_ohm=resistance)
         elements.append(element)
     return replace(circuit, elements=tuple(elements)), settings

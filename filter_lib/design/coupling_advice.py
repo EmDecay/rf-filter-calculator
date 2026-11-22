@@ -41,7 +41,7 @@ MAX_COUPLING_ADVICE_TRIALS = 8
 _MAX_TOROID_TURNS = 200
 # A suggestion supplies a value when its own value matches it this closely (relative).
 _SUPPLY_TOLERANCE = 1e-9
-# The coupling capacitors of a band-pass design: the inter-resonator ones and the ends.
+# The end coupling capacitors of a band-pass design (the inter-resonator ones are CK1, CK2 ...).
 _END_COUPLERS = ("CIN", "COUT")
 
 CLI_FLAG = "--tank-inductance"
@@ -116,14 +116,11 @@ def _floor_text(floor_f: float) -> str:
 def _coupler_names(parts: ResolvedParts) -> list[str]:
     """The coupling capacitors in table order: Ce_in, Cs12 ..., Ce_out."""
     inner = sorted(
-        (name for name in parts.capacitors if name.startswith("CK")), key=lambda n: int(n[2:])
+        (name for name in parts.capacitors if name.startswith("CK")),
+        key=lambda name: int(name[2:]),
     )
     first, last = _END_COUPLERS
-    return [
-        *([first] if first in parts.capacitors else []),
-        *inner,
-        *([last] if last in parts.capacitors else []),
-    ]
+    return [name for name in (first, *inner, last) if name in parts.capacitors]
 
 
 def _has_part_at_floor(match: ESeriesMatch, floor_f: float) -> bool:
@@ -208,14 +205,13 @@ class _Search:
             parts = resolve_parts(trial_request, result, self.should_cancel)
         except ValueError as error:
             trial = AdviceTrial(read, setting, False, False, str(error))
-            self.trials.append(trial)
-            return trial
-        couplers_ok = not short_couplers(parts)
-        supplier = _supplier(parts, read)
-        trial = AdviceTrial(read, setting, couplers_ok, supplier is not None)
+        else:
+            couplers_ok = not short_couplers(parts)
+            supplier = _supplier(parts, read)
+            trial = AdviceTrial(read, setting, couplers_ok, supplier is not None)
+            if trial.works and supplier is not None:
+                self.reruns[index] = (trial, result, parts, supplier)
         self.trials.append(trial)
-        if trial.works and supplier is not None:
-            self.reruns[index] = (trial, result, parts, supplier)
         return trial
 
 
