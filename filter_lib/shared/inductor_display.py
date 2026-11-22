@@ -229,6 +229,8 @@ def _build_payload(suggestion: InductorSuggestion) -> dict | None:
 def suggestion_payload(suggestion: InductorSuggestion) -> dict:
     """One suggestion as JSON (raw enum values kept)."""
     budget = suggestion.error_budget
+    worst = budget.worst_case_pct
+    allowance = suggestion.allowance_range_hz
     return {
         "kind": suggestion.kind,
         "rank": suggestion.rank,
@@ -243,13 +245,9 @@ def suggestion_payload(suggestion: InductorSuggestion) -> dict:
             "nominal_mismatch_pct": budget.nominal_mismatch_pct,
             "tolerance_pct": budget.tolerance_pct,
             "srf_drift_pct": None if budget.srf_drift_pct is None else list(budget.srf_drift_pct),
-            "worst_case_pct": None
-            if budget.worst_case_pct is None
-            else list(budget.worst_case_pct),
+            "worst_case_pct": None if worst is None else list(worst),
         },
-        "allowance_range_hz": None
-        if suggestion.allowance_range_hz is None
-        else list(suggestion.allowance_range_hz),
+        "allowance_range_hz": None if allowance is None else list(allowance),
         "source": _source_payload(suggestion),
         "build": _build_payload(suggestion),
         "warnings": list(suggestion.warnings),

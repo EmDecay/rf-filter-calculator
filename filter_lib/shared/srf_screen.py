@@ -168,8 +168,8 @@ def _exact(value: float) -> Fraction:
     return Fraction(repr(float(value)))
 
 
-_DRIFT_LIMIT = Fraction(repr(DRIFT_ALLOWANCE_PCT)) / 100
-_DESIGN_LIMIT = Fraction(repr(DESIGN_ALLOWANCE_PCT)) / 100
+_DRIFT_LIMIT = _exact(DRIFT_ALLOWANCE_PCT) / 100
+_DESIGN_LIMIT = _exact(DESIGN_ALLOWANCE_PCT) / 100
 
 
 class _ExactModel:

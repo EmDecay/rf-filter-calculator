@@ -103,7 +103,7 @@ def _passband(
     if category == "lowpass":
         return freqs[0], result["freq_hz"]
     if category == "highpass":
-        return result["freq_hz"], freqs[-1] if top is None else top
+        return result["freq_hz"], (freqs[-1] if top is None else top)
     return result["f_low"], result["f_high"]
 
 

@@ -151,10 +151,10 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
     category = analysis.category
     qualified = analysis.qualified_range_hz
     fields: dict[str, Any] = {
-        "target": _target_payload(result, analysis.category),
+        "target": _target_payload(result, category),
         "simulated": {
             "realization": "calculated_exact_values",
-            "measurement": _measurement_payload(analysis.calculated, analysis.category),
+            "measurement": _measurement_payload(analysis.calculated, category),
         },
         "nominal_build": {
             **realization_summary(analysis.nominal_realization),
@@ -198,7 +198,7 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
                 "gain_tolerance_db": GAIN_TOLERANCE_DB,
                 "frequency_tolerance_fraction": FREQUENCY_TOLERANCE_FRACTION,
                 "frequency_tolerance_reference": "bandwidth"
-                if analysis.category == "bandpass"
+                if category == "bandpass"
                 else "cutoff",
                 "max_refinement_passes": MAX_REFINEMENT_PASSES,
                 "convergence_is_not_a_mathematical_bound": True,

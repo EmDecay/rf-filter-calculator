@@ -157,10 +157,16 @@ def _realize_inductor(
     tolerance_pct, own_tolerance = inductor_tolerance(config, pick)
     if pick is not None:
         model = pick.part_model
-        nominal = model.catalog_inductance_h if model is not None else pick.achieved_h
+        if model is None:
+            nominal = inductance = pick.achieved_h
+            self_capacitance = None
+        else:
+            nominal = model.catalog_inductance_h
+            inductance = model.l0_h
+            self_capacitance = model.self_capacitance_f
         realized = replace(
             element,
-            value=model.l0_h if model is not None else pick.achieved_h,
+            value=inductance,
             logical_name=element.name,
             series_resistance_ohm=0.0,
             quality_factor=None,
@@ -168,7 +174,6 @@ def _realize_inductor(
             tolerance=tolerance_pct / 100.0,
         )
         physical = [_with_loss(realized, quality_factor, loss_reference_frequency_hz)]
-        self_capacitance = model.self_capacitance_f if model is not None else None
         if self_capacitance is not None:
             physical.append(self_capacitance_element(element, self_capacitance))
         # A toroid winding also records its core, turns, and wire.
