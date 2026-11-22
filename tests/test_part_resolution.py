@@ -401,6 +401,25 @@ def test_forced_toroid_at_vhf_gives_the_toroid_reason():
     assert inductor.build_note == inductor.kind("toroid").reason_none
 
 
+@pytest.mark.parametrize("detail", ["best", "none"])
+def test_a_band_pass_result_without_its_upper_edge_still_resolves(detail):
+    # A hand-made result without f_high: with suggestions on, the edge comes from f0 and bw
+    # as synthesis computes it; with them off, nothing needs it.
+    from filter_lib.bandpass import calculate_bandpass_filter
+
+    result = calculate_bandpass_filter(146e6, 4e6, 50, 3, "butterworth", "top")
+    f_high = result.pop("f_high")
+
+    parts = resolve_parts_for(result, "bandpass", inductor_detail=detail)
+
+    assert sorted(parts.inductors) == ["LT1", "LT2", "LT3"]
+    if detail == "none":
+        assert parts.check_window is None
+    else:
+        assert parts.check_window.low_hz == 0.0
+        assert parts.check_window.high_hz == pytest.approx(f_high, rel=1e-12)
+
+
 def test_band_pass_resonators_share_one_screened_inductance():
     parts = design(_bandpass()).parts
 

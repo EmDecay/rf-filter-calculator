@@ -265,10 +265,15 @@ the tolerance cases, so making a SPICE deck never runs them:
   never varied; the tolerance cases are then stress cases of that fixed branch
   (`build_analysis.STRESS_CASE_LIMITATION`), never qualified values;
 - `ResolvedParts.qualified_range_hz()` is where every built part with a checked SRF stays within
-  its allowances; a chosen-parts landmark outside it is labelled
-  `build_output_formatting.PARASITIC_PREDICTION` (JSON `outside_qualified_range`), ideal results
-  never are, and a high-pass build measures only up to `build_response.highpass_passband_top`.
-  With no such part (toroid windings, calculated values) nothing is limited or labelled;
+  its allowances (each end rounded inward so it passes the exact screen; printed ranges round
+  inward too); `CircuitMeasurement.outside_range` checks every frequency a chosen-parts result
+  reports (edges or cutoff and the center and bandwidth from them, the reference peak, the peak
+  gain's frequency, other half-power regions), which are labelled
+  `build_output_formatting.PARASITIC_PREDICTION` (JSON `outside_qualified_range`); ideal results
+  never are. A high-pass build measures only up to `build_response.highpass_passband_top` and
+  takes its peak and threshold only inside `highpass_peak_range`. With no such part (toroid
+  windings, calculated values) nothing is limited or labelled. An entered inductor Q applies to
+  a chip's inductance branch alone (`nominal_realization.CHIP_Q_LIMITATION`);
 - Q is converted to constant series resistance at a stated reference frequency;
 - a custom loss reference without an effective Q is rejected;
 - fixed tolerance cases and seeded extra random cases are not measurements, probabilities,
@@ -320,7 +325,7 @@ field parsers for the grade, tolerance and stray), `shared/display_helpers.py`
 (`no_suitable_core_reason`, which names the limit that rejected the rated cores; `no_rated_core_reason`; `NOT_ASSESSED_WARNING`),
 `shared/chip_selection.py` (`no_qualifying_chip_reason`, `CHIP_NOT_ASSESSED_WARNING`),
 `shared/chip_display.py` (`CHIP_HEADING`, `CHIP_MODEL_LINE`, `checked_line`),
-`shared/nominal_realization.py` (`SELF_CAPACITANCE_LIMITATION`), `shared/build_analysis.py`
+`shared/nominal_realization.py` (`SELF_CAPACITANCE_LIMITATION`, `CHIP_Q_LIMITATION`), `shared/build_analysis.py`
 (`STRESS_CASE_LIMITATION`), `shared/build_output_formatting.py` (`PARASITIC_PREDICTION`,
 `qualified_range_line`, `highpass_passband_note`, `inductor_tolerance_text`),
 `shared/inductor_display.py` (`format_worst_case`),

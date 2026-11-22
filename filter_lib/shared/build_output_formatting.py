@@ -54,23 +54,48 @@ PASSBAND_NOTES = {
 # A chosen-parts result outside the frequencies where every chip inductor is within its
 # allowances (BuildAnalysisResult.qualified_range_hz).
 PARASITIC_PREDICTION = "predicted with the parasitic model, not qualified"
-# Table labels for the landmarks a measurement reports (JSON keys).
-_LANDMARK_LABELS = {
+# Table labels for the figures a measurement reports outside the range (JSON keys of
+# CircuitMeasurement.outside_range), in that order.
+_OUTSIDE_LABELS = {
     "cutoff_hz": "-3 dB cutoff",
     "f_low_hz": "lower -3 dB edge",
     "f_high_hz": "upper -3 dB edge",
-    "reference_peak_frequency_hz": "peak",
+    "f0_hz": "center",
+    "bandwidth_hz": "-3 dB bandwidth",
+    "reference_peak_frequency_hz": "the peak the -3 dB points are measured from",
+    "peak_frequency_hz": "peak gain",
+    "half_power_regions": "a separate range above -3 dB",
 }
-# Spread rows whose values are frequencies the qualified range applies to.
-_FREQUENCY_METRICS = frozenset({"cutoff_hz", "f_low_hz", "f_high_hz"})
+# The spread row each figure outside the range feeds.
+_SPREAD_METRICS = {
+    "cutoff_hz": "cutoff_hz",
+    "f_low_hz": "f_low_hz",
+    "f_high_hz": "f_high_hz",
+    "f0_hz": "f0_hz",
+    "bandwidth_hz": "bw_hz",
+    "peak_frequency_hz": "peak_transducer_gain_db",
+}
 
 
-def highpass_passband_note(top_hz: float) -> str:
-    """The high-pass passband note when its figures stop at the qualified range's top."""
-    return (
-        f"Passband = from the requested cutoff up to {format_frequency(top_hz)}, including "
-        "both; a high-pass build's figures stop where its chip inductors stop being qualified."
+def highpass_passband_note(top_hz: float | None) -> str:
+    """The high-pass passband note when its figures are limited to the qualified range."""
+    upper = (
+        "upward, including it"
+        if top_hz is None
+        else (f"up to {format_frequency(top_hz)}, including both")
     )
+    return (
+        f"Passband = from the requested cutoff {upper}; a high-pass build takes its peak and "
+        "half-power threshold only where its chip inductors are qualified."
+    )
+
+
+def _outside_labels(keys) -> str:
+    """The figures outside the range, in words (``peak gain and -3 dB cutoff``)."""
+    names = [label for key, label in _OUTSIDE_LABELS.items() if key in keys]
+    if len(names) > 1:
+        return ", ".join(names[:-1]) + " and " + names[-1]
+    return names[0]
 
 
 def qualified_range_line(qualified_range: tuple[float, float]) -> str:
@@ -145,8 +170,13 @@ def _measurement_row(
     first, *rest = _format_measurement(category, measurement)
     outside = measurement.outside_range(category, qualified_range)
     if outside:
-        names = " and ".join(_LANDMARK_LABELS[key] for key in outside)
-        rest.append(f"{names} {PARASITIC_PREDICTION}")
+        rest.extend(
+            textwrap.wrap(
+                f"{_outside_labels(outside)} {PARASITIC_PREDICTION}",
+                width=_WRAP_WIDTH - len(_ROW_INDENT),
+                break_on_hyphens=False,
+            )
+        )
     return [f"{label:<15}{first}", *(_ROW_INDENT + line for line in rest)]
 
 
@@ -264,24 +294,33 @@ def _metric_values(summary) -> str:
     return " / ".join(texts)
 
 
-def _format_summary(
-    summary, width: int = 0, qualified_range: tuple[float, float] | None = None
-) -> list[str]:
+def _outside_metrics(analysis: BuildAnalysisResult) -> set[str]:
+    """The spread rows with a case whose figure rests on frequencies outside the range."""
+    return {
+        _SPREAD_METRICS[key]
+        for case in analysis.cases
+        for key in case.measurement.outside_range(analysis.category, analysis.qualified_range_hz)
+        if key in _SPREAD_METRICS
+    }
+
+
+def _format_summary(summary, width: int = 0, outside: bool = False) -> list[str]:
     """Return one metric row, plus a case-count line when any case was left out.
 
-    A frequency row with a value outside ``qualified_range`` says those values are
-    predicted with the parasitic model, not qualified.
+    ``outside``: some case's value rests on frequencies outside the qualified range, so
+    the row says it is predicted with the parasitic model, not qualified.
     """
     label = METRIC_LABELS.get(summary.metric, summary.metric) + ":"
     lines = [f"  {label:<{width + 1}} {_metric_values(summary)}"]
-    if (
-        qualified_range is not None
-        and summary.metric in _FREQUENCY_METRICS
-        and not qualified_range[0] <= summary.minimum <= summary.maximum <= qualified_range[1]
-    ):
-        lines.append(
-            " " * (width + 4)
-            + f"values outside {describe_range(qualified_range)} are {PARASITIC_PREDICTION}"
+    if outside:
+        lines.extend(
+            textwrap.wrap(
+                f"some cases outside the qualified range: {PARASITIC_PREDICTION}",
+                width=_WRAP_WIDTH,
+                initial_indent=" " * (width + 4),
+                subsequent_indent=" " * (width + 4),
+                break_on_hyphens=False,
+            )
         )
     if summary.omitted_cases or summary.grid_censored_cases or summary.unresolved_cases:
         total = summary.included_cases + summary.omitted_cases
@@ -396,7 +435,7 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
     qualified = analysis.qualified_range_hz
     passband_note = (
         PASSBAND_NOTES[category]
-        if analysis.passband_top_hz is None
+        if analysis.passband_top_hz is None and analysis.peak_range_hz is None
         else highpass_passband_note(analysis.passband_top_hz)
     )
     lines += [
@@ -418,8 +457,9 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
         (len(METRIC_LABELS.get(item.metric, item.metric)) for item in analysis.metric_summaries),
         default=0,
     )
+    outside = _outside_metrics(analysis)
     for summary in analysis.metric_summaries:
-        lines.extend(_format_summary(summary, width, qualified))
+        lines.extend(_format_summary(summary, width, summary.metric in outside))
     warnings = grouped_part_warnings(analysis.nominal_realization.substitutions)
     if warnings:
         lines.append("Build warnings:")

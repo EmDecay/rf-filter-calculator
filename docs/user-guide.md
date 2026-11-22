@@ -474,8 +474,9 @@ suggestion, `InductorKind`, `InductorPart` and `InductorSRFBasis` name it, the
 `InductorBudget*` columns give its error budget in percent of the target (the SRF drift columns
 blank when it is not checked), the `Toroid*` columns give a toroid's details and repeat
 that RF Q, SRF, and power handling are not checked, and the `Chip*` columns give a chip
-inductor's maker, tolerance, minimum SRF and Q, inductance at the top of the check window,
-self-capacitance, and source URL.
+inductor's maker, tolerance and catalog test frequency, minimum SRF, minimum Q with its test
+frequency, the inductance at the top of the check window with that frequency, the
+self-capacitance, the range within its allowances, and the source URL.
 
 ### SPICE
 
@@ -793,8 +794,9 @@ guaranteed inductance tolerance (2%, 3% or 5%), minimum self-resonant frequency 
 minimum Q, as listed in [component-data-sources.md](component-data-sources.md#recommended-catalog).
 Each part is modelled as `L0` in parallel with a self-capacitance `C_self`, where
 `L0 = L_m (1 − (f_m/SRF)²)` from its catalog value `L_m` at its test frequency `f_m`, and
-`C_self = 1/((2π·SRF)²·L0)` from the minimum SRF (an upper bound, because a real part's SRF is at
-or above the minimum). Its inductance then drifts with frequency, `L(f) = L0/(1 − (f/SRF)²)`,
+`C_self = 1/((2π·SRF)²·L0)` from the minimum SRF (an upper bound at the catalog inductance,
+because a real part's SRF is at or above the minimum; a part at the low end of its tolerance may
+have a slightly larger one). Its inductance then drifts with frequency, `L(f) = L0/(1 − (f/SRF)²)`,
 below its catalog value under `f_m` and above it over `f_m`.
 
 **Check window.** A part is checked over the design's check window: a low-pass from DC to the
@@ -821,8 +823,8 @@ plus drift within ±10% of the target.
 Not checked: Q (the minimum is shown, not used), current rating, heating, power
 handling, and the SRF once mounted on a board. Measure before use.
 L at 146 MHz: the part's inductance there at its minimum SRF. Self-capacitance: the
-upper bound from that SRF. Both come from the maker's fixture; board mounting changes
-the SRF.
+upper bound from that SRF at the catalog inductance. Both come from the maker's fixture;
+board mounting changes the SRF.
 
   L1 target: 74.74 nH at 146 MHz
   ────────────────────────────────────────────────
@@ -841,8 +843,9 @@ the top of the check window and the self-capacitance, both at the minimum SRF; t
 at which the part stays within both allowances; the source (title, revision and page); and the
 error budget. The budget's drift runs from the most negative to the most positive drift in the
 window, including no drift, each taken at the tolerance end it adds to, so the worst case is
-the budget's total. `compact` prints `1. Chip LQW15AN75NG80D   75.15 nH at 146 MHz   ±2%   SRF
-min 2.4 GHz`.
+the budget's total; the printed range is rounded inward, so the part is within its allowances
+everywhere in it. `compact` prints `1. Chip LQW15AN75NG80D (Murata)   75.15 nH at 146 MHz   ±2%
+SRF min 2.4 GHz`.
 
 **In the build.** The build simulation and the chosen-parts SPICE deck model each chip inductor
 as `L0` with a fixed capacitor `CSELF_<inductor>` across it (`L1 self-capacitance` in readable
@@ -853,21 +856,27 @@ tolerance (`Tolerance cases: …, each chip inductor at its own tolerance (±2%)
 windings and calculated values keep ±10%. The self-capacitance stays fixed while a case moves
 the inductance, so a case can fall slightly outside the part's guaranteed range: the cases are
 stress cases of the model, not qualified values. Capacitor ESL, package and trace parasitics,
-and each part's Q and loss (unless a Q is given) are not modelled.
+and each part's Q and loss (unless a Q is given) are not modelled. An entered inductor Q is
+applied to the chip's inductance alone, so with its self-capacitance across it the Q at its
+terminals is a little lower, more so near its SRF (the model limits say so).
 
 **Qualified range.** The build states the frequencies where every chip inductor it uses stays
 within its allowances: `Qualified range: DC to 532.7 MHz, where every chip inductor stays
 within its allowances; results outside it are predicted with the parasitic model, not
-qualified.` A chosen-parts cutoff or edge outside the range carries that label (`-3 dB cutoff
-predicted with the parasitic model, not qualified`), and so does a spread row with a case
-outside it; ideal values, the band-pass attenuation at 2×f₀ and 3×f₀ (ideal lossless parts),
-and the response data are never labelled. A high-pass build's passband has no upper edge, so
-its reference peak, half-power threshold and cutoff are found only up to the top of the
-qualified range (never below twice the cutoff): `Passband = from the requested cutoff up to
-900 MHz, including both; a high-pass build's figures stop where its chip inductors stop being
-qualified.` (`uv run filter-calc hp bw pi 125MHz -n 3 -z 19.8 --sim-build`). A build whose
-inductors are toroid windings or calculated values has no qualified range, and its figures use
-the whole sweep as before.
+qualified.` Every frequency a chosen-parts result reports is checked against it: a cutoff or
+edge (and a band-pass center and bandwidth taken from it), the peak the −3 dB points are
+measured from, the frequency of the peak gain, and any separate range above −3 dB. Any of them
+outside the range is labelled (`-3 dB cutoff predicted with the parasitic model, not
+qualified`), a spread row with such a case says so, and JSON lists them in
+`outside_qualified_range`; ideal values, the band-pass attenuation at 2×f₀ and 3×f₀ (ideal
+lossless parts), and the response data are never labelled. A high-pass build's passband has no
+upper edge, so it ends at the top of the qualified range (never below twice the cutoff), and
+its peak and half-power threshold are taken only inside that range: `Passband = from the
+requested cutoff up to 900 MHz, including both; a high-pass build takes its peak and half-power
+threshold only where its chip inductors are qualified.` (`uv run filter-calc hp bw pi 125MHz -n
+3 -z 19.8 --sim-build`). A cutoff crossing below the range is still reported, labelled. A build
+whose inductors are toroid windings or calculated values has no qualified range, and its figures
+use the whole sweep as before.
 ## Migrating from 2.x
 
 Version 3.0.0 renames the toroid-only options to generic inductor-suggestion names, without

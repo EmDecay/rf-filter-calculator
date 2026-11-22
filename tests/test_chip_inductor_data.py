@@ -123,6 +123,10 @@ def _reload_with(monkeypatch, tmp_path, change) -> None:
         chip_inductor_data.chip_parts.cache_clear()
 
 
+def _sha(data) -> str:
+    return data["sources"]["CC-0603CS"]["sha256"]
+
+
 def _row(data, index=0):
     return data["parts"][index]
 
@@ -145,6 +149,18 @@ def _family(data, name="0603CS"):
         (lambda d: _row(d).update(page="page 2"), "page of its source row"),
         (lambda d: d["parts"].append(dict(_row(d))), "listed once"),
         (lambda d: _family(d).update(srf_guarantee="typical"), "not a guaranteed limit"),
+        (lambda d: _family(d).update(srf_guarantee="maximum"), "srf must be a guaranteed minimum"),
+        (lambda d: _family(d).update(q_guarantee="maximum"), "q must be a guaranteed minimum"),
+        (
+            lambda d: _family(d).update(tolerance_guarantee="minimum"),
+            "tolerance must be a guaranteed maximum",
+        ),
+        (lambda d: _family(d).update(tolerance_codes={"G\n": 2}), "single capital letters"),
+        (
+            lambda d: d["sources"]["CC-0603CS"].update(sha256=_sha(d) + "\n"),
+            "SHA-256",
+        ),
+        (lambda d: _row(d).update(page="p. 2\n"), "single line"),
         (lambda d: _family(d).update(q_guarantee="typ"), "unknown guarantee type"),
         (lambda d: _family(d).update(source="CC-0402CS"), "source that was not read"),
         (lambda d: _family(d).update(tolerance_codes={"g": 2}), "single capital letters"),

@@ -507,12 +507,19 @@ def classify(
             kinds.append("c")
             reasons.append(f"stray capacitor across each pair ({', '.join(added)})")
         # An inductor with a self-capacitance branch is a chip inductor: its value is the
-        # part model's L0, which the new kind (b) and the branch (c) explain together.
+        # part model's L0, which the new kind (b) and the branch (c) explain together. It
+        # counts only when the inductor is still on its original terminals and the branch
+        # is across those same terminals.
+        terminals_before = {row[0]: tuple(row[1:3]) for row in before or []}
+        terminals_after = {row[0]: tuple(row[1:3]) for row in after or []}
         chips = sorted(
-            match["inductor"]
+            inductor
             for name in names_after - names_before
             if (match := _SELF_CAPACITANCE_NAME.match(name))
+            and (inductor := match["inductor"]) in terminals_before
+            and terminals_before[inductor] == terminals_after.get(inductor) == terminals_after[name]
         )
+        self_capacitance = {f"CSELF_{inductor}" for inductor in chips}
         if chips:
             kinds.extend(code for code in ("b", "c") if code not in kinds)
             reasons.append(
@@ -525,7 +532,7 @@ def classify(
                 row
                 for row in rows or []
                 if not _STRAY_NAME.match(str(row[0]))
-                and not _SELF_CAPACITANCE_NAME.match(str(row[0]))
+                and row[0] not in self_capacitance
                 and row[0] not in chips
             ]
 

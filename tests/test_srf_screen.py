@@ -240,6 +240,38 @@ def test_the_allowance_range_ends_where_the_budget_does_when_the_tolerance_is_wi
     assert 25e-9 * 1.05 * (1 + model.drift(high)) == pytest.approx(24.7995e-9 * 1.1, rel=1e-9)
 
 
+@pytest.mark.parametrize(
+    ("number", "target_h", "shown"),
+    [
+        ("LQW18AN20NG00D", 20e-9, "DC to 1.073 GHz"),
+        ("LQW15AN75NG80D", 74.7381e-9, "DC to 532.7 MHz"),
+        ("0603CS-24NXJRW", 25.2e-9, "160.3 MHz to 627.6 MHz"),
+    ],
+)
+def test_the_allowance_range_ends_pass_the_exact_screen_and_print_inward(number, target_h, shown):
+    part = _part(number)
+    model = _model(number)
+
+    low, high = allowance_range(target_h, model, part.tolerance_pct)
+
+    assert screen_part(target_h, CheckWindow(low, high), model, part.tolerance_pct).passed
+    assert describe_range((low, high)) == shown
+
+
+@pytest.mark.parametrize(
+    ("target_h", "tolerance_pct"),
+    [(25e-9, -3.0), (25e-9, 100.0), (25e-9, float("nan")), (0.0, 2.0), (-1e-9, 2.0)],
+    ids=["negative", "hundred", "nan", "zero-target", "negative-target"],
+)
+def test_the_screen_refuses_impossible_targets_and_tolerances(target_h, tolerance_pct):
+    model = _model("LQW15AN25NG80D")
+
+    with pytest.raises(ValueError):
+        screen_part(target_h, CheckWindow(0.0, 440e6), model, tolerance_pct)
+    with pytest.raises(ValueError):
+        allowance_range(target_h, model, tolerance_pct)
+
+
 def test_the_common_range_is_where_every_range_holds():
     assert common_range([]) is None
     assert common_range([(0.0, 5e8), (1e8, 9e8)]) == (1e8, 5e8)

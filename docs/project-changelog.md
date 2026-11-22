@@ -192,11 +192,14 @@ only labels changed.
   ±10% allowance; a preamble states what is checked and what is not (Q, current rating,
   heating, power handling, the SRF once mounted on a board). A kind with no part says "No chip
   inductor qualifies: …", naming the allowance, the drift limit or either, and the frequencies
-  checked. JSON suggestions gain `error_budget.worst_case_pct` and `allowance_range_hz`, and a
-  chip's `build` record its catalog data, model (`l0_henries`, `self_capacitance_farads`),
-  window, drift, worst case, allowances and source with SHA-256; CSV gains `ChipManufacturer`,
-  `ChipTolerancePct`, `ChipSRFMin_MHz`, `ChipQMin`, `ChipAchievedL_nH`,
-  `ChipSelfCapacitance_fF` and `ChipSourceURL` after the `Toroid*` columns.
+  checked. JSON suggestions gain `error_budget.worst_case_pct` and `allowance_range_hz` (each end
+  rounded inward so it passes the exact screen; printed ranges round inward too), and a chip's
+  `build` record its catalog data, model (`l0_henries`, `self_capacitance_farads`), window,
+  drift, worst case, allowances and source with SHA-256; CSV gains `ChipManufacturer`,
+  `ChipTolerancePct`, `ChipLTest_MHz`, `ChipSRFMin_MHz`, `ChipQMin`, `ChipQTest_MHz`,
+  `ChipAchievedL_nH`, `ChipAchievedLAt_MHz`, `ChipSelfCapacitance_fF`, `ChipAllowanceLow_MHz`,
+  `ChipAllowanceHigh_MHz` and `ChipSourceURL` after the `Toroid*` columns. The compact line names
+  the maker.
 - **Build simulation and chosen-parts SPICE.** `--build-inductors chip` (and `auto` where no
   toroid qualifies) now builds real parts: each chip inductor is its `L0` with a fixed capacitor
   `CSELF_<inductor>` across it (`L1 self-capacitance`), the same in the build and the deck and
@@ -207,14 +210,18 @@ only labels changed.
   self-capacitance is an upper bound from the maker's fixture and that the tolerance cases are
   stress cases of the fixed branch, and the "leaves out" limit names capacitor ESL and package
   parasitics. The build states its **qualified range** (where every chip inductor it uses
-  stays within its allowances) and labels a chosen-parts cutoff, edge or spread row outside it
-  "predicted with the parasitic model, not qualified"; ideal values never are. A high-pass build
-  with chip inductors finds its reference peak, half-power threshold and cutoff only up to the
-  top of that range (never below twice the cutoff); builds with toroid windings or calculated
-  values are unchanged. JSON `nominal_build` gains `qualified_range_hz` and `passband_top_hz`,
-  each measurement `model` (`ideal` or `chosen_parts`) and, for the chosen parts,
-  `outside_qualified_range`; substitutions gain `self_capacitance_f`, `tolerance_pct` and
-  `own_tolerance`, and `tolerance_analysis` gains `inductor_tolerance_entered`.
+  stays within its allowances) and labels every chosen-parts figure that rests on a frequency
+  outside it (an edge or cutoff and the center and bandwidth from it, the reference peak, the
+  peak gain's frequency, another range above −3 dB) "predicted with the parasitic model, not
+  qualified"; ideal values never are. A high-pass build with chip inductors ends its passband at
+  the top of that range (never below twice the cutoff) and takes its peak and half-power
+  threshold only inside it; a cutoff crossing below it is still reported, labelled. Builds with
+  toroid windings or calculated values are unchanged. An entered inductor Q applies to a chip's
+  inductance alone, which the model limits state. JSON `nominal_build` gains
+  `qualified_range_hz`, `passband_top_hz` and `peak_range_hz`, each measurement `model` (`ideal`
+  or `chosen_parts`), `peak_frequency_hz` and, for the chosen parts, `outside_qualified_range`;
+  substitutions gain `self_capacitance_f`, `tolerance_pct` and `own_tolerance`, and
+  `tolerance_analysis` gains `inductor_tolerance_entered`.
 - **HF designs.** The HF baseline corpus changes in one design only: in
   `hp ch pi 28MHz -n 9 -r 0.5`, L2–L4 (104–107 nH), which had no toroid, now build as
   LQW18ANR10G00D chip inductors with their self-capacitance (permitted kinds b and c). Every
@@ -223,9 +230,11 @@ only labels changed.
   `shared/chip_selection.py` and `shared/chip_display.py`. `InductorSuggestion` gains
   `part_model` and `allowance_range_hz` (given exactly when the SRF is checked), `ErrorBudget`
   gains `worst_case_pct`, `ResolvedParts` gains `check_window` and `qualified_range_hz()`,
-  `BuildAnalysisResult` gains `qualified_range_hz` and `passband_top_hz`,
-  `ComponentSubstitution` gains `self_capacitance_f`, `tolerance_pct` and `own_tolerance`, and
-  `measure_circuit` takes `passband_top_hz`. `inductor_suggestion.CHIP_NOT_AVAILABLE` is
+  `BuildAnalysisResult` gains `qualified_range_hz`, `passband_top_hz` and `peak_range_hz`,
+  `CircuitMeasurement` gains `peak_frequency_hz` and `outside_range`, `ComponentSubstitution`
+  gains `self_capacitance_f`, `tolerance_pct` and `own_tolerance`, `measure_circuit` takes
+  `passband_top_hz` and `peak_range_hz`, and `refine_response` takes `peak_range`. A hand-made
+  band-pass result without `f_high` gets it from `f0` and `bw`. `inductor_suggestion.CHIP_NOT_AVAILABLE` is
   removed.
 
 ### Changed

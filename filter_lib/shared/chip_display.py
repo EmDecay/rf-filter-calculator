@@ -6,6 +6,7 @@ minimum SRF and Q, the inductance and self-capacitance the model gives, the freq
 it stays within its allowances) and the chip caveats. Pure formatters, no I/O.
 """
 
+import math
 import textwrap
 from collections.abc import Sequence
 
@@ -13,13 +14,21 @@ from .chip_selection import CHIP_NOT_ASSESSED_WARNING, ChipSuggestion
 from .formatting import format_capacitance, format_fixed, format_frequency, format_inductance
 from .srf_screen import DESIGN_ALLOWANCE_PCT, DRIFT_ALLOWANCE_PCT, describe_range
 
+# Each rating with the frequency it is stated at: the catalog L at its test frequency,
+# the minimum Q at its own, and the model's L and self-capacitance at the top of the check
+# window (at the minimum SRF), then the frequencies where the part is within its allowances.
 CSV_CHIP_HEADER: list[str] = [
     "ChipManufacturer",
     "ChipTolerancePct",
+    "ChipLTest_MHz",
     "ChipSRFMin_MHz",
     "ChipQMin",
+    "ChipQTest_MHz",
     "ChipAchievedL_nH",
+    "ChipAchievedLAt_MHz",
     "ChipSelfCapacitance_fF",
+    "ChipAllowanceLow_MHz",
+    "ChipAllowanceHigh_MHz",
     "ChipSourceURL",
 ]
 
@@ -29,8 +38,8 @@ _WRAP_WIDTH = 88
 CHIP_HEADING = "Chip inductors (wirewound; the maker's guaranteed tolerance and minimum SRF):"
 CHIP_MODEL_LINE = (
     "L at {top}: the part's inductance there at its minimum SRF. Self-capacitance: the "
-    "upper bound from that SRF. Both come from the maker's fixture; board mounting "
-    "changes the SRF."
+    "upper bound from that SRF at the catalog inductance. Both come from the maker's "
+    "fixture; board mounting changes the SRF."
 )
 
 
@@ -93,7 +102,8 @@ def chip_compact_text(chip: ChipSuggestion) -> str:
     screen = chip.screen
     assert screen.achieved_h is not None
     return (
-        f"{part.part_number}   {format_inductance(screen.achieved_h)} at "
+        f"{part.part_number} ({part.family.manufacturer})   "
+        f"{format_inductance(screen.achieved_h)} at "
         f"{format_frequency(chip.window.high_hz)}   ±{part.tolerance_pct:g}%   "
         f"SRF min {format_frequency(part.srf_min_hz)}"
     )
@@ -161,13 +171,20 @@ def chip_csv_columns(chip: ChipSuggestion | None) -> list[str]:
         return [""] * len(CSV_CHIP_HEADER)
     part = chip.part
     screen = chip.screen
-    assert screen.achieved_h is not None
+    assert screen.achieved_h is not None and screen.allowance_range_hz is not None
+    low, high = screen.allowance_range_hz
     return [
         part.family.manufacturer,
         f"{part.tolerance_pct:g}",
+        f"{part.test_frequency_hz / 1e6:g}",
         f"{part.srf_min_hz / 1e6:g}",
         f"{part.q_min:g}",
+        f"{part.q_test_frequency_hz / 1e6:g}",
         format_fixed(screen.achieved_h * 1e9, 3),
+        f"{chip.window.high_hz / 1e6:.6g}",
         format_fixed(chip.model.self_capacitance_f * 1e15, 2),
+        # Rounded inward, like the table, so the printed range never claims too much.
+        f"{math.ceil(low / 1e5) / 10:g}",
+        f"{math.floor(high / 1e5) / 10:g}",
         part.family.source.url,
     ]

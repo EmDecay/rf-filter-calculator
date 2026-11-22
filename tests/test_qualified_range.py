@@ -99,7 +99,8 @@ def test_the_highpass_build_states_its_passband_top_and_qualified_range():
 
     assert (
         "Passband = from the requested cutoff up to 900 MHz, including both; a high-pass "
-        "build's figures stop where its chip inductors stop being qualified."
+        "build takes its peak and half-power threshold only where its chip inductors are "
+        "qualified."
     ) in text
     assert (
         "Qualified range: DC to 900 MHz, where every chip inductor stays within its "
@@ -152,9 +153,101 @@ def test_the_spread_row_says_which_values_lie_outside_the_range():
     lines = format_build_analysis_block(design(LP_BEYOND).build_analysis)
 
     cutoff = next(i for i, line in enumerate(lines) if line.startswith("  -3 dB cutoff:"))
-    assert lines[cutoff + 1].strip() == (
-        f"values outside DC to 425.9 MHz are {PARASITIC_PREDICTION}"
+    assert " ".join(line.strip() for line in lines[cutoff + 1 : cutoff + 3]) == (
+        f"some cases outside the qualified range: {PARASITIC_PREDICTION}"
     )
+    assert all(len(line) <= 96 for line in lines)
+
+
+# 100 nH shunt chips at 100 MHz, 68.4 ohm, tested at 685 ohm ports with ±20% inductors: the
+# chips are within their allowances only from 99.79 MHz, so the all-high case's highest
+# gain (92.5 MHz on the whole sweep) lies below the qualified range.
+HP_LOW_EDGE = DesignRequest(
+    "highpass",
+    "butterworth",
+    "pi",
+    100e6,
+    68.416,
+    3,
+    realization=BuildConfig(
+        grid_points=51,
+        source_resistance_ohm=685.0,
+        load_resistance_ohm=685.0,
+        inductor_tolerance_pct=20.0,
+    ),
+    run_build_analysis=True,
+)
+
+
+def test_a_highpass_build_takes_its_peak_only_inside_the_qualified_range():
+    analysis = design(HP_LOW_EDGE).build_analysis
+    low, high = analysis.qualified_range_hz
+
+    assert low == pytest.approx(99.7857e6, rel=1e-5)
+    assert analysis.peak_range_hz == (low, analysis.passband_top_hz)
+    for case in analysis.cases:
+        measurement = case.measurement
+        assert low <= measurement.reference_peak_frequency_hz <= high
+        assert low <= measurement.peak_frequency_hz <= high
+    # The all-high case's cutoff crossing is still found, below the range, and labelled.
+    corner = next(case for case in analysis.cases if case.case_id == "coherent:high")
+    assert corner.measurement.f_low < low
+    assert corner.measurement.outside_range("highpass", (low, high)) == ("cutoff_hz",)
+
+
+def test_every_reported_frequency_of_a_chosen_parts_result_is_classified():
+    # bp bw top -f 400MHz -b 12MHz -n 3 --tank-inductance 91nH: chips qualified to 425.9 MHz;
+    # in the case with Cp2 low a second range above -3 dB reaches 437.8 MHz.
+    request = DesignRequest(
+        "bandpass",
+        "butterworth",
+        "top",
+        400e6,
+        50.0,
+        3,
+        bandwidth_hz=12e6,
+        resonator_inductance=91e-9,
+        realization=FAST,
+        run_build_analysis=True,
+    )
+    outcome = design(request)
+    analysis = outcome.build_analysis
+    qualified = analysis.qualified_range_hz
+    case = next(case for case in analysis.cases if case.case_id == "one:CT2:low")
+
+    regions = case.measurement.threshold_regions
+    assert len(regions) == 2 and regions[1][1] > qualified[1]
+    assert "half_power_regions" in case.measurement.outside_range("bandpass", qualified)
+    payload = build_analysis_fields(outcome.result, analysis)
+    [record] = [
+        item for item in payload["tolerance_analysis"]["cases"] if item["case_id"] == "one:CT2:low"
+    ]
+    assert "half_power_regions" in record["measurement"]["outside_qualified_range"]
+    assert payload["nominal_build"]["measurement"]["peak_frequency_hz"] is not None
+
+
+def test_a_band_pass_center_and_bandwidth_follow_an_edge_outside_the_range():
+    from filter_lib.shared.build_types import CircuitMeasurement
+
+    measurement = CircuitMeasurement(
+        99e6,
+        112e6,
+        -0.1,
+        False,
+        reference_peak_frequency_hz=105e6,
+        peak_frequency_hz=105e6,
+        threshold_regions=((99e6, 112e6), (150e6, 160e6)),
+        selected_region_index=0,
+    )
+
+    assert measurement.outside_range("bandpass", (0.0, 110e6)) == (
+        "f_high_hz",
+        "f0_hz",
+        "bandwidth_hz",
+        "half_power_regions",
+    )
+    assert measurement.outside_range("bandpass", (0.0, 200e6)) == ()
+    assert measurement.outside_range("bandpass", None) == ()
 
 
 def test_ideal_results_stay_ideal_with_the_build_on_or_off(monkeypatch, capsys):

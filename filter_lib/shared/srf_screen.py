@@ -29,10 +29,11 @@ import math
 import sys
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from fractions import Fraction
 
 from .formatting import format_frequency
-from .numeric import is_finite_real
+from .numeric import is_finite_real, require_positive_finite
 
 # Named design allowances, shown in the output.
 DRIFT_ALLOWANCE_PCT = 5.0
@@ -63,7 +64,8 @@ class CheckWindow:
 
     def describe(self) -> str:
         """``DC to 146 MHz`` or ``125 MHz to 250 MHz``."""
-        return describe_range((self.low_hz, self.high_hz))
+        low = "DC" if self.low_hz == 0 else format_frequency(self.low_hz)
+        return f"{low} to {format_frequency(self.high_hz)}"
 
 
 def _frequency(result: Mapping, key: str, label: str) -> float:
@@ -200,7 +202,21 @@ def _allowance_range(
     )
     if high_drift < 0 or low_drift > 0:
         return None
-    return exact.frequency_at_drift(low_drift), exact.frequency_at_drift(high_drift)
+    # Each end is rounded inward until the exact drift keeps its limit, so every
+    # frequency in the returned range passes the exact screen.
+    low = exact.frequency_at_drift(low_drift)
+    while low > 0 and exact.drift(low) < low_drift:
+        low = math.nextafter(low, math.inf)
+    high = exact.frequency_at_drift(high_drift)
+    while exact.drift(high) > high_drift:
+        high = math.nextafter(high, 0.0)
+    return low, high
+
+
+def _require_screen_inputs(target_h: float, tolerance_pct: float) -> None:
+    require_positive_finite(target_h, "target inductance")
+    if not is_finite_real(tolerance_pct) or not 0 <= tolerance_pct < 100:
+        raise ValueError("A part's tolerance must be at least 0% and below 100%")
 
 
 def allowance_range(
@@ -213,6 +229,7 @@ def allowance_range(
     with frequency, so the frequencies that keep both limits form one range around the
     test frequency; ``None`` when even no drift misses the design allowance.
     """
+    _require_screen_inputs(target_h, tolerance_pct)
     return _allowance_range(_exact(target_h), _ExactModel(model), _exact(tolerance_pct) / 100)
 
 
@@ -220,6 +237,7 @@ def screen_part(
     target_h: float, window: CheckWindow, model: PartModel, tolerance_pct: float
 ) -> ScreenResult:
     """Screen one part (see the module docstring); a part exactly at a limit is within it."""
+    _require_screen_inputs(target_h, tolerance_pct)
     if window.high_hz >= model.srf_hz:
         return ScreenResult(frozenset({LIMIT_DRIFT}), None, None, None, None, None)
     exact = _ExactModel(model)
@@ -274,8 +292,20 @@ def common_range(ranges: Iterable[tuple[float, float]]) -> tuple[float, float] |
     return max(low for low, _high in ranges), min(high for _low, high in ranges)
 
 
+def _inward(value: float, rounding: str) -> float:
+    """``value`` rounded to the four significant digits the output prints, toward the
+    inside of a range (``ROUND_FLOOR`` for its top, ``ROUND_CEILING`` for its bottom)."""
+    decimal = Decimal(repr(value))
+    step = Decimal(1).scaleb(decimal.adjusted() - 3)
+    return float(decimal.quantize(step, rounding=rounding))
+
+
 def describe_range(frequency_range: tuple[float, float]) -> str:
-    """``DC to 532.7 MHz`` or ``118 MHz to 1.2 GHz``."""
+    """``DC to 532.7 MHz`` or ``118 MHz to 1.2 GHz``, each end rounded inward.
+
+    A part is within its allowances everywhere in the printed range, which never claims
+    a frequency the exact range leaves out.
+    """
     low, high = frequency_range
-    start = "DC" if low == 0 else format_frequency(low)
-    return f"{start} to {format_frequency(high)}"
+    start = "DC" if low == 0 else format_frequency(_inward(low, ROUND_CEILING))
+    return f"{start} to {format_frequency(_inward(high, ROUND_FLOOR))}"

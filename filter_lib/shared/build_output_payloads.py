@@ -42,6 +42,7 @@ def _measurement_payload(
         "edge_at_simulation_grid_boundary": measurement.at_grid_edge,
         "measurement_converged": measurement.measurement_converged,
         "response_evaluations": measurement.response_evaluations,
+        "peak_frequency_hz": measurement.peak_frequency_hz,
         "reference_peak_frequency_hz": measurement.reference_peak_frequency_hz,
         "reference_peak_gain_db": measurement.reference_peak_gain_db,
         "half_power_threshold_db": measurement.threshold_db,
@@ -160,6 +161,9 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
             **realization_summary(analysis.nominal_realization),
             "qualified_range_hz": None if qualified is None else list(qualified),
             "passband_top_hz": analysis.passband_top_hz,
+            "peak_range_hz": None
+            if analysis.peak_range_hz is None
+            else list(analysis.peak_range_hz),
             "measurement": _measurement_payload(
                 analysis.nominal_build, category, qualified, chosen_parts=True
             ),

@@ -540,8 +540,9 @@ def test_chip_lines_give_the_part_its_rating_model_range_source_and_budget():
         "     Within its allowances from DC to 532.7 MHz",
         "     Source: Murata LQW15AN_80 reference specification, Spec No. JELF243A_0100K-01, p. 8",
     ]
+    # The guarantees belong to the exact part, so even one line names its maker.
     assert chip_compact_text(chip) == (
-        "LQW15AN75NG80D   75.15 nH at 146 MHz   ±2%   SRF min 2.4 GHz"
+        "LQW15AN75NG80D (Murata)   75.15 nH at 146 MHz   ±2%   SRF min 2.4 GHz"
     )
     assert chip_preamble_lines([chip])[:3] == [
         "Chip inductors (wirewound; the maker's guaranteed tolerance and minimum SRF):",
@@ -583,10 +584,15 @@ def test_chip_json_and_csv_carry_the_part_s_guarantees_and_model():
     assert {key: row[key] for key in CSV_CHIP_HEADER} == {
         "ChipManufacturer": "Murata",
         "ChipTolerancePct": "2",
+        "ChipLTest_MHz": "100",
         "ChipSRFMin_MHz": "2400",
         "ChipQMin": "25",
+        "ChipQTest_MHz": "200",
         "ChipAchievedL_nH": "75.148",
+        "ChipAchievedLAt_MHz": "146",
         "ChipSelfCapacitance_fF": "58.74",
+        "ChipAllowanceLow_MHz": "0",
+        "ChipAllowanceHigh_MHz": "532.7",
         "ChipSourceURL": "https://pim.murata.com/asset/pim4/inductor/JELF243A-0100_PDF_INDUCTOR",
     }
     assert (row["InductorKind"], row["InductorSRFBasis"]) == ("chip", "guaranteed_minimum")

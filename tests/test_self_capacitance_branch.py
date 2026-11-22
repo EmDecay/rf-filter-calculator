@@ -162,6 +162,19 @@ def test_the_tolerance_corners_are_stress_cases_outside_the_guaranteed_envelope(
     assert low_440 <= corner(-1, 440e6) <= high_440
 
 
+def test_an_entered_q_is_said_to_apply_to_the_chip_s_inductance_alone():
+    from filter_lib.shared.nominal_realization import CHIP_Q_LIMITATION
+
+    outcome = design(LP_440)
+    with_q = realize_nominal_build(
+        outcome.result, "lowpass", BuildConfig(inductor_q=30.0), parts=outcome.parts
+    )
+    without_q = realize_nominal_build(outcome.result, "lowpass", FAST, parts=outcome.parts)
+
+    assert CHIP_Q_LIMITATION in with_q.limitations
+    assert CHIP_Q_LIMITATION not in without_q.limitations
+
+
 def test_a_calculated_or_toroid_inductor_has_no_self_capacitance_branch():
     outcome = design(DesignRequest("lowpass", "butterworth", "pi", 10e6, 50.0, 5))
 

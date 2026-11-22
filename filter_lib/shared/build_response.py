@@ -85,16 +85,34 @@ def highpass_passband_top(
 ) -> float | None:
     """Where a high-pass build's passband figures stop, or ``None`` for the whole sweep.
 
-    With a part whose SRF is checked, the reference peak, the half-power threshold and the
-    cutoff are found only up to the top of the qualified range, clamped to at least twice
-    the cutoff (the checked window) and at most the sweep's end. Without one (toroid
-    windings, calculated values) the figures use the whole sweep, as before.
+    With a part whose SRF is checked, the passband, the reference peak, the half-power
+    threshold and the cutoff are found only up to the top of the qualified range, clamped
+    to at least twice the cutoff (the checked window) and at most the sweep's end. Without
+    one (toroid windings, calculated values) the figures use the whole sweep, as before.
     """
     if category != "highpass" or qualified_range is None:
         return None
     if qualified_range[1] >= freqs[-1]:
         return None
     return max(qualified_range[1], HIGHPASS_CHECK_MULTIPLE * result["freq_hz"])
+
+
+def highpass_peak_range(
+    result: dict, category: str, freqs: list[float], qualified_range: tuple[float, float] | None
+) -> tuple[float, float] | None:
+    """Where a high-pass build takes its peak and half-power threshold, or ``None``.
+
+    The qualified range within the sweep (its top as ``highpass_passband_top``); ``None``
+    when that is the whole sweep, so a build without a checked part is unchanged. A cutoff
+    crossing below the range is still found, and reported as outside it.
+    """
+    top = highpass_passband_top(result, category, freqs, qualified_range)
+    if category != "highpass" or qualified_range is None:
+        return None
+    low = qualified_range[0]
+    if top is None and low <= freqs[0]:
+        return None
+    return low, freqs[-1] if top is None else top
 
 
 def _passband(
@@ -143,11 +161,13 @@ def measure_circuit(
     source_resistance: float,
     load_resistance: float,
     passband_top_hz: float | None = None,
+    peak_range_hz: tuple[float, float] | None = None,
 ) -> CircuitMeasurement:
     """Measure evaluated extrema and crossings, checking mesh convergence.
 
     ``passband_top_hz`` (high-pass only, ``highpass_passband_top``) limits every figure
-    to the sweep up to it.
+    to the sweep up to it, and ``peak_range_hz`` (``highpass_peak_range``) where the peak
+    and the half-power threshold are taken.
     """
     transducer_gain = make_transducer_gain_evaluator(
         circuit.n_nodes,
@@ -186,6 +206,7 @@ def measure_circuit(
         passband,
         reference_frequency=reference,
         frequency_scale=result["bw"] if category == "bandpass" else result["freq_hz"],
+        peak_range=peak_range_hz,
     )
     measured_low, measured_high = refined.regions[refined.selected_region]
     at_grid_edge = measured_low is None or measured_high is None
@@ -216,4 +237,5 @@ def measure_circuit(
         else None,
         measurement_converged=refined.converged,
         response_evaluations=refined.evaluations,
+        peak_frequency_hz=refined.peak_frequency,
     )

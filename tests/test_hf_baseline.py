@@ -58,3 +58,21 @@ def test_hf_design_matches_baseline_or_allowed_change(design):
         item for case_id, item in ALLOWED if case_id == design.case_id and item not in changes
     )
     assert not stale, f"listed changes that no longer happen: {stale}"
+
+
+def test_a_chip_substitution_is_recognised_only_with_its_inductor_kept():
+    """A CSELF_ branch explains a changed inductor only when that inductor stays on its
+    terminals and the branch is across them; a removed inductor is never a chip."""
+    design = next(item for item in tool.designs() if item.case_id == "hp-ch-pi-28MHz-n9")
+    before = [["L1", "1", "0", 1e-7], ["C1", "1", "2", 1e-11]]
+    chip = [["L1", "1", "0", 9.97e-8], ["CSELF_L1", "1", "0", 7.8e-14], ["C1", "1", "2", 1e-11]]
+    removed = [["CSELF_L1", "99", "0", 1.0], ["C1", "1", "2", 1e-11]]
+    moved = [["L1", "1", "0", 9.97e-8], ["CSELF_L1", "2", "0", 7.8e-14], ["C1", "1", "2", 1e-11]]
+
+    kinds, reason = tool.classify(design, "spice_nominal", before, chip, {}, {})
+    assert (kinds, reason) == (
+        ["b", "c"],
+        "inductors built as chip inductors with their self-capacitance (L1)",
+    )
+    for after in (removed, moved):
+        assert tool.classify(design, "spice_nominal", before, after, {}, {})[0] == []

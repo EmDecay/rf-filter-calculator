@@ -31,6 +31,8 @@ class RefinedResponse:
     selected_region: int | None
     converged: bool
     evaluations: int
+    # Where ``peak_db`` is (the highest gain inside the peak range, if one was given).
+    peak_frequency: float | None = None
 
 
 def refine_crossing(
@@ -90,7 +92,7 @@ def _extremum(fn: Callable[[float], float], low: float, high: float, sign: int, 
     return left if yl >= yr else right
 
 
-def _landmarks(fn, grid, passband, reference, scale, drop_db):
+def _landmarks(fn, grid, passband, reference, scale, drop_db, peak_range=None):
     values = [fn(f) for f in grid]
     extra = []
     for i in range(1, len(grid) - 1):
@@ -103,15 +105,21 @@ def _landmarks(fn, grid, passband, reference, scale, drop_db):
                 extra.append(_extremum(fn, grid[i - 1], grid[i + 1], sign, scale * 1e-7))
     grid = sorted(set(grid + extra))
     values = [fn(f) for f in grid]
+    # The peak (and so the half-power threshold) is taken only inside ``peak_range``.
+    candidates = [
+        i for i, f in enumerate(grid) if peak_range is None or peak_range[0] <= f <= peak_range[1]
+    ]
     peaks = [
         i
-        for i, value in enumerate(values)
-        if (i == 0 or value >= values[i - 1]) and (i == len(grid) - 1 or value >= values[i + 1])
+        for i in candidates
+        if (i == 0 or values[i] >= values[i - 1])
+        and (i == len(grid) - 1 or values[i] >= values[i + 1])
     ]
+    highest = max(candidates, key=values.__getitem__)
     peak_index = (
         min(peaks, key=lambda i: (abs(grid[i] - reference), -values[i]))
         if reference is not None
-        else max(range(len(grid)), key=values.__getitem__)
+        else highest
     )
     threshold = values[peak_index] - drop_db
     sampled_regions = find_threshold_regions(grid, values, threshold)
@@ -135,7 +143,7 @@ def _landmarks(fn, grid, passband, reference, scale, drop_db):
     return RefinedResponse(
         tuple(grid),
         tuple(values),
-        max(values),
+        values[highest],
         min(value for f, value in zip(grid, values) if passband[0] <= f <= passband[1]),
         grid[peak_index],
         values[peak_index],
@@ -143,6 +151,7 @@ def _landmarks(fn, grid, passband, reference, scale, drop_db):
         selected,
         False,
         0,
+        grid[highest],
     )
 
 
@@ -176,13 +185,16 @@ def refine_response(
     frequency_scale: float,
     drop_db: float = 10 * math.log10(2),
     max_passes: int = MAX_REFINEMENT_PASSES,
+    peak_range: tuple[float, float] | None = None,
 ) -> RefinedResponse:
     """Refine landmarks until consecutive meshes agree or the budget expires.
 
     Frequencies and passband must be finite, positive, and ordered. The scale
     is requested bandwidth for BP, cutoff for LP/HP. Each pass bisects every
     initial-grid interval (at most four passes); extrema/crossings are further
-    evaluated locally. Exact passband boundaries are always included.
+    evaluated locally. Exact passband boundaries are always included. ``peak_range``
+    limits where the peak (and so the half-power threshold) may be; the crossings are
+    still found on the whole grid.
     """
     if (
         not isinstance(max_passes, int)
@@ -210,6 +222,13 @@ def refine_response(
         not is_finite_real(reference_frequency) or reference_frequency <= 0
     ):
         raise ValueError("reference_frequency must be positive and finite")
+    if peak_range is not None and (
+        not isinstance(peak_range, (list, tuple))
+        or len(peak_range) != 2
+        or not all(is_finite_real(f) and f >= 0 for f in peak_range)
+        or peak_range[1] <= peak_range[0]
+    ):
+        raise ValueError("peak_range must have finite ordered boundaries")
 
     cache: dict[float, float] = {}
 
@@ -224,10 +243,13 @@ def refine_response(
     grid = sorted(
         set(list(freqs) + list(passband) + ([reference_frequency] if reference_frequency else []))
     )
+    if peak_range is not None:
+        # The range's ends are measured, so the range always holds a grid point.
+        grid = sorted(set(grid) | {f for f in peak_range if grid[0] <= f <= grid[-1]})
     previous = None
     for _ in range(max_passes):
         current = _landmarks(
-            evaluate, grid, passband, reference_frequency, frequency_scale, drop_db
+            evaluate, grid, passband, reference_frequency, frequency_scale, drop_db, peak_range
         )
         if previous is not None and _agrees(previous, current, frequency_scale):
             return replace(current, converged=True, evaluations=len(cache))

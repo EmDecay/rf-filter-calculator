@@ -37,9 +37,14 @@ def stray_limitation(stray_f: float) -> str:
 # self-capacitance.
 SELF_CAPACITANCE_LIMITATION = (
     "Each chip inductor is simulated as its inductance with a fixed self-capacitance across "
-    "it: the upper bound from its guaranteed minimum SRF, measured in the maker's fixture. "
-    "Board mounting changes the SRF, and the part's Q and loss are not modelled unless an "
-    "inductor Q is given."
+    "it: the upper bound at its catalog inductance from its guaranteed minimum SRF, measured "
+    "in the maker's fixture. Board mounting changes the SRF, and the part's Q and loss are "
+    "not modelled unless an inductor Q is given."
+)
+# Printed when an inductor Q is applied to a chip inductor.
+CHIP_Q_LIMITATION = (
+    "A chip inductor's Q is applied to its inductance alone; with its self-capacitance "
+    "across it, its Q at its terminals is lower, more so near its SRF."
 )
 
 
@@ -171,6 +176,8 @@ def realize_nominal_build(
         limitations.append(stray_limitation(strays[0]))
     if any(item.self_capacitance_f for item in substitutions):
         limitations.append(SELF_CAPACITANCE_LIMITATION)
+        if inductor_q is not None:
+            limitations.append(CHIP_Q_LIMITATION)
     limitations.append(TOROID_LIMITATION)
     circuit = NamedCircuit(
         exact.category,

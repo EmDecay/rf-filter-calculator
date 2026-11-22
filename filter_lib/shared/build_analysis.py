@@ -6,6 +6,7 @@ from .build_response import (
     build_frequency_grid,
     evaluation_ports,
     highpass_passband_top,
+    highpass_peak_range,
     measure_circuit,
 )
 from .build_types import (
@@ -129,6 +130,7 @@ class _PreparedAnalysis:
     calculated: CircuitMeasurement
     qualified_range: tuple[float, float] | None
     passband_top: float | None
+    peak_range: tuple[float, float] | None
 
 
 def _prepare_analysis(
@@ -146,9 +148,10 @@ def _prepare_analysis(
     source, load = evaluation_ports(result, category, active_config)
     qualified_range = parts.qualified_range_hz()
     passband_top = highpass_passband_top(result, category, freqs, qualified_range)
+    peak_range = highpass_peak_range(result, category, freqs, qualified_range)
     raise_if_cancelled(should_cancel)
     calculated_measurement = measure_circuit(
-        exact_circuit, result, category, freqs, source, load, passband_top
+        exact_circuit, result, category, freqs, source, load, passband_top, peak_range
     )
     return _PreparedAnalysis(
         active_config,
@@ -160,6 +163,7 @@ def _prepare_analysis(
         calculated_measurement,
         qualified_range,
         passband_top,
+        peak_range,
     )
 
 
@@ -190,6 +194,7 @@ def measure_calculated_and_nominal(
             prepared.source,
             prepared.load,
             prepared.passband_top,
+            prepared.peak_range,
         ),
     )
 
@@ -227,6 +232,7 @@ def analyze_build(
         active_config,
         should_cancel,
         prepared.passband_top,
+        prepared.peak_range,
     )
     censored = sum(case.measurement.at_grid_edge for case in cases)
     return BuildAnalysisResult(
@@ -256,4 +262,5 @@ def analyze_build(
         ),
         qualified_range_hz=prepared.qualified_range,
         passband_top_hz=prepared.passband_top,
+        peak_range_hz=prepared.peak_range,
     )

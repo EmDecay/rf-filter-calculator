@@ -60,6 +60,20 @@ def resolve_match_policy(request: DesignRequest) -> MatchPolicy:
     )
 
 
+def _check_window(result: dict, category: str) -> CheckWindow:
+    """The window the suggestions are checked over (``srf_screen.check_window``).
+
+    A band-pass result made without ``f_high`` (a hand-made one) gets its upper -3 dB
+    edge from ``f0`` and ``bw``, as synthesis computes it.
+    """
+    if category == "bandpass" and "f_high" not in result and "bw" in result:
+        from ..bandpass.resonator_math import compute_bandpass_3db_edges
+
+        _f_low, f_high = compute_bandpass_3db_edges(result["f0"], result["bw"])
+        result = {**result, "f_high": f_high}
+    return check_window(result, category)
+
+
 def _design_frequency(result: dict, category: str) -> float:
     """The frequency the inductor kinds check against: the cutoff or the center."""
     return result["f0"] if category == "bandpass" else result["freq_hz"]
@@ -148,7 +162,8 @@ def resolve_parts_for(
         raise ValueError(needs_eseries_message("A capacitor match policy"))
     circuit = build_named_circuit(result, category)
     design_freq_hz = _design_frequency(result, category)
-    window = check_window(result, category)
+    # Suggestions off: nothing is screened, so no window is needed.
+    window = None if inductor_detail == "none" else _check_window(result, category)
     capacitors = {}
     inductors = {}
     screened: dict[float, tuple[KindSuggestions, ...]] = {}

@@ -194,6 +194,8 @@ class CircuitMeasurement:
     center_in_selected_region: bool | None = None
     measurement_converged: bool = True
     response_evaluations: int = 0
+    # Where ``peak_transducer_gain_db`` was found.
+    peak_frequency_hz: float | None = None
 
     @property
     def f0(self) -> float | None:
@@ -211,27 +213,44 @@ class CircuitMeasurement:
         """Return the -3 dB cutoff of a ladder: the upper edge for lowpass, else the lower."""
         return self.f_high if category == "lowpass" else self.f_low
 
-    def landmarks(self, category: str) -> tuple[tuple[str, float | None], ...]:
-        """The frequencies this measurement reports, by their JSON key."""
+    def outside_range(
+        self, category: str, qualified_range: tuple[float, float] | None
+    ) -> tuple[str, ...]:
+        """The reported figures (JSON keys) that rest on frequencies outside the range.
+
+        Every reported frequency is checked: the -3 dB edges or cutoff, the reference peak,
+        the frequency of the peak gain, and the ends of any other half-power region. A band-pass
+        center and bandwidth come from the edges, so they are outside when an edge is.
+        None without a range.
+        """
+        if qualified_range is None:
+            return ()
+        low, high = qualified_range
+
+        def outside(value: float | None) -> bool:
+            return value is not None and not low <= value <= high
+
         edges = (
             (("f_low_hz", self.f_low), ("f_high_hz", self.f_high))
             if category == "bandpass"
             else (("cutoff_hz", self.ladder_cutoff(category)),)
         )
-        return (*edges, ("reference_peak_frequency_hz", self.reference_peak_frequency_hz))
-
-    def outside_range(
-        self, category: str, qualified_range: tuple[float, float] | None
-    ) -> tuple[str, ...]:
-        """The landmarks (JSON keys) outside ``qualified_range``; none without a range."""
-        if qualified_range is None:
-            return ()
-        low, high = qualified_range
-        return tuple(
-            key
-            for key, value in self.landmarks(category)
-            if value is not None and not low <= value <= high
+        keys = [key for key, value in edges if outside(value)]
+        if category == "bandpass" and keys:
+            keys += ["f0_hz", "bandwidth_hz"]
+        if outside(self.reference_peak_frequency_hz):
+            keys.append("reference_peak_frequency_hz")
+        if outside(self.peak_frequency_hz):
+            keys.append("peak_frequency_hz")
+        # The selected region's ends are the edges above; any other region is checked here.
+        others = (
+            region
+            for index, region in enumerate(self.threshold_regions)
+            if index != self.selected_region_index
         )
+        if any(outside(end) for region in others for end in region):
+            keys.append("half_power_regions")
+        return tuple(keys)
 
 
 @dataclass(frozen=True)
@@ -285,3 +304,6 @@ class BuildAnalysisResult:
     # A high-pass build's passband figures stop here (the qualified range's top, never
     # below twice the cutoff); None when they use the whole sweep.
     passband_top_hz: float | None = None
+    # A high-pass build takes its peak, and so its half-power threshold, only here (the
+    # qualified range within the sweep); None when the whole sweep is used.
+    peak_range_hz: tuple[float, float] | None = None

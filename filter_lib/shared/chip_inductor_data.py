@@ -93,7 +93,7 @@ def _scaled(value: float, exponent: int) -> float:
 def _source(source_id: str, raw: dict[str, Any]) -> ChipSource:
     label = f"Chip inductor source {source_id!r}"
     sha256 = raw.get("sha256")
-    if not isinstance(sha256, str) or not _SHA256.match(sha256):
+    if not isinstance(sha256, str) or not _SHA256.fullmatch(sha256):
         raise RuntimeError(f"{label} needs a SHA-256 of the copy read")
     return ChipSource(
         source_id=require_printable_line(source_id, label),
@@ -107,9 +107,17 @@ def _source(source_id: str, raw: dict[str, Any]) -> ChipSource:
 
 def _family(name: str, raw: dict[str, Any], sources: dict[str, ChipSource]) -> ChipFamily:
     label = f"Chip inductor family {name!r}"
-    for key in ("tolerance_guarantee", "srf_guarantee", "q_guarantee"):
-        if require_guarantee_type(raw.get(key), label) not in QUALIFYING_GUARANTEES:
+    # A tolerance is a maximum; the SRF and Q are minimums.
+    for key, direction in (
+        ("tolerance_guarantee", "maximum"),
+        ("srf_guarantee", "minimum"),
+        ("q_guarantee", "minimum"),
+    ):
+        guarantee = require_guarantee_type(raw.get(key), label)
+        if guarantee not in QUALIFYING_GUARANTEES:
             raise RuntimeError(f"{label} {key.split('_')[0]} is not a guaranteed limit")
+        if guarantee != direction:
+            raise RuntimeError(f"{label} {key.split('_')[0]} must be a guaranteed {direction}")
     source_id = raw.get("source")
     if source_id not in sources:
         raise RuntimeError(f"{label} cites a source that was not read")
@@ -128,7 +136,7 @@ def _tolerance_codes(name: str, raw: object) -> dict[str, float]:
         raise RuntimeError(f"{label} must name each code and its percent")
     codes = {}
     for code, percent in raw.items():
-        if not isinstance(code, str) or not _TOLERANCE_CODE.match(code):
+        if not isinstance(code, str) or not _TOLERANCE_CODE.fullmatch(code):
             raise RuntimeError(f"{label} must be single capital letters")
         value = _positive(percent, label)
         if value >= 100:
@@ -148,7 +156,7 @@ def _variants(
     if family_name not in families:
         raise RuntimeError(f"{label} names an unknown family")
     page = require_printable_line(raw.get("page"), label)
-    if not _PAGE.match(page):
+    if not _PAGE.fullmatch(page):
         raise RuntimeError(f"{label} needs the page of its source row")
     offered = raw.get("tolerance_codes")
     family_codes = codes[family_name]
