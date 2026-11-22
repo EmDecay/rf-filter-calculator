@@ -247,6 +247,101 @@ more than 0.5 dB; use the simulated value)` and JSON `loss_estimate_validation` 
 Use `--sim-build` for separate inductor and capacitor Q or the chosen parts. Q keys in
 `il_estimates` keep enough precision to tell a user value from the examples; parse them as numbers.
 
+### Coupling advice
+
+A Top-C coupling capacitor shrinks as the tank inductance grows (about as `1/L`; an end
+capacitor about as `1/√L`). When some coupling capacitor (`Ce_in`, `Cs12`, …, `Ce_out`) gets no
+standard part of 1 pF or more, the table adds a **Coupling Advice** section after the standard
+values, and JSON a `coupling_advice` object (`null` otherwise; CSV, values-only and SPICE leave
+it out). It needs standard values (an E-series).
+
+The advice names the tank inductance closest to the design's that gives every coupling capacitor
+such a part, and only a value a built-in inductor suggestion supplies: a chip-inductor catalog
+value or a whole-turn winding of a verified toroid core. It starts at the inverse-`L` estimate
+and recalculates at most 8 designs. Each one is the rerun you would make: the value is written
+as the text it prints, read back, and recalculated with every other setting of the run. So the
+printed value is exactly the one checked:
+
+```bash
+uv run filter-calc bp ch top -f 146MHz -b 4MHz -n 3 -r 0.5
+```
+
+```text
+Coupling Advice
+──────────────────────────────────────────────────
+Cs12, Cs23 get no standard part of 1 pF or more with 54.51 nH tanks. A lower tank
+  inductance raises every coupling capacitor.
+Rerun with "Resonator inductance" set to 21 nH (--tank-inductance 21nH). Recalculated
+  with that value, every coupling capacitor gets a part of 1 pF or more (Ce_in, Ce_out:
+  4.30 pF; Cs12, Cs23: 1.00 pF), and chip inductor LQW15AN21NG80D supplies the
+  inductance. Every capacitor of the design changes; use the rerun's own output.
+```
+
+Apply it with `--tank-inductance 21nH` (wizard and web: **Resonator inductance**; clear
+**Resonator impedance** if it was set, which the advice then says). The inverse-`L` estimate
+itself, 21.06 nH, gives Cs12 = 0.99955 pF and no part, which is why the advice uses a value a
+part supplies. When no value works within the 8 recalculations, or no suggestion supplies a
+lower value, the section says so and advises nothing.
+
+### Tank trimmers
+
+Every band-pass tank with standard values gets a **Tank Trimmers** section (JSON
+`tank_trimmers`; CSV `TankFixedParts`, `TrimmerPart`, `TrimmerRequired*PF`, `TrimmerRange*PF`,
+`TankNeed*PF` and `TankNeedBasis` on the tank rows): a fixed standard part plus a sourced trimmer,
+set at the calibrated tank frequency (145.974 MHz for the 2 m design above) so that the tank's
+susceptance matches the calculated design's.
+
+- **What the tank needs.** The fixed part and trimmer together must cover the capacitance the
+  tank needs when every other part at its node is at either end of its tolerance: the inductor
+  (a chip inductor at both tolerance ends, at its minimum SRF and with no drift; a toroid
+  winding or a calculated value at ±10% or the entered inductor tolerance), each coupling
+  capacitor, and each end capacitor in series with the source or load resistance (its effective
+  shunt `Ce/(1 + (ωRCe)²)`, which is largest at `Ce = 1/(ωR)`; both ends and that point are
+  used). Part Q from the build settings is included. The tolerances add in pF.
+- **Sourced or conditional.** The need is sourced when every part tolerance in it is sourced.
+  A toroid winding, a calculated inductor, a capacitor whose tolerance is not sourced, or a
+  coupling capacitor with no chosen part makes it **conditional**, and the section names each
+  assumption (`Conditional on assumed tolerances: Cs12 (no standard part chosen; its calculated
+  value at ±5% assumed).`). The assumed stray and the port resistances are stated inputs.
+- **The trimmer's range there.** A trimmer's range is guaranteed at 200 kHz (Vishay) or at a
+  frequency the maker does not state; at VHF its series inductance raises its effective
+  capacitance `C/(1 − ω²LsC)`. For a Vishay part with a minimum SRF at its maximum the
+  inductance is bounded (`Ls ≤ 1/((2π·SRF)²·Cmax)`); for every other part it is an assumed
+  10 nH. Either is taken as an upper bound, so the range relied on runs from the raised minimum
+  to the unraised maximum, and **every fit is conditional on that inductance**, never
+  guaranteed. BFC280820109 (3–10 pF, SRF at least 500 MHz) with 10 nH reaches only 3.0777 pF at
+  its low stop at 146 MHz, so a tank needing 3.00 pF from it does not fit.
+- **The split.** A trimmer fits when its range contains what it must supply: the need less the
+  fixed part at either end of its tolerance and the assumed 0.2 pF stray across each extra part
+  (one with a single fixed part, two with a pair). The fixed part is none, the best single part
+  or the best pair by the [worst-case rule](#how-a-value-is-chosen) for the middle of the range.
+  Splits rank by the smallest trimmer range, then the best-centred fixed part, then fewer parts;
+  the table shows the first and JSON up to three (one per trimmer). When none fits, the section
+  prints what the fixed part and trimmer together must supply.
+
+The trimmers packaged are the sourced ones with both range ends stated as bounds: Vishay BFC2
+808, Exxelia AT 0300/1300 R2, AT 03HV, AT 9402G, AT 9410G and AT 23XXG, and Suntan TSC3S
+([component-data-sources.md](component-data-sources.md#trimmer-capacitors)). The Knowles
+Voltronics lines qualify too but are not packaged, because the evidence page does not list them
+part by part. On HF a tank with a toroid winding often needs a wider span than any packaged
+trimmer has (±10% of a few hundred pF), so it keeps its standard-value part.
+
+**In the build.** A tank with a trimmer is built as its fixed part, a fixed `CSTRAY_CT<i>`
+across it, and the trimmer `CTRIM_CT<i>` with its series inductance (written to the chosen-parts
+SPICE deck as `LTRIM_CT<i>` in series). The nominal build sets each trimmer so that its node's
+susceptance, with every built branch, its Q and the ports, equals the calculated design's at the
+tank frequency; the deck holds those settings. Every tolerance case is simulated twice: with each
+trimmer at its nominal setting (the untuned response) and after retuning each trimmer for that
+case within its range (the tuned response). The table prints both spreads; JSON gives each case's
+`tuning` (the settings, `in_range` for each, and the tuned measurement) beside its untuned
+`measurement`, and `trimmer_out_of_range_cases`. A trimmer that cannot reach its setting stays at
+the end of its range and is flagged. Retuning restores each tank's resonance, not the coupling
+between tanks or the external Q, so the tuned response is not the design's response.
+
+```bash
+uv run filter-calc bp ch top -f 146MHz -b 4MHz -n 3 -r 0.5 --tank-inductance 21nH --sim-build
+```
+
 ## Interactive Wizard (Textual TUI)
 
 Running `uv run filter-calc` with no arguments starts the wizard for guided filter design.

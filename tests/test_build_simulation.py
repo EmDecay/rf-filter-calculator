@@ -898,6 +898,35 @@ class TestBuildAnalysis:
         assert measured.nominal_build == analysis.nominal_build == analysis.cases[0].measurement
 
     @pytest.mark.runtime_budget
+    def test_a_9_resonator_build_with_trimmers_and_100_cases_fits_the_web_timeout(self):
+        # The web stops a calculation after 60 s (web/settings.py). Measured on an Apple
+        # M-series machine: about 33 s, against 15 s without trimmers; each case is measured
+        # twice, with its trimmers at their nominal settings and after retuning them.
+        from filter_lib.design import DesignRequest, design
+
+        request = DesignRequest(
+            "bandpass",
+            "chebyshev",
+            "top",
+            146e6,
+            50.0,
+            9,
+            ripple_db=0.5,
+            bandwidth_hz=4e6,
+            realization=BuildConfig(grid_points=601, sample_count=100),
+            run_build_analysis=True,
+        )
+
+        started = time.perf_counter()
+        analysis = design(request).build_analysis
+        elapsed = time.perf_counter() - started
+
+        assert analysis.has_trimmers
+        assert len(analysis.cases) == 173
+        assert all(case.tuning is not None for case in analysis.cases)
+        assert elapsed < 60.0
+
+    @pytest.mark.runtime_budget
     def test_default_analysis_runtime_is_bounded(self):
         started = time.perf_counter()
         analysis = analyze_build(

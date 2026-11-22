@@ -97,3 +97,52 @@ def test_csv_is_rectangular_and_emits_only_selected_parallel_pairs(result) -> No
             assert row[kind_index] == "single"
             assert row[parallel_index] == ""
             assert row[selected_index]
+
+
+def test_json_carries_the_tank_trimmers_and_the_coupling_advice() -> None:
+    from filter_lib.design import DesignRequest, design
+    from filter_lib.design.render import render_lines
+    from filter_lib.design.render_options import RenderOptions
+
+    outcome = design(
+        DesignRequest(
+            "bandpass", "chebyshev", "top", 146e6, 50.0, 3, ripple_db=0.5, bandwidth_hz=4e6
+        )
+    )
+    data = json.loads(render_lines(outcome, RenderOptions(output_format="json"))[0])
+
+    trimmers = data["tank_trimmers"]
+    assert [tank["circuit_name"] for tank in trimmers["tanks"]] == ["CT1", "CT2", "CT3"]
+    for tank in trimmers["tanks"]:
+        low, high = tank["need_f"]
+        assert 0 < low < high
+        assert tank["need_basis"] in {"sourced", "conditional"}
+        assert tank["fits"] == bool(tank["splits"])
+        for split in tank["splits"]:
+            assert split["trimmer"]["source"]["sha256"]
+            assert split["series_inductance_basis"] in {"assumed", "bound_from_minimum_srf"}
+    advice = data["coupling_advice"]
+    assert advice["advised"]["setting"] == "21nH"
+    assert advice["short_coupling_capacitors"] == ["Cs12", "Cs23"]
+
+
+def test_csv_tank_rows_carry_the_trimmer_columns(result) -> None:
+    rows = list(csv.reader(io.StringIO(format_csv(result, parts_for(result, "bandpass")))))
+    header = rows[0]
+
+    assert header[-9:] == [
+        "TankFixedParts",
+        "TrimmerPart",
+        "TrimmerRequiredMinPF",
+        "TrimmerRequiredMaxPF",
+        "TrimmerRangeMinPF",
+        "TrimmerRangeMaxPF",
+        "TankNeedMinPF",
+        "TankNeedMaxPF",
+        "TankNeedBasis",
+    ]
+    assert all(len(row) == len(header) for row in rows)
+    by_name = {row[0]: dict(zip(header, row)) for row in rows[1:]}
+    # Every tank states its need; the other rows leave the columns blank.
+    assert all(by_name[f"Cp{i}"]["TankNeedBasis"] for i in (1, 2, 3))
+    assert by_name["Cs12"]["TankNeedBasis"] == "" and by_name["L1"]["TankNeedBasis"] == ""

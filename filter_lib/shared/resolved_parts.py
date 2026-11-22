@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from .eseries import ESeriesMatch, MatchPolicy
 from .inductor_suggestion import (
@@ -21,6 +22,9 @@ from .inductor_suggestion import (
     KindSuggestions,
 )
 from .srf_screen import CheckWindow, common_range
+
+if TYPE_CHECKING:
+    from .tank_trimmers import TankParts
 
 # A build or deck given another design's parts (the same element names, other values).
 PARTS_FROM_ANOTHER_DESIGN_MESSAGE = "The resolved parts belong to another design"
@@ -74,6 +78,8 @@ class ResolvedParts:
     ``inductor_detail`` is how much of the suggestions the table shows (``none`` leaves
     them out of every output) and ``build_inductors`` what the build uses.
     ``check_window`` is the frequencies the inductor suggestions were checked over.
+    ``tanks`` holds each band-pass tank's fixed-plus-trimmer sizing, keyed by its tank
+    capacitor (``CT1``); empty for ladders and without standard values.
     """
 
     eseries: str | None
@@ -83,11 +89,13 @@ class ResolvedParts:
     inductor_detail: str = DEFAULT_INDUCTOR_DETAIL
     build_inductors: str = DEFAULT_BUILD_INDUCTORS
     check_window: CheckWindow | None = None
+    tanks: Mapping[str, TankParts] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Own copies, so a caller's later change to its mapping cannot reach the parts.
         object.__setattr__(self, "capacitors", dict(self.capacitors))
         object.__setattr__(self, "inductors", dict(self.inductors))
+        object.__setattr__(self, "tanks", dict(self.tanks))
 
     @property
     def shows_suggestions(self) -> bool:
@@ -112,6 +120,10 @@ class ResolvedParts:
         if self.eseries is None:
             raise ValueError("No standard capacitor values were chosen for this design")
         return self.capacitors[name]
+
+    def tank(self, name: str) -> TankParts | None:
+        """The fixed-plus-trimmer sizing of tank capacitor ``name``, or ``None`` if unsized."""
+        return self.tanks.get(name)
 
     def inductor(self, name: str) -> InductorParts:
         """The suggestions and build part of inductor ``name`` (a circuit element name)."""

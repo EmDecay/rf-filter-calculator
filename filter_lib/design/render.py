@@ -35,7 +35,11 @@ def _table_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
         from ..bandpass.display import format_table_lines
 
         return format_table_lines(
-            outcome.result, outcome.parts, raw=options.raw, show_plot=options.show_plot
+            outcome.result,
+            outcome.parts,
+            raw=options.raw,
+            show_plot=options.show_plot,
+            coupling_advice=outcome.coupling_advice,
         )
 
     from ..shared.lp_hp_display import CAPACITOR_MATCH, LpHpRenderOptions, render_results_lines
@@ -74,6 +78,15 @@ def render_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
     result = outcome.result
 
     if options.output_format == "json":
+        if outcome.category == "bandpass":
+            return [
+                display.format_json(
+                    result,
+                    outcome.parts,
+                    build_analysis=build_analysis,
+                    coupling_advice=outcome.coupling_advice,
+                )
+            ]
         return [display.format_json(result, outcome.parts, build_analysis=build_analysis)]
     if options.output_format == "csv":
         return [display.format_csv(result, outcome.parts)]

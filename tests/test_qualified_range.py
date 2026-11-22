@@ -10,6 +10,7 @@ is checked (toroid windings, calculated values) nothing changes.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 
 import pytest
@@ -26,11 +27,27 @@ from filter_lib.shared.build_response import (
     highpass_passband_top,
     measure_circuit,
 )
+from filter_lib.shared.build_simulation import analyze_build
 from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.circuit_builders import build_named_circuit
 from tests.cli_parity_helpers import cli_stdout
 
 FAST = BuildConfig(grid_points=51)
+
+
+def _untrimmed_build(request: DesignRequest):
+    """The build of ``request`` with each tank as its standard-value choice, no trimmer.
+
+    The band-pass measurement scenarios below were found on such builds, whose tanks are
+    not tuned: their tolerance cases (and a narrow band's nominal build) are detuned. A
+    design now tunes each tank with a trimmer, so the scenarios keep their circuits by
+    building the same parts without the tank sizing.
+    """
+    outcome = design(dataclasses.replace(request, run_build_analysis=False))
+    parts = dataclasses.replace(outcome.parts, tanks={})
+    return outcome, analyze_build(outcome.result, "bandpass", request.realization, parts=parts)
+
+
 # 25.2 nH shunt inductors at 125 MHz: LQW15AN25NG80D, within its allowances to 900 MHz.
 HP_CHIPS = DesignRequest(
     "highpass",
@@ -212,8 +229,7 @@ def test_every_reported_frequency_of_a_chosen_parts_result_is_classified():
         realization=FAST,
         run_build_analysis=True,
     )
-    outcome = design(request)
-    analysis = outcome.build_analysis
+    outcome, analysis = _untrimmed_build(request)
     low, high = analysis.qualified_range_hz
     payload = build_analysis_fields(outcome.result, analysis)
     records = {
@@ -369,9 +385,8 @@ def test_a_detuned_band_pass_case_is_measured_from_its_true_peak():
         realization=FAST,
         run_build_analysis=True,
     )
-    case = next(
-        case for case in design(request).build_analysis.cases if case.case_id == "one:CT2:low"
-    )
+    _outcome, analysis = _untrimmed_build(request)
+    case = next(case for case in analysis.cases if case.case_id == "one:CT2:low")
     measurement = case.measurement
 
     assert measurement.reference_peak_frequency_hz == pytest.approx(387.675e6, rel=1e-5)
@@ -397,7 +412,7 @@ def test_a_narrow_band_pass_finds_its_peak_and_both_edges():
         realization=FAST,
         run_build_analysis=True,
     )
-    measurement = design(request).build_analysis.nominal_build
+    measurement = _untrimmed_build(request)[1].nominal_build
 
     assert measurement.reference_peak_frequency_hz == pytest.approx(146_019_413.7, abs=0.5)
     assert measurement.reference_peak_gain_db == pytest.approx(-63.867, abs=1e-3)
@@ -484,7 +499,7 @@ def test_a_dip_the_grid_missed_splits_the_range_and_is_not_converged():
         realization=BuildConfig(source_resistance_ohm=0.5, load_resistance_ohm=0.5),
         run_build_analysis=True,
     )
-    case = next(c for c in design(request).build_analysis.cases if c.case_id == "one:CT2:low")
+    case = next(c for c in _untrimmed_build(request)[1].cases if c.case_id == "one:CT2:low")
     regions = case.measurement.threshold_regions
 
     assert len(regions) == 2
@@ -559,5 +574,6 @@ def test_a_narrow_band_s_edges_print_apart(monkeypatch, capsys):
         "51",
     )
 
+    # The tanks are tuned with trimmers, so the chosen parts' band is centred on 146.0187 MHz.
     chosen = next(line for line in text.splitlines() if line.startswith("Chosen parts:"))
-    assert "edges 146.01938157 MHz / 146.019445753 MHz" in chosen
+    assert "edges 146.018650478 MHz / 146.018749522 MHz" in chosen

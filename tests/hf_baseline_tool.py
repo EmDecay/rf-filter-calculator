@@ -668,12 +668,35 @@ def classify(
     return [], "not a permitted change"
 
 
-def record_with_old_peak_rule(design: Design) -> dict[str, object]:
+@contextlib.contextmanager
+def _without_trimmers():
+    """Resolve parts with no tank sizing, so every tank is its standard-value choice."""
+    from filter_lib.design import part_resolution
+
+    saved = part_resolution.size_tanks
+    part_resolution.size_tanks = lambda *_args, **_kwargs: {}
+    try:
+        yield
+    finally:
+        part_resolution.size_tanks = saved
+
+
+def record_without_trimmers(design: Design) -> dict[str, object]:
+    """``record(design)`` with every tank built as its standard-value choice, no trimmer.
+
+    Only the difference between this and ``record`` is the trimmer split's effect (kind d).
+    """
+    with _without_trimmers():
+        return record(design)
+
+
+def record_with_old_peak_rule(design: Design, *, trimmers: bool = True) -> dict[str, object]:
     """``record(design)`` with response refinement as before the reference-peak fix.
 
     Every local maximum counts as a peak (no prominence), and no evaluated dip splits a
     region, so a rounding-step pair or a noise bump near the center can be taken as the
     peak. Only the difference between this and ``record`` is the fix's effect (kind f).
+    ``trimmers`` false records it without the trimmer split as well.
     """
     from filter_lib.shared import response_refinement
 
@@ -681,9 +704,53 @@ def record_with_old_peak_rule(design: Design) -> dict[str, object]:
     response_refinement.PEAK_PROMINENCE_DB = 0.0
     response_refinement._hidden_dips = lambda *_args: []
     try:
-        return record(design)
+        if trimmers:
+            return record(design)
+        with _without_trimmers():
+            return record(design)
     finally:
         response_refinement.PEAK_PROMINENCE_DB, response_refinement._hidden_dips = saved
+
+
+def _trimmed_tanks(item: str, after: Any, actual: dict) -> list[str]:
+    """The tanks a changed item shows as a fixed part plus a trimmer."""
+    if item_type(item) == "spice_nominal":
+        return sorted(
+            str(row[0]).removeprefix("CTRIM_")
+            for row in after or []
+            if str(row[0]).startswith("CTRIM_")
+        )
+    return [row[0] for row in actual.get("build_parts") or [] if row[5] == "fixed_plus_trimmer"]
+
+
+def _classify_with_trimmers(
+    design: Design,
+    item: str,
+    corpus: dict,
+    actual: dict,
+    untrimmed: dict,
+    untrimmed_changes: dict[str, tuple],
+    old_peaks: dict | None,
+) -> tuple[list[str], str]:
+    """Explain an item the trimmer split moved (kind d).
+
+    What separates the corpus from the design recorded without trimmers must itself be a
+    permitted change; the trimmer split explains the rest.
+    """
+    tanks = _trimmed_tanks(item, actual.get(item), actual)
+    if not tanks:
+        return [], "not a permitted change"
+    kinds, reasons = ["d"], [f"tanks built as a fixed part plus a trimmer ({', '.join(tanks)})"]
+    if item in untrimmed_changes:
+        before, after = untrimmed_changes[item]
+        inner, reason = classify(
+            design, item, before, after, untrimmed_changes, untrimmed, old_peaks
+        )
+        if not inner:
+            return [], "not a permitted change"
+        kinds = sorted({*inner, *kinds})
+        reasons.insert(0, reason)
+    return kinds, "; ".join(reasons)
 
 
 def current_changes() -> list[dict]:
@@ -691,16 +758,31 @@ def current_changes() -> list[dict]:
     corpus = load_corpus()["designs"]
     changes = []
     for design in designs():
+        expected = corpus[design.case_id]
         actual = record(design)
-        changed = changed_items(corpus[design.case_id], actual)
-        old_peaks = (
-            record_with_old_peak_rule(design)
-            if design.category == "bandpass"
-            and any(item_type(item) in _MEASUREMENT_ITEMS for item in changed)
-            else None
+        changed = changed_items(expected, actual)
+        is_bandpass = design.category == "bandpass"
+        untrimmed = record_without_trimmers(design) if is_bandpass and changed else None
+        trimmed = (
+            set()
+            if untrimmed is None
+            else {
+                item for item in changed if not _same(item, untrimmed.get(item), actual.get(item))
+            }
         )
+        measured = any(item_type(item) in _MEASUREMENT_ITEMS for item in changed)
+        old_peaks = record_with_old_peak_rule(design) if is_bandpass and measured else None
+        untrimmed_peaks = (
+            record_with_old_peak_rule(design, trimmers=False) if trimmed and measured else None
+        )
+        untrimmed_changes = {} if untrimmed is None else changed_items(expected, untrimmed)
         for item, (before, after) in changed.items():
-            kinds, reason = classify(design, item, before, after, changed, actual, old_peaks)
+            if item in trimmed:
+                kinds, reason = _classify_with_trimmers(
+                    design, item, expected, actual, untrimmed, untrimmed_changes, untrimmed_peaks
+                )
+            else:
+                kinds, reason = classify(design, item, before, after, changed, actual, old_peaks)
             changes.append(
                 {
                     "case": design.case_id,

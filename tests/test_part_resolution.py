@@ -653,13 +653,16 @@ def test_a_cancelled_build_is_a_cancelled_design():
 
 # Selection entry points, and the selector modules that call them inside a selection
 # (``match_component`` hands capacitors to ``choose_capacitor``; ``suggest_toroids`` runs
-# the toroid screen).
+# the toroid screen; ``size_tanks`` chooses each tank's fixed part with ``best_pair``).
 SELECTORS = {
     "match_component": set(),
     "choose_capacitor": {"shared/eseries.py"},
+    "best_pair": {"shared/capacitor_choice.py", "shared/tank_trimmers.py"},
     "find_core_candidates": {"shared/toroid_selection.py"},
     "recommend_cores": set(),
     "suggest_toroids": set(),
+    "suggest_chips": set(),
+    "size_tanks": set(),
 }
 
 

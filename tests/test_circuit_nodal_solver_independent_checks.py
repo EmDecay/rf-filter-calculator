@@ -268,8 +268,8 @@ def test_decimal_fallback_keeps_branch_precision_beside_an_extreme_port():
     prepared = nodal_solver._validate_and_normalise(3, branches, rs, rl, 1, 2, [frequency])
     log_omega = log_angular_frequency(frequency)
     stamps = [
-        (n1, n2, *branch_admittance_from_logs(kind, log_value, log_omega, log_loss))
-        for n1, n2, kind, log_value, log_loss in prepared
+        (n1, n2, *branch_admittance_from_logs(kind, log_value, log_omega, log_loss, log_ls))
+        for n1, n2, kind, log_value, log_loss, log_ls in prepared
     ]
     source_log = -math.log(rs)
     stamps += [(1, 0, source_log, 1 + 0j), (2, 0, -math.log(rl), 1 + 0j)]

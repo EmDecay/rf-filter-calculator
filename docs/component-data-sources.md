@@ -14,8 +14,11 @@ chip-inductor [recommended catalog](#recommended-catalog) is packaged as
 tolerance codes, test frequency, minimum SRF, minimum Q and source page, and each source's URL
 and SHA-256) and is screened as in [Coverage](#coverage-of-the-acceptance-designs) for every
 inductor; `tests/test_chip_inductor_data.py` checks every packaged row against the catalog
-table on this page. The toroid, air-coil and trimmer data are evidence only: no calculator
-output uses their values yet. The output does quote the exclusion reasons for VHF toroids and
+table on this page. The trimmer [per-part data](#trimmer-capacitors) (Vishay, Exxelia and
+Suntan TSC3S) is packaged as `filter_lib/shared/trimmer_data.json` and sizes every band-pass
+tank as a fixed part plus a trimmer; `tests/test_trimmer_data.py` checks every packaged row
+against the per-part table and the source index. The toroid and air-coil data are evidence
+only: no calculator output uses their values. The output does quote the exclusion reasons for VHF toroids and
 air-core coils below, word for word, as the reason those kinds offer no part. When a feature packages part of this page as a data file, the packaged rows must
 match this page and cite the same sources; a data change updates this page in the same change.
 
@@ -537,6 +540,16 @@ required setting is out of reach under that assumption: BFC280820109 (3–10 pF,
 at Cmax, so up to 10.1 nH) with 10 nH has an effective minimum of 3.00299 pF at 29 MHz,
 3.07770 pF at 146 MHz and 3.89252 pF at 440 MHz, so it cannot reach a 3.00 pF low end at
 146 MHz.
+
+**How the calculator uses it.** Every row of the per-part table above is packaged
+(`filter_lib/shared/trimmer_data.json`, 58 ranges, 96 part numbers); the Knowles Voltronics
+lines qualify but are not listed part by part on this page, so they are not packaged. A fit
+is checked at the calibrated tank frequency: the series inductance is the bound from Vishay's
+minimum SRF at Cmax where the sheet gives one, and an assumed 10 nH
+(`ASSUMED_TRIMMER_SERIES_INDUCTANCE_H`, about the bound the 1.5–5 and 3–10 pF Vishay parts give)
+for every other part. Either is taken as an upper bound, so the range relied on is from the
+raised minimum to the unraised maximum, and every fit is reported as conditional on that
+inductance. Q and SRF given as typical are shown, never used.
 
 ## Coverage of the acceptance designs
 

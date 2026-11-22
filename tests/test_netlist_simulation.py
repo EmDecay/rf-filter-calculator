@@ -422,9 +422,12 @@ class TestSolverInputValidation:
         [
             ("1-0-C", "Branch must be a tuple or list"),
             ((1, 0, "C"), "four fields plus optional series resistance"),
-            ((1, 0, "C", 1e-12, 0.0, 0.0), "four fields plus optional series resistance"),
+            ((1, 0, "C", 1e-12, 0.0, 0.0, 0.0), "four fields plus optional series resistance"),
             ((1, 0, "C", 0.0), "branch value must be positive and finite"),
             ((1, 0, "R", 50.0, 1.0), "resistor branches cannot specify a series resistance"),
+            # The sixth field is a capacitor's series inductance (a trimmer's).
+            ((1, 0, "L", 1e-9, 0.0, 1e-9), "only capacitor branches can specify a series"),
+            ((1, 0, "C", 1e-12, 0.0, -1e-9), "series inductance must be finite and non-negative"),
         ],
     )
     def test_malformed_branch_rejected(self, branch, message):

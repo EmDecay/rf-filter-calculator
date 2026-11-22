@@ -669,3 +669,52 @@ def test_calculated_values_with_no_suggestions_are_recorded_alike_everywhere(
 
     assert json.loads(expected)["build_model"]["build_inductor_choice"] == "calculated"
     assert api == download == wizard == expected
+
+
+def test_the_tank_trimmers_and_coupling_advice_are_the_same_everywhere(monkeypatch, capsys, client):
+    """The 2 m band-pass: its advice, every tank's split, and the tuned build with its
+    untuned and retuned tolerance cases read the same on the CLI, the web and the wizard."""
+    from filter_lib.wizard.calculation_handler import calculate_and_format
+    from tests.web_helpers import HTMX, output_text
+
+    argv = ("bp", "ch", "top", "-f", "146MHz", "-b", "4MHz", "-n", "3", "-r", "0.5")
+    table = cli_stdout(monkeypatch, capsys, *argv, *BUILD_FLAGS)
+    document = cli_stdout(monkeypatch, capsys, *argv, "--format", "json", *BUILD_FLAGS)
+    form = {
+        "filter_type": "chebyshev",
+        "coupling": "top",
+        "frequency": "146MHz",
+        "bandwidth": "4MHz",
+        "resonators": "3",
+        "ripple": "0.5",
+        "impedance": "50",
+        "eseries": "E24",
+        "output_format": "table",
+        "inductor_suggestions": "best",
+        "sim_build": "on",
+        "build_grid_points": "51",
+    }
+    page = output_text(client.post("/design/bandpass", data=form, headers=HTMX).text) + "\n"
+    api = client.post("/api/design/bandpass", data={**form, "output_format": "json"}).text
+    state = FilterState(
+        category="bandpass",
+        filter_type="chebyshev",
+        topology="top",
+        frequency_hz=146e6,
+        bandwidth_hz=4e6,
+        order=3,
+        ripple_db=0.5,
+        show_plot=False,
+        build_analysis_enabled=True,
+        build_grid_points=51,
+    )
+    wizard = calculate_and_format(state).output_text
+
+    assert page == table
+    assert api.strip() == document.strip()
+    assert wizard == _screen_text(table, build=True)
+    for heading in ("\nCoupling Advice\n", "\nTank Trimmers\n", "Spread after retuning"):
+        assert heading in table
+    data = json.loads(document)
+    assert data["coupling_advice"]["advised"]["setting"] == "21nH"
+    assert all(case["tuning"] for case in data["tolerance_analysis"]["cases"])

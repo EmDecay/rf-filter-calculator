@@ -6,8 +6,11 @@ from .build_output_model import build_model_payload, realization_summary
 from .build_types import (
     DEFAULT_INDUCTOR_TOLERANCE_PCT,
     BuildAnalysisResult,
+    CaseTuning,
     CircuitMeasurement,
     ComponentSubstitution,
+    TrimmerSetting,
+    TrimmerUse,
 )
 from .circuit_model import CircuitElement
 from .response_refinement import (
@@ -62,6 +65,48 @@ def _measurement_payload(
     return payload
 
 
+def trimmer_setting_payload(setting: TrimmerSetting) -> dict[str, Any]:
+    """One tank's trimmer setting (capacitances at the tank frequency, in farads)."""
+    return {
+        "tank": setting.tank,
+        "required_capacitance_f": setting.required_f,
+        "setting_f": setting.setting_f,
+        "effective_capacitance_f": setting.effective_f,
+        "in_range": setting.in_range,
+    }
+
+
+def _trimmer_payload(trimmer: TrimmerUse | None) -> dict[str, Any] | None:
+    if trimmer is None:
+        return None
+    return {
+        "maker": trimmer.maker,
+        "family": trimmer.family,
+        "part_numbers": list(trimmer.part_numbers),
+        "series_inductance_h": trimmer.series_inductance_h,
+        "series_inductance_basis": (
+            "assumed" if trimmer.series_inductance_assumed else "bound_from_minimum_srf"
+        ),
+        "range_at_tuning_frequency_f": list(trimmer.range_f),
+        "tuning_frequency_hz": trimmer.tuning_frequency_hz,
+        "nominal_setting": trimmer_setting_payload(trimmer.setting),
+    }
+
+
+def _case_tuning_payload(
+    tuning: CaseTuning | None, category: str, qualified_range: tuple[float, float] | None
+) -> dict[str, Any] | None:
+    if tuning is None:
+        return None
+    return {
+        "settings": [trimmer_setting_payload(setting) for setting in tuning.settings],
+        "all_trimmers_in_range": tuning.all_in_range,
+        "measurement": _measurement_payload(
+            tuning.measurement, category, qualified_range, chosen_parts=True
+        ),
+    }
+
+
 def _substitution_payload(substitution: ComponentSubstitution) -> dict[str, Any]:
     """Return an auditable calculated-to-physical substitution record."""
     return {
@@ -82,6 +127,7 @@ def _substitution_payload(substitution: ComponentSubstitution) -> dict[str, Any]
         "self_capacitance_f": substitution.self_capacitance_f,
         "tolerance_pct": substitution.tolerance_pct,
         "own_tolerance": substitution.own_tolerance,
+        "trimmer": _trimmer_payload(substitution.trimmer),
         "warnings": list(substitution.warnings),
     }
 
@@ -100,6 +146,7 @@ def _element_payload(element: CircuitElement) -> dict[str, Any]:
         "loss_reference_frequency_hz": element.loss_reference_frequency_hz,
         "tolerance_fraction": element.tolerance,
         "fixed": element.fixed,
+        "series_inductance_h": element.series_inductance_h,
     }
 
 
@@ -217,15 +264,24 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
                         {"physical_element_name": name, "factor": factor}
                         for name, factor in case.component_factors
                     ],
+                    # With trimmers: every trimmer at its nominal setting (untuned).
                     "measurement": _measurement_payload(
                         case.measurement, category, qualified, chosen_parts=True
                     ),
+                    "tuning": _case_tuning_payload(case.tuning, category, qualified),
                 }
                 for case in analysis.cases
             ],
             "metric_summaries": [
                 _summary_payload(summary, analysis.metrics_outside_qualified_range())
                 for summary in analysis.metric_summaries
+            ],
+            # Each trimmer is retuned in every case; the spread after retuning follows.
+            "trimmers_retuned_in_each_case": analysis.has_trimmers,
+            "trimmer_out_of_range_cases": analysis.out_of_range_cases(),
+            "tuned_metric_summaries": [
+                _summary_payload(summary, analysis.metrics_outside_qualified_range(tuned=True))
+                for summary in analysis.tuned_metric_summaries
             ],
             "limitations": list(analysis.limitations),
         },

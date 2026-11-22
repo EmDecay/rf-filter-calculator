@@ -59,6 +59,15 @@ def format_frequency(freq_hz: float) -> str:
     return _format_with_units(freq_hz, _FREQUENCY_UNITS, base_unit="Hz")
 
 
+def format_tank_frequency(freq_hz: float) -> str:
+    """A band-pass tank frequency to six significant digits (``145.974 MHz``).
+
+    The calibrated tank frequency sits a little off the center; four digits would
+    print it as the center.
+    """
+    return _format_with_units(freq_hz, _FREQUENCY_UNITS, ".6g", base_unit="Hz")
+
+
 def format_capacitance(value_farads: float) -> str:
     """Format capacitance with appropriate unit (F, mF, µF, nF, pF, fF)."""
     require_finite_real(value_farads, "formatted value")

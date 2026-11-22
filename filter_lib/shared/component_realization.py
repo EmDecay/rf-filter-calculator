@@ -3,13 +3,24 @@
 from dataclasses import replace
 
 from .build_loss_models import _with_loss
-from .build_types import DEFAULT_INDUCTOR_TOLERANCE_PCT, BuildConfig, ComponentSubstitution
+from .build_types import (
+    DEFAULT_INDUCTOR_TOLERANCE_PCT,
+    BuildConfig,
+    ComponentSubstitution,
+    TrimmerSetting,
+    TrimmerUse,
+)
 from .capacitor_choice import assumed_tolerance_pct
 from .circuit_display_names import SELF_CAPACITANCE_PREFIX, STRAY_PREFIX, display_component_name
 from .circuit_model import CircuitElement
 from .eseries import ESeriesMatch, MatchPolicy
 from .inductor_suggestion import SUGGESTED_INDUCTOR_METHOD, InductorSuggestion
 from .resolved_parts import InductorParts
+from .tank_trimmers import TankParts
+from .tank_tuning import TrimmerPlan, plan_trimmer, trimmer_element
+
+# The JSON ``method`` of a tank built as a fixed part plus a trimmer.
+FIXED_PLUS_TRIMMER_METHOD = "fixed_plus_trimmer"
 
 
 def inductor_case_tolerance_pct(config: BuildConfig) -> float:
@@ -217,3 +228,72 @@ def _realize_inductor(
         tolerance_pct=tolerance_pct,
     )
     return [realized], substitution, [warning]
+
+
+def realize_tank_split(
+    element: CircuitElement,
+    tank: TankParts,
+    quality_factor: float | None,
+    reference_frequency_hz: float,
+) -> tuple[list[CircuitElement], ComponentSubstitution, TrimmerPlan]:
+    """Realize a tank as its split: the fixed part(s), the assumed stray, and the trimmer.
+
+    The trimmer starts at its lowest setting; ``tank_tuning.tune`` sets it once the whole
+    circuit is built.
+    """
+    split = tank.split
+    assert split is not None
+    values = split.fixed_parts_f
+    suffixes = ("",) if len(values) == 1 else tuple(chr(ord("A") + i) for i in range(len(values)))
+    physical = [
+        _with_loss(
+            replace(
+                element,
+                name=f"{element.name}{suffix}",
+                value=value,
+                logical_name=element.name,
+                series_resistance_ohm=0.0,
+                quality_factor=None,
+                loss_reference_frequency_hz=None,
+                tolerance=tolerance / value,
+            ),
+            quality_factor,
+            reference_frequency_hz,
+        )
+        for suffix, value, tolerance in zip(suffixes, values, split.fixed_tolerances_f)
+    ]
+    if split.stray_f:
+        physical.append(stray_element(element, split.stray_f))
+    physical.append(
+        trimmer_element(
+            element,
+            split.series_inductance_h,
+            split.trimmer.cmin_max_f,
+            quality_factor,
+            reference_frequency_hz,
+        )
+    )
+    plan = plan_trimmer(tank, element, quality_factor, reference_frequency_hz)
+    trimmer = split.trimmer
+    substitution = ComponentSubstitution(
+        logical_name=element.name,
+        kind="C",
+        calculated_value=element.value,
+        nominal_value=split.fixed_value_f,
+        physical_parts=values,
+        method=FIXED_PLUS_TRIMMER_METHOD,
+        status="recommended",
+        stray_capacitance_f=split.stray_f or None,
+        trimmer=TrimmerUse(
+            maker=trimmer.maker,
+            family=trimmer.family,
+            part_numbers=trimmer.part_numbers,
+            series_inductance_h=split.series_inductance_h,
+            series_inductance_assumed=split.series_inductance_assumed,
+            range_f=split.trimmer_range_f,
+            tuning_frequency_hz=tank.tuning_frequency_hz,
+            # Replaced by the tuned setting once the circuit is complete.
+            setting=TrimmerSetting(tank.name, 0.0, trimmer.cmin_max_f, 0.0, False),
+        ),
+    )
+    return physical, substitution, plan

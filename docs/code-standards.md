@@ -274,6 +274,20 @@ the tolerance cases, so making a SPICE deck never runs them:
   takes its peak and threshold only inside `highpass_peak_range`. With no such part (toroid
   windings, calculated values) nothing is limited or labelled. An entered inductor Q applies to
   a chip's inductance branch alone (`nominal_realization.CHIP_Q_LIMITATION`);
+- a band-pass tank with a fitting split (`ResolvedParts.tanks`, sized once in
+  `part_resolution` by `shared/tank_trimmers.size_tanks`) is built as its fixed part(s), one
+  `fixed` `CSTRAY_CT<i>` of the assumed stray times the number of fixed parts, and the trimmer
+  `CTRIM_CT<i>` (`circuit_display_names.TRIMMER_PREFIX`, "Cp<i> trimmer"): a `fixed` capacitor
+  carrying the series inductance its fit assumes (`CircuitElement.series_inductance_h`, simulated
+  in its own branch and written to SPICE as `LTRIM_CT<i>` in series through `NSERIES…`). Its
+  knob setting is solved by `shared/tank_tuning.tune` so the node susceptance
+  (`shared/tank_susceptance.node_susceptance`: other tank nodes shorted, ports at their
+  resistance, every branch with its Q) equals the calculated design's at the calibrated tank
+  frequency; each tolerance case keeps its untuned measurement and adds `ScreeningCase.tuning`
+  (settings with `in_range`, tuned measurement). Sizing and tuning read the same losses
+  (`build_loss_models.loss_model`), so they never disagree about Q. A fit always rests on the
+  stated series inductance and is never called guaranteed; a need with an assumed input
+  tolerance is conditional and names it (`tank_trimmers.*_assumption`);
 - Q is converted to constant series resistance at a stated reference frequency;
 - a custom loss reference without an effective Q is rejected;
 - fixed tolerance cases and seeded extra random cases are not measurements, probabilities,
@@ -325,7 +339,13 @@ field parsers for the grade, tolerance and stray), `shared/display_helpers.py`
 (`no_suitable_core_reason`, which names the limit that rejected the rated cores; `no_rated_core_reason`; `NOT_ASSESSED_WARNING`),
 `shared/chip_selection.py` (`no_qualifying_chip_reason`, `CHIP_NOT_ASSESSED_WARNING`),
 `shared/chip_display.py` (`CHIP_HEADING`, `CHIP_MODEL_LINE`, `checked_line`),
-`shared/nominal_realization.py` (`SELF_CAPACITANCE_LIMITATION`, `CHIP_Q_LIMITATION`), `shared/build_analysis.py`
+`shared/nominal_realization.py` (`SELF_CAPACITANCE_LIMITATION`, `CHIP_Q_LIMITATION`,
+`TRIMMER_LIMITATION`), `shared/tank_trimmers.py` (`not_sourced_assumption`,
+`no_part_assumption`, `toroid_assumption`, `calculated_inductor_assumption`),
+`bandpass/trimmer_display.py` (`TANK_TRIMMERS_HEADING`, `COUPLING_ADVICE_HEADING`,
+`tank_trimmer_intro`, `series_inductance_text`, `assumptions_text`),
+`design/coupling_advice.py` (`advice_lines_text`, `no_candidate_reason`,
+`no_value_works_reason`, `FIELD_LABEL`, `CLI_FLAG`), `shared/build_analysis.py`
 (`STRESS_CASE_LIMITATION`), `shared/build_output_formatting.py` (`PARASITIC_PREDICTION`,
 `qualified_range_line`, `highpass_passband_note`, `inductor_tolerance_text`),
 `shared/inductor_display.py` (`format_worst_case`),

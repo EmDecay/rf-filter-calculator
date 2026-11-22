@@ -3,6 +3,7 @@
 Provides E-series matching display, component formatting, and output formatters.
 """
 
+import re
 import textwrap
 from collections.abc import Callable
 
@@ -188,3 +189,24 @@ def split_value_unit(formatted_string: str) -> tuple[str, str]:
         Tuple of (value_str, unit_str), e.g., ("150", "pF")
     """
     return tuple(formatted_string.rsplit(" ", 1))
+
+
+# A number and its unit (``3.09 pF``, ``145.974 MHz``) never wrap apart.
+_VALUE_UNIT = re.compile(r"(\d) (?=[fpnuµm]?(?:F|H|Hz)\b|[kMG]Hz\b)")
+
+
+def wrap_keeping_units(
+    text: str, width: int, *, initial_indent: str = "", subsequent_indent: str = ""
+) -> list[str]:
+    """Wrap ``text`` at ``width`` without separating a number from its unit."""
+    joined = _VALUE_UNIT.sub("\\1\u00a0", text)
+    return [
+        line.replace("\u00a0", " ")
+        for line in textwrap.wrap(
+            joined,
+            width=width,
+            initial_indent=initial_indent,
+            subsequent_indent=subsequent_indent,
+            break_on_hyphens=False,
+        )
+    ]

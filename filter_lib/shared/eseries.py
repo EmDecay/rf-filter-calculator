@@ -203,6 +203,9 @@ def sub_pf_warning(floor_pf: float) -> str:
     )
 
 
+# The largest value ratio of a parallel pair's two parts.
+PAIR_RATIO_LIMIT = 10.0
+
 # Status of a capacitor choice whose part values the sourced table does not list: it is
 # chosen by the legacy nominal rule and its tolerance is an assumption.
 TOLERANCE_NOT_SOURCED = "tolerance_not_sourced"
@@ -429,7 +432,7 @@ def find_parallel_combo(
     target: float,
     series: str = "E24",
     mode: str | None = None,
-    ratio_limit: float = 10.0,
+    ratio_limit: float = PAIR_RATIO_LIMIT,
     minimum_value: float | None = None,
 ) -> tuple[tuple[float, float], float, float] | None:
     """Find parallel combination closest to target.
@@ -560,7 +563,7 @@ def match_component(
     target: float,
     series: str = "E24",
     parallel_mode: str | None = None,
-    ratio_limit: float = 10.0,
+    ratio_limit: float = PAIR_RATIO_LIMIT,
     *,
     policy: MatchPolicy | None = None,
 ) -> ESeriesMatch:

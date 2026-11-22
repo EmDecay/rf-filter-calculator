@@ -18,8 +18,9 @@ _DECIMAL_FALLBACK_LOG_RANGE = math.log(1e7)
 # 10**-7 / ratio; below this ratio they stay normal binary64 numbers.
 _PINNED_LOAD_LOG_LIMIT = math.log(1e250)
 
-# (node 1, node 2, kind, log(value), log(series resistance) or None when lossless)
-PreparedBranch = tuple[int, int, str, float, float | None]
+# (node 1, node 2, kind, log(value), log(series resistance) or None when lossless,
+# log(series inductance) or None when the branch has none)
+PreparedBranch = tuple[int, int, str, float, float | None, float | None]
 
 
 def _finite_complex(value: complex) -> bool:
@@ -106,7 +107,7 @@ def _validate_and_normalise(
         raise ValueError("frequencies must be positive and finite")
 
     normalised = [normalise_branch(branch) for branch in branches]
-    for n1, n2, _kind, _value, _loss in normalised:
+    for n1, n2, _kind, _value, _loss, _inductance in normalised:
         if not (
             isinstance(n1, int)
             and not isinstance(n1, bool)
@@ -118,8 +119,8 @@ def _validate_and_normalise(
             raise ValueError(f"Branch node out of range: ({n1}, {n2})")
     # Branch logarithms do not depend on frequency, so a sweep computes them once.
     return [
-        (n1, n2, kind, *branch_log_terms(value, series_resistance))
-        for n1, n2, kind, value, series_resistance in normalised
+        (n1, n2, kind, *branch_log_terms(value, series_resistance, series_inductance))
+        for n1, n2, kind, value, series_resistance, series_inductance in normalised
     ]
 
 
@@ -173,8 +174,8 @@ def _output_voltage_at(
     """Solve one checked frequency for branches from ``_validate_and_normalise``."""
     log_omega = log_angular_frequency(frequency)
     polar_stamps: list[tuple[int, int, float, complex]] = [
-        (n1, n2, *branch_admittance_from_logs(kind, log_value, log_omega, log_loss))
-        for n1, n2, kind, log_value, log_loss in prepared
+        (n1, n2, *branch_admittance_from_logs(kind, log_value, log_omega, log_loss, log_ls))
+        for n1, n2, kind, log_value, log_loss, log_ls in prepared
     ]
     source_log_admittance = -math.log(rs)
     load_log_admittance = -math.log(rl)

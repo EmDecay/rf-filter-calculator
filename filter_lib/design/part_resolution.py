@@ -8,6 +8,9 @@ and wizard documents read the ``ResolvedParts`` it returns.
 
 from __future__ import annotations
 
+from ..shared.build_loss_models import loss_model
+from ..shared.build_response import evaluation_ports
+from ..shared.build_types import BuildConfig, resolve_build_config
 from ..shared.cancellation import (
     CancellationCheck,
     raise_if_cancelled,
@@ -33,6 +36,7 @@ from ..shared.inductor_suggestion import (
 )
 from ..shared.resolved_parts import InductorParts, ResolvedParts
 from ..shared.srf_screen import CheckWindow, check_window
+from ..shared.tank_trimmers import size_tanks, tank_ports
 from ..shared.toroid_selection import suggest_toroids
 from .design_request import DesignRequest
 from .render_options import needs_eseries_message
@@ -139,6 +143,7 @@ def resolve_parts_for(
     policy: MatchPolicy | None = None,
     inductor_detail: str = DEFAULT_INDUCTOR_DETAIL,
     build_inductors: str = DEFAULT_BUILD_INDUCTORS,
+    realization: BuildConfig | None = None,
     should_cancel: CancellationCheck | None = None,
 ) -> ResolvedParts:
     """Resolve the parts of a synthesis ``result`` under explicit settings.
@@ -146,7 +151,9 @@ def resolve_parts_for(
     ``resolve_parts`` passes the request's settings; a test or a library caller with a
     hand-made result passes its own. Capacitors are chosen only when ``eseries`` is set.
     Each distinct inductance is screened once (band-pass resonators share one), and
-    ``should_cancel`` is polled before each part.
+    ``should_cancel`` is polled before each part. A band-pass design with standard values
+    also sizes each tank as a fixed part plus a trimmer, with the ports, part Q and
+    inductor tolerance of ``realization`` (the build settings; ``None``: the defaults).
     """
     require_inductor_detail(inductor_detail)
     require_build_inductors(build_inductors)
@@ -185,6 +192,22 @@ def resolve_parts_for(
         inductors[element.name] = _inductor_parts(
             element, screened[element.value], inductor_detail, build_inductors
         )
+    tanks = {}
+    if category == "bandpass" and eseries is not None:
+        raise_if_cancelled(should_cancel)
+        config = resolve_build_config(realization)
+        source, load = evaluation_ports(result, category, config)
+        tanks = size_tanks(
+            result,
+            circuit,
+            capacitors,
+            inductors,
+            active_policy,
+            eseries,
+            config,
+            tank_ports(circuit, source, load),
+            loss_model(result, category, config),
+        )
     return ResolvedParts(
         eseries=eseries,
         match_policy=active_policy,
@@ -193,6 +216,7 @@ def resolve_parts_for(
         inductor_detail=inductor_detail,
         build_inductors=build_inductors,
         check_window=window,
+        tanks=tanks,
     )
 
 
@@ -207,5 +231,6 @@ def resolve_parts(
         policy=resolve_match_policy(request),
         inductor_detail=request.inductor_suggestions,
         build_inductors=request.build_inductors,
+        realization=request.realization,
         should_cancel=should_cancel,
     )

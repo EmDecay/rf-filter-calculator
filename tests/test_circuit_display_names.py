@@ -4,7 +4,11 @@ import pytest
 
 from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.shared.build_types import BuildConfig
-from filter_lib.shared.circuit_display_names import display_component_name, format_name_list
+from filter_lib.shared.circuit_display_names import (
+    display_component_name,
+    format_name_list,
+    series_inductance_name,
+)
 from filter_lib.shared.eseries import MatchPolicy
 from filter_lib.shared.spice_export import export_spice_deck
 from tests.parts_helpers import parts_for
@@ -21,6 +25,10 @@ from tests.parts_helpers import parts_for
         ("COUT", "Ce_out"),
         ("CK1A", "Cs12 (part A)"),
         ("COUTB", "Ce_out (part B)"),
+        # A tank's trimmer and the series inductance its fit assumes.
+        ("CTRIM_CT1", "Cp1 trimmer"),
+        ("LTRIM_CT2", "Cp2 trimmer inductance"),
+        ("CSTRAY_CT3", "Cp3 stray"),
         # Low-pass and high-pass names already match their table.
         ("C1", "C1"),
         ("L2", "L2"),
@@ -112,3 +120,9 @@ def test_ladder_deck_has_no_name_map():
     )
 
     assert "* names:" not in deck
+
+
+def test_a_series_inductance_is_named_for_its_capacitor():
+    # A trimmer's is named for its tank; any other capacitor's gets a generic prefix.
+    assert series_inductance_name("CTRIM_CT1") == "LTRIM_CT1"
+    assert series_inductance_name("C1") == "LSERIESC1"

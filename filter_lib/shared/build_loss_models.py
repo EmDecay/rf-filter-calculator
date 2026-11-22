@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from .build_types import BuildConfig
 from .circuit_display_names import display_component_name, format_name_list
@@ -99,6 +99,45 @@ def _loss_quality_factors(
         )
         return resonator_qu, None, False, tuple(limitations)
     return None, None, False, ()
+
+
+@dataclass(frozen=True)
+class LossModel:
+    """The part losses (Q) a build or a tank sizing applies, and where they apply.
+
+    ``capacitor_q_tank_only``: the capacitor Q came from the design's resonator Q model,
+    so it applies to the resonator (tank) capacitors only.
+    """
+
+    inductor_q: float | None
+    capacitor_q: float | None
+    capacitor_q_tank_only: bool
+    reference_frequency_hz: float
+    limitations: tuple[str, ...]
+
+    def capacitor_q_for(self, element_name: str) -> float | None:
+        """The Q of capacitor ``element_name`` (a calculated circuit's element name)."""
+        if self.capacitor_q_tank_only and not element_name.startswith("CT"):
+            return None
+        return self.capacitor_q
+
+    def q_for(self, kind: str, element_name: str) -> float | None:
+        """The Q of the calculated element ``element_name`` of ``kind`` (``C`` or ``L``)."""
+        return self.inductor_q if kind == "L" else self.capacitor_q_for(element_name)
+
+
+def loss_model(result: dict, category: str, config: BuildConfig) -> LossModel:
+    """The losses ``config`` and the design's Q model give the parts of ``result``."""
+    inductor_q, capacitor_q, tank_only, limitations = _loss_quality_factors(
+        result, category, config
+    )
+    return LossModel(
+        inductor_q=inductor_q,
+        capacitor_q=capacitor_q,
+        capacitor_q_tank_only=tank_only,
+        reference_frequency_hz=_loss_reference_frequency(result, category, config),
+        limitations=limitations,
+    )
 
 
 def _with_loss(

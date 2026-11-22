@@ -27,9 +27,10 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         "--sim-build",
         action="store_true",
         help="Build simulation: simulate the filter with the chosen parts (standard "
-        "capacitor values and suggested inductors) at nominal values and across "
-        "tolerance cases (all parts low, all high, each part alone low and high). Add part "
-        "losses (Q) with the Q options. Table or JSON output only",
+        "capacitor values, suggested inductors, and each band-pass tank's fixed part plus "
+        "trimmer) at nominal values and across tolerance cases (all parts low, all high, "
+        "each part alone low and high; band-pass trimmers are retuned in each case). Add "
+        "part losses (Q) with the Q options. Table or JSON output only",
     )
     parser.add_argument(
         "--inductor-tolerance",
@@ -123,7 +124,8 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         default=None,
         action=_StoreSpiceRealization,
         help="Values in the --format spice deck: nominal-build (or chosen-parts) uses the "
-        "chosen parts (standard capacitor values and suggested inductors) with any Q "
+        "chosen parts (standard capacitor values, suggested inductors and band-pass tank "
+        "trimmers at their tuned settings) with any Q "
         "losses; exact (or calculated) uses the calculated values without losses "
         "(default: nominal-build)",
     )

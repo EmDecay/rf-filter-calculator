@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ..shared.build_types import BuildAnalysisResult, BuildConfig
     from ..shared.eseries import MatchPolicy
     from ..shared.resolved_parts import ResolvedParts
+    from .coupling_advice import CouplingAdvice
     from .design_request import DesignRequest
 
 
@@ -25,6 +26,8 @@ class DesignResult:
     for it: the capacitor match policy and choices, and each inductor's suggestions and
     build part. Every output (table, JSON, CSV, the build simulation, the chosen-parts
     SPICE deck) reads its parts from ``parts``, never from its own settings.
+    ``coupling_advice`` is the band-pass tank-inductance advice when a coupling capacitor
+    has no part of 1 pF or more (``None`` otherwise).
     """
 
     category: str
@@ -33,6 +36,7 @@ class DesignResult:
     parts: ResolvedParts
     warnings: tuple[str, ...] = field(default_factory=tuple)
     build_analysis: BuildAnalysisResult | None = None
+    coupling_advice: CouplingAdvice | None = None
 
     @property
     def match_policy(self) -> MatchPolicy:
