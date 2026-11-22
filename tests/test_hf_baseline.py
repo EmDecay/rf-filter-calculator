@@ -85,3 +85,41 @@ def test_a_chip_substitution_is_recognised_only_with_its_inductor_kept():
     for after in (removed, moved, capacitor):
         assert tool.classify(design, "spice_nominal", before, after, {}, {})[0] == []
     assert tool.classify(design, "spice_nominal", two, chip_and_removal, {}, {})[0] == []
+
+
+def test_the_peak_fix_explains_a_change_only_where_recomputing_shows_it():
+    """Kind (f) needs the item recorded under the old peak rule to differ from the new one;
+    an ideal band-pass measurement may change by (f) alone."""
+    design = next(item for item in tool.designs() if item.case_id == "bp-bw-top-1.9MHz-50kHz-n3")
+    before = {"f_low_hz": 1.0, "f_high_hz": 2.0, "worst_design_passband_gain_db": -3.0}
+    after = {**before, "f_low_hz": 1.1}
+    worse = {**before, "worst_design_passband_gain_db": -300.0}
+
+    fixed = tool.classify(
+        design, "build_calculated", before, after, {}, {}, {"build_calculated": before}
+    )
+    assert fixed[0] == ["f"]
+    # Recomputing under the old rule gives the same regression: the fix did not cause it.
+    assert (
+        tool.classify(
+            design, "build_calculated", before, worse, {}, {}, {"build_calculated": worse}
+        )[0]
+        == []
+    )
+    assert tool.classify(design, "build_calculated", before, after, {}, {}, None)[0] == []
+
+
+def test_a_capacitor_change_explains_only_that_capacitor_s_rows():
+    design = next(item for item in tool.designs() if item.case_id == "hp-ch-pi-28MHz-n9")
+    before = [["L1", "1", "0", 1e-7], ["L2", "2", "0", 1e-7], ["C1", "1", "2", 1e-11]]
+    # A real chip substitution, a changed C1, and L2 removed.
+    after = [["L1", "1", "0", 9.97e-8], ["CSELF_L1", "1", "0", 7.8e-14], ["C1", "1", "2", 1.1e-11]]
+    changes = {"capacitor:E24:C1": ({"parts": [1e-11]}, {"parts": [1.1e-11]})}
+
+    assert tool.classify(design, "spice_nominal", before, after, changes, {})[0] == []
+    kept = [*after[:2], ["L2", "2", "0", 1e-7], after[2]]
+    assert sorted(tool.classify(design, "spice_nominal", before, kept, changes, {})[0]) == [
+        "a",
+        "b",
+        "c",
+    ]

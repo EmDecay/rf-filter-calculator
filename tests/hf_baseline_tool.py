@@ -446,6 +446,15 @@ _STRAY_NAME = re.compile(r"^CSTRAY_")
 _SELF_CAPACITANCE_NAME = re.compile(r"^CSELF_(?P<inductor>\S+)$")
 
 
+def _table_name(element: str) -> str:
+    """The component-table name a deck element belongs to (``CT1A`` is Cp1, ``C1B`` is C1)."""
+    from filter_lib.shared.circuit_display_names import display_component_name
+
+    name = display_component_name(element).split(" (part ")[0]
+    ladder_part = re.match(r"^([CL]\d+)[A-Z]$", name)
+    return ladder_part[1] if ladder_part else name
+
+
 def _changed_capacitors(changes: dict[str, tuple], series: str | None) -> list[str]:
     """Capacitors of ``series`` whose chosen parts changed (a status change alone does not)."""
     return [
@@ -481,14 +490,21 @@ def _parts_not_at_five_percent(parts: list) -> list[str]:
 
 
 def classify(
-    design: Design, item: str, before: Any, after: Any, changes: dict[str, tuple], actual: dict
+    design: Design,
+    item: str,
+    before: Any,
+    after: Any,
+    changes: dict[str, tuple],
+    actual: dict,
+    old_peaks: dict | None = None,
 ) -> tuple[list[str], str]:
     """Return the permitted kinds that explain a change, and a reason, by item type.
 
     A build change is explained by the causes present in that build: capacitor choices
     of its series that changed (a), a stray capacitor added across a pair (c), parts
-    whose own tolerance is not the old uniform 5% (e), and for a band-pass build the
-    reference-peak correction (f). A deck change is also explained by
+    whose own tolerance is not the old uniform 5% (e), and the reference-peak correction (f)
+    when ``old_peaks`` (the design recorded under the old peak rule) shows that it moved this
+    item. The ideal circuit's build measurement may change by (f) alone. A deck change is also explained by
     inductors now built as chip inductors (b), each with its self-capacitance across it (c).
     """
     kind = item_type(item)
@@ -533,24 +549,31 @@ def classify(
                 f"({', '.join(chips)})"
             )
 
-        def unexplained(rows):
+        changed = _changed_capacitors(changes, SPICE_SERIES)
+        # The table name of each changed capacitor (``capacitor:E24:Cp1`` is Cp1).
+        changed_names = {item_name.split(":", 2)[2] for item_name in changed}
+
+        def unexplained(rows, explained=frozenset()):
             return [
                 row
                 for row in rows or []
                 if not _STRAY_NAME.match(str(row[0]))
                 and row[0] not in self_capacitance
                 and row[0] not in chips
+                and _table_name(str(row[0])) not in explained
             ]
 
-        other_before = unexplained(before)
-        other_after = unexplained(after)
-        if not _close(other_before, other_after, MEASUREMENT_REL_TOL):
-            changed = _changed_capacitors(changes, SPICE_SERIES)
-            if not changed:
-                # A difference no permitted cause explains makes the whole change unpermitted.
-                return [], "not a permitted change"
-            kinds.append("a")
-            reasons.append(f"chosen parts changed ({', '.join(changed)})")
+        if _close(unexplained(before), unexplained(after), MEASUREMENT_REL_TOL):
+            return kinds, "; ".join(reasons)
+        # Every remaining difference must be in a changed capacitor's own rows.
+        if not changed or not _close(
+            unexplained(before, changed_names),
+            unexplained(after, changed_names),
+            MEASUREMENT_REL_TOL,
+        ):
+            return [], "not a permitted change"
+        kinds.append("a")
+        reasons.append(f"chosen parts changed ({', '.join(changed)})")
         return kinds, "; ".join(reasons)
     if kind == "build_parts":
         changed = _changed_capacitors(changes, design.build_series)
@@ -566,8 +589,10 @@ def classify(
                 "a"
             ], f"parts unchanged, labelled tolerance not sourced ({', '.join(relabelled)})"
         return [], "not a permitted change"
+    peak_fix = old_peaks is not None and not _same(item, old_peaks.get(item), after)
     if kind == "build_calculated":
-        if design.category == "bandpass":
+        # Only the fix may move it: under the old rule it must equal the corpus.
+        if peak_fix and _same(item, before, old_peaks.get(item)):
             return ["f"], "-3 dB points measured from the true peak (nearest the center)"
         return [], "not a permitted change"
     if kind in {"build_nominal", "build_summaries", "build_cases"}:
@@ -578,7 +603,7 @@ def classify(
             ("e", _parts_not_at_five_percent(parts), "parts at their own tolerance"),
             (
                 "f",
-                ["nearest the center"] if design.category == "bandpass" else [],
+                ["nearest the center"] if peak_fix else [],
                 "-3 dB points measured from the true peak",
             ),
         )
@@ -591,6 +616,30 @@ def classify(
     return [], "not a permitted change"
 
 
+def record_with_old_peak_rule(design: Design) -> dict[str, object]:
+    """``record(design)`` with the peak test before the reference-peak fix.
+
+    With no same-frequency limit, a candidate is compared with its adjacent grid points,
+    as before the fix, so a rounding-step pair at the center can pass for a flat peak.
+    Only the difference between this and ``record`` is the fix's effect (kind f).
+    """
+    from filter_lib.shared import response_refinement
+
+    saved = (
+        response_refinement.SAME_FREQUENCY_SCALE_FRACTION,
+        response_refinement.SAME_FREQUENCY_FRACTION,
+    )
+    response_refinement.SAME_FREQUENCY_SCALE_FRACTION = 0.0
+    response_refinement.SAME_FREQUENCY_FRACTION = 0.0
+    try:
+        return record(design)
+    finally:
+        (
+            response_refinement.SAME_FREQUENCY_SCALE_FRACTION,
+            response_refinement.SAME_FREQUENCY_FRACTION,
+        ) = saved
+
+
 def current_changes() -> list[dict]:
     """Every change between the corpus and the current code, classified."""
     corpus = load_corpus()["designs"]
@@ -598,8 +647,14 @@ def current_changes() -> list[dict]:
     for design in designs():
         actual = record(design)
         changed = changed_items(corpus[design.case_id], actual)
+        old_peaks = (
+            record_with_old_peak_rule(design)
+            if design.category == "bandpass"
+            and any(item_type(item) in _MEASUREMENT_ITEMS for item in changed)
+            else None
+        )
         for item, (before, after) in changed.items():
-            kinds, reason = classify(design, item, before, after, changed, actual)
+            kinds, reason = classify(design, item, before, after, changed, actual, old_peaks)
             changes.append(
                 {
                     "case": design.case_id,

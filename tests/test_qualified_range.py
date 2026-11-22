@@ -272,7 +272,7 @@ def test_a_band_pass_center_and_bandwidth_follow_an_edge_outside_the_range():
         selected_region_index=0,
         sweep_hz=(360e6, 440e6),
     )
-    assert open_ended.outside_range("bandpass", (0.0, 425e6)) == ("half_power_regions",)
+    assert open_ended.outside_range("bandpass", (0.0, 425e6)) == ("open_half_power_region",)
     assert open_ended.outside_range("bandpass", (0.0, 450e6)) == ()
 
 
@@ -378,3 +378,90 @@ def test_a_detuned_band_pass_case_is_measured_from_its_true_peak():
     assert measurement.reference_peak_gain_db == pytest.approx(-16.503, abs=1e-3)
     assert measurement.f_low == pytest.approx(384.436e6, rel=1e-5)
     assert measurement.f_high == pytest.approx(391.361e6, rel=1e-5)
+
+
+def test_a_narrow_band_pass_finds_its_peak_and_both_edges():
+    # bp bw top -f 146.0187MHz -b 100Hz -n 3 --tank-inductance 91nH: the sweep's middle point
+    # misses the exact center by 3.9e-7 Hz, more than a fraction of the 100 Hz bandwidth; a
+    # fine sweep and bisection give one peak at 146,019,413.7 Hz (-63.867 dB) and edges at
+    # 146,019,381.57 and 146,019,445.75 Hz.
+    request = DesignRequest(
+        "bandpass",
+        "butterworth",
+        "top",
+        146.0187e6,
+        50.0,
+        3,
+        bandwidth_hz=100.0,
+        resonator_inductance=91e-9,
+        realization=FAST,
+        run_build_analysis=True,
+    )
+    measurement = design(request).build_analysis.nominal_build
+
+    assert measurement.reference_peak_frequency_hz == pytest.approx(146_019_413.7, abs=0.5)
+    assert measurement.reference_peak_gain_db == pytest.approx(-63.867, abs=1e-3)
+    assert measurement.f_low == pytest.approx(146_019_381.57, abs=0.05)
+    assert measurement.f_high == pytest.approx(146_019_445.75, abs=0.05)
+
+
+def test_edges_measured_from_a_peak_outside_the_range_are_outside_too():
+    from filter_lib.shared.build_types import CircuitMeasurement
+
+    measurement = CircuitMeasurement(
+        411e6,
+        420e6,
+        -1.0,
+        False,
+        reference_peak_frequency_hz=429e6,
+        peak_frequency_hz=429e6,
+        threshold_regions=((411e6, 420e6),),
+        selected_region_index=0,
+        sweep_hz=(380e6, 440e6),
+    )
+
+    assert measurement.outside_range("bandpass", (0.0, 425.9e6)) == (
+        "f_low_hz",
+        "f_high_hz",
+        "f0_hz",
+        "bandwidth_hz",
+        "reference_peak_frequency_hz",
+        "peak_frequency_hz",
+    )
+    # An open selected region: no center or bandwidth is reported, so none is flagged.
+    open_ended = CircuitMeasurement(
+        429e6,
+        None,
+        -1.0,
+        True,
+        reference_peak_frequency_hz=420e6,
+        peak_frequency_hz=420e6,
+        threshold_regions=((429e6, None),),
+        selected_region_index=0,
+        sweep_hz=(380e6, 440e6),
+    )
+    assert open_ended.outside_range("bandpass", (0.0, 425.9e6)) == (
+        "f_low_hz",
+        "open_half_power_region",
+    )
+
+
+def test_the_lossless_range_caveat_reaches_the_json_limitations():
+    from filter_lib.shared.nominal_realization import CHIP_Q_LIMITATION
+
+    lossy = DesignRequest(
+        "lowpass",
+        "chebyshev",
+        "pi",
+        400e6,
+        200.0,
+        5,
+        ripple_db=0.5,
+        realization=BuildConfig(grid_points=51, inductor_q=0.5),
+        run_build_analysis=True,
+    )
+    outcome = design(lossy)
+    payload = build_analysis_fields(outcome.result, outcome.build_analysis)
+
+    assert "does not include that Q" in CHIP_Q_LIMITATION
+    assert CHIP_Q_LIMITATION in payload["nominal_build"]["limitations"]

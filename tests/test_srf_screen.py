@@ -69,6 +69,9 @@ def test_drift_is_negative_below_the_test_frequency_and_positive_above():
             model.drift(frequency)
     with pytest.raises(ValueError):
         model.inductance_at(float("nan"))
+    # So close to the SRF that the squared ratio rounds to 1.
+    with pytest.raises(ValueError, match="unbounded"):
+        PartModel(25e-9, 100e6, 10**18).drift(10**18 - 1)
 
 
 @pytest.mark.parametrize(

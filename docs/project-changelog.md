@@ -195,7 +195,8 @@ only labels changed.
   checked. JSON suggestions gain `error_budget.worst_case_pct` and `allowance_range_hz` (each end
   rounded inward so it passes the exact screen; printed ranges round inward too), and a chip's
   `build` record its catalog data, model (`l0_henries`, `self_capacitance_farads`), window,
-  drift, worst case, allowances and source with SHA-256; CSV gains `ChipManufacturer`,
+  drift (`drift_at_minimum_srf_pct` at the window's ends, `drift_range_pct` including no
+  drift), worst case, allowances and source with SHA-256; CSV gains `ChipManufacturer`,
   `ChipTolerancePct`, `ChipLTest_MHz`, `ChipSRFMin_MHz`, `ChipQMin`, `ChipQTest_MHz`,
   `ChipAchievedL_nH`, `ChipAchievedLAt_MHz`, `ChipSelfCapacitance_fF`, `ChipAllowanceLow_MHz`,
   `ChipAllowanceHigh_MHz`, `ChipSourceURL`, `ChipModelBasis` and `ChipWarnings` after the
@@ -215,22 +216,26 @@ only labels changed.
   peak gain's frequency, another range above −3 dB) "predicted with the parasitic model, not
   qualified"; ideal values never are. A high-pass build with chip inductors ends its passband at
   the top of that range (never below twice the cutoff) and takes its peak and half-power
-  threshold only inside it; a cutoff crossing below it is still reported, labelled. Builds with
-  toroid windings or calculated values keep every figure and their table text; their JSON gains
-  the new keys below with `null`, empty or `false` values. An entered inductor Q applies to a
+  threshold only inside it; a cutoff crossing below it is still reported, labelled. Edges
+  measured from a peak outside the range are labelled too. Builds with toroid windings or
+  calculated values keep every figure (apart from the band-pass fix under Fixed) and their table
+  text; their JSON gains the new keys below: `null`, empty or `false` qualification fields, the
+  `model` string, the measured `peak_frequency_hz`, and the 10% fallback tolerance. An entered inductor Q applies to a
   chip's inductance alone, which the model limits state, and the qualified range is then said
   to be the lossless part model's. JSON `nominal_build` gains
   `qualified_range_hz`, `passband_top_hz` and `peak_range_hz`, each measurement `model` (`ideal`
-  or `chosen_parts`), `peak_frequency_hz` and, for the chosen parts, `outside_qualified_range`;
-  each spread summary gains `outside_qualified_range`; substitutions gain `self_capacitance_f`,
+  or `chosen_parts`), `peak_frequency_hz` and, for the chosen parts, `outside_qualified_range`
+  (keys of the figures outside it: `open_half_power_region` for a range left open at the
+  sweep's end, `half_power_regions` for another range); each spread summary gains `outside_qualified_range`; substitutions gain `self_capacitance_f`,
   `tolerance_pct` and `own_tolerance`. **Changed (breaking):**
   `tolerance_analysis.inductor_tolerance_pct` is the entered tolerance (`null` when none was
   entered, when each chip uses its own) and `inductor_fallback_tolerance_pct` gives the 10% for
   toroid windings and calculated values.
-- **HF designs.** The HF baseline corpus changes in one design only: in
+- **HF designs.** Chip inductors change one HF baseline design: in
   `hp ch pi 28MHz -n 9 -r 0.5`, L2–L4 (104–107 nH), which had no toroid, now build as
-  LQW18ANR10G00D chip inductors with their self-capacitance (permitted kinds b and c). Every
-  other HF toroid pick, build and deck is unchanged.
+  LQW18ANR10G00D chip inductors with their self-capacitance (permitted kinds b and c) in its
+  chosen-parts deck. Every other HF toroid pick and deck is unchanged. Separately, the six HF
+  band-pass builds change by the reference-peak fix (permitted kind f; see Fixed).
 - **Python API.** New modules `shared/srf_screen.py`, `shared/chip_inductor_data.py`,
   `shared/chip_selection.py` and `shared/chip_display.py`. `InductorSuggestion` gains
   `part_model` and `allowance_range_hz` (given exactly when the SRF is checked), `ErrorBudget`

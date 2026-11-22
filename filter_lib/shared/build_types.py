@@ -221,9 +221,12 @@ class CircuitMeasurement:
         """The reported figures (JSON keys) that rest on frequencies outside the range.
 
         Every reported frequency is checked: the -3 dB edges or cutoff, the reference peak,
-        the frequency of the peak gain, and the span of every half-power region (an open end
-        reaches the end of the sweep). A band-pass center and bandwidth come from the edges,
-        so they are outside when an edge is. None without a range.
+        the frequency of the peak gain, and the span of every half-power region. The edges
+        are measured from the reference peak's threshold, so an outside reference makes
+        every measured edge outside too; a band-pass center and bandwidth (when both edges
+        are measured) come from the edges. ``open_half_power_region``: the selected region
+        is left open at the end of the sweep, which is outside the range;
+        ``half_power_regions``: another region reaches outside it. None without a range.
         """
         if qualified_range is None:
             return ()
@@ -237,31 +240,43 @@ class CircuitMeasurement:
             if category == "bandpass"
             else (("cutoff_hz", self.ladder_cutoff(category)),)
         )
-        keys = [key for key, value in edges if outside(value)]
-        if category == "bandpass" and keys:
+        reference_outside = outside(self.reference_peak_frequency_hz)
+        keys = [
+            key
+            for key, value in edges
+            if value is not None and (reference_outside or outside(value))
+        ]
+        if category == "bandpass" and keys and self.f0 is not None:
             keys += ["f0_hz", "bandwidth_hz"]
-        if outside(self.reference_peak_frequency_hz):
+        if reference_outside:
             keys.append("reference_peak_frequency_hz")
         if outside(self.peak_frequency_hz):
             keys.append("peak_frequency_hz")
-        if any(outside(end) for end in self._region_ends()):
+        open_ends, other_ends = self._region_ends()
+        if any(outside(end) for end in open_ends):
+            keys.append("open_half_power_region")
+        if any(outside(end) for end in other_ends):
             keys.append("half_power_regions")
         return tuple(keys)
 
-    def _region_ends(self):
-        """Each half-power region's observed ends not already reported as an edge.
+    def _region_ends(self) -> tuple[list[float | None], list[float | None]]:
+        """The sweep ends the selected region is left open at, and every end of the others.
 
-        The selected region's measured ends are the edges; its open ends, and both ends of
-        every other region, stand for the sweep's end they reach.
+        The selected region's measured ends are the edges; an open end stands for the end
+        of the sweep it reaches, as does any open end of another region.
         """
         first, last = self.sweep_hz if self.sweep_hz is not None else (None, None)
+        open_ends: list[float | None] = []
+        other_ends: list[float | None] = []
         for index, (low, high) in enumerate(self.threshold_regions):
             selected = index == self.selected_region_index
-            for end, open_end in ((low, first), (high, last)):
-                if end is None:
-                    yield open_end
-                elif not selected:
-                    yield end
+            for end, sweep_end in ((low, first), (high, last)):
+                if selected:
+                    if end is None:
+                        open_ends.append(sweep_end)
+                else:
+                    other_ends.append(sweep_end if end is None else end)
+        return open_ends, other_ends
 
 
 # The spread metric each figure outside the qualified range feeds, and the frequency

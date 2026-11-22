@@ -581,6 +581,26 @@ def test_chip_json_and_csv_carry_the_part_s_guarantees_and_model():
     assert len(build["source"]["sha256"]) == 64
     assert build["model"]["self_capacitance_farads"] == pytest.approx(58.737e-15, rel=1e-4)
     assert (build["drift_allowance_pct"], build["design_allowance_pct"]) == (5.0, 10.0)
+    # At the minimum SRF the drift runs from DC to 146 MHz; a real part's lies between that
+    # and no drift.
+    assert build["drift_at_minimum_srf_pct"] == pytest.approx([-0.17361, 0.19719], abs=5e-6)
+    assert build["drift_range_pct"] == pytest.approx([-0.17361, 0.19719], abs=5e-6)
+    # Below its test frequency the 0603CS-56NXGRW drifts only downward over the window, so
+    # its range adds the no-drift end.
+    from filter_lib.design import DesignRequest, design
+
+    tank = (
+        design(
+            DesignRequest(
+                "bandpass", "chebyshev", "top", 146e6, 50.0, 3, ripple_db=0.5, bandwidth_hz=4e6
+            )
+        )
+        .parts.inductor("LT1")
+        .best
+    )
+    record = suggestion_payload(tank)["build"]
+    assert record["drift_at_minimum_srf_pct"] == pytest.approx([-1.10803, -0.50422], abs=5e-6)
+    assert record["drift_range_pct"] == pytest.approx([-1.10803, 0.0], abs=5e-6)
     row = dict(zip(CSV_INDUCTOR_HEADER, inductor_csv_columns(inductor), strict=True))
     assert {key: row[key] for key in CSV_CHIP_HEADER} == {
         "ChipManufacturer": "Murata",

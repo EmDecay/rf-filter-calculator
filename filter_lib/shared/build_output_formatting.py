@@ -64,6 +64,7 @@ _OUTSIDE_LABELS = {
     "bandwidth_hz": "-3 dB bandwidth",
     "reference_peak_frequency_hz": "the peak the -3 dB points are measured from",
     "peak_frequency_hz": "peak gain",
+    "open_half_power_region": "the range above -3 dB, open at the end of the sweep",
     "half_power_regions": "a separate range above -3 dB",
 }
 

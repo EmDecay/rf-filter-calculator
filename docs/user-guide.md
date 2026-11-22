@@ -871,7 +871,9 @@ edge (and a band-pass center and bandwidth taken from it), the peak the −3 dB 
 measured from, the frequency of the peak gain, and any separate range above −3 dB. Any of them
 outside the range is labelled (`-3 dB cutoff predicted with the parasitic model, not
 qualified`), a spread row with such a case says so, and JSON lists them in
-`outside_qualified_range` (each spread summary has the same flag); ideal values, the band-pass attenuation at 2×f₀ and 3×f₀ (ideal
+`outside_qualified_range` (each spread summary has the same flag); edges measured from a peak
+outside the range are outside too, and a range above −3 dB left open at the end of the sweep is
+reported when that end is outside; ideal values, the band-pass attenuation at 2×f₀ and 3×f₀ (ideal
 lossless parts), and the response data are never labelled. A high-pass build's passband has no
 upper edge, so it ends at the top of the qualified range (never below twice the cutoff), and
 its peak and half-power threshold are taken only inside that range: `Passband = from the

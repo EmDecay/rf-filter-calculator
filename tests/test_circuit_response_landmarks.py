@@ -155,6 +155,16 @@ def test_a_peak_range_compares_its_ends_with_neighbours_inside_it():
 
     assert refined.reference_frequency == 3.0
     assert refined.peak_frequency == 3.0
+    # The range is checked against the supplied frequencies, before a reference widens them.
+    with pytest.raises(ValueError, match="overlap"):
+        refine_response(
+            lambda f: f,
+            [1.0, 2.0],
+            (1.0, 2.0),
+            reference_frequency=6.0,
+            frequency_scale=1.0,
+            peak_range=(5.0, 6.0),
+        )
     with pytest.raises(ValueError, match="overlap"):
         refine_response(
             lambda f: f, [1.0, 2.0], (1.0, 2.0), frequency_scale=1.0, peak_range=(5.0, 6.0)

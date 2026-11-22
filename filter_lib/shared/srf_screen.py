@@ -127,6 +127,9 @@ class PartModel:
         if frequency_hz >= self.srf_hz:
             raise ValueError("The drift is unbounded at and above the SRF")
         ratio = (frequency_hz / self.srf_hz) ** 2
+        # A frequency so close to the SRF that the ratio rounds to 1 is treated as at it.
+        if ratio >= 1:
+            raise ValueError("The drift is unbounded at and above the SRF")
         return (ratio - self._test_ratio) / (1.0 - ratio)
 
     def inductance_at(self, frequency_hz: float) -> float:
@@ -139,7 +142,8 @@ class ScreenResult:
     """One part screened against one target over one window.
 
     ``drift_range`` is the drift (fraction of the catalog value) over the window between
-    the minimum SRF and no drift, so it always includes zero. ``budget_pct`` gives the
+    the minimum SRF and no drift, so it always includes zero; ``drift_at_ends`` is the drift
+    at the minimum SRF at the window's two ends. ``budget_pct`` gives the
     error budget's terms in percent of the target: the nominal mismatch, the ±tolerance,
     and the (lowest, highest) drift contribution at the tolerance endpoint it adds to;
     ``worst_case_pct`` is their (lowest, highest) total. ``achieved_h`` is the nominal
@@ -154,6 +158,7 @@ class ScreenResult:
     worst_case_pct: tuple[float, float] | None
     achieved_h: float | None
     allowance_range_hz: tuple[float, float] | None
+    drift_at_ends: tuple[float, float] | None = None
 
     @property
     def passed(self) -> bool:
@@ -283,6 +288,7 @@ def screen_part(
         worst_case_pct=worst,
         achieved_h=model.inductance_at(window.high_hz),
         allowance_range_hz=_allowance_range(target, exact, tolerance),
+        drift_at_ends=(float(drift_low_end), float(drift_high_end)),
     )
 
 

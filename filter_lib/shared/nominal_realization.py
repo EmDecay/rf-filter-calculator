@@ -44,7 +44,8 @@ SELF_CAPACITANCE_LIMITATION = (
 # Printed when an inductor Q is applied to a chip inductor.
 CHIP_Q_LIMITATION = (
     "A chip inductor's Q is applied to its inductance alone; with its self-capacitance "
-    "across it, its Q at its terminals is lower, more so near its SRF."
+    "across it, its Q at its terminals is lower, more so near its SRF. The qualified range "
+    "comes from the lossless part model, so it does not include that Q."
 )
 
 

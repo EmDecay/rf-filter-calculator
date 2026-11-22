@@ -368,20 +368,28 @@ Caveats print once where they apply; JSON and CSV keep every warning entry.
   or `null`) and `kinds`, one entry per kind in the fixed order with `kind`, `suggestions` and
   `reason_none`. Each suggestion has `kind`, `rank`, `part_name`, `status`, `target_henries`,
   `achieved_henries`, `tolerance_pct`, `srf_basis`, `srf_accuracy`, `error_budget`
-  (`nominal_mismatch_pct`, `tolerance_pct`, `srf_drift_pct`), `source` (`publisher`, `title`,
-  `url`), `build` (the kind's own record; for a toroid the screened record without `rank`,
-  `candidate_status`, or `q_dc_upper_bound`), and `warnings`
+  (`nominal_mismatch_pct`, `tolerance_pct`, `srf_drift_pct`, `worst_case_pct`),
+  `allowance_range_hz`, `source` (`publisher`, `title`, `url`), `build` (the kind's own record:
+  for a toroid the screened record without `rank`, `candidate_status`, or `q_dc_upper_bound`;
+  for a chip `chip_display.chip_build_payload`), and `warnings`
   (`shared/inductor_display.py::suggestion_payload`).
 - CSV gives each inductor's best suggestion: the generic columns `InductorKind`, `InductorPart`, `InductorSRFBasis`, `InductorBudgetNominalPct`, `InductorBudgetTolerancePct`, `InductorBudgetSRFDriftLowPct` and `InductorBudgetSRFDriftHighPct` (the budget in percent of the
-  target, the drift blank when the SRF is not checked) precede the `Toroid*` columns
-  (`CSV_INDUCTOR_HEADER`); all are blank on capacitor rows and on inductors with no
-  suggestion; with `none` the inductor columns are left out.
+  target, the drift blank when the SRF is not checked) precede the `Toroid*` columns and then
+  the `Chip*` columns, ending with `ChipModelBasis` and `ChipWarnings`
+  (`CSV_INDUCTOR_HEADER`); the other kind's columns are blank, all are blank on capacitor rows
+  and on inductors with no suggestion, and with `none` the inductor columns are left out.
 - Build JSON `build_model` gives `build_inductor_choice` (the `--build-inductors` value),
   `suggested_inductors_used`, and `suggested_inductor_elements`. Each substitution carries
   `inductor_kind` and `part_name` (`null` for capacitors and calculated values); an inductor
   built from a suggestion has `method: "suggested_inductor"`, and one simulated at its
   calculated value has `method: "exact_fallback"` with status `suggestions_not_used`
   (suggestions off, or `calculated`) or `no_verified_candidate` (no part of the chosen kind).
+  Substitutions also carry `self_capacitance_f`, `tolerance_pct` and `own_tolerance`;
+  `nominal_build` carries `qualified_range_hz`, `passband_top_hz` and `peak_range_hz`; every
+  measurement carries `model` and `peak_frequency_hz`, a chosen-parts one
+  `outside_qualified_range`, and each spread summary `outside_qualified_range`;
+  `tolerance_analysis` gives the entered `inductor_tolerance_pct` (nullable) and
+  `inductor_fallback_tolerance_pct`.
 
 ## Wizard Architecture
 

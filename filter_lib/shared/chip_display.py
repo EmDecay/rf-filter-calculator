@@ -165,7 +165,12 @@ def chip_build_payload(chip: ChipSuggestion) -> dict:
         "check_window_hz": [chip.window.low_hz, chip.window.high_hz],
         "drift_allowance_pct": DRIFT_ALLOWANCE_PCT,
         "design_allowance_pct": DESIGN_ALLOWANCE_PCT,
+        # The drift at the minimum SRF at the window's ends, and the range a real part's
+        # drift lies in (between that and no drift, so it includes zero).
         "drift_at_minimum_srf_pct": None
+        if screen.drift_at_ends is None
+        else [value * 100.0 for value in screen.drift_at_ends],
+        "drift_range_pct": None
         if screen.drift_range is None
         else [value * 100.0 for value in screen.drift_range],
         "worst_case_pct": None if screen.worst_case_pct is None else list(screen.worst_case_pct),

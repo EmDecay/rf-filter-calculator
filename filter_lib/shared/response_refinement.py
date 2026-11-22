@@ -13,6 +13,11 @@ from .numeric import is_finite_real, require_positive_finite
 from .plot_threshold_analysis import find_threshold_regions
 
 GAIN_TOLERANCE_DB = 0.001
+# Two frequencies closer than this (a fraction of the frequency scale, or of the frequency
+# itself, whichever is larger) are one frequency in the peak test: the sweep's middle point
+# and an exact reference frequency differ by rounding, which grows with the frequency.
+SAME_FREQUENCY_SCALE_FRACTION = 1e-9
+SAME_FREQUENCY_FRACTION = 1e-12
 FREQUENCY_TOLERANCE_FRACTION = 1e-5
 MAX_REFINEMENT_PASSES = 4
 
@@ -109,17 +114,15 @@ def _landmarks(fn, grid, passband, reference, scale, drop_db, peak_range=None):
     candidates = [
         i for i, f in enumerate(grid) if peak_range is None or peak_range[0] <= f <= peak_range[1]
     ]
-    # A peak is at least as high as its nearest distinct neighbour on each side inside the
-    # range (without a range, on the grid). Points closer than ``same`` are one frequency:
-    # the sweep's middle point and an exact reference frequency can differ by a rounding
-    # step, and on a slope such a pair would otherwise pass for a flat peak.
-    same = scale * 1e-9
 
+    # A peak is at least as high as its nearest distinct neighbour on each side inside the
+    # range (without a range, on the grid). Points closer than the same-frequency limit are
+    # one frequency, so a rounding-step pair on a slope never passes for a flat peak.
     def neighbour(position: int, step: int) -> int | None:
+        here = grid[candidates[position]]
+        same = max(scale * SAME_FREQUENCY_SCALE_FRACTION, here * SAME_FREQUENCY_FRACTION)
         other = position + step
-        while 0 <= other < len(candidates) and (
-            abs(grid[candidates[other]] - grid[candidates[position]]) <= same
-        ):
+        while 0 <= other < len(candidates) and abs(grid[candidates[other]] - here) <= same:
             other += step
         return candidates[other] if 0 <= other < len(candidates) else None
 
@@ -256,12 +259,13 @@ def refine_response(
             cache[frequency] = value
         return cache[frequency]
 
+    if peak_range is not None and (peak_range[1] < freqs[0] or peak_range[0] > freqs[-1]):
+        # Checked against the supplied frequencies, before any anchor widens them.
+        raise ValueError("peak_range must overlap the frequencies")
     grid = sorted(
         set(list(freqs) + list(passband) + ([reference_frequency] if reference_frequency else []))
     )
     if peak_range is not None:
-        if peak_range[1] < grid[0] or peak_range[0] > grid[-1]:
-            raise ValueError("peak_range must overlap the frequencies")
         # The range's ends are measured, so the range always holds a grid point.
         grid = sorted(set(grid) | {f for f in peak_range if grid[0] <= f <= grid[-1]})
     previous = None
