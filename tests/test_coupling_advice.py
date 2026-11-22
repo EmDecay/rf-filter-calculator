@@ -9,6 +9,7 @@ of 21.06 nH gives only 0.99955 pF).
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 
@@ -222,12 +223,44 @@ def test_a_cancel_between_trials_stops_the_advice(monkeypatch):
     assert synthesized == [21e-9]
 
 
-def test_a_run_with_suggestions_off_is_still_advised_a_supplied_value():
-    # The coupling capacitors do not depend on how many suggestions a run shows.
+def test_a_run_with_suggestions_off_is_advised_a_supplied_value_without_naming_it(
+    monkeypatch, capsys
+):
+    # The coupling capacitors do not depend on how many suggestions a run shows; the
+    # advice still checks that a part supplies the value, but does not name it.
     advice = design(_two_metre(inductor_suggestions="none")).coupling_advice
+    argv = (*TWO_METRE, "--inductor-suggestions", "none")
+    table = " ".join(cli_stdout(monkeypatch, capsys, *argv).split())
+    data = json.loads(cli_stdout(monkeypatch, capsys, *argv, "--format", "json"))
 
-    assert advice.setting == "21nH"
-    assert advice.part.part_name == "LQW15AN21NG80D"
+    assert advice.setting == "21nH" and not advice.names_part
+    assert "a built-in inductor suggestion supplies the inductance" in table
+    assert "LQW15AN21NG80D" not in table
+    advised = data["coupling_advice"]["advised"]
+    assert advised["setting"] == "21nH"
+    assert advised["inductor_part"] is None and advised["inductor_kind"] is None
+
+
+def test_toroid_candidates_reach_each_core_s_winding_capacity():
+    # 400 µH tanks at 2 MHz need values above 200 turns of T68-2 (228 µH); its winding
+    # table holds 950 turns, and the advice reaches 312.1092 µH.
+    request = DesignRequest(
+        "bandpass",
+        "butterworth",
+        "top",
+        2e6,
+        500.0,
+        3,
+        bandwidth_hz=140e3,
+        resonator_inductance=400e-6,
+    )
+    advice = design(request).coupling_advice
+
+    assert advice.setting == "312.1092uH" and advice.part.part_name == "T68-2"
+    rerun = design(
+        dataclasses.replace(request, resonator_inductance=parse_inductance(advice.setting))
+    )
+    assert rerun.coupling_advice is None
 
 
 def test_an_hf_tank_is_advised_a_toroid_winding_and_told_to_clear_its_impedance(

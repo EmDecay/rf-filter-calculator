@@ -9,8 +9,9 @@ Tuning solves, at the calibrated tank frequency, the knob setting whose trimmer 
 makes the node's susceptance (``tank_susceptance.node_susceptance``, with every built
 branch, its Q and the ports) equal the calculated design's. The setting stays within the
 range the fit relied on: from the guaranteed maximum of the minimum capacitance to the
-setting that reaches the guaranteed minimum of the maximum with no series inductance. A
-tank whose required setting is outside it is set to the nearer end and flagged.
+setting that reaches the top of the range the fit relied on, on the rising (capacitive) part
+of the knob's travel, so a solve never crosses the trimmer's series resonance. A tank whose
+required value is outside that range is flagged; its setting is the nearer reachable end.
 
 Retuning restores each tank's resonance, not the coupling between tanks or the external
 Q, so a tuned response is not the design's response.
@@ -18,6 +19,7 @@ Q, so a tuned response is not the design's response.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 
@@ -26,7 +28,12 @@ from .build_types import TrimmerSetting
 from .circuit_display_names import TRIMMER_PREFIX
 from .circuit_model import CircuitElement, NamedCircuit
 from .tank_susceptance import TWO_PI, node_susceptance
-from .tank_trimmers import TankParts, trimmer_admittance
+from .tank_trimmers import (
+    TankParts,
+    capacitive_branch_top,
+    trimmer_admittance,
+    trimmer_range_f,
+)
 
 # A required setting this close (relative) to a range end counts as inside it.
 _RANGE_TOLERANCE = 1e-12
@@ -37,8 +44,9 @@ _BISECTION_STEPS = 200
 class TrimmerPlan:
     """What tuning one tank's trimmer needs.
 
-    ``knob_f`` is the range of knob settings the fit relied on; ``range_f`` the
-    capacitance equivalent it gives at ``frequency_hz``.
+    ``knob_f`` is the range of knob settings used; ``range_f`` the capacitance equivalent
+    relied on at ``frequency_hz`` under the build's Q (``None``: none, so every required
+    value is out of range).
     """
 
     tank: str
@@ -46,7 +54,7 @@ class TrimmerPlan:
     trimmer_element: str
     series_inductance_h: float
     knob_f: tuple[float, float]
-    range_f: tuple[float, float]
+    range_f: tuple[float, float] | None
     frequency_hz: float
     target_susceptance_s: float
     q: float | None
@@ -120,27 +128,44 @@ def plan_trimmer(
     q: float | None,
     reference_hz: float,
 ) -> TrimmerPlan:
-    """The tuning plan of a tank with a fitting split (``tank.split``)."""
+    """The tuning plan of a tank with a fitting split (``tank.split``).
+
+    The split was sized from the design alone; the build has its own capacitor Q (``q``
+    at ``reference_hz``), so the range relied on is worked out again under it
+    (``trimmer_range_f``), and is ``None`` when the trimmer has no rising part left. The
+    knob is used only on its rising (capacitive) part, from its minimum stop to the setting
+    that reaches the top of that range.
+    """
     split = tank.split
     assert split is not None
+    trimmer = split.trimmer
     inductance = split.series_inductance_h
     frequency = tank.tuning_frequency_hz
     omega = TWO_PI * frequency
-    low, high = split.trimmer.cmin_max_f, split.trimmer.cmax_min_f
+    relied = trimmer_range_f(trimmer, inductance, frequency, q, reference_hz)
+    low = trimmer.cmin_max_f
+    branch_top = min(trimmer.cmax_min_f, capacitive_branch_top(inductance, omega, q, reference_hz))
 
     def susceptance(setting: float) -> float:
         return trimmer_admittance(setting, inductance, omega, q, reference_hz).imag
 
-    # The knob setting that reaches the unraised maximum with this inductance.
-    range_high = split.trimmer_range_f[1] * omega
-    knob_high = high if inductance == 0 else _bisect(susceptance, range_high, low, high)
+    # The rising part's top (just short of the pole when lossless and the knob reaches the
+    # series resonance), and the setting that reaches the range's top on it.
+    if q is None and branch_top < trimmer.cmax_min_f:
+        branch_top = math.nextafter(branch_top, 0.0)
+    if branch_top <= low:
+        knob_high = low
+    elif relied is None or susceptance(branch_top) <= relied[1] * omega:
+        knob_high = branch_top
+    else:
+        knob_high = _bisect(susceptance, relied[1] * omega, low, branch_top)
     return TrimmerPlan(
         tank=tank.name,
         node=tank.node,
         trimmer_element=f"{TRIMMER_PREFIX}{element.name}",
         series_inductance_h=inductance,
         knob_f=(low, knob_high),
-        range_f=split.trimmer_range_f,
+        range_f=relied,
         frequency_hz=frequency,
         target_susceptance_s=tank.target_susceptance_s,
         q=q,
@@ -156,8 +181,12 @@ def _setting(circuit: NamedCircuit, plan: TrimmerPlan, tuning: TuningPlan) -> Tr
     omega = TWO_PI * plan.frequency_hz
     low, high = plan.knob_f
     low_b, high_b = plan.susceptance(low), plan.susceptance(high)
-    margin = _RANGE_TOLERANCE * max(abs(low_b), abs(high_b))
-    in_range = low_b - margin <= needed <= high_b + margin
+    # In range: inside the range relied on under the build's Q.
+    in_range = False
+    if plan.range_f is not None:
+        range_low, range_high = (value * omega for value in plan.range_f)
+        margin = _RANGE_TOLERANCE * max(abs(range_low), abs(range_high))
+        in_range = range_low - margin <= needed <= range_high + margin
     if needed <= low_b:
         setting = low
     elif needed >= high_b:

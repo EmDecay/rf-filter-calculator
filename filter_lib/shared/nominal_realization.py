@@ -61,9 +61,11 @@ CHIP_Q_LIMITATION = (
 TRIMMER_LIMITATION = (
     "Each tank with a trimmer is tuned at the tank frequency so that its node susceptance "
     "matches the calculated design's. Each trimmer is simulated as its knob capacitance in "
-    "series with the inductance its fit assumes, and its range as the guaranteed one; the "
-    "tuned response restores each tank's resonance, not the coupling between tanks or the "
-    "external Q, so it is not the design's response."
+    "series with the inductance its fit assumes. Its knob stops are the maker's guaranteed "
+    "range, measured at the maker's frequency; the range it covers at the tank frequency "
+    "rests on that assumed inductance, so it is not guaranteed. The tuned response restores "
+    "each tank's resonance, not the coupling between tanks or the external Q, so it is not "
+    "the design's response."
 )
 
 

@@ -142,3 +142,38 @@ def test_a_capacitor_change_must_be_its_recorded_parts_and_a_stray_a_pair_s():
     pair_changes = {"capacitor:E24:C1": ({"parts": [1e-11]}, {"parts": [4.7e-12, 5.6e-12]})}
     assert sorted(kinds([*pair, ["CSTRAY_C1", "1", "2", 2e-13]], pair_changes)) == ["a", "c"]
     assert kinds([*before, ["CSTRAY_L1", "1", "0", 1.0]], {}) == []
+
+
+def test_a_trimmer_split_explains_only_its_own_tanks_rows():
+    design = next(item for item in tool.designs() if item.case_id == "bp-bs-top-21.2MHz-500kHz-n3")
+    untrimmed = [
+        ["CT1", "1", "0", 1.2e-10],
+        ["LT1", "1", "0", 3.6e-7],
+        ["CK1", "1", "2", 6.2e-12],
+        ["COUT", "3", "5", 1.5e-11],
+    ]
+    trimmed = [
+        ["CT1A", "1", "0", 8.2e-12],
+        ["CT1B", "1", "0", 6.8e-11],
+        ["CSTRAY_CT1", "1", "0", 4e-13],
+        ["CTRIM_CT1", "1", "NSERIESCTRIM_CT1", 3.3e-11],
+        ["LTRIM_CT1", "NSERIESCTRIM_CT1", "0", 1.35e-8],
+        *untrimmed[1:],
+    ]
+    actual, before = {"spice_nominal": trimmed}, {"spice_nominal": untrimmed}
+
+    kinds, _reason = tool._classify_with_trimmers(
+        design, "spice_nominal", {}, actual, before, {}, None
+    )
+    assert kinds == ["d"]
+    # Adding a trimmer does not explain a removed end capacitor ...
+    actual = {"spice_nominal": trimmed[:-1]}
+    assert (
+        tool._classify_with_trimmers(design, "spice_nominal", {}, actual, before, {}, None)[0] == []
+    )
+    # ... nor a trimmer on another tank's node.
+    moved = [*trimmed[:3], ["CTRIM_CT1", "2", "NSERIESCTRIM_CT1", 3.3e-11], *trimmed[4:]]
+    actual = {"spice_nominal": moved}
+    assert (
+        tool._classify_with_trimmers(design, "spice_nominal", {}, actual, before, {}, None)[0] == []
+    )

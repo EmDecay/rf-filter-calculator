@@ -33,7 +33,7 @@ from ..shared.resolved_parts import ResolvedParts
 from .diagrams import format_top_c_diagram
 from .formatters import RESONATOR_INDUCTOR, capacitor_parts, coupling_capacitor_rows
 from .transfer import netlist_frequency_sweep
-from .trimmer_display import coupling_advice_lines, tank_trimmer_lines
+from .trimmer_display import coupling_advice_lines, tank_trimmer_lines, tank_use_lines
 
 # Type alias for filter result dict
 BandpassResult = dict[str, Any]
@@ -319,12 +319,15 @@ def _external_q_lines(result: BandpassResult) -> list[str]:
 def format_eseries_lines(result: BandpassResult, parts: ResolvedParts) -> list[str]:
     """Standard-value choice ``design()`` resolved for every tank and coupling capacitor.
 
-    Inductors have no standard values, so they get no standard-value choice.
+    Inductors have no standard values, so they get no standard-value choice. A tank with a
+    fitting trimmer says to use its split (``trimmer_display.tank_use_lines``).
     """
     lines = eseries_section_lines(parts.eseries, policy=parts.match_policy)
     for label, circuit_name, value in capacitor_parts(result):
         lines.append(f"{label} calculated {format_capacitance(value)}")
-        lines.extend(format_eseries_match(parts.capacitor(circuit_name), format_capacitance))
+        choice = format_eseries_match(parts.capacitor(circuit_name), format_capacitance)
+        # A tank with a fitting trimmer is built as its split; the plain choice follows.
+        lines.extend(tank_use_lines(parts.tank(circuit_name), choice))
     return lines
 
 

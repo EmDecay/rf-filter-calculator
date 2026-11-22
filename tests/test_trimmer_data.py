@@ -149,3 +149,9 @@ def test_a_source_without_its_hash_is_refused(monkeypatch):
 
     with pytest.raises(RuntimeError, match="needs a SHA-256"):
         _load_with(monkeypatch, data)
+
+
+def test_every_stated_q_names_the_setting_it_was_measured_at():
+    # Vishay states tan δ at Cmax, Exxelia and Suntan Q at Cmax; a graph has no setting.
+    for part in trimmer_parts():
+        assert part.q_as_stated == "graph only" or ", Cmax" in part.q_as_stated, part.part_name

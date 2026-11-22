@@ -40,8 +40,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 
-from .build_loss_models import LossModel, derive_series_resistance
+from .build_loss_models import LossModel, derive_series_resistance, loss_model
 from .build_types import DEFAULT_INDUCTOR_TOLERANCE_PCT, BuildConfig
+from .cancellation import CancellationCheck, raise_if_cancelled
 from .capacitor_choice import (
     assumed_tolerance_pct,
     best_pair,
@@ -182,6 +183,32 @@ def trimmer_admittance(
     return 1.0 / complex(resistance, omega * inductance_h - 1.0 / (omega * setting_f))
 
 
+def _loss_ratio(omega: float, q: float | None, reference_hz: float) -> float:
+    """``alpha = R/X_C`` of a capacitor with Q at ``reference_hz``, seen at ``omega``.
+
+    Q sets the series resistance ``R = 1/(omega_ref C Q)`` from the part's own value, so
+    the ratio to its reactance ``1/(omega C)`` is the same for every setting.
+    """
+    return 0.0 if q is None else omega / (TWO_PI * reference_hz * q)
+
+
+def capacitive_branch_top(
+    inductance_h: float, omega: float, q: float | None, reference_hz: float
+) -> float:
+    """The largest knob setting up to which the trimmer's susceptance rises.
+
+    With ``u = 1/(omega C)``, ``a = omega Ls`` and ``alpha`` (``_loss_ratio``), the branch
+    susceptance ``(u - a) / ((alpha u)^2 + (u - a)^2)`` rises with C until
+    ``u = a (1 + alpha / sqrt(1 + alpha^2))``: the series resonance when lossless, and a
+    loss peak before it otherwise. Infinite without series inductance.
+    """
+    if inductance_h == 0:
+        return math.inf
+    alpha = _loss_ratio(omega, q, reference_hz)
+    beta = alpha / math.sqrt(1.0 + alpha * alpha)
+    return 1.0 / (omega * omega * inductance_h * (1.0 + beta))
+
+
 def trimmer_range_f(
     trimmer: TrimmerPart,
     inductance_h: float,
@@ -189,15 +216,39 @@ def trimmer_range_f(
     q: float | None,
     reference_hz: float,
 ) -> tuple[float, float] | None:
-    """The range relied on at ``frequency_hz``: the raised minimum to the unraised maximum.
+    """The range relied on at ``frequency_hz``, for any series inductance up to ``inductance_h``.
 
-    ``None`` when the trimmer is not a capacitor there (at or above series resonance).
+    Only the rising (capacitive) part of the knob's travel is used
+    (``capacitive_branch_top``). For each inductance the knob then reaches every value from
+    its minimum stop up to that branch's top, so the range relied on runs from the largest
+    of those minimums to the smallest of those tops. At the minimum stop the susceptance
+    peaks over the inductance where the remaining reactance equals the loss resistance, so
+    that inductance, zero and the bound are the candidates; the top is smallest at zero or
+    the bound. ``None`` when the knob's minimum is already past the rising part.
     """
     omega = TWO_PI * frequency_hz
-    if omega * inductance_h * omega * trimmer.cmin_max_f >= 1.0:
+    cmin, cmax = trimmer.cmin_max_f, trimmer.cmax_min_f
+    if cmin >= capacitive_branch_top(inductance_h, omega, q, reference_hz):
         return None
-    low = trimmer_admittance(trimmer.cmin_max_f, inductance_h, omega, q, reference_hz).imag
-    high = trimmer_admittance(trimmer.cmax_min_f, 0.0, omega, q, reference_hz).imag
+
+    def susceptance(setting: float, inductance: float) -> float:
+        return trimmer_admittance(setting, inductance, omega, q, reference_hz).imag
+
+    alpha = _loss_ratio(omega, q, reference_hz)
+    reactance = 1.0 / (omega * cmin)
+    candidates = [0.0, inductance_h]
+    turning = reactance * (1.0 - alpha) / omega
+    if 0.0 < turning < inductance_h:
+        candidates.append(turning)
+    low = max(susceptance(cmin, inductance) for inductance in candidates)
+
+    def top(inductance: float) -> float:
+        branch_top = capacitive_branch_top(inductance, omega, q, reference_hz)
+        if q is None and cmax >= branch_top:
+            return math.inf  # lossless past resonance: the knob reaches any value
+        return susceptance(min(cmax, branch_top), inductance)
+
+    high = min(top(0.0), top(inductance_h))
     if not low < high:
         return None
     return low / omega, high / omega
@@ -321,18 +372,20 @@ def _capacitor_values(element: CircuitElement, match: ESeriesMatch, policy: Matc
 def _inductor_range(
     element: CircuitElement,
     parts: InductorParts,
-    config: BuildConfig,
     omega: float,
     losses: LossModel,
 ) -> tuple[float, float, str | None]:
-    """The inductor branch's susceptance range and the assumption it rests on, if any."""
-    entered = config.inductor_tolerance_pct
-    pick = parts.build_pick
+    """The inductor branch's susceptance range and the assumption it rests on, if any.
+
+    The inductor is the suggestion an output shows for it (``InductorParts.best``): a chip
+    inductor at its guaranteed tolerance, a toroid winding at the assumed 10%, or, with no
+    suggestion, the calculated value at the assumed 10%.
+    """
+    shown = parts.best
     q, reference = losses.inductor_q, losses.reference_frequency_hz
-    if pick is not None and pick.part_model is not None:
-        # A sourced part: its guaranteed tolerance, which an entered one can only loosen.
-        tolerance = max(pick.tolerance_pct, entered or 0.0) / 100.0
-        model = pick.part_model
+    if shown is not None and shown.part_model is not None:
+        tolerance = shown.tolerance_pct / 100.0
+        model = shown.part_model
         values = []
         for catalog in (
             model.catalog_inductance_h * (1 - tolerance),
@@ -346,12 +399,12 @@ def _inductor_range(
             )
             values.append(_inductor_admittance(catalog, omega, q, reference).imag)
         return min(values), max(values), None
-    # Only a toroid winding is built without a part model; its tolerance is assumed.
-    pct = entered if entered is not None else DEFAULT_INDUCTOR_TOLERANCE_PCT
-    if pick is None:
+    # Only a toroid winding is shown without a part model; its tolerance is assumed.
+    pct = DEFAULT_INDUCTOR_TOLERANCE_PCT
+    if shown is None:
         nominal, assumption = element.value, calculated_inductor_assumption(pct)
     else:
-        nominal, assumption = pick.achieved_h, toroid_assumption(pct)
+        nominal, assumption = shown.achieved_h, toroid_assumption(pct)
     values = [
         _inductor_admittance(nominal * (1 + sign * pct / 100.0), omega, q, reference).imag
         for sign in (-1.0, 1.0)
@@ -504,23 +557,31 @@ def size_tanks(
     inductors: Mapping[str, InductorParts],
     policy: MatchPolicy,
     eseries: str,
-    config: BuildConfig,
-    ports: Mapping[int, float],
-    losses: LossModel,
+    should_cancel: CancellationCheck | None = None,
 ) -> dict[str, TankParts]:
-    """Size every tank of a band-pass design (see the module docstring)."""
+    """Size every tank of a band-pass design (see the module docstring).
+
+    The sizing rests on the design alone, so every output of a design shows the same
+    split: its equal terminations, the losses of its resonator Q (``loss_model`` with no
+    build settings), each inductor's shown suggestion and the parts' own or assumed
+    tolerances. A build's own ports, Q and inductor choice change only the settings it
+    simulates. ``should_cancel`` is polled before each tank and each trimmer tried for it.
+    """
+    losses = loss_model(result, "bandpass", BuildConfig())
+    z0 = float(result["z0"])
+    ports = tank_ports(circuit, z0, z0)
     frequency = tuning_frequency(result)
     omega = TWO_PI * frequency
     reference = losses.reference_frequency_hz
     nodes = tank_nodes(result)
-    design_ports = {port: float(result["z0"]) for port in ports}
     ports_ohm = (ports[circuit.in_node], ports[circuit.out_node])
     # Every part the worst-case rule may choose, ascending, for the fixed part's search.
     candidates = eligible_parts_pf(policy, eseries)
     tanks: dict[str, TankParts] = {}
     for node in nodes:
+        raise_if_cancelled(should_cancel)
         name = f"CT{node}"
-        target = node_susceptance(circuit, node, frequency, nodes, design_ports)
+        target = node_susceptance(circuit, node, frequency, nodes, ports)
         rest_low = rest_high = 0.0
         assumptions: list[tuple[str, str]] = []
         for element in circuit.elements:
@@ -528,7 +589,7 @@ def size_tanks(
                 continue
             if element.kind == "L":
                 low, high, assumption = _inductor_range(
-                    element, inductors[element.name], config, omega, losses
+                    element, inductors[element.name], omega, losses
                 )
             else:
                 other = element.node2 if element.node1 == node else element.node1
@@ -545,10 +606,10 @@ def size_tanks(
             assumptions=tuple(assumptions),
         )
         q = losses.capacitor_q_for(name)
-        fits = (
-            _best_split_for(trimmer, need, frequency, q, reference, policy, candidates)
-            for trimmer in trimmer_parts()
-        )
+        fits = []
+        for trimmer in trimmer_parts():
+            raise_if_cancelled(should_cancel)
+            fits.append(_best_split_for(trimmer, need, frequency, q, reference, policy, candidates))
         splits = sorted((split for split in fits if split is not None), key=_split_rank)
         tanks[name] = TankParts(
             name=name,

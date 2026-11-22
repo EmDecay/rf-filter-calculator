@@ -17,6 +17,7 @@ import pytest
 
 from filter_lib.design import DesignRequest, design
 from filter_lib.shared import tank_trimmers
+from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.capacitor_choice import eligible_parts_pf
 from filter_lib.shared.eseries import DEFAULT_MATCH_POLICY
 from filter_lib.shared.tank_trimmers import (
@@ -221,30 +222,26 @@ def test_an_end_tank_s_need_takes_its_coupler_through_the_port():
     )
 
 
-def test_an_entered_inductor_tolerance_can_only_loosen_a_chip_s_need():
-    from filter_lib.shared.build_types import BuildConfig
-
-    def need(tolerance):
-        config = BuildConfig(inductor_tolerance_pct=tolerance)
-        return (
-            design(_two_metre(resonator_inductance=21e-9, realization=config))
-            .parts.tank("CT2")
-            .need
+def test_the_build_s_own_settings_do_not_change_the_sizing():
+    # Every output of a design shows the same split, so the build's inductor tolerance,
+    # ports, part Q and inductor choice change only the settings it simulates.
+    baseline = design(_two_metre(resonator_inductance=21e-9)).parts.tanks
+    for config, build_inductors in (
+        (BuildConfig(inductor_tolerance_pct=10.0), "auto"),
+        (BuildConfig(source_resistance_ohm=75.0, load_resistance_ohm=30.0), "auto"),
+        (BuildConfig(inductor_q=5.0, capacitor_q=20.0), "auto"),
+        (BuildConfig(), "calculated"),
+    ):
+        request = _two_metre(
+            resonator_inductance=21e-9, realization=config, build_inductors=build_inductors
         )
-
-    guaranteed = need(None)
-    assert need(1.0) == guaranteed  # tighter than the part's own ±2%: ignored
-    looser = need(5.0)
-    assert looser.low_f < guaranteed.low_f and looser.high_f > guaranteed.high_f
+        assert design(request).parts.tanks == baseline
 
 
-def test_part_losses_change_the_need():
-    from filter_lib.shared.build_types import BuildConfig
-
+def test_the_design_s_resonator_q_changes_the_need():
+    # The resonator inductor Q is a design input (--ql), so the sizing includes its loss.
     lossless = design(_two_metre(resonator_inductance=21e-9)).parts.tank("CT2").need
-    outcome = design(
-        _two_metre(resonator_inductance=21e-9, realization=BuildConfig(inductor_q=5.0))
-    )
+    outcome = design(_two_metre(resonator_inductance=21e-9, ql=5.0))
     lossy = outcome.parts.tank("CT2").need
     omega = 2 * math.pi * outcome.result["f_tank_hz"]
     pick = outcome.parts.inductor("LT2").build_pick
@@ -381,3 +378,117 @@ def test_the_intro_names_unequal_ports_and_a_trimmer_alone_has_no_fixed_part():
     assert _fixed_text(split) == "47.00 pF +"
     alone = dataclasses.replace(split, fixed_parts_f=(), fixed_tolerances_f=())
     assert _fixed_text(alone) == "no fixed part,"
+
+
+@pytest.mark.parametrize(
+    ("part_number", "frequency_hz", "q"),
+    [
+        ("BFC280800018", 439.906e6, None),
+        ("BFC280800018", 439.906e6, 50.0),
+        ("BFC280831229", 439.906e6, None),  # the knob reaches the series resonance
+        ("BFC280820109", 146e6, 20.0),
+        ("AT 0310 R2", 440e6, 5.0),
+    ],
+)
+def test_every_value_in_the_range_is_reachable_for_any_inductance_up_to_the_bound(
+    part_number, frequency_hz, q
+):
+    trimmer = _trimmer(part_number)
+    bound, _assumed = series_inductance(trimmer)
+    omega = 2 * math.pi * frequency_hz
+    span = trimmer_range_f(trimmer, bound, frequency_hz, q, frequency_hz)
+    assert span is not None
+    low, high = span
+    settings = [
+        trimmer.cmin_max_f * (trimmer.cmax_min_f / trimmer.cmin_max_f) ** (i / 400)
+        for i in range(401)
+    ]
+    for step in range(11):
+        inductance = bound * step / 10
+        # The knob's rising part at this inductance: below the resonance or loss peak.
+        top = tank_trimmers.capacitive_branch_top(inductance, omega, q, frequency_hz)
+        values = [
+            tank_trimmers.trimmer_admittance(c, inductance, omega, q, frequency_hz).imag / omega
+            for c in settings
+            if c < top
+        ]
+        reaches_pole = q is None and trimmer.cmax_min_f >= top
+        assert min(values) <= low * (1 + 1e-12)
+        assert reaches_pole or max(values) >= high * (1 - 1e-9)
+
+
+def test_a_trimmer_whose_loss_peak_is_below_the_need_does_not_fit():
+    # At capacitor Q 0.5 and 440 MHz, BFC280800018 with up to 17.59 nH peaks at about
+    # 0.4393 pF (knob 3.928 pF), far below the range its stops would suggest.
+    trimmer = _trimmer("BFC280800018")
+    bound, _assumed = series_inductance(trimmer)
+    omega = 2 * math.pi * 439.906e6
+    # Q applies at the 440 MHz center, as in the build.
+    top = tank_trimmers.capacitive_branch_top(bound, omega, 0.5, 440e6)
+    peak = tank_trimmers.trimmer_admittance(top, bound, omega, 0.5, 440e6).imag / omega
+
+    assert top * 1e12 == pytest.approx(3.928, abs=1e-3)
+    assert peak * 1e12 == pytest.approx(0.43934, abs=1e-5)
+    span = trimmer_range_f(trimmer, bound, 439.906e6, 0.5, 440e6)
+    assert span is None or span[1] <= peak * (1 + 1e-12)
+    # A design whose resonator capacitors have that Q (--qc 0.5) offers no split.
+    request = DesignRequest(
+        "bandpass", "chebyshev", "top", 440e6, 50.0, 3, ripple_db=0.5, bandwidth_hz=13.2e6, qc=0.5
+    )
+    assert all(tank.split is None for tank in design(request).parts.tanks.values())
+
+
+def test_a_build_q_the_sizing_did_not_see_flags_the_cases_the_trimmer_cannot_reach():
+    # The lossless design fits trimmers; a build that adds capacitor Q 0.5 leaves them
+    # little rising range, so its cases are flagged rather than claimed tuned.
+    request = DesignRequest(
+        "bandpass",
+        "chebyshev",
+        "top",
+        440e6,
+        50.0,
+        3,
+        ripple_db=0.5,
+        bandwidth_hz=13.2e6,
+        realization=BuildConfig(grid_points=51, capacitor_q=0.5),
+        run_build_analysis=True,
+    )
+    outcome = design(request)
+
+    assert all(tank.split is not None for tank in outcome.parts.tanks.values())
+    analysis = outcome.build_analysis
+    assert analysis.has_trimmers
+    assert analysis.out_of_range_cases() == len(analysis.cases)
+
+
+def test_tank_sizing_stops_when_cancelled(monkeypatch):
+    from filter_lib.design import DesignCancelled
+
+    tried: list[str] = []
+    real = tank_trimmers._best_split_for
+
+    def counting(trimmer, *args, **kwargs):
+        tried.append(trimmer.part_name)
+        return real(trimmer, *args, **kwargs)
+
+    monkeypatch.setattr(tank_trimmers, "_best_split_for", counting)
+    request = DesignRequest("bandpass", "butterworth", "top", 10e6, 50.0, 9, bandwidth_hz=650e3)
+
+    with pytest.raises(DesignCancelled):
+        design(request, should_cancel=lambda: len(tried) >= 5)
+
+    # The check fires before the sixth trimmer is tried.
+    assert len(tried) == 5
+
+
+def test_the_standard_values_say_to_use_the_split_and_keep_the_plain_choice(monkeypatch, capsys):
+    argv = ("bp", "ch", "top", "-f", "146MHz", "-b", "4MHz", "-n", "3", "-r", "0.5")
+    table = cli_stdout(monkeypatch, capsys, *argv, "--tank-inductance", "21nH")
+
+    assert (
+        "Cp1 calculated 51.43 pF\n"
+        "  Use:            4.70 pF || 39.00 pF + trimmer AT 9402G-4 (see Tank Trimmers)\n"
+        "  No trimmer:     51.00 pF (-0.8%)\n"
+    ) in table
+    # A coupling capacitor keeps its own standard value.
+    assert "Cs12 calculated 1.00 pF\n  Use:            1.00 pF" in table

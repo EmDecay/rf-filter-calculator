@@ -37,8 +37,6 @@ from .design_request import DesignRequest
 
 # The most designs one advice recalculates (each is a full calibration).
 MAX_COUPLING_ADVICE_TRIALS = 8
-# Whole turns of a verified toroid core tried as candidate windings.
-_MAX_TOROID_TURNS = 200
 # A suggestion supplies a value when its own value matches it this closely (relative).
 _SUPPLY_TOLERANCE = 1e-9
 # The end coupling capacitors of a band-pass design (the inter-resonator ones are CK1, CK2 ...).
@@ -87,6 +85,8 @@ class CouplingAdvice:
     trials: tuple[AdviceTrial, ...]
     max_trials: int
     clears_impedance: bool
+    # Whether the run shows inductor suggestions, so the advice may name the part.
+    names_part: bool = True
     inductance_h: float | None = None
     setting: str | None = None
     part: InductorSuggestion | None = None
@@ -153,7 +153,9 @@ def _candidates(result: dict, below_h: float) -> list[float]:
     """Inductances a built-in suggestion can supply, below ``below_h``, ascending."""
     values = {part.inductance_h for part in chip_parts()}
     for core in iter_auto_selectable_cores_for_frequency(result["f0"]):
-        for turns in range(1, _MAX_TOROID_TURNS + 1):
+        # Every whole-turn winding the core's published winding table can hold.
+        capacity = max((row.full_winding_turns for row in core.winding_table), default=0)
+        for turns in range(1, capacity + 1):
             values.add(inductance_from_turns(turns, core.al_nh_per_turn2))
     return sorted(value for value in values if value < below_h)
 
@@ -270,6 +272,7 @@ def advise_coupling(
         "estimate_h": estimate,
         "max_trials": MAX_COUPLING_ADVICE_TRIALS,
         "clears_impedance": request.resonator_impedance is not None,
+        "names_part": request.inductor_suggestions != "none",
     }
     values = _candidates(result, original)
     if not values:
@@ -329,7 +332,11 @@ def advice_lines_text(advice: CouplingAdvice) -> list[str]:
     values = "; ".join(f"{format_name_list(names)}: {text}" for text, names in groups.items())
     part, inductance = advice.part, advice.inductance_h
     assert part is not None and inductance is not None
-    supplier = f"{KIND_LABELS[part.kind].lower()} {part.part_name}"
+    supplier = (
+        f"{KIND_LABELS[part.kind].lower()} {part.part_name}"
+        if advice.names_part
+        else "a built-in inductor suggestion"
+    )
     status = (
         ""
         if advice.response_validation_status == "validated"

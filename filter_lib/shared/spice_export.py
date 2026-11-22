@@ -136,7 +136,10 @@ def _nominal_comments(
             substitution.logical_name,
             _part_description(substitution, eseries),
             f"calculated={_number(substitution.calculated_value)}",
-            f"nominal={_number(substitution.nominal_value)}",
+            # A tank built from its trimmer alone has no fixed part to state.
+            "fixed=none"
+            if substitution.trimmer is not None and not substitution.physical_parts
+            else f"nominal={_number(substitution.nominal_value)}",
         ]
         if substitution.part_name is not None:
             details.append(f"part={substitution.part_name}")

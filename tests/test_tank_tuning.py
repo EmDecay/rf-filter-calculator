@@ -45,17 +45,14 @@ def _residuals(analysis) -> list[float]:
     return residuals
 
 
-@pytest.mark.parametrize(
-    "config",
-    [
-        FAST,
-        BuildConfig(grid_points=51, inductor_q=1.0),
-        BuildConfig(grid_points=51, capacitor_q=20),
-    ],
-    ids=["lossless", "inductor-q-1", "capacitor-q-20"],
-)
-def test_the_nominal_trimmers_restore_every_tank_s_susceptance(config):
-    analysis = design(_two_metre(resonator_inductance=21e-9, realization=config)).build_analysis
+# The design's own resonator Q (--ql, --qc), which the sizing and the build both apply.
+LOSSES = [{}, {"ql": 1.0}, {"qc": 20.0}]
+LOSS_IDS = ["lossless", "resonator-inductor-q-1", "resonator-capacitor-q-20"]
+
+
+@pytest.mark.parametrize("losses", LOSSES, ids=LOSS_IDS)
+def test_the_nominal_trimmers_restore_every_tank_s_susceptance(losses):
+    analysis = design(_two_metre(resonator_inductance=21e-9, **losses)).build_analysis
 
     assert analysis.has_trimmers
     assert all(setting.in_range for setting in analysis.nominal_realization.trimmer_settings)
@@ -106,13 +103,9 @@ def _deck_susceptance(deck: str, node: str, frequency_hz: float, tank_nodes) -> 
     return matrix[0][0].imag
 
 
-@pytest.mark.parametrize(
-    "config",
-    [FAST, BuildConfig(grid_points=51, inductor_q=1.0)],
-    ids=["lossless", "inductor-q-1"],
-)
-def test_the_deck_holds_the_tuned_settings(config):
-    outcome = design(_two_metre(resonator_inductance=21e-9, realization=config))
+@pytest.mark.parametrize("losses", LOSSES[:2], ids=LOSS_IDS[:2])
+def test_the_deck_holds_the_tuned_settings(losses):
+    outcome = design(_two_metre(resonator_inductance=21e-9, **losses))
     tuning = outcome.build_analysis.nominal_realization.tuning
     deck = export_spice(outcome, "nominal_build")
 
@@ -226,8 +219,11 @@ def test_the_table_and_json_report_the_same_tuning(monkeypatch, capsys):
     assert "Spread after retuning the trimmers in each case:" in table
     cp1 = substitutions["CT1"]
     assert cp1["method"] == "fixed_plus_trimmer"
-    setting = cp1["trimmer"]["nominal_setting"]["effective_capacitance_f"] * 1e12
-    assert f"trimmer BFC280820508 set to {setting:.2f} pF at 145.974 MHz" in table
+    nominal = cp1["trimmer"]["nominal_setting"]
+    knob, effective = nominal["setting_f"] * 1e12, nominal["effective_capacitance_f"] * 1e12
+    assert (
+        f"trimmer BFC280820508 set to {knob:.2f} pF ({effective:.2f} pF effective at 145.974 MHz)"
+    ) in table
     assert cp1["trimmer"]["series_inductance_basis"] == "bound_from_minimum_srf"
 
 
@@ -255,3 +251,74 @@ def test_a_cancel_between_a_case_s_two_measurements_returns_no_partial_case(monk
             should_cancel=lambda: len(measured) >= 2,
         )
     assert len(measured) == 2
+
+
+def test_a_build_inductor_q_the_sizing_did_not_see_is_flagged_where_it_cannot_be_tuned():
+    # The split is sized for the lossless design; a build inductor Q of 1 halves the
+    # inductor's susceptance, which no trimmer of that split can make up.
+    config = BuildConfig(grid_points=51, inductor_q=1.0)
+    analysis = design(_two_metre(resonator_inductance=21e-9, realization=config)).build_analysis
+
+    assert not any(setting.in_range for setting in analysis.nominal_realization.trimmer_settings)
+    assert analysis.out_of_range_cases() == len(analysis.cases)
+
+
+def test_a_knob_that_reaches_its_series_resonance_is_tuned_on_its_capacitive_side():
+    # BFC280831229 (3-22.5 pF, up to 28.08 nH) at 440 MHz passes its series resonance at
+    # about 4.65 pF of knob; the 12.515 pF it must supply is at 3.3907 pF of knob, below it.
+    from filter_lib.shared.tank_trimmers import (
+        TankNeed,
+        TankParts,
+        TankSplit,
+        series_inductance,
+        trimmer_range_f,
+    )
+    from filter_lib.shared.tank_tuning import plan_trimmer
+    from filter_lib.shared.trimmer_data import trimmer_parts
+
+    trimmer = next(part for part in trimmer_parts() if part.part_name == "BFC280831229")
+    inductance, _assumed = series_inductance(trimmer)
+    frequency = 439.906e6
+    omega = 2 * math.pi * frequency
+    required = 12.51507e-12
+    split = TankSplit(
+        trimmer=trimmer,
+        fixed_parts_f=(),
+        fixed_tolerances_f=(),
+        stray_f=0.0,
+        series_inductance_h=inductance,
+        series_inductance_assumed=False,
+        trimmer_range_f=trimmer_range_f(trimmer, inductance, frequency, None, frequency),
+        required_f=(required, required),
+        centring_f=0.0,
+    )
+    tank = TankParts(
+        name="CT1",
+        node=1,
+        tuning_frequency_hz=frequency,
+        target_susceptance_s=omega * required,
+        need=TankNeed(required, required),
+        ports_ohm=(50.0, 50.0),
+        splits=(split,),
+    )
+    element = CircuitElement("CT1", 1, 0, "C", required, logical_name="CT1")
+    plan = plan_trimmer(tank, element, None, frequency)
+    circuit = NamedCircuit(
+        "bandpass",
+        1,
+        (
+            CircuitElement(
+                "CTRIM_CT1", 1, 0, "C", 3e-12, fixed=True, series_inductance_h=inductance
+            ),
+        ),
+        1,
+        1,
+    )
+    [setting] = tune(circuit, TuningPlan((plan,), (1,), {}))[1]
+
+    resonance = 1 / (omega**2 * inductance)
+    expected = required / (1 + omega**2 * inductance * required)
+    assert resonance * 1e12 == pytest.approx(4.6508, abs=1e-3)
+    assert setting.in_range
+    assert setting.setting_f == pytest.approx(expected, rel=1e-12)
+    assert setting.setting_f * 1e12 == pytest.approx(3.39072, abs=1e-5)

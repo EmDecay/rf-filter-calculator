@@ -712,15 +712,74 @@ def record_with_old_peak_rule(design: Design, *, trimmers: bool = True) -> dict[
         response_refinement.PEAK_PROMINENCE_DB, response_refinement._hidden_dips = saved
 
 
-def _trimmed_tanks(item: str, after: Any, actual: dict) -> list[str]:
-    """The tanks a changed item shows as a fixed part plus a trimmer."""
+# A deck row of a tank: its fixed part(s), the stray across them, its trimmer and the
+# trimmer's series inductance (``CT1``, ``CT1A``, ``CSTRAY_CT1``, ``CTRIM_CT1``, ``LTRIM_CT1``).
+_TANK_ROW = re.compile(r"^(?:CT(\d+)[A-Z]?|CSTRAY_CT(\d+)|CTRIM_CT(\d+)|LTRIM_CT(\d+))$")
+_SPLIT_METHOD = "fixed_plus_trimmer"
+
+
+def _tank_of_row(name: str) -> str | None:
+    """The tank (``CT1``) a deck row belongs to, or ``None`` for any other row."""
+    match = _TANK_ROW.match(name)
+    return None if match is None else f"CT{next(group for group in match.groups() if group)}"
+
+
+def _deck_tanks(rows: Any) -> set[str]:
+    return {
+        str(row[0]).removeprefix("CTRIM_") for row in rows or [] if str(row[0]).startswith("CTRIM_")
+    }
+
+
+def _parts_tanks(parts: Any) -> set[str]:
+    return {row[0] for row in parts or [] if row[5] == _SPLIT_METHOD}
+
+
+def _deck_differs_only_in_tanks(before: Any, after: Any, tanks: set[str]) -> bool:
+    """Whether a deck matches the one recorded without trimmers but for those tanks' rows.
+
+    Every other row must be the same, and each trimmed tank's rows must sit on its own
+    node and ground (the trimmer through its own internal node).
+    """
+
+    def other(rows):
+        return [row for row in rows or [] if _tank_of_row(str(row[0])) not in tanks]
+
+    if not _close(other(before), other(after), MEASUREMENT_REL_TOL):
+        return False
+    for row in after or []:
+        tank = _tank_of_row(str(row[0]))
+        if tank in tanks:
+            allowed = {tank.removeprefix("CT"), "0", f"NSERIESCTRIM_{tank}"}
+            if not {str(row[1]), str(row[2])} <= allowed:
+                return False
+    return True
+
+
+def _parts_differ_only_in_tanks(before: Any, after: Any, tanks: set[str]) -> bool:
+    """Whether a build's parts match those recorded without trimmers but for those tanks."""
+
+    def other(rows):
+        return [row for row in rows or [] if row[0] not in tanks]
+
+    return _close(other(before), other(after), MEASUREMENT_REL_TOL) and all(
+        row[5] == _SPLIT_METHOD for row in after or [] if row[0] in tanks
+    )
+
+
+def _trimmer_explains(item: str, actual: dict, untrimmed: dict) -> list[str]:
+    """The tanks whose trimmer split alone explains the item's change from the untrimmed
+    record; empty when anything else differs."""
     if item_type(item) == "spice_nominal":
-        return sorted(
-            str(row[0]).removeprefix("CTRIM_")
-            for row in after or []
-            if str(row[0]).startswith("CTRIM_")
+        tanks = _deck_tanks(actual.get(item))
+        ok = _deck_differs_only_in_tanks(untrimmed.get(item), actual.get(item), tanks)
+    else:
+        # Build items: the build's parts must differ only in the trimmed tanks; every
+        # measurement then follows from them.
+        tanks = _parts_tanks(actual.get("build_parts"))
+        ok = _parts_differ_only_in_tanks(
+            untrimmed.get("build_parts"), actual.get("build_parts"), tanks
         )
-    return [row[0] for row in actual.get("build_parts") or [] if row[5] == "fixed_plus_trimmer"]
+    return sorted(tanks) if tanks and ok else []
 
 
 def _classify_with_trimmers(
@@ -734,10 +793,11 @@ def _classify_with_trimmers(
 ) -> tuple[list[str], str]:
     """Explain an item the trimmer split moved (kind d).
 
-    What separates the corpus from the design recorded without trimmers must itself be a
-    permitted change; the trimmer split explains the rest.
+    The item must differ from the design recorded without trimmers only in the trimmed
+    tanks (``_trimmer_explains``), and what separates the corpus from that record must
+    itself be a permitted change.
     """
-    tanks = _trimmed_tanks(item, actual.get(item), actual)
+    tanks = _trimmer_explains(item, actual, untrimmed)
     if not tanks:
         return [], "not a permitted change"
     kinds, reasons = ["d"], [f"tanks built as a fixed part plus a trimmer ({', '.join(tanks)})"]

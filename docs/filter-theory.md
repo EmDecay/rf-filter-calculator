@@ -303,10 +303,13 @@ A built tank must restore that susceptance whatever the other parts at its node 
 So the calculator sizes a fixed part plus a trimmer: the pair must cover the capacitance the
 target needs less every other branch at its extreme corners (the inductor at both tolerance ends,
 at its minimum SRF and with no drift; each coupler at both ends; the end capacitor through its
-port at both ends and its stationary point), with each branch's loss from Q included. The
+port at both ends and its stationary point), with the loss of the design's resonator Q. The
 branches are independent, so the extremes add. A trimmer's effective capacitance at the tank
 frequency is raised by its series inductance, `C/(1 − ω²LsC)`; the range relied on runs from
-the raised minimum to the unraised maximum. In the build, each trimmer is set by solving its
+the raised minimum to the unraised maximum, on the rising part of the knob's travel only. With
+`u = 1/(ωC)`, `a = ωLs` and a capacitor Q giving `R = αu` (`α = ω/(ω_ref·Q)`), the branch
+susceptance `(u − a)/((αu)² + (u − a)²)` rises with C until `u = a(1 + α/√(1 + α²))`: the
+series resonance when lossless, a loss peak before it otherwise. In the build, each trimmer is set by solving its
 branch admittance so the node's susceptance, with every built branch (its series resistance from
 Q, the chip inductors' self-capacitance, the strays and the ports), equals the calculated design's
 again. That restores each tank's resonance; it does not restore the coupling between tanks or

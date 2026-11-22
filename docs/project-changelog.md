@@ -262,20 +262,27 @@ only labels changed.
 - **Added tank trimmers.** Every band-pass tank with standard values is sized as a fixed
   standard part plus a sourced trimmer (table **Tank Trimmers**, JSON `tank_trimmers`, CSV
   `TankFixedParts`, `TrimmerPart`, `TrimmerRequiredMinPF`, `TrimmerRequiredMaxPF`,
-  `TrimmerRangeMinPF`, `TrimmerRangeMaxPF`, `TankNeedMinPF`, `TankNeedMaxPF` and
-  `TankNeedBasis` on the tank rows). At the calibrated tank frequency, the fixed part and trimmer
+  `TrimmerRangeMinPF`, `TrimmerRangeMaxPF`, `TrimmerSeriesInductanceNH`,
+  `TrimmerSeriesInductanceBasis`, `TrimmerFit` (always `conditional_on_series_inductance`, or
+  `no_fit`), `TankNeedMinPF`, `TankNeedMaxPF`, `TankNeedBasis` and `TankNeedAssumptions` on the
+  tank rows). At the calibrated tank frequency, the fixed part and trimmer
   together must cover what the tank needs with every other part at its node at either end of its
   tolerance: the inductor (a chip inductor at both tolerance ends, at its minimum SRF and with no
-  drift), the coupling capacitors, and the end capacitors through the source and load
-  resistances, using the end coupling's effective shunt `Ce/(1 + (ωRCe)²)` at both ends and at
-  its maximum `Ce = 1/(ωR)`, with any part Q. The need is **conditional** (and names each
+  drift; the inductor each output shows), the coupling capacitors, and the end capacitors
+  through the design's source and load impedance, using the end coupling's effective shunt
+  `Ce/(1 + (ωRCe)²)` at both ends and at its maximum `Ce = 1/(ωR)`, with the loss of the
+  design's resonator Q. The build's own ports, Q, inductor tolerance and inductor choice never
+  change the split, so every output of a design lists the same trimmer; the build simulates it
+  under those settings and flags what it cannot reach. The need is **conditional** (and names each
   assumption) when a tolerance in it is assumed: a toroid winding, a calculated inductor, an
   unsourced capacitor, or a coupler with no chosen part. A trimmer's range is guaranteed only at
   its maker's measurement frequency; at the tank frequency its series inductance (the bound from
   Vishay's minimum SRF at Cmax, else an assumed 10 nH) raises it, so the range relied on runs
   from the raised minimum to the unraised maximum and **every fit is conditional on that
   inductance**. Splits rank by the smallest trimmer range, then the best-centred fixed part, then
-  fewer parts; when none fits, the output names what the tank needs. The trimmers are the
+  fewer parts; when none fits, the output names what the tank needs. With a fit, the tank's
+  standard-value `Use:` line names the split and a `No trimmer:` line gives the plain choice
+  (JSON `standard_match` and CSV `RecommendedStd*` keep the plain choice). The trimmers are the
   evidence page's per-part table, packaged as `filter_lib/shared/trimmer_data.json` (Vishay BFC2
   808, Exxelia AT 0300/1300 R2, AT 03HV, AT 9402G, AT 9410G and AT 23XXG, Suntan TSC3S; 58 ranges,
   96 part numbers).

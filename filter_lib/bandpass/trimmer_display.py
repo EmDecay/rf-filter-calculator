@@ -123,6 +123,32 @@ def _fixed_text(split: TankSplit) -> str:
     return _parallel_text(split.fixed_parts_f) + " +"
 
 
+# The standard-value line of a tank built with a trimmer, and of the plain choice beside it.
+TANK_USE_LABEL = "  Use:            "
+NO_TRIMMER_LABEL = "  No trimmer:     "
+
+
+def tank_use_lines(tank: TankParts | None, choice_lines: list[str]) -> list[str]:
+    """A tank's standard-value lines: the split to fit when one fits, then the plain choice.
+
+    ``choice_lines`` are the tank's own standard-value lines (``Use:`` first). With a split
+    the ``Use:`` line names the fixed part and trimmer, and the plain choice follows as the
+    alternative without a trimmer, so the section gives one instruction.
+    """
+    split = None if tank is None else tank.split
+    if split is None or not choice_lines or not choice_lines[0].startswith(TANK_USE_LABEL):
+        return choice_lines
+    fixed = _parallel_text(split.fixed_parts_f)
+    trimmer = f"trimmer {split.trimmer.part_name}"
+    use = f"{fixed} + {trimmer}" if fixed else f"{trimmer} alone"
+    plain = choice_lines[0].removeprefix(TANK_USE_LABEL)
+    return [
+        f"{TANK_USE_LABEL}{use} (see {TANK_TRIMMERS_HEADING})",
+        f"{NO_TRIMMER_LABEL}{plain}",
+        *choice_lines[1:],
+    ]
+
+
 def tank_lines(tank: TankParts) -> list[str]:
     """One tank's split (or why none fits), its need and its trimmer's details."""
     name = display_component_name(tank.name)
@@ -197,6 +223,11 @@ def _trimmer_payload(trimmer: TrimmerPart) -> dict[str, Any]:
     }
 
 
+def _inductance_basis(split: TankSplit) -> str:
+    """Where the series inductance a fit assumes comes from (JSON and CSV)."""
+    return "assumed" if split.series_inductance_assumed else "bound_from_minimum_srf"
+
+
 def _split_payload(split: TankSplit) -> dict[str, Any]:
     return {
         "fixed_parts_f": list(split.fixed_parts_f),
@@ -204,9 +235,7 @@ def _split_payload(split: TankSplit) -> dict[str, Any]:
         "stray_f": split.stray_f,
         "trimmer": _trimmer_payload(split.trimmer),
         "series_inductance_h": split.series_inductance_h,
-        "series_inductance_basis": (
-            "assumed" if split.series_inductance_assumed else "bound_from_minimum_srf"
-        ),
+        "series_inductance_basis": _inductance_basis(split),
         "trimmer_range_f": list(split.trimmer_range_f),
         "required_trimmer_f": list(split.required_f),
         # Every fit rests on the stated series inductance; none is guaranteed.
@@ -251,21 +280,29 @@ CSV_TRIMMER_HEADER = [
     "TrimmerRequiredMaxPF",
     "TrimmerRangeMinPF",
     "TrimmerRangeMaxPF",
+    "TrimmerSeriesInductanceNH",
+    "TrimmerSeriesInductanceBasis",
+    "TrimmerFit",
     "TankNeedMinPF",
     "TankNeedMaxPF",
     "TankNeedBasis",
+    "TankNeedAssumptions",
 ]
 
 
 def trimmer_csv_columns(tank: TankParts | None) -> list[str]:
-    """One tank row's trimmer columns; blank for every other row."""
+    """One tank row's trimmer columns; blank for every other row.
+
+    A fit is always conditional on the series inductance it assumes, and a need names
+    each assumed tolerance it rests on, as in the table and JSON.
+    """
     if tank is None:
         return [""] * len(CSV_TRIMMER_HEADER)
-    need = [_pf(tank.need.low_f), _pf(tank.need.high_f)]
-    basis = _need_basis(tank)
+    need = [_pf(tank.need.low_f), _pf(tank.need.high_f), _need_basis(tank)]
+    assumptions = "; ".join(f"{part}: {text}" for part, text in tank.need.assumptions)
     split = tank.split
     if split is None:
-        return ["", "", "", "", "", "", *need, basis]
+        return ["", "", "", "", "", "", "", "", "no_fit", *need, assumptions]
     return [
         _parallel_text(split.fixed_parts_f) or "none",
         split.trimmer.part_name,
@@ -273,8 +310,11 @@ def trimmer_csv_columns(tank: TankParts | None) -> list[str]:
         _pf(split.required_f[1]),
         _pf(split.trimmer_range_f[0]),
         _pf(split.trimmer_range_f[1]),
+        format_fixed(split.series_inductance_h * 1e9, 3),
+        _inductance_basis(split),
+        "conditional_on_series_inductance",
         *need,
-        basis,
+        assumptions,
     ]
 
 
@@ -301,8 +341,9 @@ def coupling_advice_payload(advice) -> dict[str, Any] | None:
             "tank_inductance_h": advice.inductance_h,
             "setting": advice.setting,
             "cli": f"{CLI_FLAG} {advice.setting}",
-            "inductor_kind": part.kind,
-            "inductor_part": part.part_name,
+            # Left out when the run hides inductor suggestions.
+            "inductor_kind": part.kind if advice.names_part else None,
+            "inductor_part": part.part_name if advice.names_part else None,
             "coupling_capacitors": [
                 {
                     "name": display_component_name(name),

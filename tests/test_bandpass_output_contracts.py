@@ -130,19 +130,27 @@ def test_csv_tank_rows_carry_the_trimmer_columns(result) -> None:
     rows = list(csv.reader(io.StringIO(format_csv(result, parts_for(result, "bandpass")))))
     header = rows[0]
 
-    assert header[-9:] == [
+    assert header[-13:] == [
         "TankFixedParts",
         "TrimmerPart",
         "TrimmerRequiredMinPF",
         "TrimmerRequiredMaxPF",
         "TrimmerRangeMinPF",
         "TrimmerRangeMaxPF",
+        "TrimmerSeriesInductanceNH",
+        "TrimmerSeriesInductanceBasis",
+        "TrimmerFit",
         "TankNeedMinPF",
         "TankNeedMaxPF",
         "TankNeedBasis",
+        "TankNeedAssumptions",
     ]
     assert all(len(row) == len(header) for row in rows)
     by_name = {row[0]: dict(zip(header, row)) for row in rows[1:]}
     # Every tank states its need; the other rows leave the columns blank.
     assert all(by_name[f"Cp{i}"]["TankNeedBasis"] for i in (1, 2, 3))
+    assert {by_name[f"Cp{i}"]["TrimmerFit"] for i in (1, 2, 3)} <= {
+        "conditional_on_series_inductance",
+        "no_fit",
+    }
     assert by_name["Cs12"]["TankNeedBasis"] == "" and by_name["L1"]["TankNeedBasis"] == ""

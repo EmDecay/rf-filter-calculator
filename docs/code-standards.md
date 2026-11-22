@@ -284,8 +284,12 @@ the tolerance cases, so making a SPICE deck never runs them:
   (`shared/tank_susceptance.node_susceptance`: other tank nodes shorted, ports at their
   resistance, every branch with its Q) equals the calculated design's at the calibrated tank
   frequency; each tolerance case keeps its untuned measurement and adds `ScreeningCase.tuning`
-  (settings with `in_range`, tuned measurement). Sizing and tuning read the same losses
-  (`build_loss_models.loss_model`), so they never disagree about Q. A fit always rests on the
+  (settings with `in_range`, tuned measurement). Sizing uses the design alone: its equal
+  terminations, the losses of its resonator Q (`build_loss_models.loss_model` with default build
+  settings), each inductor's shown suggestion (`InductorParts.best`) and the parts' own or
+  assumed tolerances, so every output of a design lists the same split; the build re-derives
+  each trimmer's range under its own Q (`tank_tuning.plan_trimmer`) and flags what it cannot
+  reach. A fit always rests on the
   stated series inductance and is never called guaranteed; a need with an assumed input
   tolerance is conditional and names it (`tank_trimmers.*_assumption`);
 - Q is converted to constant series resistance at a stated reference frequency;

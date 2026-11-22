@@ -119,6 +119,9 @@ def _series_lc_admittance(
     )
     impedance_scaled = math.hypot(resistance_scaled, reactance_scaled)
     if impedance_scaled == 0:
-        raise ValueError("A capacitor branch is exactly at its series resonance")
+        # A lossless branch exactly at its series resonance is a short. Its reactance is
+        # then the difference's rounding residue: one unit in the last place of the terms.
+        reactance_scaled = math.ulp(1.0)
+        impedance_scaled = reactance_scaled
     unit = complex(resistance_scaled, -reactance_scaled) / impedance_scaled
     return -(log_scale + math.log(impedance_scaled)), unit

@@ -87,7 +87,7 @@ def _trimmer_payload(trimmer: TrimmerUse | None) -> dict[str, Any] | None:
         "series_inductance_basis": (
             "assumed" if trimmer.series_inductance_assumed else "bound_from_minimum_srf"
         ),
-        "range_at_tuning_frequency_f": list(trimmer.range_f),
+        "range_at_tuning_frequency_f": None if trimmer.range_f is None else list(trimmer.range_f),
         "tuning_frequency_hz": trimmer.tuning_frequency_hz,
         "nominal_setting": trimmer_setting_payload(trimmer.setting),
     }

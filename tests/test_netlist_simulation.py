@@ -1059,3 +1059,28 @@ class TestCircuitModelValidation:
         circuit.update(fields)
         with pytest.raises(ValueError, match=message):
             NamedCircuit(**circuit)
+
+
+class TestCapacitorWithSeriesInductance:
+    """A capacitor branch carrying its series inductance (a trimmer's) matches the same
+    two elements through an internal node, including exactly at the series resonance."""
+
+    RESONANCE = 1 / (2 * math.pi * math.sqrt(20e-12 * 10e-9))
+
+    @pytest.mark.parametrize("offset", [0.0, -1e-3, 1e-3])
+    def test_a_series_branch_matches_the_expanded_circuit(self, offset):
+        frequency = self.RESONANCE * (1 + offset)
+        folded = solve_s21(2, [(1, 2, "C", 20e-12, 0.0, 10e-9)], 50, 50, 1, 2, [frequency])
+        expanded = solve_s21(
+            3, [(1, 3, "C", 20e-12), (3, 2, "L", 10e-9)], 50, 50, 1, 2, [frequency]
+        )
+        assert folded[0] == pytest.approx(expanded[0], rel=1e-9, abs=1e-12)
+
+    @pytest.mark.parametrize("offset", [0.0, -1e-3, 1e-3])
+    def test_a_shunt_branch_matches_the_expanded_circuit(self, offset):
+        frequency = self.RESONANCE * (1 + offset)
+        folded = solve_s21(1, [(1, 0, "C", 20e-12, 0.0, 10e-9)], 50, 50, 1, 1, [frequency])
+        expanded = solve_s21(
+            2, [(1, 2, "C", 20e-12), (2, 0, "L", 10e-9)], 50, 50, 1, 1, [frequency]
+        )
+        assert folded[0] == pytest.approx(expanded[0], rel=1e-9, abs=1e-9)

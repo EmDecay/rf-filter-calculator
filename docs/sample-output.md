@@ -208,7 +208,8 @@ Cp1: 15.00 pF + trimmer Vishay BFC280820508 (or BFC280823508), 1.50–5.00 pF gu
     1.56–4.74 pF, and its range there is 1.52–5.00 pF, assuming at most 10.34 nH series
     inductance (the bound from its minimum SRF of 700 MHz at its maximum).
   BFC2 808 film trimmer, 5 mm; radial through-hole; PP, 150 V; Q as stated: tan δ ≤ 25 ×
-    10⁻⁴ at 100 MHz (Q ≥ 400); SRF min 700 MHz at Cmax; range guaranteed at 200 kHz.
+    10⁻⁴ at 100 MHz, Cmax (Q ≥ 400); SRF min 700 MHz at Cmax; range guaranteed at
+    200 kHz.
   Source: Vishay, BFC2 808 Ø5 mm film trimmers, Rev. 06-Sep-2024, p. 3
   Conditional on assumed tolerances: Cs12 (no standard part chosen; its calculated value
     at ±5% assumed).
@@ -231,11 +232,11 @@ Cp2: 47.00 pF + trimmer Exxelia AT 9402G-4 (or AT 9402G-4 SL1), 3.00–12.00 pF 
 Chosen parts:  center 145.9991 MHz, -3 dB bandwidth 3.959 MHz, edges 144.0329 MHz / 147.9922 MHz
                peak gain 0.00 dB, lowest gain in passband -3.26 dB
 Parts used:
-  Cp1:    4.70 pF || 39.00 pF + trimmer AT 9402G-4 set to 7.34 pF at 145.974 MHz, plus 400.00 fF
-          stray (assumed)
+  Cp1:    4.70 pF || 39.00 pF + trimmer AT 9402G-4 set to 6.91 pF (7.34 pF effective at
+          145.974 MHz), plus 400.00 fF stray (assumed)
   L1:     21.00 nH, chip inductor LQW15AN21NG80D, plus 59.60 fF self-capacitance
-  Cp2:    47.00 pF + trimmer AT 9402G-4 set to 7.38 pF at 145.974 MHz, plus 200.00 fF stray
-          (assumed)
+  Cp2:    47.00 pF + trimmer AT 9402G-4 set to 6.94 pF (7.38 pF effective at 145.974 MHz), plus
+          200.00 fF stray (assumed)
 ...
 Each case is simulated with every trimmer at its nominal setting, then again with every trimmer
   retuned for that case; every trimmer reached its setting in every case.

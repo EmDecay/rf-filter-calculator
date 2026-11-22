@@ -445,28 +445,28 @@ per part in [KNO-CAT-R5].
 
 | Part numbers | Cmin ≤ | Cmax ≥ | Q as stated | SRF as stated | Dielectric | Working V | Source |
 |---|---|---|---|---|---|---|---|
-| BFC280822158 | 0.35 pF | 1.5 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | — | PTFE | 150 V | [VIS-28526] p. 3 |
-| BFC280824508 | 1.2 pF | 5 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | — | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820508, BFC280823508 | 1.5 pF | 5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 700 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280824708 | 1.5 pF | 7 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | — | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820109, BFC280823109 | 3 pF | 10 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 500 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820159, BFC280823159 | 3 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 400 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820209, BFC280823209 | 4 pF | 20 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 300 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280820279, BFC280823279 | 4 pF | 27 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 300 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
-| BFC280811558, BFC280800004, BFC280851558 | 1.4 pF | 5.5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 850 MHz at Cmax | PE | 250 V | [VIS-28527] p. 3 |
-| BFC280800018 | 2 pF | 9 pF | tan δ ≤ 15 × 10⁻⁴ at 100 MHz (Q ≥ 666.6) | min 400 MHz at Cmax | PTFE | 250 V | [VIS-28527] p. 3 |
-| BFC280811109, BFC280800005, BFC280851109 | 2 pF | 10 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 480 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280811159 | 2 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 450 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280800016 | 2 pF | 18 pF | tan δ ≤ 15 × 10⁻⁴ at 100 MHz (Q ≥ 666.6) | min 350 MHz at Cmax | PTFE | 250 V | [VIS-28527] p. 3 |
-| BFC280811006 | 2.5 pF | 20 pF | tan δ ≤ 160 × 10⁻⁴ at 1 MHz (Q ≥ 62.5) | min 250 MHz at Cmax | PET | 250 V | [VIS-28527] p. 3 |
-| BFC280811229, BFC280800006, BFC280851229 | 2.5 pF | 22 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 350 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280811339 | 3 pF | 33 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | min 300 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280811409 | 3 pF | 40 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz (Q ≥ 1000) | min 300 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
-| BFC280831159, BFC280832159 | 2.5 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 420 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
-| BFC280831229, BFC280832229 | 3 pF | 22.5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 200 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
-| BFC280831409, BFC280832409 | 5.5 pF | 40 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 200 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
-| BFC280801029, BFC280801006 | 5.5 pF | 50 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 170 MHz at Cmax | PTFE | 150 V | [VIS-28528] p. 3 |
-| BFC280801001, BFC280831659, BFC280832659 | 5.5 pF | 65 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz (Q ≥ 400) | min 170 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
+| BFC280822158 | 0.35 pF | 1.5 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000) | — | PTFE | 150 V | [VIS-28526] p. 3 |
+| BFC280824508 | 1.2 pF | 5 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000) | — | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820508, BFC280823508 | 1.5 pF | 5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 700 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280824708 | 1.5 pF | 7 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000) | — | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820109, BFC280823109 | 3 pF | 10 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 500 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820159, BFC280823159 | 3 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 400 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820209, BFC280823209 | 4 pF | 20 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 300 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280820279, BFC280823279 | 4 pF | 27 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 300 MHz at Cmax | PP | 150 V | [VIS-28526] p. 3 |
+| BFC280811558, BFC280800004, BFC280851558 | 1.4 pF | 5.5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 850 MHz at Cmax | PE | 250 V | [VIS-28527] p. 3 |
+| BFC280800018 | 2 pF | 9 pF | tan δ ≤ 15 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 666.6) | min 400 MHz at Cmax | PTFE | 250 V | [VIS-28527] p. 3 |
+| BFC280811109, BFC280800005, BFC280851109 | 2 pF | 10 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 480 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280811159 | 2 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 450 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280800016 | 2 pF | 18 pF | tan δ ≤ 15 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 666.6) | min 350 MHz at Cmax | PTFE | 250 V | [VIS-28527] p. 3 |
+| BFC280811006 | 2.5 pF | 20 pF | tan δ ≤ 160 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 62.5) | min 250 MHz at Cmax | PET | 250 V | [VIS-28527] p. 3 |
+| BFC280811229, BFC280800006, BFC280851229 | 2.5 pF | 22 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 350 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280811339 | 3 pF | 33 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000) | min 300 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280811409 | 3 pF | 40 pF | tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000) | min 300 MHz at Cmax | PP | 250 V | [VIS-28527] p. 3 |
+| BFC280831159, BFC280832159 | 2.5 pF | 15 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 420 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
+| BFC280831229, BFC280832229 | 3 pF | 22.5 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 200 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
+| BFC280831409, BFC280832409 | 5.5 pF | 40 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 200 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
+| BFC280801029, BFC280801006 | 5.5 pF | 50 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 170 MHz at Cmax | PTFE | 150 V | [VIS-28528] p. 3 |
+| BFC280801001, BFC280831659, BFC280832659 | 5.5 pF | 65 pF | tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400) | min 170 MHz at Cmax | PP | 150 V | [VIS-28528] p. 3 |
 | AT 0303 R2, AT 1303 R2 | 1.5 pF | 3 pF | graph only | typical 2000 / 2300 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
 | AT 0306 R2, AT 1306 R2 | 2 pF | 6 pF | graph only | typical 1400 / 1600 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
 | AT 0310 R2, AT 1310 R2 | 2 pF | 10 pF | graph only | typical 1100 / 1200 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
@@ -474,35 +474,35 @@ per part in [KNO-CAT-R5].
 | AT 0320 R2, AT 1320 R2 | 4.5 pF | 20 pF | graph only | typical 800 / 900 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
 | AT 0330 R2, AT 1330 R2 | 5.5 pF | 30 pF | graph only | typical 600 / 700 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
 | AT 0340 R2, AT 1340 R2 | 8 pF | 40 pF | graph only | typical 400 / 500 MHz at Cmax | ceramic | 100 V | [EXX-CHIP-V3] p. 2 |
-| AT 03HV03 R2 | 1.5 pF | 3 pF | min 500 at 1 MHz | typical 2000 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
-| AT 03HV06 R2 | 2 pF | 6 pF | min 500 at 1 MHz | typical 1400 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
-| AT 03HV10 R2 | 2 pF | 10 pF | min 500 at 1 MHz | typical 1100 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
-| AT 03HV15 R2 | 3 pF | 15 pF | min 500 at 1 MHz | typical 900 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
-| AT 03HV20 R2 | 4.5 pF | 20 pF | min 500 at 1 MHz | typical 800 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
-| AT 9402G-0, AT 9402G-0 SL1 | 0.5 pF | 2.5 pF | typical 3000 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
-| AT 9402G-1, AT 9402G-1 SL1 | 1 pF | 5 pF | typical 1000 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
-| AT 9402G-2, AT 9402G-2 SL1 | 2.5 pF | 10 pF | typical 1000 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
-| AT 9402G-4, AT 9402G-4 SL1 | 3 pF | 12 pF | typical 500 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
-| AT 9402G-6, AT 9402G-6 SL1 | 8 pF | 25 pF | typical 300 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
-| AT 9402G-8, AT 9402G-8 SL1 | 5 pF | 15 pF | typical 750 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
-| AT 9402G-9, AT 9402G-9 SL1 | 7 pF | 18 pF | typical 500 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
-| AT 9410G-0, AT 9410G-0 SL1 | 1 pF | 4.5 pF | typical 1000 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
-| AT 9410G-1, AT 9410G-1 SL1 | 2.5 pF | 10 pF | typical 1000 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
-| AT 9410G-2, AT 9410G-2 SL1 | 4 pF | 18 pF | typical 700 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
-| AT 9410G-3, AT 9410G-3 SL1 | 6 pF | 35 pF | typical 200 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
-| AT 9410G-4, AT 9410G-4 SL1 | 7 pF | 40 pF | typical 200 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
-| AT 9410G-5, AT 9410G-5 SL1 | 10 pF | 50 pF | typical 200 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
-| AT 9410G-25, AT 9410G-25 SL1 | 5 pF | 25 pF | typical 200 at 100 MHz | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
-| AT 2320G-0 | 0.6 pF | 2.5 pF | typical >3000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| AT 2320G-1 | 1 pF | 5 pF | typical >1000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| AT 2320G-2 | 2.5 pF | 10 pF | typical >1000 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| AT 2320G-3 | 7.5 pF | 18 pF | typical >500 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| AT 2340G-4 | 8.5 pF | 22 pF | typical >300 at 100 MHz | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
-| TSC3S503T1R | 1.5 pF | 3 pF | min 300 at 1 MHz | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
-| TSC3S506T1R | 2 pF | 6 pF | min 500 at 1 MHz | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
-| TSC3S510T1R | 3 pF | 10 pF | min 500 at 1 MHz | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
-| TSC3S520T1R | 5.8 pF | 20 pF | min 200 at 1 MHz | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
-| TSC3S530T1R | 8 pF | 28.5 pF | min 200 at 1 MHz | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
+| AT 03HV03 R2 | 1.5 pF | 3 pF | min 500 at 1 MHz, Cmax | typical 2000 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
+| AT 03HV06 R2 | 2 pF | 6 pF | min 500 at 1 MHz, Cmax | typical 1400 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
+| AT 03HV10 R2 | 2 pF | 10 pF | min 500 at 1 MHz, Cmax | typical 1100 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
+| AT 03HV15 R2 | 3 pF | 15 pF | min 500 at 1 MHz, Cmax | typical 900 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
+| AT 03HV20 R2 | 4.5 pF | 20 pF | min 500 at 1 MHz, Cmax | typical 800 MHz at Cmax | ceramic | 350 V | [EXX-CHIP-V3] p. 5 |
+| AT 9402G-0, AT 9402G-0 SL1 | 0.5 pF | 2.5 pF | typical 3000 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
+| AT 9402G-1, AT 9402G-1 SL1 | 1 pF | 5 pF | typical 1000 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
+| AT 9402G-2, AT 9402G-2 SL1 | 2.5 pF | 10 pF | typical 1000 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
+| AT 9402G-4, AT 9402G-4 SL1 | 3 pF | 12 pF | typical 500 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
+| AT 9402G-6, AT 9402G-6 SL1 | 8 pF | 25 pF | typical 300 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
+| AT 9402G-8, AT 9402G-8 SL1 | 5 pF | 15 pF | typical 750 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
+| AT 9402G-9, AT 9402G-9 SL1 | 7 pF | 18 pF | typical 500 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 6 |
+| AT 9410G-0, AT 9410G-0 SL1 | 1 pF | 4.5 pF | typical 1000 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
+| AT 9410G-1, AT 9410G-1 SL1 | 2.5 pF | 10 pF | typical 1000 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
+| AT 9410G-2, AT 9410G-2 SL1 | 4 pF | 18 pF | typical 700 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
+| AT 9410G-3, AT 9410G-3 SL1 | 6 pF | 35 pF | typical 200 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
+| AT 9410G-4, AT 9410G-4 SL1 | 7 pF | 40 pF | typical 200 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
+| AT 9410G-5, AT 9410G-5 SL1 | 10 pF | 50 pF | typical 200 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
+| AT 9410G-25, AT 9410G-25 SL1 | 5 pF | 25 pF | typical 200 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-THIN-V2] p. 7 |
+| AT 2320G-0 | 0.6 pF | 2.5 pF | typical >3000 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2320G-1 | 1 pF | 5 pF | typical >1000 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2320G-2 | 2.5 pF | 10 pF | typical >1000 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2320G-3 | 7.5 pF | 18 pF | typical >500 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| AT 2340G-4 | 8.5 pF | 22 pF | typical >300 at 100 MHz, Cmax | — | ceramic | 250 V | [EXX-AT23XXG] p. 2 |
+| TSC3S503T1R | 1.5 pF | 3 pF | min 300 at 1 MHz, Cmax | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
+| TSC3S506T1R | 2 pF | 6 pF | min 500 at 1 MHz, Cmax | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
+| TSC3S510T1R | 3 pF | 10 pF | min 500 at 1 MHz, Cmax | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
+| TSC3S520T1R | 5.8 pF | 20 pF | min 200 at 1 MHz, Cmax | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
+| TSC3S530T1R | 8 pF | 28.5 pF | min 200 at 1 MHz, Cmax | — | ceramic | 100 V | [SUN-TSC3S] p. 1 |
 
 A part fits only when its guaranteed interval contains the required interval: a tank that needs
 5 pF at the low end cannot use, for example, AT 0330 R2 (Cmin up to 5.5 pF), AT 0340 R2 (8 pF) or

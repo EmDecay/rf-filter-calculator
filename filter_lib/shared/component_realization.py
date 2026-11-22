@@ -290,7 +290,7 @@ def realize_tank_split(
             part_numbers=trimmer.part_numbers,
             series_inductance_h=split.series_inductance_h,
             series_inductance_assumed=split.series_inductance_assumed,
-            range_f=split.trimmer_range_f,
+            range_f=plan.range_f,
             tuning_frequency_hz=tank.tuning_frequency_hz,
             # Replaced by the tuned setting once the circuit is complete.
             setting=TrimmerSetting(tank.name, 0.0, trimmer.cmin_max_f, 0.0, False),

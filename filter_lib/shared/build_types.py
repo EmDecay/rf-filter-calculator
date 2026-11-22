@@ -157,7 +157,8 @@ class TrimmerUse:
 
     ``range_f`` is the trimmer's range at ``tuning_frequency_hz`` under
     ``series_inductance_h`` (``series_inductance_assumed``: the labelled default, else the
-    bound from the maker's minimum SRF).
+    bound from the maker's minimum SRF) and the build's Q; ``None`` when that Q leaves it no
+    rising (capacitive) part.
     """
 
     maker: str
@@ -165,7 +166,7 @@ class TrimmerUse:
     part_numbers: tuple[str, ...]
     series_inductance_h: float
     series_inductance_assumed: bool
-    range_f: tuple[float, float]
+    range_f: tuple[float, float] | None
     tuning_frequency_hz: float
     setting: TrimmerSetting
 

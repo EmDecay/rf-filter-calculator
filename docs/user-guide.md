@@ -287,17 +287,24 @@ lower value, the section says so and advises nothing.
 
 Every band-pass tank with standard values gets a **Tank Trimmers** section (JSON
 `tank_trimmers`; CSV `TankFixedParts`, `TrimmerPart`, `TrimmerRequired*PF`, `TrimmerRange*PF`,
-`TankNeed*PF` and `TankNeedBasis` on the tank rows): a fixed standard part plus a sourced trimmer,
+`TrimmerSeriesInductanceNH`, `TrimmerSeriesInductanceBasis`, `TrimmerFit`, `TankNeed*PF`,
+`TankNeedBasis` and `TankNeedAssumptions` on the tank rows): a fixed standard part plus a sourced trimmer,
 set at the calibrated tank frequency (145.974 MHz for the 2 m design above) so that the tank's
 susceptance matches the calculated design's.
 
 - **What the tank needs.** The fixed part and trimmer together must cover the capacitance the
   tank needs when every other part at its node is at either end of its tolerance: the inductor
-  (a chip inductor at both tolerance ends, at its minimum SRF and with no drift; a toroid
-  winding or a calculated value at ±10% or the entered inductor tolerance), each coupling
-  capacitor, and each end capacitor in series with the source or load resistance (its effective
-  shunt `Ce/(1 + (ωRCe)²)`, which is largest at `Ce = 1/(ωR)`; both ends and that point are
-  used). Part Q from the build settings is included. The tolerances add in pF.
+  suggestion the output shows (a chip inductor at both tolerance ends, at its minimum SRF and
+  with no drift; a toroid winding, or the calculated value when there is no suggestion, at the
+  assumed ±10%), each coupling capacitor, and each end capacitor in series with the design's
+  source or load impedance (its effective shunt `Ce/(1 + (ωRCe)²)`, which is largest at
+  `Ce = 1/(ωR)`; both ends and that point are used). The design's resonator Q (`--qu`, `--ql`,
+  `--qc`) is included. The tolerances add in pF.
+- **The design alone decides the split.** The build's own source and load resistances, part
+  Q, inductor tolerance and inductor choice never change it, so the table, JSON, CSV and the
+  chosen-parts SPICE deck of a design always list the same trimmer. The build simulates that
+  split under its own settings and flags any case the trimmer cannot reach, including every
+  case when the build's capacitor Q leaves the trimmer too little range.
 - **Sourced or conditional.** The need is sourced when every part tolerance in it is sourced.
   A toroid winding, a calculated inductor, a capacitor whose tolerance is not sourced, or a
   coupling capacitor with no chosen part makes it **conditional**, and the section names each
@@ -309,7 +316,8 @@ susceptance matches the calculated design's.
   inductance is bounded (`Ls ≤ 1/((2π·SRF)²·Cmax)`); for every other part it is an assumed
   10 nH. Either is taken as an upper bound, so the range relied on runs from the raised minimum
   to the unraised maximum, and **every fit is conditional on that inductance**, never
-  guaranteed. BFC280820109 (3–10 pF, SRF at least 500 MHz) with 10 nH reaches only 3.0777 pF at
+  guaranteed. Only the rising (capacitive) part of the knob's travel is used: below the
+  trimmer's series resonance, or below the earlier loss peak when the trimmer has a Q. BFC280820109 (3–10 pF, SRF at least 500 MHz) with 10 nH reaches only 3.0777 pF at
   its low stop at 146 MHz, so a tank needing 3.00 pF from it does not fit.
 - **The split.** A trimmer fits when its range contains what it must supply: the need less the
   fixed part at either end of its tolerance and the assumed 0.2 pF stray across each extra part
@@ -317,7 +325,11 @@ susceptance matches the calculated design's.
   or the best pair by the [worst-case rule](#how-a-value-is-chosen) for the middle of the range.
   Splits rank by the smallest trimmer range, then the best-centred fixed part, then fewer parts;
   the table shows the first and JSON up to three (one per trimmer). When none fits, the section
-  prints what the fixed part and trimmer together must supply.
+  prints what the fixed part and trimmer together must supply. With a fit, the standard-value
+  section's `Use:` line for that tank names the split (`Use: 4.70 pF || 39.00 pF + trimmer AT
+  9402G-4 (see Tank Trimmers)`) and a `No trimmer:` line gives the plain standard-value choice;
+  JSON `standard_match` and the CSV `RecommendedStd*` columns keep that plain choice, and the
+  trimmer columns and `tank_trimmers` give the split.
 
 The trimmers packaged are the sourced ones with both range ends stated as bounds: Vishay BFC2
 808, Exxelia AT 0300/1300 R2, AT 03HV, AT 9402G, AT 9410G and AT 23XXG, and Suntan TSC3S

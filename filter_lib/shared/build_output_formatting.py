@@ -219,9 +219,11 @@ def trimmer_part_text(substitution: ComponentSubstitution) -> str:
     setting = trimmer.setting
     fixed = " || ".join(format_capacitance(value) for value in substitution.physical_parts)
     text = f"{fixed} + " if fixed else ""
+    # The knob setting, then what it gives with the series inductance at the tank frequency.
     text += (
-        f"trimmer {trimmer.part_numbers[0]} set to {format_capacitance(setting.effective_f)} "
-        f"at {format_tank_frequency(trimmer.tuning_frequency_hz)}"
+        f"trimmer {trimmer.part_numbers[0]} set to {format_capacitance(setting.setting_f)} "
+        f"({format_capacitance(setting.effective_f)} effective at "
+        f"{format_tank_frequency(trimmer.tuning_frequency_hz)})"
     )
     if not setting.in_range:
         text += f" (end of its range; {format_capacitance(setting.required_f)} needed)"
