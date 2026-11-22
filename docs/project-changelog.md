@@ -198,8 +198,8 @@ only labels changed.
   drift, worst case, allowances and source with SHA-256; CSV gains `ChipManufacturer`,
   `ChipTolerancePct`, `ChipLTest_MHz`, `ChipSRFMin_MHz`, `ChipQMin`, `ChipQTest_MHz`,
   `ChipAchievedL_nH`, `ChipAchievedLAt_MHz`, `ChipSelfCapacitance_fF`, `ChipAllowanceLow_MHz`,
-  `ChipAllowanceHigh_MHz` and `ChipSourceURL` after the `Toroid*` columns. The compact line names
-  the maker.
+  `ChipAllowanceHigh_MHz`, `ChipSourceURL`, `ChipModelBasis` and `ChipWarnings` after the
+  `Toroid*` columns. The compact line names the maker.
 - **Build simulation and chosen-parts SPICE.** `--build-inductors chip` (and `auto` where no
   toroid qualifies) now builds real parts: each chip inductor is its `L0` with a fixed capacitor
   `CSELF_<inductor>` across it (`L1 self-capacitance`), the same in the build and the deck and
@@ -216,12 +216,17 @@ only labels changed.
   qualified"; ideal values never are. A high-pass build with chip inductors ends its passband at
   the top of that range (never below twice the cutoff) and takes its peak and half-power
   threshold only inside it; a cutoff crossing below it is still reported, labelled. Builds with
-  toroid windings or calculated values are unchanged. An entered inductor Q applies to a chip's
-  inductance alone, which the model limits state. JSON `nominal_build` gains
+  toroid windings or calculated values keep every figure and their table text; their JSON gains
+  the new keys below with `null`, empty or `false` values. An entered inductor Q applies to a
+  chip's inductance alone, which the model limits state, and the qualified range is then said
+  to be the lossless part model's. JSON `nominal_build` gains
   `qualified_range_hz`, `passband_top_hz` and `peak_range_hz`, each measurement `model` (`ideal`
   or `chosen_parts`), `peak_frequency_hz` and, for the chosen parts, `outside_qualified_range`;
-  substitutions gain `self_capacitance_f`, `tolerance_pct` and `own_tolerance`, and
-  `tolerance_analysis` gains `inductor_tolerance_entered`.
+  each spread summary gains `outside_qualified_range`; substitutions gain `self_capacitance_f`,
+  `tolerance_pct` and `own_tolerance`. **Changed (breaking):**
+  `tolerance_analysis.inductor_tolerance_pct` is the entered tolerance (`null` when none was
+  entered, when each chip uses its own) and `inductor_fallback_tolerance_pct` gives the 10% for
+  toroid windings and calculated values.
 - **HF designs.** The HF baseline corpus changes in one design only: in
   `hp ch pi 28MHz -n 9 -r 0.5`, L2–L4 (104–107 nH), which had no toroid, now build as
   LQW18ANR10G00D chip inductors with their self-capacitance (permitted kinds b and c). Every

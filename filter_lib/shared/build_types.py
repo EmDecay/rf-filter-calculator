@@ -196,6 +196,8 @@ class CircuitMeasurement:
     response_evaluations: int = 0
     # Where ``peak_transducer_gain_db`` was found.
     peak_frequency_hz: float | None = None
+    # The frequencies the measurement evaluated (its sweep's first and last point).
+    sweep_hz: tuple[float, float] | None = None
 
     @property
     def f0(self) -> float | None:
@@ -219,9 +221,9 @@ class CircuitMeasurement:
         """The reported figures (JSON keys) that rest on frequencies outside the range.
 
         Every reported frequency is checked: the -3 dB edges or cutoff, the reference peak,
-        the frequency of the peak gain, and the ends of any other half-power region. A band-pass
-        center and bandwidth come from the edges, so they are outside when an edge is.
-        None without a range.
+        the frequency of the peak gain, and the span of every half-power region (an open end
+        reaches the end of the sweep). A band-pass center and bandwidth come from the edges,
+        so they are outside when an edge is. None without a range.
         """
         if qualified_range is None:
             return ()
@@ -242,15 +244,37 @@ class CircuitMeasurement:
             keys.append("reference_peak_frequency_hz")
         if outside(self.peak_frequency_hz):
             keys.append("peak_frequency_hz")
-        # The selected region's ends are the edges above; any other region is checked here.
-        others = (
-            region
-            for index, region in enumerate(self.threshold_regions)
-            if index != self.selected_region_index
-        )
-        if any(outside(end) for region in others for end in region):
+        if any(outside(end) for end in self._region_ends()):
             keys.append("half_power_regions")
         return tuple(keys)
+
+    def _region_ends(self):
+        """Each half-power region's observed ends not already reported as an edge.
+
+        The selected region's measured ends are the edges; its open ends, and both ends of
+        every other region, stand for the sweep's end they reach.
+        """
+        first, last = self.sweep_hz if self.sweep_hz is not None else (None, None)
+        for index, (low, high) in enumerate(self.threshold_regions):
+            selected = index == self.selected_region_index
+            for end, open_end in ((low, first), (high, last)):
+                if end is None:
+                    yield open_end
+                elif not selected:
+                    yield end
+
+
+# The spread metric each figure outside the qualified range feeds, and the frequency
+# metrics, which leave out a case whose -3 dB point is at the grid's edge.
+_SPREAD_METRICS = {
+    "cutoff_hz": "cutoff_hz",
+    "f_low_hz": "f_low_hz",
+    "f_high_hz": "f_high_hz",
+    "f0_hz": "f0_hz",
+    "bandwidth_hz": "bw_hz",
+    "peak_frequency_hz": "peak_transducer_gain_db",
+}
+_FREQUENCY_SPREAD_METRICS = frozenset({"cutoff_hz", "f_low_hz", "f_high_hz", "f0_hz", "bw_hz"})
 
 
 @dataclass(frozen=True)
@@ -307,3 +331,21 @@ class BuildAnalysisResult:
     # A high-pass build takes its peak, and so its half-power threshold, only here (the
     # qualified range within the sweep); None when the whole sweep is used.
     peak_range_hz: tuple[float, float] | None = None
+
+    def metrics_outside_qualified_range(self) -> frozenset[str]:
+        """The spread metrics with an included case that rests on a frequency outside the
+        qualified range, by the inclusion rule of ``tolerance_screening.summarize_cases``
+        (converged cases; frequency metrics also leave out a case at the grid's edge)."""
+        metrics = set()
+        for case in self.cases:
+            measurement = case.measurement
+            if not measurement.measurement_converged:
+                continue
+            for key in measurement.outside_range(self.category, self.qualified_range_hz):
+                metric = _SPREAD_METRICS.get(key)
+                if metric is None or (
+                    metric in _FREQUENCY_SPREAD_METRICS and measurement.at_grid_edge
+                ):
+                    continue
+                metrics.add(metric)
+        return frozenset(metrics)

@@ -476,7 +476,9 @@ blank when it is not checked), the `Toroid*` columns give a toroid's details and
 that RF Q, SRF, and power handling are not checked, and the `Chip*` columns give a chip
 inductor's maker, tolerance and catalog test frequency, minimum SRF, minimum Q with its test
 frequency, the inductance at the top of the check window with that frequency, the
-self-capacitance, the range within its allowances, and the source URL.
+self-capacitance, the range within its allowances, the source URL, the model basis (the
+parallel-LC model and the maker's fixture; board mounting changes the SRF) and the chip
+caveats.
 
 ### SPICE
 
@@ -858,7 +860,8 @@ the inductance, so a case can fall slightly outside the part's guaranteed range:
 stress cases of the model, not qualified values. Capacitor ESL, package and trace parasitics,
 and each part's Q and loss (unless a Q is given) are not modelled. An entered inductor Q is
 applied to the chip's inductance alone, so with its self-capacitance across it the Q at its
-terminals is a little lower, more so near its SRF (the model limits say so).
+terminals is a little lower, more so near its SRF (the model limits say so), and the qualified
+range says it is the lossless part model's.
 
 **Qualified range.** The build states the frequencies where every chip inductor it uses stays
 within its allowances: `Qualified range: DC to 532.7 MHz, where every chip inductor stays
@@ -868,7 +871,7 @@ edge (and a band-pass center and bandwidth taken from it), the peak the −3 dB 
 measured from, the frequency of the peak gain, and any separate range above −3 dB. Any of them
 outside the range is labelled (`-3 dB cutoff predicted with the parasitic model, not
 qualified`), a spread row with such a case says so, and JSON lists them in
-`outside_qualified_range`; ideal values, the band-pass attenuation at 2×f₀ and 3×f₀ (ideal
+`outside_qualified_range` (each spread summary has the same flag); ideal values, the band-pass attenuation at 2×f₀ and 3×f₀ (ideal
 lossless parts), and the response data are never labelled. A high-pass build's passband has no
 upper edge, so it ends at the top of the qualified range (never below twice the cutoff), and
 its peak and half-power threshold are taken only inside that range: `Passband = from the

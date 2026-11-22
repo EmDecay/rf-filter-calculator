@@ -302,10 +302,10 @@ uv run filter-calc lp bw pi 10MHz --format csv
 ```
 
 ```csv
-Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy,InductorKind,InductorPart,InductorSRFBasis,InductorBudgetNominalPct,InductorBudgetTolerancePct,InductorBudgetSRFDriftLowPct,InductorBudgetSRFDriftHighPct,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidWireDCRReactanceRatioCeiling,ToroidTempCoeff_ppm,ToroidCandidateStatus,ToroidProvenanceStatus,ToroidCoreSourceURL,ToroidFrequencySourceURL,ToroidMechanicalStatus,ToroidMechanicalSourceURL,ToroidRFQStatus,ToroidSRFStatus,ToroidPowerStatus,ToroidWarnings,ChipManufacturer,ChipTolerancePct,ChipLTest_MHz,ChipSRFMin_MHz,ChipQMin,ChipQTest_MHz,ChipAchievedL_nH,ChipAchievedLAt_MHz,ChipSelfCapacitance_fF,ChipAllowanceLow_MHz,ChipAllowanceHigh_MHz,ChipSourceURL
-C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-L1,1.59,µH,,,,,,,,,,,,,,toroid,T50-2,not_checked,-0.25,4.99,,,T50-2,2,18,20,1.5876,-0.25,310.8,12.15,8210,95,screened_candidate,primary_verified,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,https://www.amidoncorp.com/2ipt/,manufacturer_single_layer,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,not_assessed,not_assessed,not_assessed,"Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use.",,,,,,,,,,,,
+Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy,InductorKind,InductorPart,InductorSRFBasis,InductorBudgetNominalPct,InductorBudgetTolerancePct,InductorBudgetSRFDriftLowPct,InductorBudgetSRFDriftHighPct,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidWireDCRReactanceRatioCeiling,ToroidTempCoeff_ppm,ToroidCandidateStatus,ToroidProvenanceStatus,ToroidCoreSourceURL,ToroidFrequencySourceURL,ToroidMechanicalStatus,ToroidMechanicalSourceURL,ToroidRFQStatus,ToroidSRFStatus,ToroidPowerStatus,ToroidWarnings,ChipManufacturer,ChipTolerancePct,ChipLTest_MHz,ChipSRFMin_MHz,ChipQMin,ChipQTest_MHz,ChipAchievedL_nH,ChipAchievedLAt_MHz,ChipSelfCapacitance_fF,ChipAllowanceLow_MHz,ChipAllowanceHigh_MHz,ChipSourceURL,ChipModelBasis,ChipWarnings
+C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+L1,1.59,µH,,,,,,,,,,,,,,toroid,T50-2,not_checked,-0.25,4.99,,,T50-2,2,18,20,1.5876,-0.25,310.8,12.15,8210,95,screened_candidate,primary_verified,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,https://www.amidoncorp.com/2ipt/,manufacturer_single_layer,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,not_assessed,not_assessed,not_assessed,"Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use.",,,,,,,,,,,,,,
 ```
 
 All rows have the same column count. Warning fields are CSV-quoted when necessary.
@@ -315,7 +315,8 @@ checked), then the `Toroid*` and `Chip*` details (blank for the other kind); wit
 `--inductor-suggestions none` they are left out. A chip row gives its maker, tolerance and
 catalog test frequency, minimum SRF, minimum Q with its test frequency, the inductance at the
 top of the check window (and that frequency) and the self-capacitance, both at the minimum SRF,
-the range where the part stays within its allowances, and the source URL.
+the range where the part stays within its allowances, the source URL, what the figures rest on
+(the part model and the maker's fixture; board mounting changes the SRF), and the chip caveats.
 
 ## Inductor Suggestions
 
@@ -520,8 +521,8 @@ uv run filter-calc lp bw pi 10MHz --sim-build \
     "tolerance_source": "each_part",
     "capacitor_grade": "standard",
     "capacitor_tolerance_override_pct": null,
-    "inductor_tolerance_pct": 10.0,
-    "inductor_tolerance_entered": false,
+    "inductor_tolerance_pct": null,
+    "inductor_fallback_tolerance_pct": 10.0,
     "sample_count": 20,
     "seed": 73,
     "grid_points": 601
@@ -549,13 +550,16 @@ inductor that uses a suggestion has `method: "suggested_inductor"` with its `ind
 `part_name`; an inductor simulated at its calculated value has `method: "exact_fallback"` and
 says why in its `status` and warning. A chip inductor also gives its `self_capacitance_f` (the
 fixed `CSELF_` branch across it) and the `tolerance_pct` its tolerance cases use, with
-`own_tolerance: true` when no inductor tolerance was entered. With a chip inductor in the build,
+`own_tolerance: true` when no inductor tolerance was entered; `tolerance_analysis` gives the
+entered `inductor_tolerance_pct` (`null` here) and the 10% fallback for toroid windings and
+calculated values. With a chip inductor in the build,
 `nominal_build.qualified_range_hz` is the range where every chip inductor stays within its
 allowances (`null` here: a toroid winding's SRF is not checked), `passband_top_hz` and
 `peak_range_hz` are where a high-pass build's passband stops and where it takes its peak, and
 each chosen-parts measurement (`"model": "chosen_parts"`; the ideal one is `"ideal"`) lists in
-`outside_qualified_range` the figures predicted with the parasitic model, not qualified. Every
-measurement also gives `peak_frequency_hz`, where its peak gain is. The omitted fields include the other parts used, the
+`outside_qualified_range` the figures predicted with the parasitic model, not qualified (each
+spread summary has `outside_qualified_range` too). Every measurement also gives
+`peak_frequency_hz`, where its peak gain is. The omitted fields include the other parts used, the
 simulated branches, measurements, every tolerance case, the spread summaries, the effective loss
 model, warnings, and limitations. This is a simulation, not a measurement, a yield estimate, or
 a guaranteed worst case.

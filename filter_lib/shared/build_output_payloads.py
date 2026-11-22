@@ -4,12 +4,12 @@ from typing import Any
 
 from .build_output_model import build_model_payload, realization_summary
 from .build_types import (
+    DEFAULT_INDUCTOR_TOLERANCE_PCT,
     BuildAnalysisResult,
     CircuitMeasurement,
     ComponentSubstitution,
 )
 from .circuit_model import CircuitElement
-from .component_realization import inductor_case_tolerance_pct
 from .response_refinement import (
     FREQUENCY_TOLERANCE_FRACTION,
     GAIN_TOLERANCE_DB,
@@ -131,7 +131,7 @@ def _target_payload(result: dict, category: str) -> dict[str, Any]:
     }
 
 
-def _summary_payload(summary) -> dict[str, Any]:
+def _summary_payload(summary, outside: frozenset[str] = frozenset()) -> dict[str, Any]:
     return {
         "metric": summary.metric,
         "minimum": summary.minimum,
@@ -143,6 +143,8 @@ def _summary_payload(summary) -> dict[str, Any]:
         "omitted_cases": summary.omitted_cases,
         "grid_censored_cases": summary.grid_censored_cases,
         "unresolved_cases": summary.unresolved_cases,
+        # An included case rests on a frequency outside the qualified range.
+        "outside_qualified_range": summary.metric in outside,
     }
 
 
@@ -183,10 +185,11 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
             "tolerance_source": "each_part",
             "capacitor_grade": analysis.match_policy.grade,
             "capacitor_tolerance_override_pct": analysis.match_policy.tolerance_override_pct,
-            # Toroid windings and calculated values; without an entered tolerance each
-            # chip inductor uses its own (substitutions[].tolerance_pct).
-            "inductor_tolerance_pct": inductor_case_tolerance_pct(config),
-            "inductor_tolerance_entered": config.inductor_tolerance_pct is not None,
+            # The entered tolerance, used for every inductor; null when none was entered,
+            # and then each chip inductor uses its own (substitutions[].tolerance_pct) and
+            # toroid windings and calculated values the fallback.
+            "inductor_tolerance_pct": config.inductor_tolerance_pct,
+            "inductor_fallback_tolerance_pct": DEFAULT_INDUCTOR_TOLERANCE_PCT,
             "sample_count": config.sample_count,
             "seed": config.seed,
             "grid_points": config.grid_points,
@@ -221,7 +224,8 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
                 for case in analysis.cases
             ],
             "metric_summaries": [
-                _summary_payload(summary) for summary in analysis.metric_summaries
+                _summary_payload(summary, analysis.metrics_outside_qualified_range())
+                for summary in analysis.metric_summaries
             ],
             "limitations": list(analysis.limitations),
         },

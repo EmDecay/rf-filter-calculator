@@ -195,9 +195,11 @@ def test_a_highpass_build_takes_its_peak_only_inside_the_qualified_range():
     assert corner.measurement.outside_range("highpass", (low, high)) == ("cutoff_hz",)
 
 
-def test_every_reported_frequency_of_a_chosen_parts_result_is_classified():
-    # bp bw top -f 400MHz -b 12MHz -n 3 --tank-inductance 91nH: chips qualified to 425.9 MHz;
-    # in the case with Cp2 low a second range above -3 dB reaches 437.8 MHz.
+@pytest.mark.parametrize("bandwidth_hz", [12e6, 4e6], ids=["12MHz", "4MHz"])
+def test_every_reported_frequency_of_a_chosen_parts_result_is_classified(bandwidth_hz):
+    # bp bw top -f 400MHz -b 12MHz (and 4MHz) -n 3 --tank-inductance 91nH: chips qualified to
+    # 425.9 MHz, and detuned cases with a range above -3 dB that reaches past it (a second
+    # range, or the selected one left open at the sweep's 440 MHz end).
     request = DesignRequest(
         "bandpass",
         "butterworth",
@@ -205,25 +207,35 @@ def test_every_reported_frequency_of_a_chosen_parts_result_is_classified():
         400e6,
         50.0,
         3,
-        bandwidth_hz=12e6,
+        bandwidth_hz=bandwidth_hz,
         resonator_inductance=91e-9,
         realization=FAST,
         run_build_analysis=True,
     )
     outcome = design(request)
     analysis = outcome.build_analysis
-    qualified = analysis.qualified_range_hz
-    case = next(case for case in analysis.cases if case.case_id == "one:CT2:low")
-
-    regions = case.measurement.threshold_regions
-    assert len(regions) == 2 and regions[1][1] > qualified[1]
-    assert "half_power_regions" in case.measurement.outside_range("bandpass", qualified)
+    low, high = analysis.qualified_range_hz
     payload = build_analysis_fields(outcome.result, analysis)
-    [record] = [
-        item for item in payload["tolerance_analysis"]["cases"] if item["case_id"] == "one:CT2:low"
-    ]
-    assert "half_power_regions" in record["measurement"]["outside_qualified_range"]
-    assert payload["nominal_build"]["measurement"]["peak_frequency_hz"] is not None
+    records = {
+        item["case_id"]: item["measurement"] for item in payload["tolerance_analysis"]["cases"]
+    }
+
+    flagged = 0
+    for case in analysis.cases:
+        measurement = case.measurement
+        first, last = measurement.sweep_hz
+        spans = [
+            (first if a is None else a, last if b is None else b)
+            for a, b in measurement.threshold_regions
+        ]
+        beyond = any(not low <= a <= b <= high for a, b in spans)
+        keys = measurement.outside_range("bandpass", (low, high))
+        # Any range above -3 dB that leaves the qualified range is reported somewhere.
+        assert bool(keys) >= beyond, case.case_id
+        flagged += beyond
+        assert records[case.case_id]["outside_qualified_range"] == list(keys)
+        assert records[case.case_id]["peak_frequency_hz"] == measurement.peak_frequency_hz
+    assert flagged
 
 
 def test_a_band_pass_center_and_bandwidth_follow_an_edge_outside_the_range():
@@ -248,6 +260,72 @@ def test_a_band_pass_center_and_bandwidth_follow_an_edge_outside_the_range():
     )
     assert measurement.outside_range("bandpass", (0.0, 200e6)) == ()
     assert measurement.outside_range("bandpass", None) == ()
+    # A range left open at the sweep's end reaches it: here 440 MHz, past a 425 MHz top.
+    open_ended = CircuitMeasurement(
+        397e6,
+        None,
+        -60.0,
+        True,
+        reference_peak_frequency_hz=405e6,
+        peak_frequency_hz=405e6,
+        threshold_regions=((397e6, None),),
+        selected_region_index=0,
+        sweep_hz=(360e6, 440e6),
+    )
+    assert open_ended.outside_range("bandpass", (0.0, 425e6)) == ("half_power_regions",)
+    assert open_ended.outside_range("bandpass", (0.0, 450e6)) == ()
+
+
+def test_each_spread_summary_says_whether_it_holds_a_value_outside_the_range():
+    analysis = design(LP_BEYOND).build_analysis
+    payload = build_analysis_fields(design(LP_BEYOND).result, analysis)
+
+    flags = {
+        item["metric"]: item["outside_qualified_range"]
+        for item in payload["tolerance_analysis"]["metric_summaries"]
+    }
+    assert flags == {
+        "peak_transducer_gain_db": False,
+        "worst_passband_db": False,
+        "cutoff_hz": True,
+    }
+    assert analysis.metrics_outside_qualified_range() == {"cutoff_hz"}
+
+
+def test_the_highpass_note_and_range_print_the_same_top_and_the_peak_range_is_in_the_sweep():
+    # hp bw pi 125MHz -n 3 -z 25: the chips are within their allowances to 694.279 MHz.
+    request = DesignRequest(
+        "highpass", "butterworth", "pi", 125e6, 25.0, 3, realization=FAST, run_build_analysis=True
+    )
+    analysis = design(request).build_analysis
+    text = " ".join(" ".join(format_build_analysis_block(analysis)).split())
+
+    assert analysis.passband_top_hz == pytest.approx(694.279e6, rel=1e-5)
+    assert "up to 694.2 MHz, including both" in text
+    assert "Qualified range: DC to 694.2 MHz" in text
+    sweep_start = analysis.calculated.sweep_hz[0]
+    assert analysis.peak_range_hz == (sweep_start, analysis.passband_top_hz)
+
+
+def test_a_lossy_chip_build_says_its_range_is_the_lossless_model_s():
+    lossy = DesignRequest(
+        "lowpass",
+        "chebyshev",
+        "pi",
+        400e6,
+        200.0,
+        5,
+        ripple_db=0.5,
+        realization=BuildConfig(grid_points=51, inductor_q=30.0),
+        run_build_analysis=True,
+    )
+    lossless = " ".join(
+        " ".join(format_build_analysis_block(design(LP_BEYOND).build_analysis)).split()
+    )
+    text = " ".join(" ".join(format_build_analysis_block(design(lossy).build_analysis)).split())
+
+    phrase = "(in its lossless part model; the Q you gave is not part of this check)"
+    assert phrase in text and phrase not in lossless
 
 
 def test_ideal_results_stay_ideal_with_the_build_on_or_off(monkeypatch, capsys):

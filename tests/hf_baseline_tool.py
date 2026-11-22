@@ -516,7 +516,8 @@ def classify(
             inductor
             for name in names_after - names_before
             if (match := _SELF_CAPACITANCE_NAME.match(name))
-            and (inductor := match["inductor"]) in terminals_before
+            and (inductor := match["inductor"]).startswith("L")
+            and inductor in terminals_before
             and terminals_before[inductor] == terminals_after.get(inductor) == terminals_after[name]
         )
         self_capacitance = {f"CSELF_{inductor}" for inductor in chips}
@@ -540,9 +541,11 @@ def classify(
         other_after = unexplained(after)
         if not _close(other_before, other_after, MEASUREMENT_REL_TOL):
             changed = _changed_capacitors(changes, SPICE_SERIES)
-            if changed:
-                kinds.append("a")
-                reasons.append(f"chosen parts changed ({', '.join(changed)})")
+            if not changed:
+                # A difference no permitted cause explains makes the whole change unpermitted.
+                return [], "not a permitted change"
+            kinds.append("a")
+            reasons.append(f"chosen parts changed ({', '.join(changed)})")
         return kinds, "; ".join(reasons)
     if kind == "build_parts":
         changed = _changed_capacitors(changes, design.build_series)

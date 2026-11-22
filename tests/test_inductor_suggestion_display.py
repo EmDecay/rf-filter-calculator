@@ -562,7 +562,8 @@ def test_chip_lines_give_the_part_its_rating_model_range_source_and_budget():
 
 
 def test_chip_json_and_csv_carry_the_part_s_guarantees_and_model():
-    from filter_lib.shared.chip_display import CSV_CHIP_HEADER
+    from filter_lib.shared.chip_display import CHIP_MODEL_BASIS, CSV_CHIP_HEADER
+    from filter_lib.shared.chip_selection import CHIP_NOT_ASSESSED_WARNING
 
     inductor = _chip_146mhz()
     payload = suggestion_payload(inductor.best)
@@ -594,6 +595,9 @@ def test_chip_json_and_csv_carry_the_part_s_guarantees_and_model():
         "ChipAllowanceLow_MHz": "0",
         "ChipAllowanceHigh_MHz": "532.7",
         "ChipSourceURL": "https://pim.murata.com/asset/pim4/inductor/JELF243A-0100_PDF_INDUCTOR",
+        "ChipModelBasis": CHIP_MODEL_BASIS,
+        "ChipWarnings": CHIP_NOT_ASSESSED_WARNING,
     }
+    assert "board mounting changes the SRF" in CHIP_MODEL_BASIS
     assert (row["InductorKind"], row["InductorSRFBasis"]) == ("chip", "guaranteed_minimum")
     assert all(row[key] == "" for key in CSV_TOROID_HEADER)

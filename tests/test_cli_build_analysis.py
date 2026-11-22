@@ -98,7 +98,9 @@ def test_sim_build_uses_accuracy_safe_default_grid(monkeypatch, capsys):
         "standard",
         None,
     )
-    assert tolerance["inductor_tolerance_pct"] == 10
+    # No inductor tolerance entered: toroid windings and calculated values use the fallback.
+    assert tolerance["inductor_tolerance_pct"] is None
+    assert tolerance["inductor_fallback_tolerance_pct"] == 10
     assert (tolerance["sample_count"], tolerance["seed"]) == (0, 0)
     assert [case["case_id"] for case in tolerance["cases"]][0] == "nominal"
     assert not any(case["case_id"].startswith("sample:") for case in tolerance["cases"])

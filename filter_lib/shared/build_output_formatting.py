@@ -18,7 +18,7 @@ from .eseries import TOLERANCE_NOT_SOURCED
 from .formatting import format_capacitance, format_fixed, format_frequency, format_inductance
 from .inductor_suggestion import KIND_LABELS, NO_QUALIFYING_SUGGESTION, SUGGESTIONS_NOT_USED
 from .nominal_realization import TOROID_LIMITATION, grouped_part_warnings, uses_toroid
-from .srf_screen import describe_range
+from .srf_screen import describe_range, format_range_top
 
 BUILD_SIMULATION_HEADING = "Build Simulation (chosen parts; simulated, not measured)"
 EQUAL_PORTS_GAIN_NOTE = (
@@ -66,23 +66,15 @@ _OUTSIDE_LABELS = {
     "peak_frequency_hz": "peak gain",
     "half_power_regions": "a separate range above -3 dB",
 }
-# The spread row each figure outside the range feeds.
-_SPREAD_METRICS = {
-    "cutoff_hz": "cutoff_hz",
-    "f_low_hz": "f_low_hz",
-    "f_high_hz": "f_high_hz",
-    "f0_hz": "f0_hz",
-    "bandwidth_hz": "bw_hz",
-    "peak_frequency_hz": "peak_transducer_gain_db",
-}
 
 
 def highpass_passband_note(top_hz: float | None) -> str:
     """The high-pass passband note when its figures are limited to the qualified range."""
+    # The top is printed rounded down, like the qualified range it ends at.
     upper = (
         "upward, including it"
         if top_hz is None
-        else (f"up to {format_frequency(top_hz)}, including both")
+        else f"up to {format_range_top(top_hz)}, including both"
     )
     return (
         f"Passband = from the requested cutoff {upper}; a high-pass build takes its peak and "
@@ -98,11 +90,28 @@ def _outside_labels(keys) -> str:
     return names[0]
 
 
-def qualified_range_line(qualified_range: tuple[float, float]) -> str:
-    """Where every chip inductor in the build is within its allowances."""
+def qualified_range_line(qualified_range: tuple[float, float], lossy: bool = False) -> str:
+    """Where every chip inductor in the build is within its allowances.
+
+    ``lossy``: a Q is applied to a chip inductor, which the screen's lossless part model
+    does not include, so the line says the range is that model's.
+    """
+    model = (
+        " (in its lossless part model; the Q you gave is not part of this check)" if lossy else ""
+    )
     return (
-        f"Qualified range: {describe_range(qualified_range)}, where every chip inductor stays "
-        f"within its allowances; results outside it are {PARASITIC_PREDICTION}."
+        f"Qualified range: {describe_range(qualified_range)}, where every chip inductor{model} "
+        f"stays within its allowances; results outside it are {PARASITIC_PREDICTION}."
+    )
+
+
+def _lossy_chips(analysis: BuildAnalysisResult) -> bool:
+    """Whether the build applies a Q to an inductor that carries a self-capacitance."""
+    realization = analysis.nominal_realization
+    chips = {s.logical_name for s in realization.substitutions if s.self_capacitance_f}
+    return any(
+        element.kind == "L" and element.quality_factor is not None and element.name in chips
+        for element in realization.circuit.elements
     )
 
 
@@ -294,16 +303,6 @@ def _metric_values(summary) -> str:
     return " / ".join(texts)
 
 
-def _outside_metrics(analysis: BuildAnalysisResult) -> set[str]:
-    """The spread rows with a case whose figure rests on frequencies outside the range."""
-    return {
-        _SPREAD_METRICS[key]
-        for case in analysis.cases
-        for key in case.measurement.outside_range(analysis.category, analysis.qualified_range_hz)
-        if key in _SPREAD_METRICS
-    }
-
-
 def _format_summary(summary, width: int = 0, outside: bool = False) -> list[str]:
     """Return one metric row, plus a case-count line when any case was left out.
 
@@ -441,7 +440,11 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
     lines += [
         _loss_line(analysis),
         *_wrapped(passband_note),
-        *([] if qualified is None else _wrapped(qualified_range_line(qualified))),
+        *(
+            []
+            if qualified is None
+            else _wrapped(qualified_range_line(qualified, _lossy_chips(analysis)))
+        ),
         *_measurement_row("Ideal values:", category, analysis.calculated),
         *_measurement_row("Chosen parts:", category, analysis.nominal_build, qualified),
     ]
@@ -457,7 +460,7 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
         (len(METRIC_LABELS.get(item.metric, item.metric)) for item in analysis.metric_summaries),
         default=0,
     )
-    outside = _outside_metrics(analysis)
+    outside = analysis.metrics_outside_qualified_range()
     for summary in analysis.metric_summaries:
         lines.extend(_format_summary(summary, width, summary.metric in outside))
     warnings = grouped_part_warnings(analysis.nominal_realization.substitutions)

@@ -112,7 +112,7 @@ def highpass_peak_range(
     low = qualified_range[0]
     if top is None and low <= freqs[0]:
         return None
-    return low, freqs[-1] if top is None else top
+    return max(low, freqs[0]), freqs[-1] if top is None else top
 
 
 def _passband(
@@ -238,4 +238,5 @@ def measure_circuit(
         measurement_converged=refined.converged,
         response_evaluations=refined.evaluations,
         peak_frequency_hz=refined.peak_frequency,
+        sweep_hz=(refined.frequencies[0], refined.frequencies[-1]),
     )

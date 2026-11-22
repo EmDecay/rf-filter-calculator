@@ -68,11 +68,20 @@ def test_a_chip_substitution_is_recognised_only_with_its_inductor_kept():
     chip = [["L1", "1", "0", 9.97e-8], ["CSELF_L1", "1", "0", 7.8e-14], ["C1", "1", "2", 1e-11]]
     removed = [["CSELF_L1", "99", "0", 1.0], ["C1", "1", "2", 1e-11]]
     moved = [["L1", "1", "0", 9.97e-8], ["CSELF_L1", "2", "0", 7.8e-14], ["C1", "1", "2", 1e-11]]
+    # A real chip substitution beside an unrelated removal, and a "chip" across a capacitor.
+    two = [["L1", "1", "0", 1e-7], ["L2", "2", "0", 1e-7], ["C1", "1", "2", 1e-11]]
+    chip_and_removal = [
+        ["L1", "1", "0", 9.97e-8],
+        ["CSELF_L1", "1", "0", 7.8e-14],
+        ["C1", "1", "2", 1e-11],
+    ]
+    capacitor = [["L1", "1", "0", 1e-7], ["C1", "1", "2", 1e-11], ["CSELF_C1", "1", "2", 1e-14]]
 
     kinds, reason = tool.classify(design, "spice_nominal", before, chip, {}, {})
     assert (kinds, reason) == (
         ["b", "c"],
         "inductors built as chip inductors with their self-capacitance (L1)",
     )
-    for after in (removed, moved):
+    for after in (removed, moved, capacitor):
         assert tool.classify(design, "spice_nominal", before, after, {}, {})[0] == []
+    assert tool.classify(design, "spice_nominal", two, chip_and_removal, {}, {})[0] == []

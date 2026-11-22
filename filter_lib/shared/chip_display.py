@@ -30,7 +30,15 @@ CSV_CHIP_HEADER: list[str] = [
     "ChipAllowanceLow_MHz",
     "ChipAllowanceHigh_MHz",
     "ChipSourceURL",
+    "ChipModelBasis",
+    "ChipWarnings",
 ]
+# What the chip figures rest on (the table's preamble says the same).
+CHIP_MODEL_BASIS = (
+    "Inductance, self-capacitance and allowance range come from the parallel-LC part model with "
+    "the maker's minimum SRF and catalog values measured in its fixture; board mounting "
+    "changes the SRF."
+)
 
 # Preamble lines wrap at the width of the section rule plus the indent.
 _WRAP_WIDTH = 88
@@ -187,4 +195,6 @@ def chip_csv_columns(chip: ChipSuggestion | None) -> list[str]:
         f"{math.ceil(low / 1e5) / 10:g}",
         f"{math.floor(high / 1e5) / 10:g}",
         part.family.source.url,
+        CHIP_MODEL_BASIS,
+        CHIP_NOT_ASSESSED_WARNING,
     ]

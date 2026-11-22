@@ -139,3 +139,23 @@ def test_logspace_accepts_the_maximum_point_count():
 
     assert len(grid) == MAX_FREQUENCY_POINTS
     assert (grid[0], grid[-1]) == pytest.approx((1.0, 10.0), rel=1e-14, abs=0)
+
+
+def test_a_peak_range_compares_its_ends_with_neighbours_inside_it():
+    from filter_lib.shared.response_refinement import refine_response
+
+    refined = refine_response(
+        lambda f: f,
+        [1.0, 2.0, 3.0, 4.0],
+        (1.0, 4.0),
+        reference_frequency=2.5,
+        frequency_scale=1.0,
+        peak_range=(2.0, 3.0),
+    )
+
+    assert refined.reference_frequency == 3.0
+    assert refined.peak_frequency == 3.0
+    with pytest.raises(ValueError, match="overlap"):
+        refine_response(
+            lambda f: f, [1.0, 2.0], (1.0, 2.0), frequency_scale=1.0, peak_range=(5.0, 6.0)
+        )

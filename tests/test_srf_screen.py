@@ -64,6 +64,11 @@ def test_drift_is_negative_below_the_test_frequency_and_positive_above():
     assert model.drift(500e6) > 0
     with pytest.raises(ValueError, match="unbounded"):
         model.drift(2.65e9)
+    for frequency in (-250e6, float("nan"), True, 1e308):
+        with pytest.raises(ValueError):
+            model.drift(frequency)
+    with pytest.raises(ValueError):
+        model.inductance_at(float("nan"))
 
 
 @pytest.mark.parametrize(

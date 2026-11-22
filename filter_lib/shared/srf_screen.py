@@ -122,9 +122,11 @@ class PartModel:
 
     def drift(self, frequency_hz: float) -> float:
         """``L(f)/L_m - 1`` at the minimum SRF (a fraction); ``f`` must be below the SRF."""
-        ratio = (frequency_hz / self.srf_hz) ** 2
-        if ratio >= 1:
+        if not is_finite_real(frequency_hz) or frequency_hz < 0:
+            raise ValueError("A part model's frequency must be zero or more and finite")
+        if frequency_hz >= self.srf_hz:
             raise ValueError("The drift is unbounded at and above the SRF")
+        ratio = (frequency_hz / self.srf_hz) ** 2
         return (ratio - self._test_ratio) / (1.0 - ratio)
 
     def inductance_at(self, frequency_hz: float) -> float:
@@ -300,6 +302,11 @@ def _inward(value: float, rounding: str) -> float:
     return float(decimal.quantize(step, rounding=rounding))
 
 
+def format_range_top(value: float) -> str:
+    """The top of a qualified range as printed: rounded down to the digits shown."""
+    return format_frequency(_inward(value, ROUND_FLOOR))
+
+
 def describe_range(frequency_range: tuple[float, float]) -> str:
     """``DC to 532.7 MHz`` or ``118 MHz to 1.2 GHz``, each end rounded inward.
 
@@ -308,4 +315,4 @@ def describe_range(frequency_range: tuple[float, float]) -> str:
     """
     low, high = frequency_range
     start = "DC" if low == 0 else format_frequency(_inward(low, ROUND_CEILING))
-    return f"{start} to {format_frequency(_inward(high, ROUND_FLOOR))}"
+    return f"{start} to {format_range_top(high)}"

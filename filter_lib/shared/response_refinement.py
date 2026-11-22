@@ -109,11 +109,13 @@ def _landmarks(fn, grid, passband, reference, scale, drop_db, peak_range=None):
     candidates = [
         i for i, f in enumerate(grid) if peak_range is None or peak_range[0] <= f <= peak_range[1]
     ]
+    # A peak is at least as high as its neighbours inside the range (without a range,
+    # its neighbours on the grid).
     peaks = [
         i
-        for i in candidates
-        if (i == 0 or values[i] >= values[i - 1])
-        and (i == len(grid) - 1 or values[i] >= values[i + 1])
+        for position, i in enumerate(candidates)
+        if (position == 0 or values[i] >= values[candidates[position - 1]])
+        and (position == len(candidates) - 1 or values[i] >= values[candidates[position + 1]])
     ]
     highest = max(candidates, key=values.__getitem__)
     peak_index = (
@@ -244,6 +246,8 @@ def refine_response(
         set(list(freqs) + list(passband) + ([reference_frequency] if reference_frequency else []))
     )
     if peak_range is not None:
+        if peak_range[1] < grid[0] or peak_range[0] > grid[-1]:
+            raise ValueError("peak_range must overlap the frequencies")
         # The range's ends are measured, so the range always holds a grid point.
         grid = sorted(set(grid) | {f for f in peak_range if grid[0] <= f <= grid[-1]})
     previous = None
