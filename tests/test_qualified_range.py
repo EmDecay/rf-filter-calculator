@@ -195,11 +195,11 @@ def test_a_highpass_build_takes_its_peak_only_inside_the_qualified_range():
     assert corner.measurement.outside_range("highpass", (low, high)) == ("cutoff_hz",)
 
 
-@pytest.mark.parametrize("bandwidth_hz", [12e6, 4e6], ids=["12MHz", "4MHz"])
-def test_every_reported_frequency_of_a_chosen_parts_result_is_classified(bandwidth_hz):
-    # bp bw top -f 400MHz -b 12MHz (and 4MHz) -n 3 --tank-inductance 91nH: chips qualified to
-    # 425.9 MHz, and detuned cases with a range above -3 dB that reaches past it (a second
-    # range, or the selected one left open at the sweep's 440 MHz end).
+def test_every_reported_frequency_of_a_chosen_parts_result_is_classified():
+    # bp bw top -f 400MHz -b 12MHz -n 3 --tank-inductance 91nH: chips qualified to 425.9 MHz,
+    # and detuned cases whose figures reach past it. (An open end at the sweep's end is
+    # checked in test_a_band_pass_center_and_bandwidth_follow_an_edge_outside_the_range.)
+    bandwidth_hz = 12e6
     request = DesignRequest(
         "bandpass",
         "butterworth",
@@ -351,3 +351,30 @@ def test_the_table_section_names_the_qualified_range_of_each_chip(monkeypatch, c
     )
 
     assert "Within its allowances from DC to 425.9 MHz" in text
+
+
+def test_a_detuned_band_pass_case_is_measured_from_its_true_peak():
+    # bp bw top -f 400MHz -b 12MHz -n 3 --tank-inductance 91nH, Cp2 at its low end: the
+    # response at 400 MHz is on a slope (-29.03 dB); the peak nearest the center is at
+    # 387.675 MHz (-16.503 dB), and bisection on that circuit gives 384.436-391.361 MHz.
+    request = DesignRequest(
+        "bandpass",
+        "butterworth",
+        "top",
+        400e6,
+        50.0,
+        3,
+        bandwidth_hz=12e6,
+        resonator_inductance=91e-9,
+        realization=FAST,
+        run_build_analysis=True,
+    )
+    case = next(
+        case for case in design(request).build_analysis.cases if case.case_id == "one:CT2:low"
+    )
+    measurement = case.measurement
+
+    assert measurement.reference_peak_frequency_hz == pytest.approx(387.675e6, rel=1e-5)
+    assert measurement.reference_peak_gain_db == pytest.approx(-16.503, abs=1e-3)
+    assert measurement.f_low == pytest.approx(384.436e6, rel=1e-5)
+    assert measurement.f_high == pytest.approx(391.361e6, rel=1e-5)

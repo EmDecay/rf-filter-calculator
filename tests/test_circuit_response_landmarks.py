@@ -159,3 +159,26 @@ def test_a_peak_range_compares_its_ends_with_neighbours_inside_it():
         refine_response(
             lambda f: f, [1.0, 2.0], (1.0, 2.0), frequency_scale=1.0, peak_range=(5.0, 6.0)
         )
+
+
+def test_two_points_one_rounding_step_apart_on_a_slope_are_not_a_peak():
+    """A sweep point and the exact reference frequency can differ by a rounding step; on a
+    slope their gains can come out equal, which once passed for a flat peak at the center."""
+    from filter_lib.shared.response_refinement import refine_response
+
+    pair = (4.0, 4.0 + 1e-10)
+
+    def response(frequency: float) -> float:
+        # A single peak at 3; the pair just above 4 has the same gain, on the falling side.
+        return -1.0 if pair[0] <= frequency <= pair[1] else -abs(frequency - 3.0)
+
+    refined = refine_response(
+        response,
+        [1.0, 2.0, 3.0, 3.5, pair[0], pair[1], 4.5, 5.0],
+        (1.0, 5.0),
+        reference_frequency=4.0,
+        frequency_scale=1.0,
+    )
+
+    assert refined.reference_frequency == pytest.approx(3.0, abs=1e-6)
+    assert refined.reference_db == pytest.approx(0.0, abs=1e-6)

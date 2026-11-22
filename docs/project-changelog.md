@@ -274,6 +274,14 @@ RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
 
 ### Fixed
 
+- **Band-pass build measurements are taken from the true peak nearest the center.** The
+  refinement adds the exact center frequency next to the sweep's middle point, one rounding
+  step away; on a slope the two could have equal gains and pass for a flat peak, so the −3 dB
+  edges were measured from the gain at the center instead of the peak. A peak now has to be at
+  least as high as its nearest distinct neighbour on each side. Detuned tolerance cases and
+  chosen-parts builds change most: for `bp bs top -f 21.2MHz -b 500kHz -n 3 --sim-build
+  --eseries E96` the chosen-parts −3 dB bandwidth is 507.0 kHz, not 676.4 kHz; the ideal values
+  move by tens of hertz. In the HF baseline this is permitted change (f), listed for the six band-pass builds.
 - **`POST /api/design/<category>` now returns the Design JSON download's bytes.** It used to
   read the posted fields directly, ignoring the `visible.<name>` values the page sends for a
   disabled control, so the same fields could give two different JSON documents: Values only

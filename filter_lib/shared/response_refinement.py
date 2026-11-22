@@ -109,13 +109,27 @@ def _landmarks(fn, grid, passband, reference, scale, drop_db, peak_range=None):
     candidates = [
         i for i, f in enumerate(grid) if peak_range is None or peak_range[0] <= f <= peak_range[1]
     ]
-    # A peak is at least as high as its neighbours inside the range (without a range,
-    # its neighbours on the grid).
+    # A peak is at least as high as its nearest distinct neighbour on each side inside the
+    # range (without a range, on the grid). Points closer than ``same`` are one frequency:
+    # the sweep's middle point and an exact reference frequency can differ by a rounding
+    # step, and on a slope such a pair would otherwise pass for a flat peak.
+    same = scale * 1e-9
+
+    def neighbour(position: int, step: int) -> int | None:
+        other = position + step
+        while 0 <= other < len(candidates) and (
+            abs(grid[candidates[other]] - grid[candidates[position]]) <= same
+        ):
+            other += step
+        return candidates[other] if 0 <= other < len(candidates) else None
+
     peaks = [
         i
         for position, i in enumerate(candidates)
-        if (position == 0 or values[i] >= values[candidates[position - 1]])
-        and (position == len(candidates) - 1 or values[i] >= values[candidates[position + 1]])
+        if all(
+            other is None or values[i] >= values[other]
+            for other in (neighbour(position, -1), neighbour(position, 1))
+        )
     ]
     highest = max(candidates, key=values.__getitem__)
     peak_index = (

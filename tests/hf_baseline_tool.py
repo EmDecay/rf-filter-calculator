@@ -14,7 +14,10 @@ A later change may alter these facts only in the ways the VHF/UHF work permits:
 (b) a new inductor kind that qualifies;
 (c) build-simulation numbers that shift because stray and self-capacitance are modelled;
 (d) the band-pass trimmer split;
-(e) tolerance cases that use each part's own tolerance.
+(e) tolerance cases that use each part's own tolerance;
+(f) band-pass build measurements taken from the true peak nearest the center (the
+    refinement once took a two-point "plateau" at f0, the sweep's middle point and the
+    exact center one rounding step apart, as the peak on a slope; user decision 2026-11-22).
 
 Each changed item is listed in ``tests/fixtures/hf_baseline_allowed_changes.json`` with
 its kind and reason; ``tests/test_hf_baseline.py`` fails on any change that is not listed,
@@ -56,7 +59,7 @@ SERIES = ("E12", "E24", "E96")
 SPICE_SERIES = "E24"
 
 # Which permitted kinds may explain a change to each item type. Items whose type is not
-# listed (the calculated values, the exact deck, the calculated-circuit measurement) may
+# listed, or lists no kind (the calculated values, the exact deck, the response check), may
 # never change.
 ITEM_KINDS: dict[str, frozenset[str]] = {
     "capacitor": frozenset("a"),
@@ -65,11 +68,12 @@ ITEM_KINDS: dict[str, frozenset[str]] = {
     "values": frozenset(),
     "spice_exact": frozenset(),
     "spice_nominal": frozenset("abcd"),
-    "build_calculated": frozenset(),
+    # The ideal circuit's build measurement changes only by the reference-peak fix (f).
+    "build_calculated": frozenset("f"),
     "build_parts": frozenset("abd"),
-    "build_nominal": frozenset("abcd"),
-    "build_summaries": frozenset("abcde"),
-    "build_cases": frozenset("abcde"),
+    "build_nominal": frozenset("abcdf"),
+    "build_summaries": frozenset("abcdef"),
+    "build_cases": frozenset("abcdef"),
 }
 
 # Relative tolerance for measured numbers: refinement is deterministic, but the last bits
@@ -482,8 +486,9 @@ def classify(
     """Return the permitted kinds that explain a change, and a reason, by item type.
 
     A build change is explained by the causes present in that build: capacitor choices
-    of its series that changed (a), a stray capacitor added across a pair (c), and parts
-    whose own tolerance is not the old uniform 5% (e). A deck change is also explained by
+    of its series that changed (a), a stray capacitor added across a pair (c), parts
+    whose own tolerance is not the old uniform 5% (e), and for a band-pass build the
+    reference-peak correction (f). A deck change is also explained by
     inductors now built as chip inductors (b), each with its self-capacitance across it (c).
     """
     kind = item_type(item)
@@ -561,16 +566,25 @@ def classify(
                 "a"
             ], f"parts unchanged, labelled tolerance not sourced ({', '.join(relabelled)})"
         return [], "not a permitted change"
+    if kind == "build_calculated":
+        if design.category == "bandpass":
+            return ["f"], "-3 dB points measured from the true peak (nearest the center)"
+        return [], "not a permitted change"
     if kind in {"build_nominal", "build_summaries", "build_cases"}:
         parts = actual.get("build_parts")
         causes = (
             ("a", _changed_capacitors(changes, design.build_series), "new capacitor choices"),
             ("c", _build_pairs(parts), "a fixed stray across each pair"),
             ("e", _parts_not_at_five_percent(parts), "parts at their own tolerance"),
+            (
+                "f",
+                ["nearest the center"] if design.category == "bandpass" else [],
+                "-3 dB points measured from the true peak",
+            ),
         )
         if kind == "build_nominal":
             # The nominal build has no tolerance cases.
-            causes = causes[:2]
+            causes = (*causes[:2], causes[3])
         kinds = [code for code, names, _text in causes if names]
         reason = "; ".join(f"{text} ({', '.join(names)})" for _code, names, text in causes if names)
         return kinds, reason
