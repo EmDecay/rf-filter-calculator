@@ -718,3 +718,51 @@ def test_the_tank_trimmers_and_coupling_advice_are_the_same_everywhere(monkeypat
     data = json.loads(document)
     assert data["coupling_advice"]["advised"]["setting"] == "21nH"
     assert all(case["tuning"] for case in data["tolerance_analysis"]["cases"])
+
+
+def test_a_forced_inductor_does_not_change_the_tank_split(client):
+    """At 29 MHz with 75 nH tanks both a T50-2 winding and a chip inductor qualify. The
+    tanks are sized for the first suggestion whatever the build uses, so the page and JSON
+    with a forced chip and the Components CSV give the same sizing."""
+    import csv
+    import io
+
+    from tests.web_helpers import HTMX, output_text
+
+    form = {
+        "filter_type": "chebyshev",
+        "coupling": "top",
+        "frequency": "29MHz",
+        "bandwidth": "870kHz",
+        "resonators": "3",
+        "ripple": "0.5",
+        "impedance": "50",
+        "resonator_inductance": "75nH",
+        "eseries": "E24",
+        "output_format": "table",
+        "inductor_suggestions": "best",
+        "sim_build": "on",
+        "build_grid_points": "51",
+    }
+    chip = {**form, "build_inductors": "chip"}
+
+    def tanks(fields):
+        body = client.post("/api/design/bandpass", data={**fields, "output_format": "json"}).text
+        return json.loads(body)["tank_trimmers"]
+
+    def section(fields):
+        text = output_text(client.post("/design/bandpass", data=fields, headers=HTMX).text)
+        return text.split("\nTank Trimmers\n", 1)[1].split("\nInductor Suggestions", 1)[0]
+
+    assert tanks(chip) == tanks(form)
+    assert tanks(chip)["sized_for_inductor"] == {"kind": "toroid", "part": "T50-2"}
+    forced, default = " ".join(section(chip).split()), " ".join(section(form).split())
+    note = (
+        "The tanks are sized for toroid winding T50-2, the first inductor suggestion; the "
+        "build uses chip inductor"
+    )
+    assert note in forced and note not in default
+    rows = list(csv.DictReader(io.StringIO(client.post("/export/bandpass/csv", data=chip).text)))
+    for row, tank in zip(rows[:3], tanks(chip)["tanks"], strict=True):
+        assert row["Component"] == tank["name"]
+        assert (row["TrimmerFit"] == "no_fit") == (not tank["fits"])

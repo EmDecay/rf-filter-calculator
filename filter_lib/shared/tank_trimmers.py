@@ -377,11 +377,12 @@ def _inductor_range(
 ) -> tuple[float, float, str | None]:
     """The inductor branch's susceptance range and the assumption it rests on, if any.
 
-    The inductor is the suggestion an output shows for it (``InductorParts.best``): a chip
-    inductor at its guaranteed tolerance, a toroid winding at the assumed 10%, or, with no
-    suggestion, the calculated value at the assumed 10%.
+    The inductor is its first suggestion in the fixed order (``InductorParts.default_pick``,
+    whatever the build's inductor choice): a chip inductor at its guaranteed tolerance, a
+    toroid winding at the assumed 10%, or, with no suggestion, the calculated value at the
+    assumed 10%.
     """
-    shown = parts.best
+    shown = parts.default_pick
     q, reference = losses.inductor_q, losses.reference_frequency_hz
     if shown is not None and shown.part_model is not None:
         tolerance = shown.tolerance_pct / 100.0
@@ -563,7 +564,7 @@ def size_tanks(
 
     The sizing rests on the design alone, so every output of a design shows the same
     split: its equal terminations, the losses of its resonator Q (``loss_model`` with no
-    build settings), each inductor's shown suggestion and the parts' own or assumed
+    build settings), each inductor's first suggestion and the parts' own or assumed
     tolerances. A build's own ports, Q and inductor choice change only the settings it
     simulates. ``should_cancel`` is polled before each tank and each trimmer tried for it.
     """

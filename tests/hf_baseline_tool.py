@@ -746,13 +746,23 @@ def _deck_differs_only_in_tanks(before: Any, after: Any, tanks: set[str]) -> boo
 
     if not _close(other(before), other(after), MEASUREMENT_REL_TOL):
         return False
-    for row in after or []:
-        tank = _tank_of_row(str(row[0]))
-        if tank in tanks:
-            allowed = {tank.removeprefix("CT"), "0", f"NSERIESCTRIM_{tank}"}
-            if not {str(row[1]), str(row[2])} <= allowed:
-                return False
-    return True
+    return all(_tank_rows_are_a_split(after, tank) for tank in tanks)
+
+
+def _tank_rows_are_a_split(rows: Any, tank: str) -> bool:
+    """Whether a tank's deck rows are a split: fixed parts and stray across the tank, and
+    the trimmer from the tank's node through its own series node and inductance to ground."""
+    node, series = tank.removeprefix("CT"), f"NSERIESCTRIM_{tank}"
+    terminals = {
+        str(row[0]): (str(row[1]), str(row[2]))
+        for row in rows or []
+        if _tank_of_row(str(row[0])) == tank
+    }
+    if terminals.pop(f"CTRIM_{tank}", None) != (node, series):
+        return False
+    if terminals.pop(f"LTRIM_{tank}", None) != (series, "0"):
+        return False
+    return all(ends == (node, "0") for ends in terminals.values())
 
 
 def _parts_differ_only_in_tanks(before: Any, after: Any, tanks: set[str]) -> bool:

@@ -171,6 +171,12 @@ def test_a_trimmer_split_explains_only_its_own_tanks_rows():
     assert (
         tool._classify_with_trimmers(design, "spice_nominal", {}, actual, before, {}, None)[0] == []
     )
+    # ... nor a trimmer moved to ground without its series inductance ...
+    grounded = [*trimmed[:3], ["CTRIM_CT1", "0", "0", 3.3e-11], *trimmed[5:]]
+    actual = {"spice_nominal": grounded}
+    assert (
+        tool._classify_with_trimmers(design, "spice_nominal", {}, actual, before, {}, None)[0] == []
+    )
     # ... nor a trimmer on another tank's node.
     moved = [*trimmed[:3], ["CTRIM_CT1", "2", "NSERIESCTRIM_CT1", 3.3e-11], *trimmed[4:]]
     actual = {"spice_nominal": moved}

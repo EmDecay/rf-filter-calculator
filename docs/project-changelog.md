@@ -268,7 +268,7 @@ only labels changed.
   tank rows). At the calibrated tank frequency, the fixed part and trimmer
   together must cover what the tank needs with every other part at its node at either end of its
   tolerance: the inductor (a chip inductor at both tolerance ends, at its minimum SRF and with no
-  drift; the inductor each output shows), the coupling capacitors, and the end capacitors
+  drift; the inductor's first suggestion, whatever the build uses), the coupling capacitors, and the end capacitors
   through the design's source and load impedance, using the end coupling's effective shunt
   `Ce/(1 + (ωRCe)²)` at both ends and at its maximum `Ce = 1/(ωR)`, with the loss of the
   design's resonator Q. The build's own ports, Q, inductor tolerance and inductor choice never
@@ -297,7 +297,11 @@ only labels changed.
   table prints both spreads and says whether any trimmer ran out of range (JSON
   `trimmer_out_of_range_cases`, `trimmers_retuned_in_each_case`, `tuned_metric_summaries`). A
   model limit says retuning restores each tank's resonance, not the coupling or external Q.
-  Substitutions gain `trimmer`; circuit elements gain `series_inductance_h`. The 2 m band-pass's
+  Substitutions gain `trimmer`; circuit elements gain `series_inductance_h`. The deck's
+  `* part used:` line gives each trimmer's `required` value and `in-range`, and a tank whose
+  trimmer cannot reach is said not to be tuned. JSON `tank_trimmers.sized_for_inductor` names
+  the inductor the tanks are sized for, and `coupling_advice.advised.remove_options` the
+  options a rerun must drop (`--tank-impedance`). The 2 m band-pass's
   chosen parts now come out at 146.0002 MHz with a −2.78 dB lowest passband gain (untrimmed:
   143.93 MHz, −23.68 dB).
 - **HF designs.** The trimmer split applies on all bands (permitted kind d). Four HF baseline

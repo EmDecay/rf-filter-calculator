@@ -19,7 +19,6 @@ Q, so a tuned response is not the design's response.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 
@@ -44,9 +43,9 @@ _BISECTION_STEPS = 200
 class TrimmerPlan:
     """What tuning one tank's trimmer needs.
 
-    ``knob_f`` is the range of knob settings used; ``range_f`` the capacitance equivalent
-    relied on at ``frequency_hz`` under the build's Q (``None``: none, so every required
-    value is out of range).
+    ``knob_f`` is the knob settings at the two ends of ``range_f``, the capacitance
+    equivalent relied on at ``frequency_hz`` under the build's Q (``None``: none, so every
+    required value is out of range).
     """
 
     tank: str
@@ -122,6 +121,30 @@ def _bisect(function: Callable[[float], float], target: float, low: float, high:
     return (low + high) / 2.0
 
 
+def _knob_for(
+    target_f: float,
+    inductance_h: float,
+    omega: float,
+    q: float | None,
+    reference_hz: float,
+    low: float,
+    top: float,
+) -> float:
+    """The knob setting on the rising part ``[low, top]`` that gives ``target_f`` effective.
+
+    Lossless, the inverse is exact, ``C = Ceff / (1 + omega^2 Ls Ceff)``, which is always
+    below the series resonance; with Q, the rising part ends at the loss peak, where the
+    susceptance is finite, and the setting is found by bisection.
+    """
+    if q is None:
+        return target_f / (1.0 + omega * omega * inductance_h * target_f)
+
+    def susceptance(setting: float) -> float:
+        return trimmer_admittance(setting, inductance_h, omega, q, reference_hz).imag
+
+    return _bisect(susceptance, target_f * omega, low, top)
+
+
 def plan_trimmer(
     tank: TankParts,
     element: CircuitElement,
@@ -132,9 +155,9 @@ def plan_trimmer(
 
     The split was sized from the design alone; the build has its own capacitor Q (``q``
     at ``reference_hz``), so the range relied on is worked out again under it
-    (``trimmer_range_f``), and is ``None`` when the trimmer has no rising part left. The
-    knob is used only on its rising (capacitive) part, from its minimum stop to the setting
-    that reaches the top of that range.
+    (``trimmer_range_f``), and is ``None`` when the trimmer has no rising part left. Both
+    ends of that range map to knob settings on the rising (capacitive) part, which bound
+    every setting the build solves, clamps or reports.
     """
     split = tank.split
     assert split is not None
@@ -144,27 +167,19 @@ def plan_trimmer(
     omega = TWO_PI * frequency
     relied = trimmer_range_f(trimmer, inductance, frequency, q, reference_hz)
     low = trimmer.cmin_max_f
-    branch_top = min(trimmer.cmax_min_f, capacitive_branch_top(inductance, omega, q, reference_hz))
-
-    def susceptance(setting: float) -> float:
-        return trimmer_admittance(setting, inductance, omega, q, reference_hz).imag
-
-    # The rising part's top (just short of the pole when lossless and the knob reaches the
-    # series resonance), and the setting that reaches the range's top on it.
-    if q is None and branch_top < trimmer.cmax_min_f:
-        branch_top = math.nextafter(branch_top, 0.0)
-    if branch_top <= low:
-        knob_high = low
-    elif relied is None or susceptance(branch_top) <= relied[1] * omega:
-        knob_high = branch_top
+    if relied is None:
+        knob = (low, low)
     else:
-        knob_high = _bisect(susceptance, relied[1] * omega, low, branch_top)
+        top = min(trimmer.cmax_min_f, capacitive_branch_top(inductance, omega, q, reference_hz))
+        knob = tuple(
+            _knob_for(value, inductance, omega, q, reference_hz, low, top) for value in relied
+        )
     return TrimmerPlan(
         tank=tank.name,
         node=tank.node,
         trimmer_element=f"{TRIMMER_PREFIX}{element.name}",
         series_inductance_h=inductance,
-        knob_f=(low, knob_high),
+        knob_f=knob,
         range_f=relied,
         frequency_hz=frequency,
         target_susceptance_s=tank.target_susceptance_s,
@@ -179,25 +194,38 @@ def _setting(circuit: NamedCircuit, plan: TrimmerPlan, tuning: TuningPlan) -> Tr
     )
     needed = plan.target_susceptance_s - rest
     omega = TWO_PI * plan.frequency_hz
-    low, high = plan.knob_f
-    low_b, high_b = plan.susceptance(low), plan.susceptance(high)
-    # In range: inside the range relied on under the build's Q.
-    in_range = False
-    if plan.range_f is not None:
-        range_low, range_high = (value * omega for value in plan.range_f)
-        margin = _RANGE_TOLERANCE * max(abs(range_low), abs(range_high))
-        in_range = range_low - margin <= needed <= range_high + margin
-    if needed <= low_b:
-        setting = low
-    elif needed >= high_b:
-        setting = high
+    required = needed / omega
+    if plan.range_f is None:
+        # No rising part under the build's Q: nothing is in range.
+        setting, in_range = plan.knob_f[0], False
     else:
-        setting = _bisect(plan.susceptance, needed, low, high)
+        range_low, range_high = plan.range_f
+        margin = _RANGE_TOLERANCE * max(abs(range_low), abs(range_high))
+        in_range = range_low - margin <= required <= range_high + margin
+        if required <= range_low:
+            setting = plan.knob_f[0]
+        elif required >= range_high:
+            setting = plan.knob_f[1]
+        else:
+            low, top = plan.knob_f
+            setting = _knob_for(
+                required,
+                plan.series_inductance_h,
+                omega,
+                plan.q,
+                plan.reference_hz,
+                low,
+                top,
+            )
+    effective = plan.susceptance(setting) / omega
+    # A setting in range must give what it was solved for.
+    if in_range and not abs(effective - required) <= 1e-9 * abs(required) + 1e-24:
+        in_range = False
     return TrimmerSetting(
         tank=plan.tank,
-        required_f=needed / omega,
+        required_f=required,
         setting_f=setting,
-        effective_f=plan.susceptance(setting) / omega,
+        effective_f=effective,
         in_range=in_range,
     )
 

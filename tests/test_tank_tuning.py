@@ -322,3 +322,42 @@ def test_a_knob_that_reaches_its_series_resonance_is_tuned_on_its_capacitive_sid
     assert setting.in_range
     assert setting.setting_f == pytest.approx(expected, rel=1e-12)
     assert setting.setting_f * 1e12 == pytest.approx(3.39072, abs=1e-5)
+
+
+@pytest.mark.parametrize(
+    ("frequency_hz", "bandwidth_hz", "tank_h"),
+    [(403e6, 12.09e6, 9e-9), (300e6, 9e6, 5e-9)],
+    ids=["403MHz-9nH", "300MHz-5nH"],
+)
+def test_a_lossless_knob_past_its_pole_is_set_exactly_on_its_capacitive_side(
+    frequency_hz, bandwidth_hz, tank_h
+):
+    # Each trimmer's knob reaches its series resonance; the exact inverse
+    # C = Ceff / (1 + omega^2 Ls Ceff) keeps every setting below it.
+    request = DesignRequest(
+        "bandpass",
+        "chebyshev",
+        "top",
+        frequency_hz,
+        50.0,
+        3,
+        ripple_db=0.5,
+        bandwidth_hz=bandwidth_hz,
+        resonator_inductance=tank_h,
+        realization=FAST,
+        run_build_analysis=True,
+    )
+    outcome = design(request)
+    analysis = outcome.build_analysis
+
+    for plan, setting in zip(
+        analysis.nominal_realization.tuning.trimmers,
+        analysis.nominal_realization.trimmer_settings,
+        strict=True,
+    ):
+        omega = 2 * math.pi * plan.frequency_hz
+        assert setting.setting_f < 1 / (omega**2 * plan.series_inductance_h)
+        assert setting.effective_f > 0
+        if setting.in_range:
+            assert setting.effective_f == pytest.approx(setting.required_f, rel=1e-9)
+    assert "CTRIM_CT1" in export_spice(outcome, "nominal_build")

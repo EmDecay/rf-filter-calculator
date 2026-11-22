@@ -278,7 +278,8 @@ Rerun with "Resonator inductance" set to 21 nH (--tank-inductance 21nH). Recalcu
 ```
 
 Apply it with `--tank-inductance 21nH` (wizard and web: **Resonator inductance**; clear
-**Resonator impedance** if it was set, which the advice then says). The inverse-`L` estimate
+**Resonator impedance** if it was set, which the advice then says, and JSON lists in
+`advised.remove_options`). The inverse-`L` estimate
 itself, 21.06 nH, gives Cs12 = 0.99955 pF and no part, which is why the advice uses a value a
 part supplies. When no value works within the 8 recalculations, or no suggestion supplies a
 lower value, the section says so and advises nothing.
@@ -293,10 +294,11 @@ set at the calibrated tank frequency (145.974 MHz for the 2 m design above) so t
 susceptance matches the calculated design's.
 
 - **What the tank needs.** The fixed part and trimmer together must cover the capacitance the
-  tank needs when every other part at its node is at either end of its tolerance: the inductor
-  suggestion the output shows (a chip inductor at both tolerance ends, at its minimum SRF and
-  with no drift; a toroid winding, or the calculated value when there is no suggestion, at the
-  assumed ±10%), each coupling capacitor, and each end capacitor in series with the design's
+  tank needs when every other part at its node is at either end of its tolerance: the first
+  inductor suggestion, which the default build uses (a chip inductor at both tolerance ends, at
+  its minimum SRF and with no drift; a toroid winding, or the calculated value when there is no
+  suggestion, at the assumed ±10%; when the build is told to use another inductor, the section
+  says so and JSON `tank_trimmers.sized_for_inductor` names the one sized for), each coupling capacitor, and each end capacitor in series with the design's
   source or load impedance (its effective shunt `Ce/(1 + (ωRCe)²)`, which is largest at
   `Ce = 1/(ωR)`; both ends and that point are used). The design's resonator Q (`--qu`, `--ql`,
   `--qc`) is included. The tolerances add in pF.

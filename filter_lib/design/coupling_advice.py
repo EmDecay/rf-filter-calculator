@@ -43,6 +43,8 @@ _SUPPLY_TOLERANCE = 1e-9
 _END_COUPLERS = ("CIN", "COUT")
 
 CLI_FLAG = "--tank-inductance"
+# The tank impedance option, which a rerun with a tank inductance must leave out.
+IMPEDANCE_CLI_FLAG = "--tank-impedance"
 FIELD_LABEL = "Resonator inductance"
 IMPEDANCE_FIELD_LABEL = "Resonator impedance"
 
@@ -218,20 +220,27 @@ class _Search:
 
 
 def _walk(search: _Search, values: list[float], start: int) -> int | None:
-    """The largest working index near ``start`` within the trial budget, or ``None``."""
+    """The largest working index near ``start`` within the trial budget, or ``None``.
+
+    Couplers grow as the value falls, and a recalculation that fails outright means the
+    value is too low to couple the ports (every lower one fails too). So from ``start`` the
+    walk goes up past values too low to recalculate and through values whose couplers still
+    get parts, keeping the largest that works; only when ``start`` recalculated with
+    couplers too small does it go down instead.
+    """
     first = search.run(start, values[start])
-    best = start if first.works else None
-    if first.couplers_ok:
-        # Couplers grow as the value falls, so a larger value may still work.
+    too_low = first.reason is not None
+    if too_low or first.couplers_ok:
+        best = start if first.works else None
         index = start + 1
         while index < len(values) and len(search.trials) < MAX_COUPLING_ADVICE_TRIALS:
             trial = search.run(index, values[index])
-            if not trial.couplers_ok:
+            if trial.reason is None and not trial.couplers_ok:
                 break
             if trial.works:
                 best = index
             index += 1
-        if best is not None:
+        if best is not None or too_low:
             return best
     index = start - 1
     while index >= 0 and len(search.trials) < MAX_COUPLING_ADVICE_TRIALS:
@@ -239,8 +248,6 @@ def _walk(search: _Search, values: list[float], start: int) -> int | None:
         if trial.works:
             return index
         if trial.reason is not None:
-            # A recalculation that fails outright (the tank too low to couple the ports)
-            # fails for every lower value too.
             return None
         index -= 1
     return None

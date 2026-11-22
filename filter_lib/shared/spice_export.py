@@ -159,6 +159,9 @@ def _nominal_comments(
                     f"trimmer={trimmer.part_numbers[0]}",
                     f"setting={_number(trimmer.setting.setting_f)}",
                     f"effective={_number(trimmer.setting.effective_f)}",
+                    # What the tank needs from it; can be negative when out of reach.
+                    f"required={trimmer.setting.required_f:.12g}",
+                    f"in-range={'yes' if trimmer.setting.in_range else 'no'}",
                     f"tank-frequency={_number(trimmer.tuning_frequency_hz)}",
                     f"series-inductance={_number(trimmer.series_inductance_h)}-{basis}",
                 )
@@ -182,10 +185,15 @@ def _nominal_comments(
                 if trimmer.series_inductance_h
                 else ""
             )
+            outcome = (
+                "the setting restores the calculated design's susceptance at the tank frequency"
+                if trimmer.setting.in_range
+                else "the trimmer cannot reach what the tank needs there, so it is at the end of "
+                "its range and the tank is not tuned"
+            )
             comments.append(
                 f"* trimmer: {TRIMMER_PREFIX}{substitution.logical_name} is this tank's trimmer "
-                f"at its nominal setting{inductance}; the setting restores the calculated "
-                "design's susceptance at the tank frequency"
+                f"at its nominal setting{inductance}; {outcome}"
             )
         if substitution.self_capacitance_f is not None:
             comments.append(

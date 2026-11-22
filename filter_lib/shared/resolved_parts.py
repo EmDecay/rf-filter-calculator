@@ -54,6 +54,16 @@ class InductorParts:
         return tuple(item for group in self.kinds for item in group.suggestions)
 
     @property
+    def default_pick(self) -> InductorSuggestion | None:
+        """The first suggestion in the fixed order: what the default build (``auto``) uses.
+
+        Unlike ``best`` it never depends on the build's inductor choice, so the band-pass
+        tank sizing, which rests on the design alone, uses it.
+        """
+        suggestions = self.suggestions
+        return suggestions[0] if suggestions else None
+
+    @property
     def best(self) -> InductorSuggestion | None:
         """The suggestion "best" shows: the build pick, else the first in the fixed order."""
         if self.build_pick is not None:

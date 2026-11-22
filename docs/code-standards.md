@@ -286,7 +286,8 @@ the tolerance cases, so making a SPICE deck never runs them:
   frequency; each tolerance case keeps its untuned measurement and adds `ScreeningCase.tuning`
   (settings with `in_range`, tuned measurement). Sizing uses the design alone: its equal
   terminations, the losses of its resonator Q (`build_loss_models.loss_model` with default build
-  settings), each inductor's shown suggestion (`InductorParts.best`) and the parts' own or
+  settings), each inductor's first suggestion (`InductorParts.default_pick`, whatever the build's
+  inductor choice) and the parts' own or
   assumed tolerances, so every output of a design lists the same split; the build re-derives
   each trimmer's range under its own Q (`tank_tuning.plan_trimmer`) and flags what it cannot
   reach. A fit always rests on the

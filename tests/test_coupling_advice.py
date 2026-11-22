@@ -282,3 +282,38 @@ def test_an_hf_tank_is_advised_a_toroid_winding_and_told_to_clear_its_impedance(
     for coupler in rerun["components"]["coupling_capacitors"]:
         parts = coupler["standard_match"]["selected"]["components"]
         assert min(part["value_farads"] for part in parts) >= 1e-12
+
+
+def test_a_rerun_rebuilt_from_the_json_advice_runs(monkeypatch, capsys):
+    # With a tank impedance set, the advice must also say to drop it, or the rerun fails.
+    argv = (*TWO_METRE, "--tank-impedance", "50")
+    advised = json.loads(cli_stdout(monkeypatch, capsys, *argv, "--format", "json"))[
+        "coupling_advice"
+    ]["advised"]
+
+    assert advised["remove_options"] == ["--tank-impedance"]
+    kept = list(argv)
+    for option in advised["remove_options"]:
+        index = kept.index(option)
+        del kept[index : index + 2]
+    rerun = json.loads(
+        cli_stdout(monkeypatch, capsys, *kept, *advised["cli"].split(), "--format", "json")
+    )
+    assert rerun["coupling_advice"] is None
+    no_impedance = json.loads(cli_stdout(monkeypatch, capsys, *TWO_METRE, "--format", "json"))
+    assert no_impedance["coupling_advice"]["advised"]["remove_options"] == []
+
+
+def test_a_value_too_low_to_couple_the_ports_turns_the_search_upward():
+    # At 1200 ohm the end coupling needs more than about 21.06 nH, below which the design
+    # cannot be recalculated; the search goes up from there instead of giving up.
+    request = DesignRequest(
+        "bandpass", "chebyshev", "top", 146e6, 1200.0, 3, ripple_db=0.5, bandwidth_hz=4.38e6
+    )
+    advice = design(request).coupling_advice
+
+    assert advice.trials[0].reason is not None
+    assert advice.setting == "23nH" and advice.part.part_name == "LQW15AN23NG80D"
+    assert len(advice.trials) <= MAX_COUPLING_ADVICE_TRIALS
+    rerun = design(dataclasses.replace(request, resonator_inductance=parse_inductance("23nH")))
+    assert rerun.coupling_advice is None

@@ -16,6 +16,7 @@ from ..shared.formatting import (
     format_inductance,
     format_tank_frequency,
 )
+from ..shared.inductor_suggestion import AUTO, KIND_LABELS
 from ..shared.resolved_parts import ResolvedParts
 from ..shared.tank_trimmers import ASSUMED_TRIMMER_SERIES_INDUCTANCE_H, TankParts, TankSplit
 from ..shared.trimmer_data import TrimmerPart
@@ -176,6 +177,31 @@ def tank_lines(tank: TankParts) -> list[str]:
     return lines
 
 
+def _inductor_text(suggestion) -> str:
+    if suggestion is None:
+        return "the calculated inductance"
+    return f"{KIND_LABELS[suggestion.kind].lower()} {suggestion.part_name}"
+
+
+def sized_for_note(parts: ResolvedParts) -> str | None:
+    """Says which inductor the tanks are sized for when the build uses another.
+
+    The sizing rests on the design alone, with each resonator's first suggestion; a build
+    (or chosen-parts deck) made with another inductor choice simulates that split with its
+    own inductor, so its tuning may run out of range.
+    """
+    from .formatters import RESONATOR_INDUCTOR
+
+    resonator = parts.inductor(RESONATOR_INDUCTOR)
+    sized, built = resonator.default_pick, resonator.build_pick
+    if parts.build_inductors == AUTO or sized == built:
+        return None
+    return (
+        f"The tanks are sized for {_inductor_text(sized)}, the first inductor suggestion; the "
+        f"build uses {_inductor_text(built)}, so its trimmers may not reach every setting."
+    )
+
+
 def tank_trimmer_lines(parts: ResolvedParts) -> list[str]:
     """The table's Tank Trimmers section; empty when no tank was sized."""
     tanks = list(parts.tanks.values())
@@ -190,6 +216,9 @@ def tank_trimmer_lines(parts: ResolvedParts) -> list[str]:
         ),
         "",
     )
+    note = sized_for_note(parts)
+    if note is not None:
+        lines += _wrap(note, "")
     for tank in tanks:
         lines.append("")
         lines.extend(tank_lines(tank))
@@ -248,8 +277,15 @@ def tank_trimmers_payload(parts: ResolvedParts) -> dict[str, Any] | None:
     tanks = list(parts.tanks.values())
     if not tanks:
         return None
+    from .formatters import RESONATOR_INDUCTOR
+
+    sized = parts.inductor(RESONATOR_INDUCTOR).default_pick
     return {
         "tuning_frequency_hz": tanks[0].tuning_frequency_hz,
+        # The resonator inductor the tanks are sized for (null: the calculated value).
+        "sized_for_inductor": None
+        if sized is None
+        else {"kind": sized.kind, "part": sized.part_name},
         "source_resistance_ohm": tanks[0].ports_ohm[0],
         "load_resistance_ohm": tanks[0].ports_ohm[1],
         "stray_capacitance_f": parts.match_policy.stray_capacitance_f,
@@ -332,7 +368,7 @@ def coupling_advice_payload(advice) -> dict[str, Any] | None:
     """The JSON ``coupling_advice`` object; ``None`` when the advice does not apply."""
     if advice is None:
         return None
-    from ..design.coupling_advice import CLI_FLAG
+    from ..design.coupling_advice import CLI_FLAG, IMPEDANCE_CLI_FLAG
 
     advised = None
     if advice.advised:
@@ -341,6 +377,8 @@ def coupling_advice_payload(advice) -> dict[str, Any] | None:
             "tank_inductance_h": advice.inductance_h,
             "setting": advice.setting,
             "cli": f"{CLI_FLAG} {advice.setting}",
+            # Options the rerun must drop (the tank impedance, which conflicts with it).
+            "remove_options": [IMPEDANCE_CLI_FLAG] if advice.clears_impedance else [],
             # Left out when the run hides inductor suggestions.
             "inductor_kind": part.kind if advice.names_part else None,
             "inductor_part": part.part_name if advice.names_part else None,
