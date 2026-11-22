@@ -9,9 +9,14 @@ can cover the acceptance designs, and why the others are not offered.
 `filter_lib/shared/capacitor_grade_data.json` and choose every standard capacitor (the
 worst-case rule in [code-standards.md](code-standards.md#e-series-policy)); each packaged row
 cites the reference sheet that states its tolerance, with the URL and SHA-256 listed here. The
-chip-inductor, toroid, air-coil and trimmer data are evidence only: no calculator output uses
-their values yet. The output does quote the exclusion reasons for VHF toroids and air-core coils
-below, word for word, as the reason those kinds offer no part. When a feature packages part of this page as a data file, the packaged rows must
+chip-inductor [recommended catalog](#recommended-catalog) is packaged as
+`filter_lib/shared/chip_inductor_data.json` (one row per family and value, with its offered
+tolerance codes, test frequency, minimum SRF, minimum Q and source page, and each source's URL
+and SHA-256) and is screened as in [Coverage](#coverage-of-the-acceptance-designs) for every
+inductor; `tests/test_chip_inductor_data.py` checks every packaged row against the catalog
+table on this page. The toroid, air-coil and trimmer data are evidence only: no calculator
+output uses their values yet. The output does quote the exclusion reasons for VHF toroids and
+air-core coils below, word for word, as the reason those kinds offer no part. When a feature packages part of this page as a data file, the packaged rows must
 match this page and cite the same sources; a data change updates this page in the same change.
 
 ## How to read this page
@@ -575,7 +580,7 @@ contribution in percent of the target, terms rounded, so the total is the worst-
 | LP 222 MHz, 49.1521 nH | **LQW18AN48NG80D** (19) | −0.14 to +0.54 % | upper −2.34 + 1.95 + 0.54 = +0.15; lower −2.34 − 1.95 − 0.13 = −4.43 | 48.260 nH; C_self 0.0725 pF | no SRF basis | no validated model |
 | LP 440 MHz, 24.7995 nH | **LQW15AN25NG80D** (17) | −0.06 to +1.10 % | upper +0.81 + 2.02 + 1.14 = +3.96; lower +0.81 − 2.02 − 0.06 = −1.27 | 25.276 nH; C_self 0.0603 pF | no SRF basis | no validated model; C_self limit 0.251 pF below the validated range |
 | BP 146 MHz, 54.5148 nH (as designed) | **0603CS-56NXGRW** (18) | −1.11 to 0 % | upper +2.72 + 2.05 + 0 = +4.78; lower +2.72 − 2.05 − 1.12 = −0.45 | 55.718 nH; C_self 0.1267 pF | no SRF basis | no validated model |
-| BP 146 MHz with `--tank-inductance 21nH` | **LQW15AN21NG80D** (11) | −0.05 to +0.06 % | upper 0 + 2.00 + 0.06 = +2.06; lower 0 − 2.00 − 0.05 = −2.05 | 21.012 nH; C_self 0.0596 pF | no SRF basis | no validated model |
+| BP 146 MHz with `--tank-inductance 21nH` | **LQW15AN21NG80D** (12) | −0.05 to +0.06 % | upper 0 + 2.00 + 0.06 = +2.06; lower 0 − 2.00 − 0.05 = −2.05 | 21.012 nH; C_self 0.0596 pF | no SRF basis | no validated model |
 | BP 146 MHz with `--tank-inductance 20nH` | **LQW18AN20NG00D** (9) | −0.04 to +0.05 % | upper 0 + 2.00 + 0.05 = +2.05; lower 0 − 2.00 − 0.04 = −2.04 | 20.010 nH; C_self 0.0528 pF | no SRF basis | no validated model |
 
 - Every inductor of every acceptance design has a qualifying chip inductor. The band-pass
@@ -583,6 +588,10 @@ contribution in percent of the target, terms rounded, so the total is the worst-
   value) or with 20 nH (LQW18AN20N_00D or LQW15AN20N_80D); 22 nH gives 0.957 pF and fails.
 - Close misses show the budget at work: 0603CS-47NXJRW fails 49.15 nH at −10.07 %, and
   LQW15AN26NJ80D fails 24.80 nH at +11.30 %.
+- A part exactly at a limit is within it, and the limits are compared in exact arithmetic on
+  the stated decimal values. For 21 nH, 0603CS-22NXJRW reaches exactly +10.00 % (22 nH × 1.05 =
+  21 nH × 1.10, with no positive drift below its 250 MHz test frequency), so 12 variants
+  qualify; the first count here (11) had excluded it through floating-point rounding.
 
 ## Decisions
 

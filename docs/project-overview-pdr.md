@@ -32,7 +32,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Bandpass top-coupled design calibrated to the requested −3 dB edges, with a per-design response check; 128-cell maintained acceptance matrix
 - Chebyshev g-values computed by formula for arbitrary ripple; capacitors-only E-series matching
 - Graph enhancements (GH-7): dB threshold tables + zoomed plots
-- Inductor suggestions in one record for every kind (toroid winding, air-core coil, chip inductor) with an error budget and the reason a kind has no part; only toroid windings on primary-sourced T25-6, T50-2, and T68-2 are offered, and RF Q, SRF, core loss, heating, saturation, and power are explicitly not checked
+- Inductor suggestions in one record for every kind (toroid winding, air-core coil, chip inductor) with an error budget and the reason a kind has no part; toroid windings on primary-sourced T25-6, T50-2, and T68-2 (RF Q, SRF, core loss, heating, saturation, and power explicitly not checked) and chip inductors from a sourced Coilcraft and Murata catalog, checked for SRF drift and a henry-based worst case from their guaranteed tolerance and minimum SRF, with their self-capacitance in the build simulation and SPICE
 - Build simulation with the chosen parts (or the calculated value where no part was chosen), part losses (Q), separate simulation source/load resistance, fixed tolerance cases, and optional repeatable extra random cases
 - Generic SPICE export (calculated values or chosen parts); strict JSON and rectangular quoted CSV
 - Plain-language help, errors, output, wizard, and web text, with one shared message per rule

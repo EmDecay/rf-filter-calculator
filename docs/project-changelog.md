@@ -1,6 +1,6 @@
 # Project Changelog
 
-## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Inductor Suggestions, Industry-Standard Filter Terms)
+## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Inductor Suggestions, Chip Inductors, Industry-Standard Filter Terms)
 
 The next release is 3.0.0: it removes and renames public names (listed below) without
 compatibility aliases.
@@ -132,7 +132,7 @@ only labels changed.
   no suggestion shows `No inductor suggestion qualifies:` and one reason per kind, worded as in
   [component-data-sources.md](component-data-sources.md): "No suitable toroid core in the
   built-in list. …" or, above every core's range, the VHF toroid exclusion; the air-core coil
-  exclusion; and "Chip inductor suggestions are not available in this version." The table
+  exclusion; and the limit a chip inductor failed ([below](#chip-inductor-suggestions-srf-screen-and-self-capacitance)). The table
   footnote reads "…; see Inductor Suggestions." or "…; use the calculated value." Build
   fallbacks say "no inductor suggestion used" or "inductor suggestions not used", and the
   chosen-parts deck writes `part=T50-2` where it wrote `core=T50-2`.
@@ -164,6 +164,69 @@ only labels changed.
   synthesis, part resolution, and the build when `design(should_cancel=…)` reports true;
   `BuildAnalysisCancelled` is now its subclass, `synthesize()` takes `should_cancel`, and
   `BuildAnalysisResult` gains `build_inductors`.
+
+### Chip inductor suggestions, SRF screen and self-capacitance
+
+- **Added chip inductor suggestions.** A packaged, sourced catalog
+  (`filter_lib/shared/chip_inductor_data.json`, the "Recommended catalog" of
+  [component-data-sources.md](component-data-sources.md)) lists 259 orderable wirewound parts
+  from Coilcraft 0603CS and Murata LQW18AN_00, LQW18AN_80 and LQW15AN_80, 10 nH to 100 nH, each
+  with its guaranteed tolerance, minimum SRF and minimum Q. Every inductor of every design is
+  screened against it; up to three qualifying parts are listed by the smallest worst case, then
+  part number, with the maker, family, package and part number (the guarantees belong to the
+  exact part). The minimum Q is shown and never used for ranking. Every inductor of the four
+  VHF/UHF acceptance designs now has a chip inductor (146, 222 and 440 MHz low-pass, and the
+  146 MHz band-pass as designed and with `--tank-inductance 20nH` or `21nH`).
+- **Added the SRF screen** (`filter_lib/shared/srf_screen.py`). A part is `L0` in parallel with
+  `C_self`, `L0 = L_m (1 − (f_m/SRF)²)` and `C_self = 1/((2π·SRF)²·L0)` from the minimum SRF, so
+  it reproduces its catalog value at its test frequency. Over the check window (low-pass DC to
+  the cutoff, band-pass DC to the upper −3 dB edge, high-pass the cutoff to twice the cutoff) its
+  drift must stay within ±5% (`DRIFT_ALLOWANCE_PCT`), and at both tolerance ends, both window
+  ends and both SRF limits (the minimum, and no drift) its inductance within ±10% of the target
+  (`DESIGN_ALLOWANCE_PCT`), combined in henries, so 5% plus 5% is 10.25% and fails. The limits
+  are compared exactly: a part exactly at a limit is within it. Qualification always uses the
+  maker's guaranteed tolerance.
+- **Output.** Chip suggestions print their rating, the inductance at the top of the window and
+  the self-capacitance (both at the minimum SRF), the frequencies where the part stays within
+  its allowances, the source with its page, the error budget, and a `Worst case:` line with the
+  ±10% allowance; a preamble states what is checked and what is not (Q, current rating,
+  heating, power handling, the SRF once mounted on a board). A kind with no part says "No chip
+  inductor qualifies: …", naming the allowance, the drift limit or either, and the frequencies
+  checked. JSON suggestions gain `error_budget.worst_case_pct` and `allowance_range_hz`, and a
+  chip's `build` record its catalog data, model (`l0_henries`, `self_capacitance_farads`),
+  window, drift, worst case, allowances and source with SHA-256; CSV gains `ChipManufacturer`,
+  `ChipTolerancePct`, `ChipSRFMin_MHz`, `ChipQMin`, `ChipAchievedL_nH`,
+  `ChipSelfCapacitance_fF` and `ChipSourceURL` after the `Toroid*` columns.
+- **Build simulation and chosen-parts SPICE.** `--build-inductors chip` (and `auto` where no
+  toroid qualifies) now builds real parts: each chip inductor is its `L0` with a fixed capacitor
+  `CSELF_<inductor>` across it (`L1 self-capacitance`), the same in the build and the deck and
+  never varied in the tolerance cases; the deck adds a `* self-capacitance:` comment and
+  `self-capacitance=` on the part's `* part used:` line. Without `--inductor-tolerance` each chip
+  inductor's tolerance cases use its own guaranteed tolerance (`each chip inductor at its own
+  tolerance (±2%)`); toroid windings and calculated values keep 10%. New model limits say the
+  self-capacitance is an upper bound from the maker's fixture and that the tolerance cases are
+  stress cases of the fixed branch, and the "leaves out" limit names capacitor ESL and package
+  parasitics. The build states its **qualified range** (where every chip inductor it uses
+  stays within its allowances) and labels a chosen-parts cutoff, edge or spread row outside it
+  "predicted with the parasitic model, not qualified"; ideal values never are. A high-pass build
+  with chip inductors finds its reference peak, half-power threshold and cutoff only up to the
+  top of that range (never below twice the cutoff); builds with toroid windings or calculated
+  values are unchanged. JSON `nominal_build` gains `qualified_range_hz` and `passband_top_hz`,
+  each measurement `model` (`ideal` or `chosen_parts`) and, for the chosen parts,
+  `outside_qualified_range`; substitutions gain `self_capacitance_f`, `tolerance_pct` and
+  `own_tolerance`, and `tolerance_analysis` gains `inductor_tolerance_entered`.
+- **HF designs.** The HF baseline corpus changes in one design only: in
+  `hp ch pi 28MHz -n 9 -r 0.5`, L2–L4 (104–107 nH), which had no toroid, now build as
+  LQW18ANR10G00D chip inductors with their self-capacitance (permitted kinds b and c). Every
+  other HF toroid pick, build and deck is unchanged.
+- **Python API.** New modules `shared/srf_screen.py`, `shared/chip_inductor_data.py`,
+  `shared/chip_selection.py` and `shared/chip_display.py`. `InductorSuggestion` gains
+  `part_model` and `allowance_range_hz` (given exactly when the SRF is checked), `ErrorBudget`
+  gains `worst_case_pct`, `ResolvedParts` gains `check_window` and `qualified_range_hz()`,
+  `BuildAnalysisResult` gains `qualified_range_hz` and `passband_top_hz`,
+  `ComponentSubstitution` gains `self_capacitance_f`, `tolerance_pct` and `own_tolerance`, and
+  `measure_circuit` takes `passband_top_hz`. `inductor_suggestion.CHIP_NOT_AVAILABLE` is
+  removed.
 
 ### Changed
 
