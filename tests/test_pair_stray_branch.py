@@ -66,8 +66,12 @@ def test_spice_deck_holds_the_solver_branches_with_their_kinds(request_fields):
         assert (node1, node2) == (element.node1, element.node2)
         # abs=0: pytest.approx's default absolute tolerance would accept a 0 F stray.
         assert value == pytest.approx(element.value, rel=1e-11, abs=0)
-    strays = [element for element in elements if element.fixed]
-    assert strays and all(element.name.startswith("CSTRAY_") for element in strays)
+    # A chip inductor's self-capacitance is fixed too (tests/test_self_capacitance_branch.py).
+    strays = [
+        element for element in elements if element.fixed and element.name.startswith("CSTRAY_")
+    ]
+    assert strays
+    assert all(e.name.startswith(("CSTRAY_", "CSELF_")) for e in elements if e.fixed)
     assert all(element.value == pytest.approx(0.2e-12, rel=1e-12, abs=0) for element in strays)
 
 

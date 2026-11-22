@@ -14,7 +14,7 @@ from .build_types import (
 )
 from .capacitor_choice import assumed_tolerance_pct
 from .circuit_builders import build_named_circuit
-from .circuit_display_names import STRAY_PREFIX, spice_names_comment
+from .circuit_display_names import SELF_CAPACITANCE_PREFIX, STRAY_PREFIX, spice_names_comment
 from .circuit_model import CircuitElement
 from .eseries import TOLERANCE_NOT_SOURCED, MatchPolicy
 from .inductor_suggestion import (
@@ -118,13 +118,22 @@ def _nominal_comments(
             details.append(f"turns={substitution.turns}")
         if substitution.stray_capacitance_f:
             details.append(f"stray={_number(substitution.stray_capacitance_f)}")
+        if substitution.self_capacitance_f is not None:
+            details.append(f"self-capacitance={_number(substitution.self_capacitance_f)}")
         if substitution.status == TOLERANCE_NOT_SOURCED:
             details.append(f"tolerance-not-sourced={assumed_tolerance_pct(policy):g}%-assumed")
-        comments.append("* part used: " + " ".join(details))
+        # Part names come from the packaged data, so they pass through the comment filter.
+        comments.append("* part used: " + _comment(" ".join(details)))
         if substitution.stray_capacitance_f:
             comments.append(
                 f"* stray: {STRAY_PREFIX}{substitution.logical_name} is the assumed stray "
                 "across this pair, the same in every tolerance case"
+            )
+        if substitution.self_capacitance_f is not None:
+            comments.append(
+                f"* self-capacitance: {SELF_CAPACITANCE_PREFIX}{substitution.logical_name} is "
+                "this inductor's self-capacitance from its minimum SRF, the same in every "
+                f"tolerance case; {substitution.logical_name} is the inductance without it"
             )
     # Same rules as the table's build block: each warning once with the parts it names,
     # and the toroid caveat only when a toroid winding was used.
@@ -144,7 +153,16 @@ def _limitations_comment(nominal: NominalRealization | None) -> str:
         return (
             "* limitations: ideal values; no layout, parasitic, SRF, temperature, or power effects"
         )
-    if any(item.stray_capacitance_f for item in nominal.substitutions):
+    has_stray = any(item.stray_capacitance_f for item in nominal.substitutions)
+    has_self_capacitance = any(item.self_capacitance_f for item in nominal.substitutions)
+    if has_self_capacitance:
+        stray = " the assumed stray across each pair and" if has_stray else ""
+        return (
+            f"* limitations: chosen parts at nominal values plus{stray} each chip inductor's "
+            "self-capacitance; no other layout, parasitic (capacitor ESL, package), SRF, "
+            "temperature, or power effects"
+        )
+    if has_stray:
         return (
             "* limitations: chosen parts at nominal values plus the assumed stray across each "
             "pair; no other layout, parasitic, SRF, temperature, or power effects"

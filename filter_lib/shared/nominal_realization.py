@@ -33,6 +33,16 @@ def stray_limitation(stray_f: float) -> str:
     )
 
 
+# Printed when a chip inductor (a part with a checked SRF) is built with its
+# self-capacitance.
+SELF_CAPACITANCE_LIMITATION = (
+    "Each chip inductor is simulated as its inductance with a fixed self-capacitance across "
+    "it: the upper bound from its guaranteed minimum SRF, measured in the maker's fixture. "
+    "Board mounting changes the SRF, and the part's Q and loss are not modelled unless an "
+    "inductor Q is given."
+)
+
+
 # Readable text (table and SPICE comments) prints this one only when a toroid winding
 # was actually used; JSON keeps every limitation.
 TOROID_LIMITATION = (
@@ -89,14 +99,13 @@ def _realize_element(
             loss_reference_frequency,
         )
     if element.kind == "L":
-        part, substitution, warnings = _realize_inductor(
+        return _realize_inductor(
             element,
             parts.inductor(element.name),
             config,
             inductor_q,
             loss_reference_frequency,
         )
-        return [part], substitution, warnings
     raise ValueError(f"nominal realization supports only C and L elements, got {element.kind!r}")
 
 
@@ -160,6 +169,8 @@ def realize_nominal_build(
     strays = [item.stray_capacitance_f for item in substitutions if item.stray_capacitance_f]
     if strays:
         limitations.append(stray_limitation(strays[0]))
+    if any(item.self_capacitance_f for item in substitutions):
+        limitations.append(SELF_CAPACITANCE_LIMITATION)
     limitations.append(TOROID_LIMITATION)
     circuit = NamedCircuit(
         exact.category,

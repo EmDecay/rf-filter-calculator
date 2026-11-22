@@ -10,6 +10,7 @@ from .nodal_solver import make_transducer_gain_evaluator
 from .numeric import is_finite_real, require_positive_finite
 from .physical_input_limits import require_port_resistance
 from .response_refinement import refine_response
+from .srf_screen import HIGHPASS_CHECK_MULTIPLE
 from .transfer_functions import MAX_FREQUENCY_POINTS
 
 _CATEGORIES = ("lowpass", "highpass", "bandpass")
@@ -79,12 +80,38 @@ def evaluation_ports(result: dict, category: str, config: BuildConfig) -> tuple[
     return source, load
 
 
-def _passband(result: dict, category: str, freqs: list[float]) -> tuple[float, float]:
+def highpass_passband_top(
+    result: dict, category: str, freqs: list[float], qualified_range: tuple[float, float] | None
+) -> float | None:
+    """Where a high-pass build's passband figures stop, or ``None`` for the whole sweep.
+
+    With a part whose SRF is checked, the reference peak, the half-power threshold and the
+    cutoff are found only up to the top of the qualified range, clamped to at least twice
+    the cutoff (the checked window) and at most the sweep's end. Without one (toroid
+    windings, calculated values) the figures use the whole sweep, as before.
+    """
+    if category != "highpass" or qualified_range is None:
+        return None
+    if qualified_range[1] >= freqs[-1]:
+        return None
+    return max(qualified_range[1], HIGHPASS_CHECK_MULTIPLE * result["freq_hz"])
+
+
+def _passband(
+    result: dict, category: str, freqs: list[float], top: float | None
+) -> tuple[float, float]:
     if category == "lowpass":
         return freqs[0], result["freq_hz"]
     if category == "highpass":
-        return result["freq_hz"], freqs[-1]
+        return result["freq_hz"], freqs[-1] if top is None else top
     return result["f_low"], result["f_high"]
+
+
+def _up_to(freqs: list[float], top: float | None) -> list[float]:
+    """The sweep cut at ``top`` (kept as its last point); unchanged when ``top`` is None."""
+    if top is None:
+        return freqs
+    return [frequency for frequency in freqs if frequency < top] + [top]
 
 
 def _underflow_message(
@@ -115,8 +142,13 @@ def measure_circuit(
     freqs: list[float],
     source_resistance: float,
     load_resistance: float,
+    passband_top_hz: float | None = None,
 ) -> CircuitMeasurement:
-    """Measure evaluated extrema and crossings, checking mesh convergence."""
+    """Measure evaluated extrema and crossings, checking mesh convergence.
+
+    ``passband_top_hz`` (high-pass only, ``highpass_passband_top``) limits every figure
+    to the sweep up to it.
+    """
     transducer_gain = make_transducer_gain_evaluator(
         circuit.n_nodes,
         circuit.branches(),
@@ -136,12 +168,13 @@ def measure_circuit(
         raise ValueError(_underflow_message(circuit, frequency, source_resistance, load_resistance))
 
     reference = result["f0"] if category == "bandpass" else None
-    passband = _passband(result, category, freqs)
+    passband = _passband(result, category, freqs, passband_top_hz)
     grid = (
         freqs
         if len(freqs) >= 257
         else sorted(set(freqs + build_frequency_grid(result, category, 257)))
     )
+    grid = _up_to(grid, passband_top_hz)
     if category == "bandpass":
         intervals = 16 * result["n_resonators"]
         grid = sorted(

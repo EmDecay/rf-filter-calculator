@@ -12,6 +12,7 @@ import re
 import pytest
 
 from filter_lib.shared import toroid_selection
+from filter_lib.shared.chip_display import CSV_CHIP_HEADER
 from filter_lib.shared.inductor_display import (
     CSV_INDUCTOR_HEADER,
     SECTION_NAME,
@@ -48,7 +49,7 @@ CHECKED_LINE = (
 TOROID_HEADING = "Toroid windings (iron-powder T-series):"
 TURN_ERROR_NOTE = "% vs target: error from rounding to whole turns."
 COMPACT_TURN_ERROR_NOTE = "% in parentheses: error vs target from rounding to whole turns."
-# 10 nH needs less than one turn on every rated core: the whole-turn limit failed.
+# 3 nH needs less than one turn on every rated core: the whole-turn limit failed.
 NO_SUITABLE_CORE = [
     "  - No suitable toroid core in the built-in list: no core rated for this frequency",
     "    reaches this inductance within its A_L tolerance using whole turns. Choose a core",
@@ -59,10 +60,22 @@ NO_RATED_CORE = [
     "    maker publishes no self-resonance or winding-capacitance data, so the inductance",
     "    near the band cannot be checked.",
 ]
-OTHER_KINDS_NONE = [
+AIR_COIL_NONE = [
     "  - Air-core coils are not offered: no published self-capacitance model is validated for",
     "    coils of a few spaced turns, so their self-resonance cannot be checked.",
-    "  - Chip inductor suggestions are not available in this version.",
+]
+# 3 nH and 1.3 µH are outside the 10-100 nH chip catalog: the allowance failed.
+CHIP_NONE_AT_10_MHZ = [
+    "  - No chip inductor qualifies: every part in the built-in chip catalog (10.00 nH to",
+    "    100.00 nH) misses this inductance by more than ±10% once its tolerance and SRF drift",
+    "    are counted (checked from DC to 10 MHz).",
+]
+# At 500 MHz some parts also drift more than 5%, so both limits are named.
+CHIP_NONE_AT_500_MHZ = [
+    "  - No chip inductor qualifies: each part in the built-in chip catalog (10.00 nH to",
+    "    100.00 nH) either drifts more than ±5% from its catalog value from DC to 500 MHz",
+    "    because of its self-resonance or misses this inductance by more than ±10% once its",
+    "    tolerance and SRF drift are counted.",
 ]
 SECTION_RULE = "─" * 50
 SUB_RULE = "  " + "─" * 48
@@ -153,16 +166,16 @@ def test_detail_lines_show_negative_error_and_ohm_scale_dcr():
 
 
 @pytest.mark.parametrize(
-    ("target_h", "freq_hz", "target", "toroid_reason"),
+    ("target_h", "freq_hz", "target", "toroid_reason", "chip_reason"),
     [
-        (10e-9, 10e6, "  L1 target: 10.00 nH at 10 MHz", NO_SUITABLE_CORE),
-        (1e-6, 500e6, "  L1 target: 1.00 µH at 500 MHz", NO_RATED_CORE),
+        (3e-9, 10e6, "  L1 target: 3.00 nH at 10 MHz", NO_SUITABLE_CORE, CHIP_NONE_AT_10_MHZ),
+        (1e-6, 500e6, "  L1 target: 1.00 µH at 500 MHz", NO_RATED_CORE, CHIP_NONE_AT_500_MHZ),
     ],
     ids=["no-suitable-core", "no-rated-core"],
 )
 @pytest.mark.parametrize("detail", ["best", "compact"])
 def test_blocks_without_suggestions_explain_every_kind(
-    target_h, freq_hz, target, toroid_reason, detail
+    target_h, freq_hz, target, toroid_reason, chip_reason, detail
 ):
     lines = suggestion_section_lines([("L1", _inductor(target_h, freq_hz))], freq_hz, detail)
 
@@ -172,7 +185,8 @@ def test_blocks_without_suggestions_explain_every_kind(
         *rule,
         "  No inductor suggestion qualifies:",
         *toroid_reason,
-        *OTHER_KINDS_NONE,
+        *AIR_COIL_NONE,
+        *chip_reason,
     ]
     # No toroid is shown, so no toroid caveats precede the blocks.
     assert TOROID_HEADING not in lines
@@ -211,7 +225,8 @@ def test_section_lists_up_to_three_ranked_suggestions_per_target(detail, shown):
             line.startswith(f"  {rank}. {title}") for rank, line in enumerate(numbered, start=1)
         )
         # Full lists why the other kinds have no part; best and compact show only the pick.
-        assert (block[-len(OTHER_KINDS_NONE) :] == OTHER_KINDS_NONE) is (detail == "full")
+        other_kinds = AIR_COIL_NONE + CHIP_NONE_AT_10_MHZ
+        assert (block[-len(other_kinds) :] == other_kinds) is (detail == "full")
     assert lines[-1] == ""
 
 
@@ -332,6 +347,7 @@ def test_csv_columns_align_with_header_for_best_candidate(t68_candidate):
         "InductorBudgetSRFDriftLowPct",
         "InductorBudgetSRFDriftHighPct",
         *CSV_TOROID_HEADER,
+        *CSV_CHIP_HEADER,
     ]
     assert inductor_csv_columns(_inductor(0.8208e-6, 5e6)) == [
         "toroid",
@@ -342,6 +358,7 @@ def test_csv_columns_align_with_header_for_best_candidate(t68_candidate):
         "",
         "",
         *toroid_csv_columns(t68_candidate),
+        *[""] * len(CSV_CHIP_HEADER),
     ]
 
 
@@ -491,3 +508,86 @@ def test_compact_legend_only_when_a_candidate_is_shown():
     lines = suggestion_section_lines([("L1", _inductor(1e-6, 500e6, "compact"))], 500e6, "compact")
 
     assert not any(line.startswith("% in parentheses") for line in lines)
+
+
+# -- Chip inductors -------------------------------------------------------------------------
+
+
+def _chip_146mhz():
+    """L1 of lp ch pi 146MHz -n 5 -r 0.1: 74.74 nH, best LQW15AN75NG80D."""
+    from filter_lib.design import DesignRequest, design
+
+    outcome = design(DesignRequest("lowpass", "chebyshev", "pi", 146e6, 50.0, 5, ripple_db=0.1))
+    return outcome.parts.inductor("L1")
+
+
+def test_chip_lines_give_the_part_its_rating_model_range_source_and_budget():
+    from filter_lib.shared.chip_display import (
+        chip_compact_text,
+        chip_detail_lines,
+        chip_preamble_lines,
+        chip_title,
+    )
+
+    inductor = _chip_146mhz()
+    best = inductor.best
+    chip = best.build
+
+    assert chip_title(chip) == "LQW15AN75NG80D  Murata LQW15AN_80, 0402 (1005) package"
+    assert chip_detail_lines(chip) == [
+        "     75.00 nH ±2% at 100 MHz   SRF min 2.4 GHz   Q min 25 at 200 MHz",
+        "     L at 146 MHz: 75.15 nH   Self-capacitance: 58.74 fF",
+        "     Within its allowances from DC to 532.7 MHz",
+        "     Source: Murata LQW15AN_80 reference specification, Spec No. JELF243A_0100K-01, p. 8",
+    ]
+    assert chip_compact_text(chip) == (
+        "LQW15AN75NG80D   75.15 nH at 146 MHz   ±2%   SRF min 2.4 GHz"
+    )
+    assert chip_preamble_lines([chip])[:3] == [
+        "Chip inductors (wirewound; the maker's guaranteed tolerance and minimum SRF):",
+        "Checked from DC to 146 MHz: SRF drift within ±5% of the catalog value, and tolerance",
+        "plus drift within ±10% of the target.",
+    ]
+    lines = suggestion_section_lines([("L1", inductor)], 146e6, "compact")
+    assert _block(lines, "L1") == [
+        "  L1 target: 74.74 nH at 146 MHz",
+        f"  1. Chip {chip_compact_text(chip)}",
+    ]
+    detailed = _block(suggestion_section_lines([("L1", inductor)], 146e6, "best"), "L1")
+    assert detailed[-2:] == [
+        "     Error budget: +0.35% nominal, ±2.01% tolerance, SRF drift -0.17% to +0.20%",
+        "     Worst case: -1.83% to +2.56% of the target (allowance ±10%)",
+    ]
+
+
+def test_chip_json_and_csv_carry_the_part_s_guarantees_and_model():
+    from filter_lib.shared.chip_display import CSV_CHIP_HEADER
+
+    inductor = _chip_146mhz()
+    payload = suggestion_payload(inductor.best)
+    build = payload["build"]
+
+    assert payload["srf_basis"] == "guaranteed_minimum"
+    assert payload["error_budget"]["worst_case_pct"] == pytest.approx([-1.8273, 2.5593], abs=5e-5)
+    assert payload["allowance_range_hz"] == [0.0, pytest.approx(532.74e6, rel=1e-4)]
+    assert (build["manufacturer"], build["family"], build["part_number"]) == (
+        "Murata",
+        "LQW15AN_80",
+        "LQW15AN75NG80D",
+    )
+    assert build["source"]["page"] == "p. 8"
+    assert len(build["source"]["sha256"]) == 64
+    assert build["model"]["self_capacitance_farads"] == pytest.approx(58.737e-15, rel=1e-4)
+    assert (build["drift_allowance_pct"], build["design_allowance_pct"]) == (5.0, 10.0)
+    row = dict(zip(CSV_INDUCTOR_HEADER, inductor_csv_columns(inductor), strict=True))
+    assert {key: row[key] for key in CSV_CHIP_HEADER} == {
+        "ChipManufacturer": "Murata",
+        "ChipTolerancePct": "2",
+        "ChipSRFMin_MHz": "2400",
+        "ChipQMin": "25",
+        "ChipAchievedL_nH": "75.148",
+        "ChipSelfCapacitance_fF": "58.74",
+        "ChipSourceURL": "https://pim.murata.com/asset/pim4/inductor/JELF243A-0100_PDF_INDUCTOR",
+    }
+    assert (row["InductorKind"], row["InductorSRFBasis"]) == ("chip", "guaranteed_minimum")
+    assert all(row[key] == "" for key in CSV_TOROID_HEADER)

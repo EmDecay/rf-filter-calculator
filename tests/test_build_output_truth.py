@@ -47,8 +47,9 @@ def _calculated_inductor_parts(result: dict, category: str):
     "inductance_override, build_inductors, used, fallbacks",
     [
         (None, "auto", True, []),
-        # 10 nH has no acceptable integer-turn winding on the qualified cores.
-        (10e-9, "auto", False, ["L1"]),
+        # 3 nH has no acceptable integer-turn winding on the qualified cores and is below
+        # the chip catalog (10 nH to 100 nH).
+        (3e-9, "auto", False, ["L1"]),
         (None, "calculated", False, ["L1"]),
     ],
     ids=["suggestion-used", "no-qualifying-suggestion", "suggestions-not-used"],

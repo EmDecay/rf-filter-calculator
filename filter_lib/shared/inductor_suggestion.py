@@ -15,9 +15,12 @@ words of ``docs/component-data-sources.md``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .numeric import is_finite_real
+
+if TYPE_CHECKING:
+    from .srf_screen import PartModel
 
 # Fixed build order: ``auto`` builds the first kind in this order that has a part.
 INDUCTOR_KINDS = ("toroid", "air-coil", "chip")
@@ -60,7 +63,6 @@ AIR_COIL_EXCLUSION = (
     "Air-core coils are not offered: no published self-capacitance model is validated for "
     "coils of a few spaced turns, so their self-resonance cannot be checked."
 )
-CHIP_NOT_AVAILABLE = "Chip inductor suggestions are not available in this version."
 
 # CLI spellings and help; the wizard and web word their controls from
 # ``design/inductor_option_inputs.py``.
@@ -156,6 +158,21 @@ class ErrorBudget:
         ):
             raise ValueError("The SRF drift must be a finite (lowest, highest) pair")
 
+    @property
+    def worst_case_pct(self) -> tuple[float, float] | None:
+        """The (lowest, highest) total, or ``None`` when the SRF is not checked.
+
+        The drift terms are each taken at the tolerance endpoint they add to, so the
+        totals are the part's true worst case in percent of the target.
+        """
+        if self.srf_drift_pct is None:
+            return None
+        low, high = self.srf_drift_pct
+        return (
+            self.nominal_mismatch_pct - self.tolerance_pct + low,
+            self.nominal_mismatch_pct + self.tolerance_pct + high,
+        )
+
 
 def tolerance_of_target(tolerance_pct: float, achieved_h: float, target_h: float) -> float:
     """A part's ± tolerance (percent of its own inductance) as percent of the target."""
@@ -176,8 +193,15 @@ class InductorSuggestion:
     """One buildable part for one inductor (see the module docstring).
 
     ``build`` holds the kind's own build details (for a toroid, the screened
-    ``ToroidRecommendation``); ``part_name`` names the part in one word (a core name or
-    a part number); ``status`` is the kind's candidate status.
+    ``ToroidRecommendation``; for a chip, its ``ChipSuggestion``); ``part_name`` names
+    the part in one word (a core name or a part number); ``status`` is the kind's
+    candidate status.
+
+    A part whose SRF is checked also gives the model the build simulates
+    (``part_model``: its inductance with a fixed self-capacitance in parallel) and
+    ``allowance_range_hz``, every frequency at which it stays within its SRF drift and
+    design allowances; the build reports results outside the range as predicted, not
+    qualified. Both are ``None`` when the SRF is not checked.
     """
 
     kind: str
@@ -193,6 +217,8 @@ class InductorSuggestion:
     status: str
     srf_accuracy: str | None = None
     warnings: tuple[str, ...] = ()
+    part_model: PartModel | None = None
+    allowance_range_hz: tuple[float, float] | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in INDUCTOR_KINDS:
@@ -223,6 +249,18 @@ class InductorSuggestion:
             raise ValueError("A checked SRF basis needs the source of its guarantees")
         if checked != (self.error_budget.srf_drift_pct is not None):
             raise ValueError("The SRF drift is listed exactly when the SRF is checked")
+        if checked != (self.part_model is not None):
+            raise ValueError("A part model is given exactly when the SRF is checked")
+        allowance = self.allowance_range_hz
+        if checked != (allowance is not None):
+            raise ValueError("The allowance range is given exactly when the SRF is checked")
+        if allowance is not None and (
+            not isinstance(allowance, tuple)
+            or len(allowance) != 2
+            or not all(is_finite_real(value) for value in allowance)
+            or not 0 <= allowance[0] < allowance[1]
+        ):
+            raise ValueError("The allowance range must be a finite (lowest, highest) pair")
 
 
 @dataclass(frozen=True)

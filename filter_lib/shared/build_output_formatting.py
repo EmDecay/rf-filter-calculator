@@ -18,6 +18,7 @@ from .eseries import TOLERANCE_NOT_SOURCED
 from .formatting import format_capacitance, format_fixed, format_frequency, format_inductance
 from .inductor_suggestion import KIND_LABELS, NO_QUALIFYING_SUGGESTION, SUGGESTIONS_NOT_USED
 from .nominal_realization import TOROID_LIMITATION, grouped_part_warnings, uses_toroid
+from .srf_screen import describe_range
 
 BUILD_SIMULATION_HEADING = "Build Simulation (chosen parts; simulated, not measured)"
 EQUAL_PORTS_GAIN_NOTE = (
@@ -49,6 +50,35 @@ PASSBAND_NOTES = {
     "highpass": "Passband = from the requested cutoff upward, including it.",
     "bandpass": "Passband = between the requested -3 dB edges, including them.",
 }
+
+# A chosen-parts result outside the frequencies where every chip inductor is within its
+# allowances (BuildAnalysisResult.qualified_range_hz).
+PARASITIC_PREDICTION = "predicted with the parasitic model, not qualified"
+# Table labels for the landmarks a measurement reports (JSON keys).
+_LANDMARK_LABELS = {
+    "cutoff_hz": "-3 dB cutoff",
+    "f_low_hz": "lower -3 dB edge",
+    "f_high_hz": "upper -3 dB edge",
+    "reference_peak_frequency_hz": "peak",
+}
+# Spread rows whose values are frequencies the qualified range applies to.
+_FREQUENCY_METRICS = frozenset({"cutoff_hz", "f_low_hz", "f_high_hz"})
+
+
+def highpass_passband_note(top_hz: float) -> str:
+    """The high-pass passband note when its figures stop at the qualified range's top."""
+    return (
+        f"Passband = from the requested cutoff up to {format_frequency(top_hz)}, including "
+        "both; a high-pass build's figures stop where its chip inductors stop being qualified."
+    )
+
+
+def qualified_range_line(qualified_range: tuple[float, float]) -> str:
+    """Where every chip inductor in the build is within its allowances."""
+    return (
+        f"Qualified range: {describe_range(qualified_range)}, where every chip inductor stays "
+        f"within its allowances; results outside it are {PARASITIC_PREDICTION}."
+    )
 
 
 def _landmark_text(category: str, measurement: CircuitMeasurement) -> str | None:
@@ -105,8 +135,18 @@ def _format_measurement(category: str, measurement: CircuitMeasurement) -> list[
     return lines
 
 
-def _measurement_row(label: str, category: str, measurement: CircuitMeasurement) -> list[str]:
+def _measurement_row(
+    label: str,
+    category: str,
+    measurement: CircuitMeasurement,
+    qualified_range: tuple[float, float] | None = None,
+) -> list[str]:
+    """One measurement; a chosen-parts landmark outside ``qualified_range`` is labelled."""
     first, *rest = _format_measurement(category, measurement)
+    outside = measurement.outside_range(category, qualified_range)
+    if outside:
+        names = " and ".join(_LANDMARK_LABELS[key] for key in outside)
+        rest.append(f"{names} {PARASITIC_PREDICTION}")
     return [f"{label:<15}{first}", *(_ROW_INDENT + line for line in rest)]
 
 
@@ -120,6 +160,12 @@ def _format_substitution(substitution: ComponentSubstitution, eseries: str | Non
             f"  {name}: {formatter(substitution.nominal_value)}, calculated value used ({reason})"
         )
     detail = " || ".join(formatter(value) for value in substitution.physical_parts)
+    if substitution.self_capacitance_f is not None:
+        detail += (
+            f", {KIND_LABELS[substitution.inductor_kind].lower()} {substitution.part_name}, "
+            f"plus {format_capacitance(substitution.self_capacitance_f)} self-capacitance"
+        )
+        return f"  {name}: {detail}"
     if substitution.core_name is not None:
         detail += f", {substitution.turns} turns"
         if substitution.wire_awg is not None:
@@ -218,10 +264,25 @@ def _metric_values(summary) -> str:
     return " / ".join(texts)
 
 
-def _format_summary(summary, width: int = 0) -> list[str]:
-    """Return one metric row, plus a case-count line when any case was left out."""
+def _format_summary(
+    summary, width: int = 0, qualified_range: tuple[float, float] | None = None
+) -> list[str]:
+    """Return one metric row, plus a case-count line when any case was left out.
+
+    A frequency row with a value outside ``qualified_range`` says those values are
+    predicted with the parasitic model, not qualified.
+    """
     label = METRIC_LABELS.get(summary.metric, summary.metric) + ":"
     lines = [f"  {label:<{width + 1}} {_metric_values(summary)}"]
+    if (
+        qualified_range is not None
+        and summary.metric in _FREQUENCY_METRICS
+        and not qualified_range[0] <= summary.minimum <= summary.maximum <= qualified_range[1]
+    ):
+        lines.append(
+            " " * (width + 4)
+            + f"values outside {describe_range(qualified_range)} are {PARASITIC_PREDICTION}"
+        )
     if summary.omitted_cases or summary.grid_censored_cases or summary.unresolved_cases:
         total = summary.included_cases + summary.omitted_cases
         counts = f"{summary.included_cases} of {total} cases"
@@ -233,11 +294,25 @@ def _format_summary(summary, width: int = 0) -> list[str]:
     return lines
 
 
+def inductor_tolerance_text(analysis: BuildAnalysisResult) -> str:
+    """How the inductors' tolerances were set: entered, or each chip inductor's own."""
+    default = f"±{inductor_case_tolerance_pct(analysis.config):g}%"
+    inductors = [item for item in analysis.nominal_realization.substitutions if item.kind == "L"]
+    own = sorted({item.tolerance_pct for item in inductors if item.own_tolerance})
+    if not own:
+        return f"L {default}"
+    own_text = f"±{own[0]:g}%" if len(own) == 1 else f"±{own[0]:g}% to ±{own[-1]:g}%"
+    text = f"each chip inductor at its own tolerance ({own_text})"
+    if not all(item.own_tolerance for item in inductors):
+        text += f", other inductors {default}"
+    return text
+
+
 def _tolerance_lines(analysis: BuildAnalysisResult) -> list[str]:
     config = analysis.config
-    first = (
+    first, *rest = _wrapped(
         f"Tolerance cases: {capacitor_tolerance_text(analysis)}, "
-        f"L ±{inductor_case_tolerance_pct(config):g}%."
+        f"{inductor_tolerance_text(analysis)}."
     )
     cases = f"  {len(analysis.cases)} cases: nominal, all low, all high,"
     samples = config.sample_count
@@ -249,7 +324,7 @@ def _tolerance_lines(analysis: BuildAnalysisResult) -> list[str]:
         )
     else:
         second = "  and each part low and high alone."
-    return [first, cases, second]
+    return [first, *rest, cases, second]
 
 
 def capacitor_tolerance_text(analysis: BuildAnalysisResult) -> str:
@@ -270,6 +345,11 @@ def capacitor_tolerance_text(analysis: BuildAnalysisResult) -> str:
     if assumed:
         text += f" (±{assumed_tolerance_pct(policy):g}% where not sourced)"
     return text
+
+
+def _wrapped(text: str) -> list[str]:
+    """A note at the block's width (most notes fit on one line)."""
+    return textwrap.wrap(text, width=_WRAP_WIDTH, subsequent_indent="  ", break_on_hyphens=False)
 
 
 def _bullets(items) -> list[str]:
@@ -313,11 +393,18 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
     # the filter, so only then is Gt the familiar insertion loss with its sign flipped.
     if analysis.source_resistance_ohm == analysis.load_resistance_ohm:
         lines.append(EQUAL_PORTS_GAIN_NOTE)
+    qualified = analysis.qualified_range_hz
+    passband_note = (
+        PASSBAND_NOTES[category]
+        if analysis.passband_top_hz is None
+        else highpass_passband_note(analysis.passband_top_hz)
+    )
     lines += [
         _loss_line(analysis),
-        PASSBAND_NOTES[category],
+        *_wrapped(passband_note),
+        *([] if qualified is None else _wrapped(qualified_range_line(qualified))),
         *_measurement_row("Ideal values:", category, analysis.calculated),
-        *_measurement_row("Chosen parts:", category, analysis.nominal_build),
+        *_measurement_row("Chosen parts:", category, analysis.nominal_build, qualified),
     ]
     fallback_note = _fallback_note(analysis)
     if fallback_note is not None:
@@ -332,7 +419,7 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
         default=0,
     )
     for summary in analysis.metric_summaries:
-        lines.extend(_format_summary(summary, width))
+        lines.extend(_format_summary(summary, width, qualified))
     warnings = grouped_part_warnings(analysis.nominal_realization.substitutions)
     if warnings:
         lines.append("Build warnings:")

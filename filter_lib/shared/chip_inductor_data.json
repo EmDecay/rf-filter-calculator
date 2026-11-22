@@ -1,0 +1,1781 @@
+{
+ "schema_version": 1,
+ "dataset": {
+  "description": "Sourced chip inductors (wirewound, 0402 and 0603) with a guaranteed inductance tolerance, minimum SRF and minimum Q, 10 to 100 nH; see docs/component-data-sources.md (Chip inductors, Recommended catalog).",
+  "accessed_on": "2026-11-19"
+ },
+ "sources": {
+  "CC-0603CS": {
+   "publisher": "Coilcraft",
+   "title": "0603CS datasheet (Chip Inductors – 0603CS (1608))",
+   "revision": "Documents 195-1 and 195-2, revised 06/26/24",
+   "url": "https://www.coilcraft.com/getmedia/022eb894-7253-40d0-b07c-650d362fc80e/0603cs.pdf",
+   "sha256": "8f69766c73cd8aeda094d0cfdd9aa6e143d586b09414a15c1f201655754cda46"
+  },
+  "MU-LQW18AN-00": {
+   "publisher": "Murata",
+   "title": "LQW18AN_00 reference specification",
+   "revision": "Spec No. JELF243A_0024AC-01",
+   "url": "https://pim.murata.com/asset/pim4/inductor/JELF243A-0024_PDF_INDUCTOR",
+   "sha256": "be795e7f314706838324684ee7d5f5694f8c68ee5a3351556dae6190fded697a"
+  },
+  "MU-LQW18AN-80": {
+   "publisher": "Murata",
+   "title": "LQW18AN_80 reference specification",
+   "revision": "Spec No. JELF243A_0102L-01",
+   "url": "https://pim.murata.com/asset/pim4/inductor/JELF243A-0102_PDF_INDUCTOR",
+   "sha256": "12e6e209d9d063424c94dc2946205f62846311c1eee2e36c36c3ac3efa126c26"
+  },
+  "MU-LQW15AN-80": {
+   "publisher": "Murata",
+   "title": "LQW15AN_80 reference specification",
+   "revision": "Spec No. JELF243A_0100K-01",
+   "url": "https://pim.murata.com/asset/pim4/inductor/JELF243A-0100_PDF_INDUCTOR",
+   "sha256": "2bca847ecc569c11674d6af7ab390ed19be23467d925f48e04e7800825cb0a7c"
+  }
+ },
+ "families": {
+  "0603CS": {
+   "manufacturer": "Coilcraft",
+   "package": "0603 (1608)",
+   "source": "CC-0603CS",
+   "tolerance_codes": {
+    "G": 2,
+    "H": 3,
+    "J": 5
+   },
+   "tolerance_guarantee": "maximum",
+   "srf_guarantee": "minimum",
+   "q_guarantee": "minimum",
+   "measurement": "L: Coilcraft SMD-A fixture, Agilent/HP 4286; Q: HP 4291A with 16193 fixture; SRF: HP 8720D with Coilcraft SMD-D fixture"
+  },
+  "LQW18AN_00": {
+   "manufacturer": "Murata",
+   "package": "0603 (1608)",
+   "source": "MU-LQW18AN-00",
+   "tolerance_codes": {
+    "G": 2,
+    "J": 5
+   },
+   "tolerance_guarantee": "maximum",
+   "srf_guarantee": "minimum",
+   "q_guarantee": "minimum",
+   "measurement": "L and Q: Keysight E4991A with 16197A fixture; SRF: Keysight N5230A"
+  },
+  "LQW18AN_80": {
+   "manufacturer": "Murata",
+   "package": "0603 (1608)",
+   "source": "MU-LQW18AN-80",
+   "tolerance_codes": {
+    "G": 2,
+    "J": 5
+   },
+   "tolerance_guarantee": "maximum",
+   "srf_guarantee": "minimum",
+   "q_guarantee": "minimum",
+   "measurement": "L and Q: Keysight E4991A with 16197A fixture; SRF: Keysight N5230A"
+  },
+  "LQW15AN_80": {
+   "manufacturer": "Murata",
+   "package": "0402 (1005)",
+   "source": "MU-LQW15AN-80",
+   "tolerance_codes": {
+    "G": 2,
+    "J": 5
+   },
+   "tolerance_guarantee": "maximum",
+   "srf_guarantee": "minimum",
+   "q_guarantee": "minimum",
+   "measurement": "L and Q: Keysight E4991A with 16197A fixture; SRF: Keysight N5230"
+  }
+ },
+ "parts": [
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-10NX_RW",
+   "inductance_nh": 10,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 4800,
+   "q_min": 31,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-11NX_RW",
+   "inductance_nh": 11,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 4000,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-12NX_RW",
+   "inductance_nh": 12,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 4000,
+   "q_min": 35,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-15NX_RW",
+   "inductance_nh": 15,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 4000,
+   "q_min": 35,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-16NX_RW",
+   "inductance_nh": 16,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 3300,
+   "q_min": 34,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-18NX_RW",
+   "inductance_nh": 18,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 3100,
+   "q_min": 35,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-22NX_RW",
+   "inductance_nh": 22,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 3000,
+   "q_min": 38,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-23NX_RW",
+   "inductance_nh": 23,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 2850,
+   "q_min": 38,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-24NX_RW",
+   "inductance_nh": 24,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 2650,
+   "q_min": 36,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-27NX_RW",
+   "inductance_nh": 27,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 2800,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-30NX_RW",
+   "inductance_nh": 30,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 2250,
+   "q_min": 37,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-33NX_RW",
+   "inductance_nh": 33,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 2300,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-36NX_RW",
+   "inductance_nh": 36,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 2080,
+   "q_min": 37,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-39NX_RW",
+   "inductance_nh": 39,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 2200,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-43NX_RW",
+   "inductance_nh": 43,
+   "test_frequency_mhz": 250,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 2000,
+   "q_min": 38,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-47NX_RW",
+   "inductance_nh": 47,
+   "test_frequency_mhz": 200,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2000,
+   "q_min": 38,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-51NX_RW",
+   "inductance_nh": 51,
+   "test_frequency_mhz": 200,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 1900,
+   "q_min": 35,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-56NX_RW",
+   "inductance_nh": 56,
+   "test_frequency_mhz": 200,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 1900,
+   "q_min": 38,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-68NX_RW",
+   "inductance_nh": 68,
+   "test_frequency_mhz": 200,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 1700,
+   "q_min": 37,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-72NX_RW",
+   "inductance_nh": 72,
+   "test_frequency_mhz": 150,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 1700,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-82NX_RW",
+   "inductance_nh": 82,
+   "test_frequency_mhz": 150,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 1700,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 2"
+  },
+  {
+   "family": "0603CS",
+   "part_number": "0603CS-R10X_RW",
+   "inductance_nh": 100,
+   "test_frequency_mhz": 150,
+   "tolerance_codes": [
+    "G",
+    "H",
+    "J"
+   ],
+   "srf_min_mhz": 1400,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN10N_00D",
+   "inductance_nh": 10,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 6000,
+   "q_min": 35,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN11N_00D",
+   "inductance_nh": 11,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 6000,
+   "q_min": 35,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN12N_00D",
+   "inductance_nh": 12,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 6000,
+   "q_min": 35,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN13N_00D",
+   "inductance_nh": 13,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 6000,
+   "q_min": 35,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN15N_00D",
+   "inductance_nh": 15,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 6000,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN16N_00D",
+   "inductance_nh": 16,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5500,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN18N_00D",
+   "inductance_nh": 18,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5500,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN20N_00D",
+   "inductance_nh": 20,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4900,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN22N_00D",
+   "inductance_nh": 22,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4600,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN24N_00D",
+   "inductance_nh": 24,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3800,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN27N_00D",
+   "inductance_nh": 27,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3700,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN30N_00D",
+   "inductance_nh": 30,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3300,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN33N_00D",
+   "inductance_nh": 33,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3200,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN36N_00D",
+   "inductance_nh": 36,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2900,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN39N_00D",
+   "inductance_nh": 39,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2800,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN43N_00D",
+   "inductance_nh": 43,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2700,
+   "q_min": 40,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN47N_00D",
+   "inductance_nh": 47,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2600,
+   "q_min": 38,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN51N_00D",
+   "inductance_nh": 51,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2500,
+   "q_min": 38,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN56N_00D",
+   "inductance_nh": 56,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2400,
+   "q_min": 38,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN62N_00D",
+   "inductance_nh": 62,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2300,
+   "q_min": 38,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN68N_00D",
+   "inductance_nh": 68,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2200,
+   "q_min": 38,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN72N_00D",
+   "inductance_nh": 72,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2100,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN75N_00D",
+   "inductance_nh": 75,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2050,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN82N_00D",
+   "inductance_nh": 82,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2000,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18AN91N_00D",
+   "inductance_nh": 91,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 1900,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_00",
+   "part_number": "LQW18ANR10_00D",
+   "inductance_nh": 100,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 1800,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN10N_80D",
+   "inductance_nh": 10,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4750,
+   "q_min": 38,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN11N_80D",
+   "inductance_nh": 11,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4750,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN12N_80D",
+   "inductance_nh": 12,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5000,
+   "q_min": 37,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN13N_80D",
+   "inductance_nh": 13,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5000,
+   "q_min": 37,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN15N_80D",
+   "inductance_nh": 15,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4600,
+   "q_min": 38,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN16N_80D",
+   "inductance_nh": 16,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4600,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN17N_80D",
+   "inductance_nh": 17,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4600,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 2, 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN18N_80D",
+   "inductance_nh": 18,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4600,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN19N_80D",
+   "inductance_nh": 19,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4600,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN22N_80D",
+   "inductance_nh": 22,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3450,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN23N_80D",
+   "inductance_nh": 23,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3450,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN24N_80D",
+   "inductance_nh": 24,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3450,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN25N_80D",
+   "inductance_nh": 25,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3600,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN27N_80D",
+   "inductance_nh": 27,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3600,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN28N_80D",
+   "inductance_nh": 28,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3600,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN30N_80D",
+   "inductance_nh": 30,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2880,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN31N_80D",
+   "inductance_nh": 31,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3150,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN33N_80D",
+   "inductance_nh": 33,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3150,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN34N_80D",
+   "inductance_nh": 34,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3000,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN36N_80D",
+   "inductance_nh": 36,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3000,
+   "q_min": 37,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN37N_80D",
+   "inductance_nh": 37,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3000,
+   "q_min": 37,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN39N_80D",
+   "inductance_nh": 39,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3280,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN41N_80D",
+   "inductance_nh": 41,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3280,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN43N_80D",
+   "inductance_nh": 43,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2780,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN44N_80D",
+   "inductance_nh": 44,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2780,
+   "q_min": 40,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN47N_80D",
+   "inductance_nh": 47,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2700,
+   "q_min": 32,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN48N_80D",
+   "inductance_nh": 48,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2700,
+   "q_min": 32,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN51N_80D",
+   "inductance_nh": 51,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2700,
+   "q_min": 32,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN52N_80D",
+   "inductance_nh": 52,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2750,
+   "q_min": 35,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 3"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN56N_80D",
+   "inductance_nh": 56,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2600,
+   "q_min": 38,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 3, 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN58N_80D",
+   "inductance_nh": 58,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2400,
+   "q_min": 35,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN68N_80D",
+   "inductance_nh": 68,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2380,
+   "q_min": 37,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN69N_80D",
+   "inductance_nh": 69,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2380,
+   "q_min": 37,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN72N_80D",
+   "inductance_nh": 72,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2330,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN73N_80D",
+   "inductance_nh": 73,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2280,
+   "q_min": 28,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN75N_80D",
+   "inductance_nh": 75,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2280,
+   "q_min": 28,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN78N_80D",
+   "inductance_nh": 78,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2280,
+   "q_min": 28,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN82N_80D",
+   "inductance_nh": 82,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2230,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN83N_80D",
+   "inductance_nh": 83,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2230,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN91N_80D",
+   "inductance_nh": 91,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 1900,
+   "q_min": 33,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18AN94N_80D",
+   "inductance_nh": 94,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 1750,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW18AN_80",
+   "part_number": "LQW18ANR10_80D",
+   "inductance_nh": 100,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 1750,
+   "q_min": 34,
+   "q_test_frequency_mhz": 150,
+   "page": "p. 4"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN10N_80D",
+   "inductance_nh": 10,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 6000,
+   "q_min": 31,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 6"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN11N_80D",
+   "inductance_nh": 11,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 6200,
+   "q_min": 32,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 6"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN12N_80D",
+   "inductance_nh": 12,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5200,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 6, 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN13N_80D",
+   "inductance_nh": 13,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5200,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN14N_80D",
+   "inductance_nh": 14,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5200,
+   "q_min": 31,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN15N_80D",
+   "inductance_nh": 15,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5500,
+   "q_min": 31,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN16N_80D",
+   "inductance_nh": 16,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5000,
+   "q_min": 31,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN17N_80D",
+   "inductance_nh": 17,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5000,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN18N_80D",
+   "inductance_nh": 18,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5200,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN19N_80D",
+   "inductance_nh": 19,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 5000,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN20N_80D",
+   "inductance_nh": 20,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4500,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN21N_80D",
+   "inductance_nh": 21,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4500,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN22N_80D",
+   "inductance_nh": 22,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4500,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN23N_80D",
+   "inductance_nh": 23,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4500,
+   "q_min": 29,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN24N_80D",
+   "inductance_nh": 24,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4000,
+   "q_min": 31,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN25N_80D",
+   "inductance_nh": 25,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4100,
+   "q_min": 31,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN26N_80D",
+   "inductance_nh": 26,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4100,
+   "q_min": 29,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN27N_80D",
+   "inductance_nh": 27,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 4000,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN30N_80D",
+   "inductance_nh": 30,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3800,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN33N_80D",
+   "inductance_nh": 33,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3600,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN36N_80D",
+   "inductance_nh": 36,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3500,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN39N_80D",
+   "inductance_nh": 39,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3400,
+   "q_min": 28,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN43N_80D",
+   "inductance_nh": 43,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3400,
+   "q_min": 30,
+   "q_test_frequency_mhz": 250,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN47N_80D",
+   "inductance_nh": 47,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 3200,
+   "q_min": 25,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN51N_80D",
+   "inductance_nh": 51,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2900,
+   "q_min": 25,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 7"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN53N_80D",
+   "inductance_nh": 53,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2900,
+   "q_min": 25,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 7, 8"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN56N_80D",
+   "inductance_nh": 56,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2900,
+   "q_min": 25,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 8"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN68N_80D",
+   "inductance_nh": 68,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2500,
+   "q_min": 25,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 8"
+  },
+  {
+   "family": "LQW15AN_80",
+   "part_number": "LQW15AN75N_80D",
+   "inductance_nh": 75,
+   "test_frequency_mhz": 100,
+   "tolerance_codes": [
+    "G",
+    "J"
+   ],
+   "srf_min_mhz": 2400,
+   "q_min": 25,
+   "q_test_frequency_mhz": 200,
+   "page": "p. 8"
+  }
+ ]
+}

@@ -19,10 +19,20 @@ from .strict_json import validate_finite_tree
 
 
 def _measurement_payload(
-    measurement: CircuitMeasurement, category: str | None = None
+    measurement: CircuitMeasurement,
+    category: str | None = None,
+    qualified_range: tuple[float, float] | None = None,
+    *,
+    chosen_parts: bool = False,
 ) -> dict[str, Any]:
-    """Return one response measurement without inventing missing skirt values."""
-    payload = {
+    """Return one response measurement without inventing missing skirt values.
+
+    ``model`` says whether it is of the ideal circuit or the chosen parts; a chosen-parts
+    measurement lists the landmarks outside the build's qualified range, which are
+    predicted with the parasitic model, not qualified.
+    """
+    payload: dict[str, Any] = {
+        "model": "chosen_parts" if chosen_parts else "ideal",
         "f_low_hz": measurement.f_low,
         "f_high_hz": measurement.f_high,
         "f0_hz": measurement.f0,
@@ -44,6 +54,10 @@ def _measurement_payload(
     }
     if category in ("lowpass", "highpass"):
         payload["cutoff_hz"] = measurement.ladder_cutoff(category)
+    if chosen_parts and category is not None:
+        payload["outside_qualified_range"] = list(
+            measurement.outside_range(category, qualified_range)
+        )
     return payload
 
 
@@ -64,6 +78,9 @@ def _substitution_payload(substitution: ComponentSubstitution) -> dict[str, Any]
         "wire_awg": substitution.wire_awg,
         "wire_length_mm": substitution.wire_length_mm,
         "stray_capacitance_f": substitution.stray_capacitance_f,
+        "self_capacitance_f": substitution.self_capacitance_f,
+        "tolerance_pct": substitution.tolerance_pct,
+        "own_tolerance": substitution.own_tolerance,
         "warnings": list(substitution.warnings),
     }
 
@@ -131,6 +148,8 @@ def _summary_payload(summary) -> dict[str, Any]:
 def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[str, Any]:
     """Build category-parity JSON fields attached by ``--sim-build``."""
     config = analysis.config
+    category = analysis.category
+    qualified = analysis.qualified_range_hz
     fields: dict[str, Any] = {
         "target": _target_payload(result, analysis.category),
         "simulated": {
@@ -139,7 +158,11 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
         },
         "nominal_build": {
             **realization_summary(analysis.nominal_realization),
-            "measurement": _measurement_payload(analysis.nominal_build, analysis.category),
+            "qualified_range_hz": None if qualified is None else list(qualified),
+            "passband_top_hz": analysis.passband_top_hz,
+            "measurement": _measurement_payload(
+                analysis.nominal_build, category, qualified, chosen_parts=True
+            ),
             "substitutions": [
                 _substitution_payload(item) for item in analysis.nominal_realization.substitutions
             ],
@@ -156,7 +179,10 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
             "tolerance_source": "each_part",
             "capacitor_grade": analysis.match_policy.grade,
             "capacitor_tolerance_override_pct": analysis.match_policy.tolerance_override_pct,
+            # Toroid windings and calculated values; without an entered tolerance each
+            # chip inductor uses its own (substitutions[].tolerance_pct).
             "inductor_tolerance_pct": inductor_case_tolerance_pct(config),
+            "inductor_tolerance_entered": config.inductor_tolerance_pct is not None,
             "sample_count": config.sample_count,
             "seed": config.seed,
             "grid_points": config.grid_points,
@@ -184,7 +210,9 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
                         {"physical_element_name": name, "factor": factor}
                         for name, factor in case.component_factors
                     ],
-                    "measurement": _measurement_payload(case.measurement, analysis.category),
+                    "measurement": _measurement_payload(
+                        case.measurement, category, qualified, chosen_parts=True
+                    ),
                 }
                 for case in analysis.cases
             ],

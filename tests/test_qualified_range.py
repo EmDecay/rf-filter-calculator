@@ -1,0 +1,182 @@
+"""Where the build's results are qualified, and what is predicted with the parasitic model.
+
+Every built chip inductor stays within its SRF drift and design allowances over a range of
+frequencies; the build reports the range they share. A high-pass build finds its reference
+peak, half-power threshold and cutoff only up to the top of that range (never below twice
+the cutoff). A chosen-parts result outside the range is labelled "predicted with the
+parasitic model, not qualified"; ideal results are never labelled. Without a part whose SRF
+is checked (toroid windings, calculated values) nothing changes.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from filter_lib.design import DesignRequest, design
+from filter_lib.shared.build_output_formatting import (
+    PARASITIC_PREDICTION,
+    format_build_analysis_block,
+)
+from filter_lib.shared.build_output_payloads import build_analysis_fields
+from filter_lib.shared.build_response import (
+    build_frequency_grid,
+    evaluation_ports,
+    highpass_passband_top,
+    measure_circuit,
+)
+from filter_lib.shared.build_types import BuildConfig
+from filter_lib.shared.circuit_builders import build_named_circuit
+from tests.cli_parity_helpers import cli_stdout
+
+FAST = BuildConfig(grid_points=51)
+# 25.2 nH shunt inductors at 125 MHz: LQW15AN25NG80D, within its allowances to 900 MHz.
+HP_CHIPS = DesignRequest(
+    "highpass",
+    "butterworth",
+    "pi",
+    125e6,
+    19.792033717615695,
+    3,
+    realization=FAST,
+    run_build_analysis=True,
+)
+# 91 nH at 400 MHz: LQW18AN91NG00D, within its allowances only to 425.9 MHz, while the
+# chosen parts' -3 dB cutoff is at 429.2 MHz.
+LP_BEYOND = DesignRequest(
+    "lowpass",
+    "chebyshev",
+    "pi",
+    400e6,
+    200.0,
+    5,
+    ripple_db=0.5,
+    realization=FAST,
+    run_build_analysis=True,
+)
+
+
+def test_highpass_figures_stop_at_the_top_of_the_qualified_range():
+    result = {"freq_hz": 125e6}
+    freqs = [12.5e6, 1.25e9]
+
+    assert highpass_passband_top(result, "lowpass", freqs, (0.0, 9e8)) is None
+    assert highpass_passband_top(result, "highpass", freqs, None) is None
+    # A range that reaches the sweep's end changes nothing.
+    assert highpass_passband_top(result, "highpass", freqs, (0.0, 2e9)) is None
+    assert highpass_passband_top(result, "highpass", freqs, (0.0, 9e8)) == 9e8
+    # Never below twice the cutoff, the window every part was checked over.
+    assert highpass_passband_top(result, "highpass", freqs, (0.0, 2.4e8)) == 2.5e8
+
+
+def test_a_highpass_build_with_chips_measures_only_inside_the_qualified_range():
+    outcome = design(HP_CHIPS)
+    analysis = outcome.build_analysis
+
+    assert analysis.qualified_range_hz == (0.0, pytest.approx(900.0e6, rel=1e-3))
+    top = analysis.passband_top_hz
+    assert top == analysis.qualified_range_hz[1]
+    for measurement in (analysis.calculated, analysis.nominal_build):
+        assert measurement.reference_peak_frequency_hz <= top
+        assert measurement.f_low < top
+    for case in analysis.cases:
+        assert case.measurement.reference_peak_frequency_hz <= top
+    # The whole sweep would put the ideal circuit's peak at the sweep's end instead.
+    result = outcome.result
+    freqs = build_frequency_grid(result, "highpass", FAST.grid_points)
+    source, load = evaluation_ports(result, "highpass", FAST)
+    circuit = build_named_circuit(result, "highpass")
+    whole = measure_circuit(circuit, result, "highpass", freqs, source, load)
+    limited = measure_circuit(circuit, result, "highpass", freqs, source, load, top)
+    assert whole.reference_peak_frequency_hz > top
+    assert limited == analysis.calculated
+
+
+def test_the_highpass_build_states_its_passband_top_and_qualified_range():
+    lines = format_build_analysis_block(design(HP_CHIPS).build_analysis)
+    text = " ".join(" ".join(lines).split())
+
+    assert (
+        "Passband = from the requested cutoff up to 900 MHz, including both; a high-pass "
+        "build's figures stop where its chip inductors stop being qualified."
+    ) in text
+    assert (
+        "Qualified range: DC to 900 MHz, where every chip inductor stays within its "
+        f"allowances; results outside it are {PARASITIC_PREDICTION}."
+    ) in text
+    assert "each chip inductor at its own tolerance (±2%)." in text
+
+
+@pytest.mark.parametrize("category", ["lowpass", "highpass"])
+def test_an_hf_build_without_a_checked_part_is_not_limited(category):
+    outcome = design(
+        DesignRequest(
+            category, "butterworth", "pi", 14e6, 50.0, 5, realization=FAST, run_build_analysis=True
+        )
+    )
+    analysis = outcome.build_analysis
+
+    assert analysis.qualified_range_hz is None and analysis.passband_top_hz is None
+    text = "\n".join(format_build_analysis_block(analysis))
+    assert "Qualified range" not in text and PARASITIC_PREDICTION not in text
+    assert "L ±10%." in text
+    payload = build_analysis_fields(outcome.result, analysis)
+    assert payload["nominal_build"]["qualified_range_hz"] is None
+    assert payload["nominal_build"]["measurement"]["outside_qualified_range"] == []
+
+
+def test_a_chosen_parts_result_outside_the_range_is_labelled_not_qualified():
+    outcome = design(LP_BEYOND)
+    analysis = outcome.build_analysis
+    low, high = analysis.qualified_range_hz
+
+    assert outcome.parts.inductor("L1").build_pick.part_name == "LQW18AN91NG00D"
+    assert analysis.calculated.f_high < high < analysis.nominal_build.f_high
+    lines = format_build_analysis_block(analysis)
+    chosen = lines.index(next(line for line in lines if line.startswith("Chosen parts:")))
+    assert f"-3 dB cutoff {PARASITIC_PREDICTION}" in lines[chosen + 2]
+    # The ideal circuit's figures are never labelled.
+    ideal = next(line for line in lines if line.startswith("Ideal values:"))
+    assert lines[lines.index(ideal) + 1].strip().startswith("peak gain")
+    payload = build_analysis_fields(outcome.result, analysis)
+    assert payload["simulated"]["measurement"]["model"] == "ideal"
+    assert "outside_qualified_range" not in payload["simulated"]["measurement"]
+    nominal = payload["nominal_build"]["measurement"]
+    assert nominal["model"] == "chosen_parts"
+    assert nominal["outside_qualified_range"] == ["cutoff_hz"]
+    assert payload["nominal_build"]["qualified_range_hz"] == [low, high]
+
+
+def test_the_spread_row_says_which_values_lie_outside_the_range():
+    lines = format_build_analysis_block(design(LP_BEYOND).build_analysis)
+
+    cutoff = next(i for i, line in enumerate(lines) if line.startswith("  -3 dB cutoff:"))
+    assert lines[cutoff + 1].strip() == (
+        f"values outside DC to 425.9 MHz are {PARASITIC_PREDICTION}"
+    )
+
+
+def test_ideal_results_stay_ideal_with_the_build_on_or_off(monkeypatch, capsys):
+    argv = ("bp", "ch", "top", "-f", "146MHz", "-b", "4MHz", "-n", "3", "-r", "0.5")
+    off = cli_stdout(monkeypatch, capsys, *argv)
+    on = cli_stdout(monkeypatch, capsys, *argv, "--sim-build", "--analysis-points", "51")
+
+    harmonics = [line for line in off.splitlines() if line.strip().startswith("Attenuation at")]
+    assert harmonics and harmonics[0].endswith("(ideal lossless parts)")
+    assert harmonics[0] in on.splitlines()
+    assert PARASITIC_PREDICTION not in off
+    # The response data are of the ideal circuit and never depend on the chosen parts.
+    lowpass = ("lp", "ch", "pi", "146MHz", "-n", "5", "-r", "0.1", "--plot-data", "json")
+    chips = cli_stdout(monkeypatch, capsys, *lowpass)
+    calculated = cli_stdout(monkeypatch, capsys, *lowpass, "--inductor-suggestions", "none")
+    assert chips == calculated
+    assert "parasitic" not in json.dumps(json.loads(chips))
+
+
+def test_the_table_section_names_the_qualified_range_of_each_chip(monkeypatch, capsys):
+    text = cli_stdout(
+        monkeypatch, capsys, "lp", "ch", "pi", "400MHz", "-n", "5", "-r", "0.5", "-z", "200"
+    )
+
+    assert "Within its allowances from DC to 425.9 MHz" in text

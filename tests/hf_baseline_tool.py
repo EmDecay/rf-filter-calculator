@@ -438,6 +438,8 @@ def _describe_parts(facts: dict | None) -> str:
 
 
 _STRAY_NAME = re.compile(r"^CSTRAY_")
+# A chip inductor's self-capacitance branch, named for the inductor it is across.
+_SELF_CAPACITANCE_NAME = re.compile(r"^CSELF_(?P<inductor>\S+)$")
 
 
 def _changed_capacitors(changes: dict[str, tuple], series: str | None) -> list[str]:
@@ -481,7 +483,8 @@ def classify(
 
     A build change is explained by the causes present in that build: capacitor choices
     of its series that changed (a), a stray capacitor added across a pair (c), and parts
-    whose own tolerance is not the old uniform 5% (e).
+    whose own tolerance is not the old uniform 5% (e). A deck change is also explained by
+    inductors now built as chip inductors (b), each with its self-capacitance across it (c).
     """
     kind = item_type(item)
     if kind == "capacitor":
@@ -503,8 +506,31 @@ def classify(
         if added:
             kinds.append("c")
             reasons.append(f"stray capacitor across each pair ({', '.join(added)})")
-        other_before = [row for row in before or [] if not _STRAY_NAME.match(str(row[0]))]
-        other_after = [row for row in after or [] if not _STRAY_NAME.match(str(row[0]))]
+        # An inductor with a self-capacitance branch is a chip inductor: its value is the
+        # part model's L0, which the new kind (b) and the branch (c) explain together.
+        chips = sorted(
+            match["inductor"]
+            for name in names_after - names_before
+            if (match := _SELF_CAPACITANCE_NAME.match(name))
+        )
+        if chips:
+            kinds.extend(code for code in ("b", "c") if code not in kinds)
+            reasons.append(
+                f"inductors built as chip inductors with their self-capacitance "
+                f"({', '.join(chips)})"
+            )
+
+        def unexplained(rows):
+            return [
+                row
+                for row in rows or []
+                if not _STRAY_NAME.match(str(row[0]))
+                and not _SELF_CAPACITANCE_NAME.match(str(row[0]))
+                and row[0] not in chips
+            ]
+
+        other_before = unexplained(before)
+        other_after = unexplained(after)
         if not _close(other_before, other_after, MEASUREMENT_REL_TOL):
             changed = _changed_capacitors(changes, SPICE_SERIES)
             if changed:

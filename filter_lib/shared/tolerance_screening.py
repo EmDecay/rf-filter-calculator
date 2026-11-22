@@ -173,12 +173,14 @@ def run_screening_cases(
     load: float,
     config: BuildConfig,
     should_cancel: CancellationCheck | None = None,
+    passband_top_hz: float | None = None,
 ) -> tuple[ScreeningCase, ...]:
     """Perturb and measure every configured case in deterministic order.
 
     ``should_cancel`` is polled before each case, so a cancelled caller waits for at
     most one circuit measurement; ``BuildAnalysisCancelled`` is raised when it
-    reports true.
+    reports true. ``passband_top_hz`` limits a high-pass build's figures
+    (``build_response.highpass_passband_top``).
     """
     cases: list[ScreeningCase] = []
     for case_id, factors in case_factors(screened_elements(circuit), config):
@@ -190,6 +192,7 @@ def run_screening_cases(
             freqs,
             source,
             load,
+            passband_top_hz,
         )
         cases.append(ScreeningCase(case_id, factors, measurement))
     return tuple(cases)

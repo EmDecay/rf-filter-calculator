@@ -43,7 +43,8 @@ class BuildConfig:
     settings: ``design()`` resolves them once and passes them with this config.
     """
 
-    # None: each part's own tolerance; the toroid windings and calculated values use
+    # None: each chip inductor (or other part with a checked SRF) at its own guaranteed
+    # tolerance; the toroid windings and calculated values use
     # ``DEFAULT_INDUCTOR_TOLERANCE_PCT``. A value applies to every inductor. Which part
     # each inductor is built as is a design input (``DesignRequest.build_inductors``).
     inductor_tolerance_pct: float | None = None
@@ -157,6 +158,13 @@ class ComponentSubstitution:
     # The assumed stray across a parallel pair, simulated as a fixed capacitor across the
     # same terminals; None when there is no pair or the stray is zero.
     stray_capacitance_f: float | None = None
+    # An inductor's self-capacitance from its minimum SRF, simulated as a fixed capacitor
+    # across it (the inductance element is then the part model's L0); None otherwise.
+    self_capacitance_f: float | None = None
+    # The ± percent an inductor's tolerance cases use, and whether it is the part's own
+    # guaranteed tolerance (no inductor tolerance entered); None for capacitors.
+    tolerance_pct: float | None = None
+    own_tolerance: bool = False
 
 
 @dataclass(frozen=True)
@@ -203,6 +211,28 @@ class CircuitMeasurement:
         """Return the -3 dB cutoff of a ladder: the upper edge for lowpass, else the lower."""
         return self.f_high if category == "lowpass" else self.f_low
 
+    def landmarks(self, category: str) -> tuple[tuple[str, float | None], ...]:
+        """The frequencies this measurement reports, by their JSON key."""
+        edges = (
+            (("f_low_hz", self.f_low), ("f_high_hz", self.f_high))
+            if category == "bandpass"
+            else (("cutoff_hz", self.ladder_cutoff(category)),)
+        )
+        return (*edges, ("reference_peak_frequency_hz", self.reference_peak_frequency_hz))
+
+    def outside_range(
+        self, category: str, qualified_range: tuple[float, float] | None
+    ) -> tuple[str, ...]:
+        """The landmarks (JSON keys) outside ``qualified_range``; none without a range."""
+        if qualified_range is None:
+            return ()
+        low, high = qualified_range
+        return tuple(
+            key
+            for key, value in self.landmarks(category)
+            if value is not None and not low <= value <= high
+        )
+
 
 @dataclass(frozen=True)
 class ScreeningCase:
@@ -248,3 +278,10 @@ class BuildAnalysisResult:
     cases: tuple[ScreeningCase, ...]
     metric_summaries: tuple[MetricSummary, ...]
     limitations: tuple[str, ...]
+    # The frequencies at which every built part with a checked SRF (a chip inductor) is
+    # within its allowances; results outside it are predicted with the parasitic model,
+    # not qualified. None when no built part has its SRF checked.
+    qualified_range_hz: tuple[float, float] | None = None
+    # A high-pass build's passband figures stop here (the qualified range's top, never
+    # below twice the cutoff); None when they use the whole sweep.
+    passband_top_hz: float | None = None

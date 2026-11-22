@@ -62,6 +62,7 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
 
         import filter_lib
         from filter_lib.shared.capacitor_grades import GRADES, made_values_pf
+        from filter_lib.shared.chip_inductor_data import chip_parts
         from filter_lib.shared.toroid_core_data import list_cores
 
         expected_version = {EXPECTED_VERSION!r}
@@ -91,6 +92,10 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
         assert json.loads(grade_resource.read_text(encoding="utf-8"))["schema_version"] == 1
         assert set(GRADES) == {{"standard", "tight"}}
         assert len(made_values_pf()) == 168
+
+        chip_resource = files("filter_lib.shared").joinpath("chip_inductor_data.json")
+        assert json.loads(chip_resource.read_text(encoding="utf-8"))["schema_version"] == 1
+        assert len(chip_parts()) == 259
 
         css_resource = files("filter_lib.wizard").joinpath("styles.tcss")
         assert css_resource.read_text(encoding="utf-8").strip()

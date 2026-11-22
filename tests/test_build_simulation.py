@@ -380,8 +380,9 @@ class TestNominalRealization:
         )
 
     def test_poor_integer_turn_match_is_an_exact_fallback(self):
+        # 3 nH: no whole-turn winding on a rated core, and below the chip catalog.
         result = _lp_result()
-        result["inductors"] = [10e-9]
+        result["inductors"] = [3e-9]
         realization = realize_nominal_build(
             result, "lowpass", BuildConfig(), parts=parts_for(result, "lowpass")
         )
@@ -389,7 +390,7 @@ class TestNominalRealization:
         substitution = next(item for item in realization.substitutions if item.kind == "L")
         assert substitution.method == "exact_fallback"
         assert substitution.status == "no_verified_candidate"
-        assert substitution.nominal_value == 10e-9
+        assert substitution.nominal_value == 3e-9
 
     def test_loss_reference_override_does_not_change_toroid_screen_frequency(self):
         result = _lp_result(frequency_hz=30e6)

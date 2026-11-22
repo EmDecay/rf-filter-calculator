@@ -13,6 +13,7 @@ from ..shared.cancellation import (
     raise_if_cancelled,
     require_cancellation_check,
 )
+from ..shared.chip_selection import suggest_chips
 from ..shared.circuit_builders import build_named_circuit
 from ..shared.circuit_model import CircuitElement
 from ..shared.eseries import DEFAULT_MATCH_POLICY, E_SERIES, MatchPolicy, match_component
@@ -20,7 +21,6 @@ from ..shared.inductor_suggestion import (
     AIR_COIL_EXCLUSION,
     AUTO,
     CALCULATED,
-    CHIP_NOT_AVAILABLE,
     DEFAULT_BUILD_INDUCTORS,
     DEFAULT_INDUCTOR_DETAIL,
     NO_QUALIFYING_SUGGESTION,
@@ -32,6 +32,7 @@ from ..shared.inductor_suggestion import (
     require_inductor_detail,
 )
 from ..shared.resolved_parts import InductorParts, ResolvedParts
+from ..shared.srf_screen import CheckWindow, check_window
 from ..shared.toroid_selection import suggest_toroids
 from .design_request import DesignRequest
 from .render_options import needs_eseries_message
@@ -64,12 +65,18 @@ def _design_frequency(result: dict, category: str) -> float:
     return result["f0"] if category == "bandpass" else result["freq_hz"]
 
 
-def _kind_suggestions(target_h: float, design_freq_hz: float) -> tuple[KindSuggestions, ...]:
-    """Every kind's suggestions for one inductance, in the fixed build order."""
+def _kind_suggestions(
+    target_h: float, design_freq_hz: float, window: CheckWindow
+) -> tuple[KindSuggestions, ...]:
+    """Every kind's suggestions for one inductance, in the fixed build order.
+
+    Toroid windings are screened at the design frequency (their rated range); chip
+    inductors over the check window (``srf_screen.check_window``).
+    """
     return (
         suggest_toroids(target_h, design_freq_hz),
         KindSuggestions("air-coil", reason_none=AIR_COIL_EXCLUSION),
-        KindSuggestions("chip", reason_none=CHIP_NOT_AVAILABLE),
+        suggest_chips(target_h, window),
     )
 
 
@@ -141,6 +148,7 @@ def resolve_parts_for(
         raise ValueError(needs_eseries_message("A capacitor match policy"))
     circuit = build_named_circuit(result, category)
     design_freq_hz = _design_frequency(result, category)
+    window = check_window(result, category)
     capacitors = {}
     inductors = {}
     screened: dict[float, tuple[KindSuggestions, ...]] = {}
@@ -157,7 +165,7 @@ def resolve_parts_for(
             screened[element.value] = (
                 ()
                 if inductor_detail == "none"
-                else _kind_suggestions(element.value, design_freq_hz)
+                else _kind_suggestions(element.value, design_freq_hz, window)
             )
         inductors[element.name] = _inductor_parts(
             element, screened[element.value], inductor_detail, build_inductors
@@ -169,6 +177,7 @@ def resolve_parts_for(
         inductors=inductors,
         inductor_detail=inductor_detail,
         build_inductors=build_inductors,
+        check_window=window,
     )
 
 

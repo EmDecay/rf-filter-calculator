@@ -6,8 +6,8 @@ detail asks for: ``best`` the build pick or else the first in the fixed kind ord
 ``full`` up to three of every kind, ``compact`` the best on one line. A kind with no
 part states the limit that failed: always when the inductor has no suggestion at all,
 and for every kind in ``full``. Each kind supplies its own title, detail lines and
-caveats (``toroid_display`` for toroid windings); the error budget is printed the same
-way for every kind.
+caveats (``toroid_display`` for toroid windings, ``chip_display`` for chip inductors);
+the error budget is printed the same way for every kind.
 """
 
 from __future__ import annotations
@@ -15,10 +15,20 @@ from __future__ import annotations
 import textwrap
 from collections.abc import Sequence
 
+from .chip_display import (
+    CSV_CHIP_HEADER,
+    chip_build_payload,
+    chip_compact_text,
+    chip_csv_columns,
+    chip_detail_lines,
+    chip_preamble_lines,
+    chip_title,
+)
 from .display_helpers import SECTION_RULE
 from .formatting import format_fixed, format_frequency, format_inductance
 from .inductor_suggestion import KIND_LABELS, KIND_SHORT_LABELS, ErrorBudget, InductorSuggestion
 from .resolved_parts import InductorParts
+from .srf_screen import DESIGN_ALLOWANCE_PCT
 from .toroid_display import (
     CSV_TOROID_HEADER,
     toroid_build_payload,
@@ -35,7 +45,7 @@ NO_SUGGESTION_LINE = "No inductor suggestion qualifies:"
 _INDUCTOR_NOTE = "Inductors: no standard values"
 # One row per inductor: its best suggestion's generic fields (the error budget's terms in
 # percent of the target, the drift blank when the SRF is not checked), then each kind's own
-# columns.
+# columns (toroid, then chip).
 CSV_SUGGESTION_HEADER: list[str] = [
     "InductorKind",
     "InductorPart",
@@ -45,7 +55,7 @@ CSV_SUGGESTION_HEADER: list[str] = [
     "InductorBudgetSRFDriftLowPct",
     "InductorBudgetSRFDriftHighPct",
 ]
-CSV_INDUCTOR_HEADER: list[str] = [*CSV_SUGGESTION_HEADER, *CSV_TOROID_HEADER]
+CSV_INDUCTOR_HEADER: list[str] = [*CSV_SUGGESTION_HEADER, *CSV_TOROID_HEADER, *CSV_CHIP_HEADER]
 # Reason lines wrap at the width of the section rule plus the indent.
 _WRAP_WIDTH = 88
 
@@ -67,36 +77,54 @@ def has_suggestion(inductors: Sequence[InductorParts]) -> bool:
     return any(inductor.suggestions for inductor in inductors)
 
 
+def _signed_pct(value: float) -> str:
+    return f"{format_fixed(value, 2, explicit_sign=True)}%"
+
+
 def format_error_budget(budget: ErrorBudget) -> str:
     """The error budget, term by term, in percent of the target (two decimals each)."""
-    mismatch = f"{format_fixed(budget.nominal_mismatch_pct, 2, explicit_sign=True)}%"
+    mismatch = _signed_pct(budget.nominal_mismatch_pct)
+    tolerance = format_fixed(budget.tolerance_pct, 2)
     if budget.srf_drift_pct is None:
         drift = "SRF drift not checked"
     else:
         low, high = budget.srf_drift_pct
-        drift = (
-            f"SRF drift {format_fixed(low, 2, explicit_sign=True)}% to "
-            f"{format_fixed(high, 2, explicit_sign=True)}%"
-        )
-    tolerance = format_fixed(budget.tolerance_pct, 2)
+        drift = f"SRF drift {_signed_pct(low)} to {_signed_pct(high)}"
     return f"Error budget: {mismatch} nominal, ±{tolerance}% tolerance, {drift}"
+
+
+def format_worst_case(budget: ErrorBudget) -> str | None:
+    """The total the budget's terms reach and the allowance it meets; None if not checked."""
+    worst = budget.worst_case_pct
+    if worst is None:
+        return None
+    return (
+        f"Worst case: {_signed_pct(worst[0])} to {_signed_pct(worst[1])} of the target "
+        f"(allowance ±{DESIGN_ALLOWANCE_PCT:g}%)"
+    )
 
 
 def _title(suggestion: InductorSuggestion) -> str:
     if suggestion.kind == "toroid":
         return toroid_title(suggestion.build)
+    if suggestion.kind == "chip":
+        return chip_title(suggestion.build)
     return suggestion.part_name
 
 
 def _detail_lines(suggestion: InductorSuggestion) -> list[str]:
     if suggestion.kind == "toroid":
         return toroid_detail_lines(suggestion.build)
+    if suggestion.kind == "chip":
+        return chip_detail_lines(suggestion.build)
     return []
 
 
 def _compact_text(suggestion: InductorSuggestion) -> str:
     if suggestion.kind == "toroid":
         return toroid_compact_text(suggestion.build)
+    if suggestion.kind == "chip":
+        return chip_compact_text(suggestion.build)
     return f"{suggestion.part_name}   {format_inductance(suggestion.achieved_h)}"
 
 
@@ -104,10 +132,12 @@ def _suggestion_lines(suggestion: InductorSuggestion, compact: bool) -> list[str
     if compact:
         short = KIND_SHORT_LABELS[suggestion.kind]
         return [f"  {suggestion.rank}. {short} {_compact_text(suggestion)}"]
+    worst = format_worst_case(suggestion.error_budget)
     return [
         f"  {suggestion.rank}. {KIND_LABELS[suggestion.kind]} {_title(suggestion)}",
         *_detail_lines(suggestion),
         f"     {format_error_budget(suggestion.error_budget)}",
+        *([] if worst is None else [f"     {worst}"]),
     ]
 
 
@@ -167,14 +197,13 @@ def suggestion_section_lines(
     """
     compact = detail == "compact"
     lines = ["", SECTION_NAME, SECTION_RULE]
-    toroids = [
-        suggestion.build
-        for _label, inductor in targets
-        for suggestion in _shown(inductor, detail)
-        if suggestion.kind == "toroid"
-    ]
+    shown = [suggestion for _label, inductor in targets for suggestion in _shown(inductor, detail)]
+    toroids = [suggestion.build for suggestion in shown if suggestion.kind == "toroid"]
     if toroids:
         lines.extend(toroid_preamble_lines(toroids, compact))
+    chips = [suggestion.build for suggestion in shown if suggestion.kind == "chip"]
+    if chips:
+        lines.extend(chip_preamble_lines(chips))
     lines.append("")
     for label, inductor in targets:
         lines.extend(_inductor_block(label, inductor, design_freq_hz, detail))
@@ -192,6 +221,8 @@ def _source_payload(suggestion: InductorSuggestion) -> dict | None:
 def _build_payload(suggestion: InductorSuggestion) -> dict | None:
     if suggestion.kind == "toroid":
         return toroid_build_payload(suggestion.build)
+    if suggestion.kind == "chip":
+        return chip_build_payload(suggestion.build)
     return None
 
 
@@ -212,7 +243,13 @@ def suggestion_payload(suggestion: InductorSuggestion) -> dict:
             "nominal_mismatch_pct": budget.nominal_mismatch_pct,
             "tolerance_pct": budget.tolerance_pct,
             "srf_drift_pct": None if budget.srf_drift_pct is None else list(budget.srf_drift_pct),
+            "worst_case_pct": None
+            if budget.worst_case_pct is None
+            else list(budget.worst_case_pct),
         },
+        "allowance_range_hz": None
+        if suggestion.allowance_range_hz is None
+        else list(suggestion.allowance_range_hz),
         "source": _source_payload(suggestion),
         "build": _build_payload(suggestion),
         "warnings": list(suggestion.warnings),
@@ -253,4 +290,5 @@ def inductor_csv_columns(inductor: InductorParts | None) -> list[str]:
         format_fixed(budget.tolerance_pct, 2),
         *(value if value == "" else format_fixed(value, 2) for value in drift),
         *toroid_csv_columns(best.build if best.kind == "toroid" else None),
+        *chip_csv_columns(best.build if best.kind == "chip" else None),
     ]
