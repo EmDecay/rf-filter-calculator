@@ -316,12 +316,16 @@ only labels changed.
 - **Python API.** New modules `shared/trimmer_data.py`, `shared/tank_susceptance.py`,
   `shared/tank_trimmers.py`, `shared/tank_tuning.py`, `bandpass/trimmer_display.py` and
   `design/coupling_advice.py`. `DesignResult` gains `coupling_advice`; `ResolvedParts` gains
-  `tanks` and `tank()`; `resolve_parts_for` takes `realization`; `CircuitElement` gains
+  `tanks` and `tank()`; `CircuitElement` gains
   `series_inductance_h` (a capacitor's, simulated in its own branch; solver branches gain an
   optional sixth field); `ScreeningCase` gains `tuning`; `NominalRealization` gains `tuning`
   and `trimmer_settings`; `BuildAnalysisResult` gains `tuned_metric_summaries`, `has_trimmers`
   and `out_of_range_cases()`; `build_loss_models.loss_model` is the one Q rule for sizing and
   realization. `capacitor_choice._best_pair` is now `best_pair` and takes the stray in pF.
+- **Speed.** The AC solver computes lossless parts' admittances and stamps the nodal matrix
+  inline and skips zero entries when choosing a pivot, and tank sizing searches each
+  fixed-part window once per design. Every result is unchanged bit for bit; the nine-resonator
+  2 m build with 601 points and 100 random cases runs in about 24 s instead of 34 s.
 
 ### Changed
 

@@ -488,8 +488,14 @@ def _best_split_for(
     reference_hz: float,
     policy: MatchPolicy,
     candidates: list[tuple[Fraction, Fraction]],
+    found: dict[tuple[float, float, float, float], list[_FixedOption]] | None = None,
 ) -> TankSplit | None:
-    """The best-centred fitting split with ``trimmer``, or ``None`` when none fits."""
+    """The best-centred fitting split with ``trimmer``, or ``None`` when none fits.
+
+    ``found`` keeps the fixed-part options already searched for these ``candidates``, by
+    window centre, window top, stray and scale: trimmers with the same range ask for the
+    same ones, and the exact search is the costly step.
+    """
     inductance, assumed = series_inductance(trimmer)
     trimmer_range = trimmer_range_f(trimmer, inductance, frequency_hz, q, reference_hz)
     if trimmer_range is None:
@@ -504,7 +510,13 @@ def _best_split_for(
     scale = _capacitor_admittance(1e-12, omega, q, reference_hz).imag / (omega * 1e-12)
     stray = policy.stray_capacitance_f
     options: list[_FixedOption] = [((), ())]
-    options.extend(_fixed_options(middle, window_high, stray, scale, candidates))
+    key = (middle, window_high, stray, scale)
+    fixed = None if found is None else found.get(key)
+    if fixed is None:
+        fixed = _fixed_options(middle, window_high, stray, scale, candidates)
+        if found is not None:
+            found[key] = fixed
+    options.extend(fixed)
     fits = []
     for values, tolerances in options:
         extra_stray = stray * len(values)
@@ -578,6 +590,7 @@ def size_tanks(
     ports_ohm = (ports[circuit.in_node], ports[circuit.out_node])
     # Every part the worst-case rule may choose, ascending, for the fixed part's search.
     candidates = eligible_parts_pf(policy, eseries)
+    found: dict[tuple[float, float, float, float], list[_FixedOption]] = {}
     tanks: dict[str, TankParts] = {}
     for node in nodes:
         raise_if_cancelled(should_cancel)
@@ -610,7 +623,9 @@ def size_tanks(
         fits = []
         for trimmer in trimmer_parts():
             raise_if_cancelled(should_cancel)
-            fits.append(_best_split_for(trimmer, need, frequency, q, reference, policy, candidates))
+            fits.append(
+                _best_split_for(trimmer, need, frequency, q, reference, policy, candidates, found)
+            )
         splits = sorted((split for split in fits if split is not None), key=_split_rank)
         tanks[name] = TankParts(
             name=name,
