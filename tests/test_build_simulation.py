@@ -904,9 +904,9 @@ class TestBuildAnalysis:
     @pytest.mark.runtime_budget
     def test_a_9_resonator_build_with_trimmers_and_100_cases_fits_the_web_timeout(self):
         # The web stops a calculation after 60 s (web/settings.py). Measured on an Apple
-        # M-series machine at full power: about 24 s (about 37 s in low-power mode); each
-        # case is measured twice, with its trimmers at their nominal settings and after
-        # retuning them.
+        # M-series machine at full power: about 24 s (low-power mode took about 1.5 times as
+        # long); each case is measured twice, with its trimmers at their nominal settings and
+        # after retuning them.
         from filter_lib.design import DesignRequest, design
 
         request = DesignRequest(
