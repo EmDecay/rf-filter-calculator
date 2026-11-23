@@ -12,8 +12,8 @@ from .build_types import BuildAnalysisResult, CircuitMeasurement, ComponentSubst
 from .capacitor_choice import assumed_tolerance_pct
 from .capacitor_grades import require_grade
 from .circuit_display_names import display_component_name
-from .component_realization import inductor_case_tolerance_pct
-from .display_helpers import SECTION_RULE
+from .component_realization import FIXED_PLUS_TRIMMER_METHOD, inductor_case_tolerance_pct
+from .display_helpers import SECTION_RULE, wrap_keeping_units
 from .eseries import TOLERANCE_NOT_SOURCED
 from .formatting import (
     band_edge_digits,
@@ -22,6 +22,7 @@ from .formatting import (
     format_frequency,
     format_inductance,
     format_restated_frequency,
+    format_tank_frequency,
 )
 from .inductor_suggestion import KIND_LABELS, NO_QUALIFYING_SUGGESTION, SUGGESTIONS_NOT_USED
 from .nominal_realization import TOROID_LIMITATION, grouped_part_warnings, uses_toroid
@@ -211,10 +212,32 @@ def _measurement_row(
     return [f"{label:<15}{first}", *(_ROW_INDENT + line for line in rest)]
 
 
+def trimmer_part_text(substitution: ComponentSubstitution) -> str:
+    """A tank's fixed part plus its trimmer and nominal setting (``Parts used`` row)."""
+    trimmer = substitution.trimmer
+    assert trimmer is not None
+    setting = trimmer.setting
+    fixed = " || ".join(format_capacitance(value) for value in substitution.physical_parts)
+    text = f"{fixed} + " if fixed else ""
+    # The knob setting, then what it gives with the series inductance at the tank frequency.
+    text += (
+        f"trimmer {trimmer.part_numbers[0]} set to {format_capacitance(setting.setting_f)} "
+        f"({format_capacitance(setting.effective_f)} effective at "
+        f"{format_tank_frequency(trimmer.tuning_frequency_hz)})"
+    )
+    if not setting.in_range:
+        text += f" (end of its range; {format_capacitance(setting.required_f)} needed)"
+    if substitution.stray_capacitance_f:
+        text += f", plus {format_capacitance(substitution.stray_capacitance_f)} stray (assumed)"
+    return text
+
+
 def _format_substitution(substitution: ComponentSubstitution, eseries: str | None = None) -> str:
     """Return one ``Parts used`` row (without alignment padding)."""
     formatter = format_capacitance if substitution.kind == "C" else format_inductance
     name = display_component_name(substitution.logical_name)
+    if substitution.method == FIXED_PLUS_TRIMMER_METHOD:
+        return f"  {name}: {trimmer_part_text(substitution)}"
     if substitution.method == "exact_fallback":
         reason = _FALLBACK_REASONS.get(substitution.status, "no part chosen")
         return (
@@ -250,8 +273,9 @@ def _parts_used_lines(analysis: BuildAnalysisResult) -> list[str]:
     for substitution in substitutions:
         name = display_component_name(substitution.logical_name)
         row = _format_substitution(substitution, analysis.eseries)
-        # Align the values after the names.
-        lines.append(row.replace(f"  {name}: ", f"  {name + ':':<{width + 1}} ", 1))
+        # Align the values after the names; a long row continues under its value.
+        aligned = row.replace(f"  {name}: ", f"  {name + ':':<{width + 1}} ", 1)
+        lines.extend(wrap_keeping_units(aligned, _WRAP_WIDTH, subsequent_indent=" " * (width + 4)))
     note = _stray_note(analysis)
     if note:
         lines.append(note)
@@ -392,7 +416,22 @@ def _tolerance_lines(analysis: BuildAnalysisResult) -> list[str]:
         )
     else:
         second = "  and each part low and high alone."
-    return [first, *rest, cases, second]
+    lines = [first, *rest, cases, second]
+    if analysis.has_trimmers:
+        out_of_range = analysis.out_of_range_cases()
+        reach = (
+            "every trimmer reached its setting in every case"
+            if not out_of_range
+            else f"in {out_of_range} {'case' if out_of_range == 1 else 'cases'} a trimmer could "
+            "not reach its setting and stays at the end of its range (JSON lists each case)"
+        )
+        lines.extend(
+            _wrapped(
+                "Each case is simulated with every trimmer at its nominal setting, then again "
+                f"with every trimmer retuned for that case; {reach}."
+            )
+        )
+    return lines
 
 
 def capacitor_tolerance_text(analysis: BuildAnalysisResult) -> str:
@@ -483,18 +522,24 @@ def format_build_analysis_block(analysis: BuildAnalysisResult) -> list[str]:
         lines.append(fallback_note)
     lines.extend(_parts_used_lines(analysis))
     lines.extend(_tolerance_lines(analysis))
-    lines.append(
-        "Spread across these cases (min / 5th percentile / median / 95th percentile / max):"
+    columns = "(min / 5th percentile / median / 95th percentile / max)"
+    lines.extend(
+        _wrapped(f"Spread across these cases, trimmers at their nominal settings {columns}:")
+        if analysis.has_trimmers
+        else [f"Spread across these cases {columns}:"]
     )
-    width = max(
-        (len(METRIC_LABELS.get(item.metric, item.metric)) for item in analysis.metric_summaries),
-        default=0,
-    )
-    outside = analysis.metrics_outside_qualified_range()
+    summaries = (*analysis.metric_summaries, *analysis.tuned_metric_summaries)
+    width = max((len(METRIC_LABELS.get(item.metric, item.metric)) for item in summaries), default=0)
     # The design's own band sets how finely band-pass positions print.
     digits = _edge_digits(analysis.calculated) if category == "bandpass" else None
+    outside = analysis.metrics_outside_qualified_range()
     for summary in analysis.metric_summaries:
         lines.extend(_format_summary(summary, width, summary.metric in outside, digits))
+    if analysis.has_trimmers:
+        lines.append("Spread after retuning the trimmers in each case:")
+        outside = analysis.metrics_outside_qualified_range(tuned=True)
+        for summary in analysis.tuned_metric_summaries:
+            lines.extend(_format_summary(summary, width, summary.metric in outside, digits))
     warnings = grouped_part_warnings(analysis.nominal_realization.substitutions)
     if warnings:
         lines.append("Build warnings:")

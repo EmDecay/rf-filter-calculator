@@ -4,7 +4,8 @@
 inductor of the four VHF/UHF acceptance designs, the chip inductor that ranks first, how
 many catalog variants qualify, its drift screen, error budget, achieved inductance and
 self-capacitance, and why VHF toroids and air-core coils offer none. Every positive row
-asserts its exact part and figures; every negative row asserts the limit that failed.
+asserts its exact part and figures; every negative row asserts the limit that failed. The
+band-pass is also covered after applying its coupling advice, as the criterion requires.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from filter_lib.design import DesignRequest, design
 from filter_lib.shared.chip_inductor_data import chip_parts
 from filter_lib.shared.chip_selection import qualifying_chips
 from filter_lib.shared.inductor_suggestion import AIR_COIL_EXCLUSION, VHF_TOROID_EXCLUSION
+from filter_lib.shared.parsing import parse_inductance
 from filter_lib.shared.srf_screen import (
     LIMIT_ALLOWANCE,
     CheckWindow,
@@ -189,3 +191,18 @@ def test_the_band_pass_coupling_values_are_supplied_by_a_chip():
         round(chip.part.inductance_h * 1e9) == 21 and chip.part.family.name != "LQW15AN_80"
         for chip in qualifying_chips(21e-9, window)
     )
+
+
+def test_the_band_pass_after_its_coupling_advice_gets_its_chip_inductor():
+    # The fourth acceptance design is the 2 m band-pass after applying its coupling advice,
+    # rerun with the advised value exactly as printed.
+    advice = design(_bandpass()).coupling_advice
+    assert advice is not None and advice.setting == "21nH"
+
+    rerun = design(_bandpass(resonator_inductance=parse_inductance(advice.setting)))
+
+    assert rerun.coupling_advice is None
+    for inductor in rerun.parts.inductors.values():
+        assert inductor.build_pick.part_name == "LQW15AN21NG80D"
+        assert VHF_TOROID_EXCLUSION in inductor.kind("toroid").reason_none
+        assert inductor.kind("air-coil").reason_none == AIR_COIL_EXCLUSION

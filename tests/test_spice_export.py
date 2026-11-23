@@ -255,6 +255,40 @@ class TestNominalSpiceDecks:
         assert "C1A 1 NLOSSC1A 4.7e-11" in deck
         assert "C1B 1 NLOSSC1B 2.7e-10" in deck
 
+    def test_a_tank_with_a_trimmer_is_its_fixed_part_stray_and_trimmer_in_series(self):
+        from filter_lib.design import DesignRequest, design, export_spice
+
+        outcome = design(
+            DesignRequest(
+                "bandpass", "chebyshev", "top", 146e6, 50.0, 3, ripple_db=0.5, bandwidth_hz=4e6
+            )
+        )
+        deck = export_spice(outcome, "nominal_build")
+        netlist = _netlist(deck)
+        setting = outcome.parts.tank("CT1")
+        realization = realize_nominal_build(
+            outcome.result, "bandpass", BuildConfig(), parts=outcome.parts
+        )
+        [nominal] = [item for item in realization.trimmer_settings if item.tank == "CT1"]
+
+        assert netlist["CT1"] == ("1", "0", pytest.approx(15e-12, rel=1e-12))
+        assert netlist["CSTRAY_CT1"] == ("1", "0", pytest.approx(0.2e-12, rel=1e-12))
+        assert netlist["CTRIM_CT1"] == (
+            "1",
+            "NSERIESCTRIM_CT1",
+            pytest.approx(nominal.setting_f, rel=1e-11),
+        )
+        assert netlist["LTRIM_CT1"] == (
+            "NSERIESCTRIM_CT1",
+            "0",
+            pytest.approx(setting.split.series_inductance_h, rel=1e-11),
+        )
+        assert "trimmer=BFC280820508" in deck
+        assert "series-inductance=1.033889629e-08-bound-from-minimum-SRF" in deck
+        assert "* names: CT1+CTRIM_CT1=Cp1 " in deck
+        # The calculated-values deck has no trimmer.
+        assert "CTRIM_" not in export_spice(outcome, "exact")
+
     def test_missing_toroid_candidate_fallback_is_visible_in_comments(self):
         deck = self._fallback_toroid_deck()
         assert "* part used: L1 calculated value (no inductor suggestion used) calculated=" in deck

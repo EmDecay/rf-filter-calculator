@@ -180,6 +180,81 @@ Band-pass values are calibrated against a simulation of the circuit, and every r
 own response check (`response_validation_status` in JSON). The attenuation line reports the
 lossless circuit at harmonics of f₀; it is not part of the response check.
 
+## Band-Pass Coupling Advice and Tank Trimmers
+
+The 2 m band-pass as designed needs 0.386 pF coupling capacitors, below the 1 pF floor for a
+chosen part. After its standard values the table advises a tank inductance and sizes each tank
+as a fixed part plus a trimmer (excerpt):
+
+```bash
+uv run filter-calc bp ch top -f 146MHz -b 4MHz -n 3 -r 0.5
+```
+
+```text
+Coupling Advice
+──────────────────────────────────────────────────
+Cs12, Cs23 get no standard part of 1 pF or more with 54.51 nH tanks. A lower tank
+  inductance raises every coupling capacitor.
+Rerun with "Resonator inductance" set to 21 nH (--tank-inductance 21nH). Recalculated
+  with that value, every coupling capacitor gets a part of 1 pF or more (Ce_in, Ce_out:
+  4.30 pF; Cs12, Cs23: 1.00 pF), and chip inductor LQW15AN21NG80D supplies the
+  inductance. Every capacitor of the design changes; use the rerun's own output.
+
+Tank Trimmers
+──────────────────────────────────────────────────
+...
+Cp1: 15.00 pF + trimmer Vishay BFC280820508 (or BFC280823508), 1.50–5.00 pF guaranteed
+  Together they must supply 17.51–18.99 pF at 145.974 MHz; the trimmer must supply
+    1.56–4.74 pF, and its range there is 1.52–5.00 pF, assuming at most 10.34 nH series
+    inductance (the bound from its minimum SRF of 700 MHz at its maximum).
+  BFC2 808 film trimmer, 5 mm; radial through-hole; PP, 150 V; Q as stated: tan δ ≤ 25 ×
+    10⁻⁴ at 100 MHz, Cmax (Q ≥ 400); SRF min 700 MHz at Cmax; range guaranteed at
+    200 kHz.
+  Source: Vishay, BFC2 808 Ø5 mm film trimmers, Rev. 06-Sep-2024, p. 3
+  Conditional on assumed tolerances: Cs12 (no standard part chosen; its calculated value
+    at ±5% assumed).
+```
+
+The need is conditional because Cs12 has no chosen part. After the advice every coupling
+capacitor has a part, so every tank's need rests on sourced tolerances, and the build tunes each
+trimmer (excerpt):
+
+```bash
+uv run filter-calc bp ch top -f 146MHz -b 4MHz -n 3 -r 0.5 --tank-inductance 21nH --sim-build
+```
+
+```text
+Cp2: 47.00 pF + trimmer Exxelia AT 9402G-4 (or AT 9402G-4 SL1), 3.00–12.00 pF guaranteed
+  Together they must supply 52.97–56.26 pF at 145.974 MHz; the trimmer must supply
+    3.42–11.61 pF, and its range there is 3.08–12.00 pF, assuming at most 10.00 nH
+    series inductance (an assumption; the maker states no bound).
+...
+Chosen parts:  center 145.9993 MHz, -3 dB bandwidth 3.967 MHz, edges 144.0291 MHz / 147.9965 MHz
+               peak gain 0.00 dB, lowest gain in passband -3.21 dB
+Parts used:
+  Cp1:    22.00 pF || 24.00 pF + trimmer QM10 set to 4.83 pF (5.04 pF effective at 145.974 MHz),
+          plus 400.00 fF stray (assumed)
+  L1:     21.00 nH, chip inductor LQW15AN21NG80D, plus 59.60 fF self-capacitance
+  Cp2:    47.00 pF + trimmer AT 9402G-4 set to 6.94 pF (7.38 pF effective at 145.974 MHz), plus
+          200.00 fF stray (assumed)
+...
+Each case is simulated with every trimmer at its nominal setting, then again with every trimmer
+  retuned for that case; every trimmer reached its setting in every case.
+Spread across these cases, trimmers at their nominal settings (min / 5th percentile / median /
+  95th percentile / max):
+  ...
+  Center:                  141.1326 / 145.7006 / 145.9993 / 146.3005 / 151.2494 MHz
+  -3 dB bandwidth:         1.619 / 1.778 / 3.948 / 4.483 / 4.593 MHz
+Spread after retuning the trimmers in each case:
+  ...
+  Center:                  145.986 / 145.9927 / 145.9993 / 146.0077 / 146.0176 MHz
+  -3 dB bandwidth:         2.851 / 3.476 / 3.967 / 4.512 / 5.107 MHz
+```
+
+Retuning brings every case's center back to 146 MHz, but not its bandwidth: the 1 pF coupling
+capacitors keep their ±0.25 pF tolerance, and retuning restores each tank's resonance, not the
+coupling between tanks.
+
 ## Strict JSON
 
 ```bash

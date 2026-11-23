@@ -422,9 +422,12 @@ class TestSolverInputValidation:
         [
             ("1-0-C", "Branch must be a tuple or list"),
             ((1, 0, "C"), "four fields plus optional series resistance"),
-            ((1, 0, "C", 1e-12, 0.0, 0.0), "four fields plus optional series resistance"),
+            ((1, 0, "C", 1e-12, 0.0, 0.0, 0.0), "four fields plus optional series resistance"),
             ((1, 0, "C", 0.0), "branch value must be positive and finite"),
             ((1, 0, "R", 50.0, 1.0), "resistor branches cannot specify a series resistance"),
+            # The sixth field is a capacitor's series inductance (a trimmer's).
+            ((1, 0, "L", 1e-9, 0.0, 1e-9), "only capacitor branches can specify a series"),
+            ((1, 0, "C", 1e-12, 0.0, -1e-9), "series inductance must be finite and non-negative"),
         ],
     )
     def test_malformed_branch_rejected(self, branch, message):
@@ -1056,3 +1059,28 @@ class TestCircuitModelValidation:
         circuit.update(fields)
         with pytest.raises(ValueError, match=message):
             NamedCircuit(**circuit)
+
+
+class TestCapacitorWithSeriesInductance:
+    """A capacitor branch carrying its series inductance (a trimmer's) matches the same
+    two elements through an internal node, including exactly at the series resonance."""
+
+    RESONANCE = 1 / (2 * math.pi * math.sqrt(20e-12 * 10e-9))
+
+    @pytest.mark.parametrize("offset", [0.0, -1e-3, 1e-3])
+    def test_a_series_branch_matches_the_expanded_circuit(self, offset):
+        frequency = self.RESONANCE * (1 + offset)
+        folded = solve_s21(2, [(1, 2, "C", 20e-12, 0.0, 10e-9)], 50, 50, 1, 2, [frequency])
+        expanded = solve_s21(
+            3, [(1, 3, "C", 20e-12), (3, 2, "L", 10e-9)], 50, 50, 1, 2, [frequency]
+        )
+        assert folded[0] == pytest.approx(expanded[0], rel=1e-9, abs=1e-12)
+
+    @pytest.mark.parametrize("offset", [0.0, -1e-3, 1e-3])
+    def test_a_shunt_branch_matches_the_expanded_circuit(self, offset):
+        frequency = self.RESONANCE * (1 + offset)
+        folded = solve_s21(1, [(1, 0, "C", 20e-12, 0.0, 10e-9)], 50, 50, 1, 1, [frequency])
+        expanded = solve_s21(
+            2, [(1, 2, "C", 20e-12), (2, 0, "L", 10e-9)], 50, 50, 1, 1, [frequency]
+        )
+        assert folded[0] == pytest.approx(expanded[0], rel=1e-9, abs=1e-9)

@@ -64,6 +64,7 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
         from filter_lib.shared.capacitor_grades import GRADES, made_values_pf
         from filter_lib.shared.chip_inductor_data import chip_parts
         from filter_lib.shared.toroid_core_data import list_cores
+        from filter_lib.shared.trimmer_data import trimmer_parts
 
         expected_version = {EXPECTED_VERSION!r}
         package_path = Path(filter_lib.__file__).resolve()
@@ -96,6 +97,10 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
         chip_resource = files("filter_lib.shared").joinpath("chip_inductor_data.json")
         assert json.loads(chip_resource.read_text(encoding="utf-8"))["schema_version"] == 1
         assert len(chip_parts()) == 259
+
+        trimmer_resource = files("filter_lib.shared").joinpath("trimmer_data.json")
+        assert json.loads(trimmer_resource.read_text(encoding="utf-8"))["schema_version"] == 1
+        assert len(trimmer_parts()) == 182
 
         css_resource = files("filter_lib.wizard").joinpath("styles.tcss")
         assert css_resource.read_text(encoding="utf-8").strip()

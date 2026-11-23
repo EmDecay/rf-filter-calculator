@@ -14,8 +14,16 @@ from .build_types import (
 )
 from .capacitor_choice import assumed_tolerance_pct
 from .circuit_builders import build_named_circuit
-from .circuit_display_names import SELF_CAPACITANCE_PREFIX, STRAY_PREFIX, spice_names_comment
+from .circuit_display_names import (
+    SELF_CAPACITANCE_PREFIX,
+    STRAY_PREFIX,
+    TRIMMER_INDUCTANCE_PREFIX,
+    TRIMMER_PREFIX,
+    series_inductance_name,
+    spice_names_comment,
+)
 from .circuit_model import CircuitElement
+from .component_realization import FIXED_PLUS_TRIMMER_METHOD
 from .eseries import TOLERANCE_NOT_SOURCED, MatchPolicy
 from .inductor_suggestion import (
     KIND_LABELS,
@@ -71,15 +79,29 @@ def _comment(text: str) -> str:
 
 
 def _element_lines(element: CircuitElement) -> list[str]:
+    """One element, with its series resistance and series inductance in series after it."""
     value = _number(element.value)
-    if not element.series_resistance_ohm:
+    chain = []
+    if element.series_resistance_ohm:
+        chain.append(
+            (f"RLOSS{element.name}", f"NLOSS{element.name}", element.series_resistance_ohm)
+        )
+    if element.series_inductance_h:
+        chain.append(
+            (
+                series_inductance_name(element.name),
+                f"NSERIES{element.name}",
+                element.series_inductance_h,
+            )
+        )
+    if not chain:
         return [f"{element.name} {element.node1} {element.node2} {value}"]
-    internal_node = f"NLOSS{element.name}"
-    return [
-        f"{element.name} {element.node1} {internal_node} {value}",
-        f"RLOSS{element.name} {internal_node} {element.node2} "
-        f"{_number(element.series_resistance_ohm)}",
-    ]
+    first_node = chain[0][1]
+    lines = [f"{element.name} {element.node1} {first_node} {value}"]
+    for index, (name, start, part_value) in enumerate(chain):
+        end = chain[index + 1][1] if index + 1 < len(chain) else element.node2
+        lines.append(f"{name} {start} {end} {_number(part_value)}")
+    return lines
 
 
 # Plain words for the substitution method/status values; JSON keeps the enum values.
@@ -97,6 +119,10 @@ def _part_description(substitution: ComponentSubstitution, eseries: str) -> str:
         return f"{eseries} parallel pair"
     if substitution.method == SUGGESTED_INDUCTOR_METHOD:
         return KIND_LABELS[substitution.inductor_kind].lower()
+    if substitution.method == FIXED_PLUS_TRIMMER_METHOD:
+        return (
+            f"{eseries} fixed part plus trimmer" if substitution.physical_parts else "trimmer alone"
+        )
     reason = _FALLBACK_REASONS.get(substitution.status, "(no part chosen)")
     return f"calculated value {reason}"
 
@@ -110,7 +136,10 @@ def _nominal_comments(
             substitution.logical_name,
             _part_description(substitution, eseries),
             f"calculated={_number(substitution.calculated_value)}",
-            f"nominal={_number(substitution.nominal_value)}",
+            # A tank built from its trimmer alone has no fixed part to state.
+            "fixed=none"
+            if substitution.trimmer is not None and not substitution.physical_parts
+            else f"nominal={_number(substitution.nominal_value)}",
         ]
         if substitution.part_name is not None:
             details.append(f"part={substitution.part_name}")
@@ -122,12 +151,49 @@ def _nominal_comments(
             details.append(f"self-capacitance={_number(substitution.self_capacitance_f)}")
         if substitution.status == TOLERANCE_NOT_SOURCED:
             details.append(f"tolerance-not-sourced={assumed_tolerance_pct(policy):g}%-assumed")
+        trimmer = substitution.trimmer
+        if trimmer is not None:
+            basis = "assumed" if trimmer.series_inductance_assumed else "bound-from-minimum-SRF"
+            details.extend(
+                (
+                    f"trimmer={trimmer.part_numbers[0]}",
+                    f"setting={_number(trimmer.setting.setting_f)}",
+                    f"effective={_number(trimmer.setting.effective_f)}",
+                    # What the tank needs from it; can be negative when out of reach.
+                    f"required={trimmer.setting.required_f:.12g}",
+                    f"in-range={'yes' if trimmer.setting.in_range else 'no'}",
+                    f"tank-frequency={_number(trimmer.tuning_frequency_hz)}",
+                    f"series-inductance={_number(trimmer.series_inductance_h)}-{basis}",
+                )
+            )
         # Part names come from the packaged data, so they pass through the comment filter.
         comments.append("* part used: " + _comment(" ".join(details)))
         if substitution.stray_capacitance_f:
+            across = (
+                "this tank's extra parts beside its trimmer"
+                if substitution.trimmer is not None
+                else "this pair"
+            )
             comments.append(
                 f"* stray: {STRAY_PREFIX}{substitution.logical_name} is the assumed stray "
-                "across this pair, the same in every tolerance case"
+                f"across {across}, the same in every tolerance case"
+            )
+        if trimmer is not None:
+            inductance = (
+                f" in series with {TRIMMER_INDUCTANCE_PREFIX}{substitution.logical_name}, the "
+                "series inductance its fit assumes"
+                if trimmer.series_inductance_h
+                else ""
+            )
+            outcome = (
+                "the setting restores the calculated design's susceptance at the tank frequency"
+                if trimmer.setting.in_range
+                else "the trimmer cannot reach what the tank needs there, so it is at the end of "
+                "its range and the tank is not tuned"
+            )
+            comments.append(
+                f"* trimmer: {TRIMMER_PREFIX}{substitution.logical_name} is this tank's trimmer "
+                f"at its nominal setting{inductance}; {outcome}"
             )
         if substitution.self_capacitance_f is not None:
             comments.append(
@@ -155,6 +221,14 @@ def _limitations_comment(nominal: NominalRealization | None) -> str:
         )
     has_stray = any(item.stray_capacitance_f for item in nominal.substitutions)
     has_self_capacitance = any(item.self_capacitance_f for item in nominal.substitutions)
+    if nominal.tuning is not None:
+        stray = " the assumed stray across extra parts," if has_stray else ""
+        chips = " each chip inductor's self-capacitance," if has_self_capacitance else ""
+        return (
+            f"* limitations: chosen parts at nominal values plus{stray}{chips} and each tank's "
+            "trimmer at its nominal setting with its assumed series inductance; no other "
+            "layout, parasitic (capacitor ESL, package), SRF, temperature, or power effects"
+        )
     if has_self_capacitance:
         stray = " the assumed stray across each pair and" if has_stray else ""
         return (

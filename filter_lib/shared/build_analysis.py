@@ -22,7 +22,7 @@ from .cancellation import require_cancellation_check
 from .circuit_builders import build_named_circuit
 from .nominal_realization import realize_nominal_build
 from .resolved_parts import ResolvedParts
-from .tolerance_screening import run_screening_cases, summarize_cases
+from .tolerance_screening import run_screening_cases, summarize_cases, tuned_cases
 
 # With a chip inductor's self-capacitance fixed, a tolerance case moves only its inductance.
 STRESS_CASE_LIMITATION = (
@@ -51,18 +51,28 @@ def _analysis_limitations(
     disconnected_cases: int,
     has_pair_stray: bool = False,
     has_self_capacitance: bool = False,
+    has_trimmers: bool = False,
 ) -> tuple[str, ...]:
     limitations = list(nominal_limitations)
     layout = (
-        "layout and wiring (other than the assumed pair stray)"
+        "layout and wiring (other than the assumed stray)"
         if has_pair_stray
         else ("layout and wiring")
     )
-    # With a chip inductor's self-capacitance modelled, say what still is not.
+    # With a chip inductor's self-capacitance or a trimmer's series inductance modelled,
+    # say what still is not.
+    modelled = [
+        name
+        for name, present in (
+            ("the chip inductors", has_self_capacitance),
+            ("the trimmers (their assumed series inductance)", has_trimmers),
+        )
+        if present
+    ]
     resonance = (
         "capacitor ESL and package parasitics, the self-resonance (SRF) of every part but "
-        "the chip inductors"
-        if has_self_capacitance
+        + " and ".join(modelled)
+        if modelled
         else "self-resonance (SRF)"
     )
     if has_self_capacitance:
@@ -233,6 +243,8 @@ def analyze_build(
         should_cancel,
         prepared.passband_top,
         prepared.peak_range,
+        nominal.tuning,
+        nominal.trimmer_settings,
     )
     censored = sum(case.measurement.at_grid_edge for case in cases)
     return BuildAnalysisResult(
@@ -259,8 +271,10 @@ def analyze_build(
             sum(len(case.measurement.threshold_regions) > 1 for case in cases),
             any(item.stray_capacitance_f for item in nominal.substitutions),
             any(item.self_capacitance_f for item in nominal.substitutions),
+            nominal.tuning is not None,
         ),
         qualified_range_hz=prepared.qualified_range,
         passband_top_hz=prepared.passband_top,
         peak_range_hz=prepared.peak_range,
+        tuned_metric_summaries=summarize_cases(tuned_cases(cases), category),
     )

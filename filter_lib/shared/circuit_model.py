@@ -6,7 +6,11 @@ from dataclasses import dataclass
 
 from .numeric import is_finite_real, require_positive_finite
 
-Branch = tuple[int, int, str, float] | tuple[int, int, str, float, float]
+Branch = (
+    tuple[int, int, str, float]
+    | tuple[int, int, str, float, float]
+    | tuple[int, int, str, float, float, float]
+)
 
 
 @dataclass(frozen=True)
@@ -16,7 +20,9 @@ class CircuitElement:
     ``tolerance`` is the part's own fractional tolerance (0.05 for ±5%), which the
     build simulation's tolerance cases use; ``None`` for an element that is not a
     chosen part. A ``fixed`` element (an assumed parasitic, such as the stray
-    capacitance across a parallel pair) keeps its value in every tolerance case.
+    capacitance across a parallel pair, or a trimmer, which tuning sets) keeps its value in
+    every tolerance case. ``series_inductance_h`` is a capacitor's series inductance (a
+    trimmer's), simulated in its own branch and written to SPICE as an inductor in series.
     The first letter of ``name`` is the element's kind, so a SPICE reader sees it as
     the element it is.
     """
@@ -32,6 +38,7 @@ class CircuitElement:
     loss_reference_frequency_hz: float | None = None
     tolerance: float | None = None
     fixed: bool = False
+    series_inductance_h: float = 0.0
 
     def __post_init__(self) -> None:
         if (
@@ -60,6 +67,10 @@ class CircuitElement:
             raise ValueError("element series resistance must be finite and non-negative")
         if self.kind == "R" and self.series_resistance_ohm:
             raise ValueError("resistors cannot carry an additional series resistance")
+        if not is_finite_real(self.series_inductance_h) or self.series_inductance_h < 0:
+            raise ValueError("element series inductance must be finite and non-negative")
+        if self.kind != "C" and self.series_inductance_h:
+            raise ValueError("only capacitors can carry a series inductance")
         if self.quality_factor is not None and (
             not is_finite_real(self.quality_factor) or self.quality_factor <= 0
         ):
@@ -71,7 +82,16 @@ class CircuitElement:
             raise ValueError("loss reference frequency must be positive and finite")
 
     def as_branch(self) -> Branch:
-        """Convert to the solver's compatible four- or five-field branch."""
+        """Convert to the solver's compatible four-, five- or six-field branch."""
+        if self.series_inductance_h:
+            return (
+                self.node1,
+                self.node2,
+                self.kind,
+                self.value,
+                self.series_resistance_ohm,
+                self.series_inductance_h,
+            )
         if self.series_resistance_ohm:
             return (
                 self.node1,

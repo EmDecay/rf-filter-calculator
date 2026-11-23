@@ -4,7 +4,12 @@ import pytest
 
 from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.shared.build_types import BuildConfig
-from filter_lib.shared.circuit_display_names import display_component_name, format_name_list
+from filter_lib.shared.circuit_display_names import (
+    TRIMMER_INDUCTANCE_PREFIX,
+    display_component_name,
+    format_name_list,
+    series_inductance_name,
+)
 from filter_lib.shared.eseries import MatchPolicy
 from filter_lib.shared.spice_export import export_spice_deck
 from tests.parts_helpers import parts_for
@@ -21,6 +26,10 @@ from tests.parts_helpers import parts_for
         ("COUT", "Ce_out"),
         ("CK1A", "Cs12 (part A)"),
         ("COUTB", "Ce_out (part B)"),
+        # A tank's trimmer and the series inductance its fit assumes.
+        ("CTRIM_CT1", "Cp1 trimmer"),
+        ("LTRIM_CT2", "Cp2 trimmer inductance"),
+        ("CSTRAY_CT3", "Cp3 stray"),
         # Low-pass and high-pass names already match their table.
         ("C1", "C1"),
         ("L2", "L2"),
@@ -68,12 +77,23 @@ def test_bandpass_deck_maps_every_element_name_once(realization):
         for pair in names_line.removeprefix("* names: ").split()
         for name in pair.split("=")[0].split("+")
     ]
-    # The assumed stray across a pair is not a part: its own comment names it instead.
-    strays = [name for name in _deck_element_names(deck) if name.startswith("CSTRAY_")]
-    parts = [name for name in _deck_element_names(deck) if not name.startswith("CSTRAY_")]
+    # The assumed stray and a trimmer's series inductance are not parts: their own comments
+    # name them instead.
+    names = _deck_element_names(deck)
+    strays = [name for name in names if name.startswith("CSTRAY_")]
+    inductances = [name for name in names if name.startswith(TRIMMER_INDUCTANCE_PREFIX)]
+    parts = [name for name in names if name not in strays and name not in inductances]
     assert sorted(mapped) == sorted(parts)
     for stray in strays:
-        assert f"* stray: {stray} is the assumed stray across this pair" in deck
+        tank = stray.removeprefix("CSTRAY_")
+        across = (
+            "this tank's extra parts beside its trimmer"
+            if f"CTRIM_{tank}" in parts
+            else "this pair"
+        )
+        assert f"* stray: {stray} is the assumed stray across {across}," in deck
+    for inductance in inductances:
+        assert f"in series with {inductance}, the series inductance its fit assumes" in deck
     assert bool(strays) is (realization == "nominal_build")
     assert "CT1=Cp1" in names_line and "LT1=L1" in names_line and "COUT" in names_line
 
@@ -112,3 +132,9 @@ def test_ladder_deck_has_no_name_map():
     )
 
     assert "* names:" not in deck
+
+
+def test_a_series_inductance_is_named_for_its_capacitor():
+    # A trimmer's is named for its tank; any other capacitor's gets a generic prefix.
+    assert series_inductance_name("CTRIM_CT1") == "LTRIM_CT1"
+    assert series_inductance_name("C1") == "LSERIESC1"

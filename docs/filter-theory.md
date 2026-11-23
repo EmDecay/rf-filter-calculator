@@ -275,6 +275,46 @@ The designer solves for Ce such that the tank sees the target Rp. A series-equiv
 
 The calculator displays the external Q set by the end-coupling capacitors, e.g. `External Q (input):  40.55 (set by Ce_in)`.
 
+**Effective shunt of an end capacitor.** Seen from its tank, Ce in series with the port
+resistance R is a shunt of admittance `jωCe/(1 + jωRCe)`, whose susceptance is that of a
+capacitance
+
+```
+Ce_eff = Ce / (1 + (ωRCe)²)
+```
+
+For the 2 m example (Ce = 2.662 pF, R = 50 Ω, at the 145.974 MHz tank frequency) that is
+2.623 pF. Ce_eff is not monotone in Ce: it is largest at `Ce = 1/(ωR)`, where it is `1/(2ωR)`
+(2.7257 pF and 1.3629 pF for a 400 Ω port), so the range of Ce_eff over an interval of Ce
+uses both ends and that point when it lies inside.
+
+## Tank Tuning from the Diagonal Susceptance (Bandpass)
+
+Synthesis subtracts from each tank capacitor the coupling capacitors attached to its node and
+the end capacitor's effective shunt, so at the calibrated tank frequency `f_tank` every tank
+node's *diagonal susceptance* is zero: the imaginary part of the admittance seen at the node
+with every other tank node shorted and each port at its resistance,
+
+```
+B_i(f_tank) = ω·Cp_i + Σ ω·Cs (couplers at i) + ω·Ce_eff (end tanks) − 1/(ω·L) = 0
+```
+
+A built tank must restore that susceptance whatever the other parts at its node turn out to be.
+So the calculator sizes a fixed part plus a trimmer: the pair must cover the capacitance the
+target needs less every other branch at its extreme corners (the inductor at both tolerance ends,
+at its minimum SRF and with no drift; each coupler at both ends; the end capacitor through its
+port at both ends and its stationary point), with the loss of the design's resonator Q. The
+branches are independent, so the extremes add. A trimmer's effective capacitance at the tank
+frequency is raised by its series inductance, `C/(1 − ω²LsC)`; the range relied on runs from
+the raised minimum to the unraised maximum, on the rising part of the knob's travel only. With
+`u = 1/(ωC)`, `a = ωLs` and a capacitor Q giving `R = αu` (`α = ω/(ω_ref·Q)`), the branch
+susceptance `(u − a)/((αu)² + (u − a)²)` rises with C until `u = a(1 + α/√(1 + α²))`: the
+series resonance when lossless, a loss peak before it otherwise. In the build, each trimmer is set by solving its
+branch admittance so the node's susceptance, with every built branch (its series resistance from
+Q, the chip inductors' self-capacitance, the strays and the ports), equals the calculated design's
+again. That restores each tank's resonance; it does not restore the coupling between tanks or
+the external Q, so a retuned build with off-nominal couplers still differs from the design.
+
 ## Iron-Powder Toroid Winding Math
 
 For a core with published inductance factor A_L in nH/turn², the nominal turns are:

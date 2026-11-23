@@ -140,7 +140,7 @@ def choose_capacitor(
     single_score, single_value, single_tolerance = min(
         (abs(value - target) + tolerance, value, tolerance) for value, tolerance in candidates
     )
-    pair = _best_pair(candidates, target, ratio_limit, policy)
+    pair = best_pair(candidates, target, ratio_limit, stray_pf(policy))
 
     common = {
         "target": nominal.target,
@@ -206,21 +206,31 @@ def pair_wins(
     return gain > 0 and gain * 100 >= margin * target
 
 
-def _best_pair(
+def stray_pf(policy: MatchPolicy) -> Fraction:
+    """The policy's assumed stray across a pair's second part, in exact pF."""
+    return _exact(policy.stray_capacitance_f) * _PF_PER_F
+
+
+def eligible_parts_pf(policy: MatchPolicy, series: str) -> list[tuple[Fraction, Fraction]]:
+    """``(value, tolerance)`` in pF of every part the worst-case rule may choose."""
+    return _candidates(policy, series)
+
+
+def best_pair(
     candidates: list[tuple[Fraction, Fraction]],
     target: Fraction,
     ratio_limit: float,
-    policy: MatchPolicy,
+    stray: Fraction,
 ):
     """The best pair as ``(score, ratio, total, low part, high part)``, or None.
 
-    A pair's interval contains its nominal total, so a pair whose total is further from the
+    ``stray`` (pF) is the assumed extra capacitance at the pair's upper end. A pair's
+    interval contains its nominal total, so a pair whose total is further from the
     target than the best score found so far cannot beat it; only totals within that bound
     are scored, and the bound tightens as better pairs are found.
     """
     values = [value for value, _tolerance in candidates]
     ratio = _exact(float(ratio_limit))
-    stray = _exact(policy.stray_capacitance_f) * _PF_PER_F
     best = None
     for index, (low, low_tolerance) in enumerate(candidates):
         start, stop = index, bisect_right(values, low * ratio)

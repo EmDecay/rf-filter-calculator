@@ -10,12 +10,15 @@ from .build_response import measure_circuit
 from .build_types import (
     BuildConfig,
     CancellationCheck,
+    CaseTuning,
     CircuitMeasurement,
     MetricSummary,
     ScreeningCase,
+    TrimmerSetting,
     raise_if_cancelled,
 )
 from .circuit_model import CircuitElement, NamedCircuit
+from .tank_tuning import TuningPlan, tune
 
 MetricExtractor = Callable[[CircuitMeasurement], float | None]
 
@@ -175,26 +178,47 @@ def run_screening_cases(
     should_cancel: CancellationCheck | None = None,
     passband_top_hz: float | None = None,
     peak_range_hz: tuple[float, float] | None = None,
+    tuning: TuningPlan | None = None,
+    nominal_settings: tuple[TrimmerSetting, ...] = (),
 ) -> tuple[ScreeningCase, ...]:
     """Perturb and measure every configured case in deterministic order.
 
-    ``should_cancel`` is polled before each case, so a cancelled caller waits for at
-    most one circuit measurement; ``BuildAnalysisCancelled`` is raised when it
+    ``should_cancel`` is polled before each measurement, so a cancelled caller waits for
+    at most one circuit measurement; ``BuildAnalysisCancelled`` is raised when it
     reports true. ``passband_top_hz`` and ``peak_range_hz`` limit a high-pass build's
     figures (``build_response.highpass_passband_top`` and ``highpass_peak_range``).
+
+    With ``tuning`` (a band-pass build with trimmers), every case is measured twice:
+    with each trimmer at its nominal setting, and after retuning each trimmer for that
+    case. The nominal case is already tuned (``nominal_settings``), so it is measured once.
     """
     cases: list[ScreeningCase] = []
-    for case_id, factors in case_factors(screened_elements(circuit), config):
+
+    def measure(candidate: NamedCircuit) -> CircuitMeasurement:
         raise_if_cancelled(should_cancel)
-        measurement = measure_circuit(
-            perturb_circuit(circuit, factors),
-            result,
-            category,
-            freqs,
-            source,
-            load,
-            passband_top_hz,
-            peak_range_hz,
+        return measure_circuit(
+            candidate, result, category, freqs, source, load, passband_top_hz, peak_range_hz
         )
-        cases.append(ScreeningCase(case_id, factors, measurement))
+
+    for case_id, factors in case_factors(screened_elements(circuit), config):
+        perturbed = perturb_circuit(circuit, factors)
+        measurement = measure(perturbed)
+        case_tuning = None
+        if tuning is not None:
+            if case_id == "nominal":
+                case_tuning = CaseTuning(nominal_settings, measurement)
+            else:
+                raise_if_cancelled(should_cancel)
+                tuned, settings = tune(perturbed, tuning)
+                case_tuning = CaseTuning(settings, measure(tuned))
+        cases.append(ScreeningCase(case_id, factors, measurement, case_tuning))
     return tuple(cases)
+
+
+def tuned_cases(cases: tuple[ScreeningCase, ...]) -> tuple[ScreeningCase, ...]:
+    """The cases as retuned (each with its tuned measurement); empty without trimmers."""
+    return tuple(
+        ScreeningCase(case.case_id, case.component_factors, case.tuning.measurement)
+        for case in cases
+        if case.tuning is not None
+    )

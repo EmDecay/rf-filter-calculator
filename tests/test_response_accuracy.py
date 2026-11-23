@@ -35,7 +35,8 @@ def _abcd_gain(circuit, frequency, rs=50, rl=50):
         reactance = (
             1j * omega * element.value if element.kind == "L" else 1 / (1j * omega * element.value)
         )
-        return element.series_resistance_ohm + reactance
+        # A trimmer's series inductance is in the same branch as its capacitance.
+        return element.series_resistance_ohm + reactance + 1j * omega * element.series_inductance_h
 
     while True:
         y = sum(1 / impedance(e) for e in circuit.elements if {e.node1, e.node2} == {node, 0})
@@ -93,8 +94,10 @@ def test_high_order_worst_gain_includes_exact_endpoints_and_refined_skirts(point
 
 def test_perturbed_high_order_filter_reports_separate_regions_and_local_reference():
     result = _bp()
+    # Without tank trimmers: a fixed trimmer holds part of each tank's capacitance, which
+    # changes how far LT1 detunes its tank.
     nominal = realize_nominal_build(
-        result, "bandpass", BuildConfig(), parts=parts_for(result, "bandpass")
+        result, "bandpass", BuildConfig(), parts=replace(parts_for(result, "bandpass"), tanks={})
     ).circuit
     # LT1 20 % low splits the response; the region holding the center is not the peak's.
     perturbed = perturb_circuit(

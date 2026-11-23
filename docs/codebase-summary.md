@@ -51,8 +51,13 @@ filter_lib/
   `inductor_suggestions`, `build_inductors`; the build settings `realization` and the
   `run_build_analysis` switch) and the cross-field rules every surface enforces
 - `design_result.py` — `DesignResult`: the request, the result dict, the resolved `parts`
-  (`ResolvedParts`; `match_policy` is a property of it) and the optional build analysis;
-  only `design()` builds one
+  (`ResolvedParts`; `match_policy` is a property of it), the optional build analysis and the
+  band-pass `coupling_advice`; only `design()` builds one
+- `coupling_advice.py` — `advise_coupling`: when a band-pass coupling capacitor has no part of
+  1 pF or more, the tank inductance closest to the design's that a built-in suggestion supplies
+  and that gives every coupler such a part; each trial reruns `synthesize` and `resolve_parts`
+  with the printed value read back (at most `MAX_COUPLING_ADVICE_TRIALS`, polling
+  `should_cancel` between them)
 - `design_service.py` — `design(request, should_cancel=None)` and `synthesize()`;
   synthesis, part resolution and the build poll `should_cancel` and stop with
   `DesignCancelled`
@@ -149,6 +154,16 @@ toroids and air-core coils carry the exclusion texts worded in
 `CT1`/`LT1`/`CK1`/`CIN`/`COUT`), including the part the build uses for each inductor
 (`--build-inductors`). Every output, both SPICE decks and the build read it.
 
+A band-pass design with standard values also sizes each tank as a fixed part plus a sourced
+trimmer (`ResolvedParts.tanks`): `shared/tank_trimmers.py` (`size_tanks`: the need from every
+branch at the node at its extreme corners, `trimmer_range_f` under the trimmer's series
+inductance, the ranked splits), `shared/tank_susceptance.py` (a tank node's driving-point
+admittance with the other tank nodes shorted and the ports at their resistance),
+`shared/trimmer_data.py` + `trimmer_data.json` (the evidence page's per-part trimmer table and
+the Knowles appendix, `component-data-sources-knowles-trimmers.md`) and
+`bandpass/trimmer_display.py` (the Tank Trimmers and Coupling Advice sections, the JSON objects
+and CSV columns).
+
 ## Build simulation
 
 `--sim-build` (user-facing name: build simulation) creates a named circuit from the chosen
@@ -162,6 +177,12 @@ used", with the reason). Optional inputs add:
 - fixed tolerance cases (all low, all high, each part low and high alone);
 - repeatable extra random tolerance cases;
 - the initial number of frequency points, with bounded automatic measurement refinement.
+
+A band-pass tank with a trimmer is its fixed part, the assumed stray and the trimmer
+(`CTRIM_CT<i>`, carrying its series inductance). `shared/tank_tuning.py` sets each trimmer so
+its node's susceptance matches the calculated design's at the tank frequency, in the nominal
+build (and so the chosen-parts deck) and again in every tolerance case, which keeps both its
+untuned and its tuned response (`ScreeningCase.tuning`; `BuildAnalysisResult.tuned_metric_summaries`).
 
 The AC nodal solver reports transducer power gain and uses scale-normalized log-polar
 admittances. LP/HP output reports a category-appropriate cutoff; BP reports lower and

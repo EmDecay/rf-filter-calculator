@@ -1,0 +1,3515 @@
+{
+ "schema_version": 1,
+ "dataset": {
+  "description": "Sourced trimmer capacitors whose datasheets state both range ends as bounds (a guaranteed maximum Cmin and minimum Cmax); see docs/component-data-sources.md (Trimmer capacitors, per-part data) and docs/component-data-sources-knowles-trimmers.md.",
+  "accessed_on": "2026-11-19"
+ },
+ "sources": {
+  "EXX-AT23XXG": {
+   "publisher": "Exxelia",
+   "title": "SMD hermetic ceramic trimmer capacitors AT 23XXG",
+   "revision": "Revision 02/26",
+   "url": "https://exxelia.com/storage/exxelia-assets-prod/datasheets/smd-hermetic-ceramic-trimmer-capacitors-at-23xxg-series-datasheet.pdf",
+   "sha256": "702d0427c7a1a8a4ae9525a324016af148eedb24ba1e5b97a7dae8a6b4589103"
+  },
+  "EXX-CHIP-V3": {
+   "publisher": "Exxelia",
+   "title": "SMD chip trim ceramic trimmer capacitors AT 0300 R2, AT 1300 R2, AT 03HV00 R2",
+   "revision": "Revision 02/26",
+   "url": "https://exxelia.com/storage/exxelia-assets-prod/datasheets/chip-trimmers-v3.pdf",
+   "sha256": "73d78f18dc810b73d5df2915a7ba08fdf5c3d0b8f6d22ba607e0cb397bfd3745"
+  },
+  "EXX-THIN-V2": {
+   "publisher": "Exxelia",
+   "title": "SMD thin trimmers AT 9401G, AT 9402G, AT 9410G",
+   "revision": "Revision 02/26",
+   "url": "https://exxelia.com/storage/exxelia-assets-prod/datasheets/thin-trimmers-v2.pdf",
+   "sha256": "18a40dcb7c250117de478c47443919cc2160d0f823debbcbecd4b2c99dd74e9e"
+  },
+  "SUN-TSC3S": {
+   "publisher": "Suntan",
+   "title": "TSC3S ceramic trimmer capacitor",
+   "revision": "undated",
+   "url": "https://www.suntan.com.hk/pdf/Ceramic-Trimmer-Capacitors/TSC3S.pdf",
+   "sha256": "42f404fc2859cf9b4ab0e62eac21b55b71cc3f22f3b92e89ab861817f678ccb4"
+  },
+  "VIS-28526": {
+   "publisher": "Vishay",
+   "title": "BFC2 808 Ø5 mm film trimmers",
+   "revision": "Rev. 06-Sep-2024",
+   "url": "https://www.vishay.com/docs/28526/bfc2808-5mm.pdf",
+   "sha256": "d225b366554b6308e5c62fb1c1ba37b4d1e9addb28ce159dea76e36b11c021f6"
+  },
+  "VIS-28527": {
+   "publisher": "Vishay",
+   "title": "BFC2 808 Ø7.5 mm film trimmers",
+   "revision": "Rev. 06-Sep-2024",
+   "url": "https://www.vishay.com/docs/28527/bfc2808-75mm.pdf",
+   "sha256": "b9e82c88e1dee6ddf8a0fcda2c12f8db678e6c141a4c171dbdfa0183d72330c5"
+  },
+  "VIS-28528": {
+   "publisher": "Vishay",
+   "title": "BFC2 808 Ø10 mm film trimmers",
+   "revision": "Rev. 06-Sep-2024",
+   "url": "https://www.vishay.com/docs/28528/bfc2808-10mm.pdf",
+   "sha256": "990befa3a81913206c6ca2495f59f1000d17e88c0984ac6c9eb393712daaaeca"
+  },
+  "KNO-CAT-R5": {
+   "publisher": "Knowles",
+   "title": "Trimmers and Non-Magnetic Components catalog",
+   "revision": "R5 (PDF dated 2024-08-22)",
+   "url": "https://www.knowlescapacitors.com/getmedia/fae461ef-e086-4f0e-af62-725f9d523a26/KNO_Trimmer_Catalog_R5-sm",
+   "sha256": "d35f9117ff63df80fcf8f87ea2a942e01f632feb7cdada63a5fcfc5621516242"
+  }
+ },
+ "trimmers": [
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 5 mm",
+   "part_numbers": [
+    "BFC280822158"
+   ],
+   "cmin_max_pf": "0.35",
+   "cmax_min_pf": "1.5",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000)",
+   "dielectric": "PTFE",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28526",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 5 mm",
+   "part_numbers": [
+    "BFC280824508"
+   ],
+   "cmin_max_pf": "1.2",
+   "cmax_min_pf": "5",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28526",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 5 mm",
+   "part_numbers": [
+    "BFC280820508",
+    "BFC280823508"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "5",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 700,
+   "srf_as_stated": "min 700 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28526",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 5 mm",
+   "part_numbers": [
+    "BFC280824708"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "7",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28526",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 5 mm",
+   "part_numbers": [
+    "BFC280820109",
+    "BFC280823109"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 500,
+   "srf_as_stated": "min 500 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28526",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 5 mm",
+   "part_numbers": [
+    "BFC280820159",
+    "BFC280823159"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "15",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 400,
+   "srf_as_stated": "min 400 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28526",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 5 mm",
+   "part_numbers": [
+    "BFC280820209",
+    "BFC280823209"
+   ],
+   "cmin_max_pf": "4",
+   "cmax_min_pf": "20",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 300,
+   "srf_as_stated": "min 300 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28526",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 5 mm",
+   "part_numbers": [
+    "BFC280820279",
+    "BFC280823279"
+   ],
+   "cmin_max_pf": "4",
+   "cmax_min_pf": "27",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 300,
+   "srf_as_stated": "min 300 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28526",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280811558",
+    "BFC280800004",
+    "BFC280851558"
+   ],
+   "cmin_max_pf": "1.4",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 850,
+   "srf_as_stated": "min 850 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PE",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280800018"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "9",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 400,
+   "srf_as_stated": "min 400 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 15 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 666.6)",
+   "dielectric": "PTFE",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280811109",
+    "BFC280800005",
+    "BFC280851109"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 480,
+   "srf_as_stated": "min 480 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280811159"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "15",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 450,
+   "srf_as_stated": "min 450 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280800016"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "18",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 350,
+   "srf_as_stated": "min 350 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 15 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 666.6)",
+   "dielectric": "PTFE",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280811006"
+   ],
+   "cmin_max_pf": "2.5",
+   "cmax_min_pf": "20",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 250,
+   "srf_as_stated": "min 250 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 160 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 62.5)",
+   "dielectric": "PET",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280811229",
+    "BFC280800006",
+    "BFC280851229"
+   ],
+   "cmin_max_pf": "2.5",
+   "cmax_min_pf": "22",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 350,
+   "srf_as_stated": "min 350 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280811339"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "33",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 300,
+   "srf_as_stated": "min 300 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000)",
+   "dielectric": "PP",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 7.5 mm",
+   "part_numbers": [
+    "BFC280811409"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "40",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 300,
+   "srf_as_stated": "min 300 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 10 × 10⁻⁴ at 1 MHz, Cmax (Q ≥ 1000)",
+   "dielectric": "PP",
+   "working_voltage_v": 250,
+   "mounting": "radial through-hole",
+   "source": "VIS-28527",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 10 mm",
+   "part_numbers": [
+    "BFC280831159",
+    "BFC280832159"
+   ],
+   "cmin_max_pf": "2.5",
+   "cmax_min_pf": "15",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 420,
+   "srf_as_stated": "min 420 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28528",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 10 mm",
+   "part_numbers": [
+    "BFC280831229",
+    "BFC280832229"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "22.5",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 200,
+   "srf_as_stated": "min 200 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28528",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 10 mm",
+   "part_numbers": [
+    "BFC280831409",
+    "BFC280832409"
+   ],
+   "cmin_max_pf": "5.5",
+   "cmax_min_pf": "40",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 200,
+   "srf_as_stated": "min 200 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28528",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 10 mm",
+   "part_numbers": [
+    "BFC280801029",
+    "BFC280801006"
+   ],
+   "cmin_max_pf": "5.5",
+   "cmax_min_pf": "50",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 170,
+   "srf_as_stated": "min 170 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PTFE",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28528",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Vishay",
+   "family": "BFC2 808 film trimmer, 10 mm",
+   "part_numbers": [
+    "BFC280801001",
+    "BFC280831659",
+    "BFC280832659"
+   ],
+   "cmin_max_pf": "5.5",
+   "cmax_min_pf": "65",
+   "range_measured_at_hz": 200000,
+   "srf_min_at_cmax_mhz": 170,
+   "srf_as_stated": "min 170 MHz at Cmax",
+   "q_as_stated": "tan δ ≤ 25 × 10⁻⁴ at 100 MHz, Cmax (Q ≥ 400)",
+   "dielectric": "PP",
+   "working_voltage_v": 150,
+   "mounting": "radial through-hole",
+   "source": "VIS-28528",
+   "page": "p. 3"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 0300 R2 and AT 1300 R2 ceramic chip trimmers",
+   "part_numbers": [
+    "AT 0303 R2",
+    "AT 1303 R2"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "3",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 2000 / 2300 MHz at Cmax",
+   "q_as_stated": "graph only",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 0300 R2 and AT 1300 R2 ceramic chip trimmers",
+   "part_numbers": [
+    "AT 0306 R2",
+    "AT 1306 R2"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "6",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 1400 / 1600 MHz at Cmax",
+   "q_as_stated": "graph only",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 0300 R2 and AT 1300 R2 ceramic chip trimmers",
+   "part_numbers": [
+    "AT 0310 R2",
+    "AT 1310 R2"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 1100 / 1200 MHz at Cmax",
+   "q_as_stated": "graph only",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 0300 R2 and AT 1300 R2 ceramic chip trimmers",
+   "part_numbers": [
+    "AT 0315 R2",
+    "AT 1315 R2"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "15",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 900 / 1000 MHz at Cmax",
+   "q_as_stated": "graph only",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 0300 R2 and AT 1300 R2 ceramic chip trimmers",
+   "part_numbers": [
+    "AT 0320 R2",
+    "AT 1320 R2"
+   ],
+   "cmin_max_pf": "4.5",
+   "cmax_min_pf": "20",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 800 / 900 MHz at Cmax",
+   "q_as_stated": "graph only",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 0300 R2 and AT 1300 R2 ceramic chip trimmers",
+   "part_numbers": [
+    "AT 0330 R2",
+    "AT 1330 R2"
+   ],
+   "cmin_max_pf": "5.5",
+   "cmax_min_pf": "30",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 600 / 700 MHz at Cmax",
+   "q_as_stated": "graph only",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 0300 R2 and AT 1300 R2 ceramic chip trimmers",
+   "part_numbers": [
+    "AT 0340 R2",
+    "AT 1340 R2"
+   ],
+   "cmin_max_pf": "8",
+   "cmax_min_pf": "40",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 400 / 500 MHz at Cmax",
+   "q_as_stated": "graph only",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 03HV00 R2 ceramic chip trimmer",
+   "part_numbers": [
+    "AT 03HV03 R2"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "3",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 2000 MHz at Cmax",
+   "q_as_stated": "min 500 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 350,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 5"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 03HV00 R2 ceramic chip trimmer",
+   "part_numbers": [
+    "AT 03HV06 R2"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "6",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 1400 MHz at Cmax",
+   "q_as_stated": "min 500 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 350,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 5"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 03HV00 R2 ceramic chip trimmer",
+   "part_numbers": [
+    "AT 03HV10 R2"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 1100 MHz at Cmax",
+   "q_as_stated": "min 500 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 350,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 5"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 03HV00 R2 ceramic chip trimmer",
+   "part_numbers": [
+    "AT 03HV15 R2"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "15",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 900 MHz at Cmax",
+   "q_as_stated": "min 500 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 350,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 5"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 03HV00 R2 ceramic chip trimmer",
+   "part_numbers": [
+    "AT 03HV20 R2"
+   ],
+   "cmin_max_pf": "4.5",
+   "cmax_min_pf": "20",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": "typical 800 MHz at Cmax",
+   "q_as_stated": "min 500 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 350,
+   "mounting": "surface mount",
+   "source": "EXX-CHIP-V3",
+   "page": "p. 5"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9402G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9402G-0",
+    "AT 9402G-0 SL1"
+   ],
+   "cmin_max_pf": "0.5",
+   "cmax_min_pf": "2.5",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 3000 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 6"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9402G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9402G-1",
+    "AT 9402G-1 SL1"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "5",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 1000 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 6"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9402G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9402G-2",
+    "AT 9402G-2 SL1"
+   ],
+   "cmin_max_pf": "2.5",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 1000 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 6"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9402G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9402G-4",
+    "AT 9402G-4 SL1"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "12",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 500 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 6"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9402G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9402G-6",
+    "AT 9402G-6 SL1"
+   ],
+   "cmin_max_pf": "8",
+   "cmax_min_pf": "25",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 300 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 6"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9402G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9402G-8",
+    "AT 9402G-8 SL1"
+   ],
+   "cmin_max_pf": "5",
+   "cmax_min_pf": "15",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 750 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 6"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9402G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9402G-9",
+    "AT 9402G-9 SL1"
+   ],
+   "cmin_max_pf": "7",
+   "cmax_min_pf": "18",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 500 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 6"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9410G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9410G-0",
+    "AT 9410G-0 SL1"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "4.5",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 1000 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 7"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9410G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9410G-1",
+    "AT 9410G-1 SL1"
+   ],
+   "cmin_max_pf": "2.5",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 1000 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 7"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9410G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9410G-2",
+    "AT 9410G-2 SL1"
+   ],
+   "cmin_max_pf": "4",
+   "cmax_min_pf": "18",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 700 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 7"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9410G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9410G-3",
+    "AT 9410G-3 SL1"
+   ],
+   "cmin_max_pf": "6",
+   "cmax_min_pf": "35",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 200 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 7"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9410G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9410G-4",
+    "AT 9410G-4 SL1"
+   ],
+   "cmin_max_pf": "7",
+   "cmax_min_pf": "40",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 200 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 7"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9410G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9410G-5",
+    "AT 9410G-5 SL1"
+   ],
+   "cmin_max_pf": "10",
+   "cmax_min_pf": "50",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 200 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 7"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 9410G thin ceramic trimmer",
+   "part_numbers": [
+    "AT 9410G-25",
+    "AT 9410G-25 SL1"
+   ],
+   "cmin_max_pf": "5",
+   "cmax_min_pf": "25",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 200 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (thin)",
+   "source": "EXX-THIN-V2",
+   "page": "p. 7"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 23XXG hermetic ceramic trimmer",
+   "part_numbers": [
+    "AT 2320G-0"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "2.5",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical >3000 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (hermetic)",
+   "source": "EXX-AT23XXG",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 23XXG hermetic ceramic trimmer",
+   "part_numbers": [
+    "AT 2320G-1"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "5",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical >1000 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (hermetic)",
+   "source": "EXX-AT23XXG",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 23XXG hermetic ceramic trimmer",
+   "part_numbers": [
+    "AT 2320G-2"
+   ],
+   "cmin_max_pf": "2.5",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical >1000 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (hermetic)",
+   "source": "EXX-AT23XXG",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 23XXG hermetic ceramic trimmer",
+   "part_numbers": [
+    "AT 2320G-3"
+   ],
+   "cmin_max_pf": "7.5",
+   "cmax_min_pf": "18",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical >500 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (hermetic)",
+   "source": "EXX-AT23XXG",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Exxelia",
+   "family": "AT 23XXG hermetic ceramic trimmer",
+   "part_numbers": [
+    "AT 2340G-4"
+   ],
+   "cmin_max_pf": "8.5",
+   "cmax_min_pf": "22",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical >300 at 100 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 250,
+   "mounting": "surface mount (hermetic)",
+   "source": "EXX-AT23XXG",
+   "page": "p. 2"
+  },
+  {
+   "maker": "Suntan",
+   "family": "TSC3S ceramic trimmer",
+   "part_numbers": [
+    "TSC3S503T1R"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "3",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 300 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "SUN-TSC3S",
+   "page": "p. 1"
+  },
+  {
+   "maker": "Suntan",
+   "family": "TSC3S ceramic trimmer",
+   "part_numbers": [
+    "TSC3S506T1R"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "6",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 500 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "SUN-TSC3S",
+   "page": "p. 1"
+  },
+  {
+   "maker": "Suntan",
+   "family": "TSC3S ceramic trimmer",
+   "part_numbers": [
+    "TSC3S510T1R"
+   ],
+   "cmin_max_pf": "3",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 500 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "SUN-TSC3S",
+   "page": "p. 1"
+  },
+  {
+   "maker": "Suntan",
+   "family": "TSC3S ceramic trimmer",
+   "part_numbers": [
+    "TSC3S520T1R"
+   ],
+   "cmin_max_pf": "5.8",
+   "cmax_min_pf": "20",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 200 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "SUN-TSC3S",
+   "page": "p. 1"
+  },
+  {
+   "maker": "Suntan",
+   "family": "TSC3S ceramic trimmer",
+   "part_numbers": [
+    "TSC3S530T1R"
+   ],
+   "cmin_max_pf": "8",
+   "cmax_min_pf": "28.5",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 200 at 1 MHz, Cmax",
+   "dielectric": "ceramic",
+   "working_voltage_v": 100,
+   "mounting": "surface mount",
+   "source": "SUN-TSC3S",
+   "page": "p. 1"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics S series piston trimmer",
+   "part_numbers": [
+    "SP10",
+    "SF10A",
+    "SM10"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 250,
+   "mounting": "SP10: THT horizontal mount; SF10A: THT vertical mount; SM10: surface mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 42"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics S series piston trimmer",
+   "part_numbers": [
+    "SP20",
+    "SF20A",
+    "SM20"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "20",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 250,
+   "mounting": "SP20: THT horizontal mount; SF20A: THT vertical mount; SM20: surface mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 42"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics S series piston trimmer",
+   "part_numbers": [
+    "SP30",
+    "SF30A",
+    "SM30"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "30",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 250,
+   "mounting": "SP30: THT horizontal mount; SF30A: THT vertical mount; SM30: surface mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 42"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics S series piston trimmer",
+   "part_numbers": [
+    "SP40",
+    "SF40A",
+    "SM40"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "40",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 250,
+   "mounting": "SP40: THT horizontal mount; SF40A: THT vertical mount; SM40: surface mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 42"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics H series piston trimmer",
+   "part_numbers": [
+    "HSP19",
+    "HSF19",
+    "HSM19",
+    "HTM19C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "19",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 1000 at 1 MHz (setting not stated)",
+   "dielectric": "H series high-range glass, TC -150 ±150 ppm/C",
+   "working_voltage_v": 125,
+   "mounting": "HSP19: THT horizontal printed circuit; HSF19: THT vertical printed circuit; HSM19: surface mount; HTM19C: panel mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 43"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics H series piston trimmer",
+   "part_numbers": [
+    "HSP34",
+    "HSF34",
+    "HSM34",
+    "HTM34C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "34",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 900 at 1 MHz (setting not stated)",
+   "dielectric": "H series high-range glass, TC -150 ±150 ppm/C",
+   "working_voltage_v": 125,
+   "mounting": "HSP34: THT horizontal printed circuit; HSF34: THT vertical printed circuit; HSM34: surface mount; HTM34C: panel mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 43"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics H series piston trimmer",
+   "part_numbers": [
+    "HSP46",
+    "HSF46",
+    "HSM46",
+    "HTM46C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "46",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "H series high-range glass, TC -150 ±150 ppm/C",
+   "working_voltage_v": 125,
+   "mounting": "HSP46: THT horizontal printed circuit; HSF46: THT vertical printed circuit; HSM46: surface mount; HTM46C: panel mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 43"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics H series piston trimmer",
+   "part_numbers": [
+    "HSP64",
+    "HSF64",
+    "HSM64",
+    "HTM64C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "64",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "H series high-range glass, TC -150 ±150 ppm/C",
+   "working_voltage_v": 125,
+   "mounting": "HSP64: THT horizontal printed circuit; HSF64: THT vertical printed circuit; HSM64: surface mount; HTM64C: panel mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 43"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics H series piston trimmer",
+   "part_numbers": [
+    "HTP96C",
+    "HTM96C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "96",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 600 at 1 MHz (setting not stated)",
+   "dielectric": "H series high-range glass, TC -150 ±150 ppm/C",
+   "working_voltage_v": 125,
+   "mounting": "HTP96C: THT horizontal printed circuit; HTM96C: panel mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 43"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics H series piston trimmer",
+   "part_numbers": [
+    "HTP130C",
+    "HTM130C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "130",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 500 at 1 MHz (setting not stated)",
+   "dielectric": "H series high-range glass, TC -150 ±150 ppm/C",
+   "working_voltage_v": 125,
+   "mounting": "HTP130C: THT horizontal printed circuit; HTM130C: panel mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 43"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics H series piston trimmer",
+   "part_numbers": [
+    "HTP210C",
+    "HTM210C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "210",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 350 at 1 MHz (setting not stated)",
+   "dielectric": "H series high-range glass, TC -150 ±150 ppm/C",
+   "working_voltage_v": 125,
+   "mounting": "HTP210C: THT horizontal printed circuit; HTM210C: panel mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 43"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics H series piston trimmer",
+   "part_numbers": [
+    "HTP250C",
+    "HTM250C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "250",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 250 at 1 MHz (setting not stated)",
+   "dielectric": "H series high-range glass, TC -150 ±150 ppm/C",
+   "working_voltage_v": 125,
+   "mounting": "HTP250C: THT horizontal printed circuit; HTM250C: panel mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 43"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF5A"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "4.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TF5A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF6A"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TF6A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF8A"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "8.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TF8A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF9A"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "8.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TF9A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF11A"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "11",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TF11A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF12A"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "12",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TF12A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF17A"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TF17A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF10A"
+   ],
+   "cmin_max_pf": "1.2",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TF10A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF14A"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "14",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TF14A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF15A"
+   ],
+   "cmin_max_pf": "1.2",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TF15A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF16A"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TF16A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF22A"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "22",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TF22A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF25A"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "25",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TF25A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF28A"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "28",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TF28A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TF series piston trimmer",
+   "part_numbers": [
+    "TF36A"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "36",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TF36A: THT vertical PC mount",
+   "source": "KNO-CAT-R5",
+   "page": "p. 44"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM5",
+    "TM5C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "4.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM5: panel mount, unsealed; TM5C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM5G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "4.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM5G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM6",
+    "TM6C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM6: panel mount, unsealed; TM6C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM6G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM6G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM9",
+    "TM9C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "8.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM9: panel mount, unsealed; TM9C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM9G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "8.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM9G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM11",
+    "TM11C"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "11",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM11: panel mount, unsealed; TM11C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM11G"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "11",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM11G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM12",
+    "TM12C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "12",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM12: panel mount, unsealed; TM12C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM12G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "12",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM12G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM17",
+    "TM17C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM17: panel mount, unsealed; TM17C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM17G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM17G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM18",
+    "TM18C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "18",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM18: panel mount, unsealed; TM18C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM18G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "18",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM18G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM21",
+    "TM21C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "21",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM21: panel mount, unsealed; TM21C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM23",
+    "TM23C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "23",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM23: panel mount, unsealed; TM23C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM23G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "23",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM23G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM30",
+    "TM30C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "30",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM30: panel mount, unsealed; TM30C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM30G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "30",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM30G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM38",
+    "TM38C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "38",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TM38: panel mount, unsealed; TM38C: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM38G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "38",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TM38G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM10",
+    "TM10C",
+    "TM10M"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TM10: panel mount, unsealed; TM10C: panel mount, sealed, metal cap, turret terminal; TM10M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM14",
+    "TM14C",
+    "TM14M"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "14",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM14: panel mount, unsealed; TM14C: panel mount, sealed, metal cap, turret terminal; TM14M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM15",
+    "TM15C",
+    "TM15M"
+   ],
+   "cmin_max_pf": "1.2",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TM15: panel mount, unsealed; TM15C: panel mount, sealed, metal cap, turret terminal; TM15M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM16",
+    "TM16C",
+    "TM16M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM16: panel mount, unsealed; TM16C: panel mount, sealed, metal cap, turret terminal; TM16M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM25",
+    "TM25C",
+    "TM25M"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "25",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM25: panel mount, unsealed; TM25C: panel mount, sealed, metal cap, turret terminal; TM25M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM28",
+    "TM28C",
+    "TM28M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "28",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM28: panel mount, unsealed; TM28C: panel mount, sealed, metal cap, turret terminal; TM28M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM36",
+    "TM36C",
+    "TM36M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "36",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM36: panel mount, unsealed; TM36C: panel mount, sealed, metal cap, turret terminal; TM36M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM42",
+    "TM42C",
+    "TM42M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "42",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM42: panel mount, unsealed; TM42C: panel mount, sealed, metal cap, turret terminal; TM42M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM52",
+    "TM52C",
+    "TM52M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "52",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM52: panel mount, unsealed; TM52C: panel mount, sealed, metal cap, turret terminal; TM52M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM60",
+    "TM60C",
+    "TM60M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "60",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM60: panel mount, unsealed; TM60C: panel mount, sealed, metal cap, turret terminal; TM60M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM75",
+    "TM75C",
+    "TM75M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "75",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM75: panel mount, unsealed; TM75C: panel mount, sealed, metal cap, turret terminal; TM75M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM90",
+    "TM90C",
+    "TM90M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "90",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 600 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM90: panel mount, unsealed; TM90C: panel mount, sealed, metal cap, turret terminal; TM90M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM120",
+    "TM120C",
+    "TM120M"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "120",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 600 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TM120: panel mount, unsealed; TM120C: panel mount, sealed, metal cap, turret terminal; TM120M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TM series piston trimmer",
+   "part_numbers": [
+    "TM180",
+    "TM180C",
+    "TM180M"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "180",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 500 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TM180: panel mount, unsealed; TM180C: panel mount, sealed, metal cap, turret terminal; TM180M: panel mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QM series piston trimmer",
+   "part_numbers": [
+    "QM2"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "1.8",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "QM2: panel mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QM series piston trimmer",
+   "part_numbers": [
+    "QM2G"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "1.8",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "QM2G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QM series piston trimmer",
+   "part_numbers": [
+    "QM6"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "QM6: panel mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QM series piston trimmer",
+   "part_numbers": [
+    "QM6G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "QM6G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QM series piston trimmer",
+   "part_numbers": [
+    "QM10"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "9.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "QM10: panel mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QM series piston trimmer",
+   "part_numbers": [
+    "QM10G"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "9.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "QM10G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QM series piston trimmer",
+   "part_numbers": [
+    "QM16"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "QM16: panel mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QM series piston trimmer",
+   "part_numbers": [
+    "QM16G"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "QM16G: panel mount, sealed, glass/quartz end",
+   "source": "KNO-CAT-R5",
+   "page": "p. 46"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP5"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "4.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP5: THT horizontal mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP5G",
+    "TP5GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "4.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP5G: THT horizontal mount, sealed, glass/quartz end; TP5GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP6"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP6: THT horizontal mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP6G",
+    "TP6GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP6G: THT horizontal mount, sealed, glass/quartz end; TP6GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP9",
+    "TP9C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "8.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP9: THT horizontal mount, unsealed; TP9C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP9G",
+    "TP9GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "8.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP9G: THT horizontal mount, sealed, glass/quartz end; TP9GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP11",
+    "TP11C"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "11",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP11: THT horizontal mount, unsealed; TP11C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP11G",
+    "TP11GA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "11",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP11G: THT horizontal mount, sealed, glass/quartz end; TP11GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP12",
+    "TP12C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "12",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP12: THT horizontal mount, unsealed; TP12C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP12G",
+    "TP12GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "12",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP12G: THT horizontal mount, sealed, glass/quartz end; TP12GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP17",
+    "TP17C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP17: THT horizontal mount, unsealed; TP17C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP17G",
+    "TP17GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP17G: THT horizontal mount, sealed, glass/quartz end; TP17GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP18",
+    "TP18C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "18",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP18: THT horizontal mount, unsealed; TP18C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP18G",
+    "TP18GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "18",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP18G: THT horizontal mount, sealed, glass/quartz end; TP18GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP21",
+    "TP21C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "21",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP21: THT horizontal mount, unsealed; TP21C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP23",
+    "TP23C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "23",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP23: THT horizontal mount, unsealed; TP23C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP23G",
+    "TP23GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "23",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP23G: THT horizontal mount, sealed, glass/quartz end; TP23GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP30",
+    "TP30C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "30",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP30: THT horizontal mount, unsealed; TP30C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP30G",
+    "TP30GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "30",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP30G: THT horizontal mount, sealed, glass/quartz end; TP30GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP38",
+    "TP38C"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "38",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "TP38: THT horizontal mount, unsealed; TP38C: THT horizontal mount, sealed, metal cap",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP38G",
+    "TP38GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "38",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "annular band glass, TC ±50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "TP38G: THT horizontal mount, sealed, glass/quartz end; TP38GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP10",
+    "TP10C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TP10: THT horizontal mount, unsealed; TP10C: THT horizontal mount, sealed, metal cap, turret terminal",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP14",
+    "TP14C",
+    "TP14CA"
+   ],
+   "cmin_max_pf": "1.5",
+   "cmax_min_pf": "14",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP14: THT horizontal mount, unsealed; TP14C: THT horizontal mount, sealed, metal cap, turret terminal; TP14CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP15",
+    "TP15C"
+   ],
+   "cmin_max_pf": "1.2",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TP15: THT horizontal mount, unsealed; TP15C: THT horizontal mount, sealed, metal cap, turret terminal",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP16",
+    "TP16C",
+    "TP16CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP16: THT horizontal mount, unsealed; TP16C: THT horizontal mount, sealed, metal cap, turret terminal; TP16CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP25",
+    "TP25C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "25",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP25: THT horizontal mount, unsealed; TP25C: THT horizontal mount, sealed, metal cap, turret terminal",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP28",
+    "TP28C",
+    "TP28CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "28",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP28: THT horizontal mount, unsealed; TP28C: THT horizontal mount, sealed, metal cap, turret terminal; TP28CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP36",
+    "TP36C",
+    "TP36CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "36",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP36: THT horizontal mount, unsealed; TP36C: THT horizontal mount, sealed, metal cap, turret terminal; TP36CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP42",
+    "TP42C",
+    "TP42CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "42",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP42: THT horizontal mount, unsealed; TP42C: THT horizontal mount, sealed, metal cap, turret terminal; TP42CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP52",
+    "TP52C",
+    "TP52CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "52",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 800 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP52: THT horizontal mount, unsealed; TP52C: THT horizontal mount, sealed, metal cap, turret terminal; TP52CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP60",
+    "TP60C",
+    "TP60CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "60",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 650 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP60: THT horizontal mount, unsealed; TP60C: THT horizontal mount, sealed, metal cap, turret terminal; TP60CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP75",
+    "TP75C",
+    "TP75CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "75",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 700 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP75: THT horizontal mount, unsealed; TP75C: THT horizontal mount, sealed, metal cap, turret terminal; TP75CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP90",
+    "TP90C",
+    "TP90CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "90",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 600 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP90: THT horizontal mount, unsealed; TP90C: THT horizontal mount, sealed, metal cap, turret terminal; TP90CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP120",
+    "TP120C",
+    "TP120CA"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "120",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 600 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "TP120: THT horizontal mount, unsealed; TP120C: THT horizontal mount, sealed, metal cap, turret terminal; TP120CA: THT horizontal mount, sealed, metal cap, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics TP series piston trimmer",
+   "part_numbers": [
+    "TP180",
+    "TP180C"
+   ],
+   "cmin_max_pf": "2",
+   "cmax_min_pf": "180",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 500 at 1 MHz (setting not stated)",
+   "dielectric": "embedded band glass, TC ±150 ppm/C",
+   "working_voltage_v": 500,
+   "mounting": "TP180: THT horizontal mount, unsealed; TP180C: THT horizontal mount, sealed, metal cap, turret terminal",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QP series piston trimmer",
+   "part_numbers": [
+    "QP2"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "1.8",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "QP2: THT horizontal mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QP series piston trimmer",
+   "part_numbers": [
+    "QP2G",
+    "QP2GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "1.8",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "QP2G: THT horizontal mount, sealed, glass/quartz end; QP2GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QP series piston trimmer",
+   "part_numbers": [
+    "QP6"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "QP6: THT horizontal mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QP series piston trimmer",
+   "part_numbers": [
+    "QP6G",
+    "QP6GA"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "5.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "QP6G: THT horizontal mount, sealed, glass/quartz end; QP6GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QP series piston trimmer",
+   "part_numbers": [
+    "QP10"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "9.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "QP10: THT horizontal mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QP series piston trimmer",
+   "part_numbers": [
+    "QP10G",
+    "QP10GA"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "9.5",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "QP10G: THT horizontal mount, sealed, glass/quartz end; QP10GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QP series piston trimmer",
+   "part_numbers": [
+    "QP16"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 750,
+   "mounting": "QP16: THT horizontal mount, unsealed",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics QP series piston trimmer",
+   "part_numbers": [
+    "QP16G",
+    "QP16GA"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "16",
+   "range_measured_at_hz": 1000000,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "min 2000 at 1 MHz (setting not stated)",
+   "dielectric": "quartz, TC 0 to +50 ppm/C",
+   "working_voltage_v": 1250,
+   "mounting": "QP16G: THT horizontal mount, sealed, glass/quartz end; QP16GA: THT horizontal mount, sealed, larger MIL size",
+   "source": "KNO-CAT-R5",
+   "page": "p. 48"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K series air trimmer",
+   "part_numbers": [
+    "KP6"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "6",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 5000 (frequency and setting not stated)",
+   "dielectric": "air",
+   "working_voltage_v": 250,
+   "mounting": "KP6: lead style P",
+   "source": "KNO-CAT-R5",
+   "page": "p. 26"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K series air trimmer",
+   "part_numbers": [
+    "KP8"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "8",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 5000 (frequency and setting not stated)",
+   "dielectric": "air",
+   "working_voltage_v": 250,
+   "mounting": "KP8: lead style P",
+   "source": "KNO-CAT-R5",
+   "page": "p. 26"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K series air trimmer",
+   "part_numbers": [
+    "KP10"
+   ],
+   "cmin_max_pf": "0.8",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 5000 (frequency and setting not stated)",
+   "dielectric": "air",
+   "working_voltage_v": 125,
+   "mounting": "KP10: lead style P",
+   "source": "KNO-CAT-R5",
+   "page": "p. 26"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K series air trimmer",
+   "part_numbers": [
+    "KF8",
+    "KT8",
+    "KJ8",
+    "KG8",
+    "KM8"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "8",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 5000 (frequency and setting not stated)",
+   "dielectric": "air",
+   "working_voltage_v": 250,
+   "mounting": "KF8: lead style F; KT8: lead style T; KJ8: lead style J; KG8: lead style G (p. 26, figure 5); KM8: lead style M",
+   "source": "KNO-CAT-R5",
+   "page": "p. 26"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K series air trimmer",
+   "part_numbers": [
+    "KF10",
+    "KT10",
+    "KJ10",
+    "KG10",
+    "KM10"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "10",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 5000 (frequency and setting not stated)",
+   "dielectric": "air",
+   "working_voltage_v": 125,
+   "mounting": "KF10: lead style F; KT10: lead style T; KJ10: lead style J; KG10: lead style G (p. 26, figure 5); KM10: lead style M",
+   "source": "KNO-CAT-R5",
+   "page": "p. 26"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K series air trimmer",
+   "part_numbers": [
+    "KT6"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "6",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "typical 5000 (frequency and setting not stated)",
+   "dielectric": "air",
+   "working_voltage_v": 250,
+   "mounting": "KT6: lead style T",
+   "source": "KNO-CAT-R5",
+   "page": "p. 26"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K_HV series PTFE trimmer",
+   "part_numbers": [
+    "KP1HV",
+    "KT1HV",
+    "KJ1HV"
+   ],
+   "cmin_max_pf": "0.2",
+   "cmax_min_pf": "1",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "780 at 100 MHz, maximum rated C, without terminals (not labelled a minimum)",
+   "dielectric": "PTFE, TC 50±50 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "KP1HV: lead style P; KT1HV: lead style T; KJ1HV: lead style J",
+   "source": "KNO-CAT-R5",
+   "page": "p. 33"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K_HV series PTFE trimmer",
+   "part_numbers": [
+    "KP1SD",
+    "KT1SD",
+    "KJ1SD"
+   ],
+   "cmin_max_pf": "0.2",
+   "cmax_min_pf": "1",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "780 at 100 MHz, maximum rated C, without terminals (not labelled a minimum)",
+   "dielectric": "PTFE, TC 50±50 ppm/C",
+   "working_voltage_v": 250,
+   "mounting": "KP1SD: lead style P; KT1SD: lead style T; KJ1SD: lead style J",
+   "source": "KNO-CAT-R5",
+   "page": "p. 33"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K_HV series PTFE trimmer",
+   "part_numbers": [
+    "KP4HV",
+    "KF4HV",
+    "KT4HV",
+    "KJ4HV",
+    "KM4HV"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "4",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "2000 at 100 MHz, maximum rated C, without terminals (not labelled a minimum)",
+   "dielectric": "PTFE, TC 50±50 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "KP4HV: lead style P; KF4HV: lead style F; KT4HV: lead style T; KJ4HV: lead style J; KM4HV: lead style M",
+   "source": "KNO-CAT-R5",
+   "page": "p. 33"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K_HV series PTFE trimmer",
+   "part_numbers": [
+    "KP4SD",
+    "KF4SD",
+    "KT4SD",
+    "KJ4SD",
+    "KM4SD"
+   ],
+   "cmin_max_pf": "0.6",
+   "cmax_min_pf": "4",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "2000 at 100 MHz, maximum rated C, without terminals (not labelled a minimum)",
+   "dielectric": "PTFE, TC 50±50 ppm/C",
+   "working_voltage_v": 250,
+   "mounting": "KP4SD: lead style P; KF4SD: lead style F; KT4SD: lead style T; KJ4SD: lead style J; KM4SD: lead style M",
+   "source": "KNO-CAT-R5",
+   "page": "p. 33"
+  },
+  {
+   "maker": "Knowles",
+   "family": "Voltronics K_HV series PTFE trimmer",
+   "part_numbers": [
+    "KP10HV",
+    "KF10HV",
+    "KT10HV",
+    "KJ10HV",
+    "KM10HV"
+   ],
+   "cmin_max_pf": "1",
+   "cmax_min_pf": "9",
+   "range_measured_at_hz": null,
+   "srf_min_at_cmax_mhz": null,
+   "srf_as_stated": null,
+   "q_as_stated": "2000 at 100 MHz, maximum rated C, without terminals (not labelled a minimum)",
+   "dielectric": "PTFE, TC 50±50 ppm/C",
+   "working_voltage_v": 1000,
+   "mounting": "KP10HV: lead style P; KF10HV: lead style F; KT10HV: lead style T; KJ10HV: lead style J; KM10HV: lead style M",
+   "source": "KNO-CAT-R5",
+   "page": "p. 33"
+  }
+ ]
+}

@@ -668,12 +668,35 @@ def classify(
     return [], "not a permitted change"
 
 
-def record_with_old_peak_rule(design: Design) -> dict[str, object]:
+@contextlib.contextmanager
+def _without_trimmers():
+    """Resolve parts with no tank sizing, so every tank is its standard-value choice."""
+    from filter_lib.design import part_resolution
+
+    saved = part_resolution.size_tanks
+    part_resolution.size_tanks = lambda *_args, **_kwargs: {}
+    try:
+        yield
+    finally:
+        part_resolution.size_tanks = saved
+
+
+def record_without_trimmers(design: Design) -> dict[str, object]:
+    """``record(design)`` with every tank built as its standard-value choice, no trimmer.
+
+    Only the difference between this and ``record`` is the trimmer split's effect (kind d).
+    """
+    with _without_trimmers():
+        return record(design)
+
+
+def record_with_old_peak_rule(design: Design, *, trimmers: bool = True) -> dict[str, object]:
     """``record(design)`` with response refinement as before the reference-peak fix.
 
     Every local maximum counts as a peak (no prominence), and no evaluated dip splits a
     region, so a rounding-step pair or a noise bump near the center can be taken as the
     peak. Only the difference between this and ``record`` is the fix's effect (kind f).
+    ``trimmers`` false records it without the trimmer split as well.
     """
     from filter_lib.shared import response_refinement
 
@@ -681,9 +704,155 @@ def record_with_old_peak_rule(design: Design) -> dict[str, object]:
     response_refinement.PEAK_PROMINENCE_DB = 0.0
     response_refinement._hidden_dips = lambda *_args: []
     try:
-        return record(design)
+        if trimmers:
+            return record(design)
+        with _without_trimmers():
+            return record(design)
     finally:
         response_refinement.PEAK_PROMINENCE_DB, response_refinement._hidden_dips = saved
+
+
+# A deck row of a tank: its fixed part(s), the stray across them, its trimmer and the
+# trimmer's series inductance (``CT1``, ``CT1A``, ``CSTRAY_CT1``, ``CTRIM_CT1``, ``LTRIM_CT1``).
+_TANK_ROW = re.compile(r"^(?:CT(\d+)[A-Z]?|CSTRAY_CT(\d+)|CTRIM_CT(\d+)|LTRIM_CT(\d+))$")
+_SPLIT_METHOD = "fixed_plus_trimmer"
+
+
+def _tank_of_row(name: str) -> str | None:
+    """The tank (``CT1``) a deck row belongs to, or ``None`` for any other row."""
+    match = _TANK_ROW.match(name)
+    return None if match is None else f"CT{next(group for group in match.groups() if group)}"
+
+
+def _deck_tanks(rows: Any) -> set[str]:
+    return {
+        str(row[0]).removeprefix("CTRIM_") for row in rows or [] if str(row[0]).startswith("CTRIM_")
+    }
+
+
+def _parts_tanks(parts: Any) -> set[str]:
+    return {row[0] for row in parts or [] if row[5] == _SPLIT_METHOD}
+
+
+def _deck_differs_only_in_tanks(
+    before: Any, after: Any, tanks: set[str], split_rows: dict[str, list]
+) -> bool:
+    """Whether a deck matches the one recorded without trimmers but for those tanks' rows.
+
+    Every other row must be the same, the trimmed tanks must be exactly the tanks the build
+    splits, and each one's rows must be the split's own rows (``split_rows``): names,
+    terminals and values.
+    """
+
+    def other(rows):
+        return [row for row in rows or [] if _tank_of_row(str(row[0])) not in tanks]
+
+    if tanks != set(split_rows):
+        return False
+    if not _close(other(before), other(after), MEASUREMENT_REL_TOL):
+        return False
+    return all(
+        _close(
+            sorted(row for row in after or [] if _tank_of_row(str(row[0])) == tank),
+            sorted(split_rows[tank]),
+            MEASUREMENT_REL_TOL,
+        )
+        for tank in tanks
+    )
+
+
+_SPLIT_ROWS: dict[str, dict[str, list]] = {}
+
+
+def split_rows(design: Design) -> dict[str, list]:
+    """Each trimmed tank's rows as the chosen-parts deck must give them, from the build's
+    own record of its split (the deck's series, default build settings): the fixed parts
+    and their stray across the tank (node ``i`` to ground), the trimmer at its nominal
+    setting from the tank's node to its series node, and the trimmer's series inductance
+    from there to ground."""
+    if design.case_id not in _SPLIT_ROWS:
+        build = json.loads(
+            _run_cli(*design.argv, "--format", "json", "--sim-build", "--eseries", SPICE_SERIES)
+        )
+        rows: dict[str, list] = {}
+        for part in build["nominal_build"]["substitutions"]:
+            if part["method"] != _SPLIT_METHOD:
+                continue
+            tank, trimmer = part["logical_name"], part["trimmer"]
+            node, series = tank.removeprefix("CT"), f"NSERIESCTRIM_{tank}"
+            values = part["physical_parts_si"]
+            suffixes = [""] if len(values) == 1 else [chr(ord("A") + i) for i in range(len(values))]
+            tank_rows = [
+                [f"{tank}{suffix}", node, "0", value] for suffix, value in zip(suffixes, values)
+            ]
+            if part["stray_capacitance_f"]:
+                tank_rows.append([f"CSTRAY_{tank}", node, "0", part["stray_capacitance_f"]])
+            setting = trimmer["nominal_setting"]["setting_f"]
+            tank_rows.append([f"CTRIM_{tank}", node, series, setting])
+            tank_rows.append([f"LTRIM_{tank}", series, "0", trimmer["series_inductance_h"]])
+            rows[tank] = tank_rows
+        _SPLIT_ROWS[design.case_id] = rows
+    return _SPLIT_ROWS[design.case_id]
+
+
+def _parts_differ_only_in_tanks(before: Any, after: Any, tanks: set[str]) -> bool:
+    """Whether a build's parts match those recorded without trimmers but for those tanks."""
+
+    def other(rows):
+        return [row for row in rows or [] if row[0] not in tanks]
+
+    return _close(other(before), other(after), MEASUREMENT_REL_TOL) and all(
+        row[5] == _SPLIT_METHOD for row in after or [] if row[0] in tanks
+    )
+
+
+def _trimmer_explains(item: str, actual: dict, untrimmed: dict, design: Design) -> list[str]:
+    """The tanks whose trimmer split alone explains the item's change from the untrimmed
+    record; empty when anything else differs."""
+    if item_type(item) == "spice_nominal":
+        tanks = _deck_tanks(actual.get(item))
+        ok = _deck_differs_only_in_tanks(
+            untrimmed.get(item), actual.get(item), tanks, split_rows(design)
+        )
+    else:
+        # Build items: the build's parts must differ only in the trimmed tanks; every
+        # measurement then follows from them.
+        tanks = _parts_tanks(actual.get("build_parts"))
+        ok = _parts_differ_only_in_tanks(
+            untrimmed.get("build_parts"), actual.get("build_parts"), tanks
+        )
+    return sorted(tanks) if tanks and ok else []
+
+
+def _classify_with_trimmers(
+    design: Design,
+    item: str,
+    corpus: dict,
+    actual: dict,
+    untrimmed: dict,
+    untrimmed_changes: dict[str, tuple],
+    old_peaks: dict | None,
+) -> tuple[list[str], str]:
+    """Explain an item the trimmer split moved (kind d).
+
+    The item must differ from the design recorded without trimmers only in the trimmed
+    tanks (``_trimmer_explains``), and what separates the corpus from that record must
+    itself be a permitted change.
+    """
+    tanks = _trimmer_explains(item, actual, untrimmed, design)
+    if not tanks:
+        return [], "not a permitted change"
+    kinds, reasons = ["d"], [f"tanks built as a fixed part plus a trimmer ({', '.join(tanks)})"]
+    if item in untrimmed_changes:
+        before, after = untrimmed_changes[item]
+        inner, reason = classify(
+            design, item, before, after, untrimmed_changes, untrimmed, old_peaks
+        )
+        if not inner:
+            return [], "not a permitted change"
+        kinds = sorted({*inner, *kinds})
+        reasons.insert(0, reason)
+    return kinds, "; ".join(reasons)
 
 
 def current_changes() -> list[dict]:
@@ -691,16 +860,31 @@ def current_changes() -> list[dict]:
     corpus = load_corpus()["designs"]
     changes = []
     for design in designs():
+        expected = corpus[design.case_id]
         actual = record(design)
-        changed = changed_items(corpus[design.case_id], actual)
-        old_peaks = (
-            record_with_old_peak_rule(design)
-            if design.category == "bandpass"
-            and any(item_type(item) in _MEASUREMENT_ITEMS for item in changed)
-            else None
+        changed = changed_items(expected, actual)
+        is_bandpass = design.category == "bandpass"
+        untrimmed = record_without_trimmers(design) if is_bandpass and changed else None
+        trimmed = (
+            set()
+            if untrimmed is None
+            else {
+                item for item in changed if not _same(item, untrimmed.get(item), actual.get(item))
+            }
         )
+        measured = any(item_type(item) in _MEASUREMENT_ITEMS for item in changed)
+        old_peaks = record_with_old_peak_rule(design) if is_bandpass and measured else None
+        untrimmed_peaks = (
+            record_with_old_peak_rule(design, trimmers=False) if trimmed and measured else None
+        )
+        untrimmed_changes = {} if untrimmed is None else changed_items(expected, untrimmed)
         for item, (before, after) in changed.items():
-            kinds, reason = classify(design, item, before, after, changed, actual, old_peaks)
+            if item in trimmed:
+                kinds, reason = _classify_with_trimmers(
+                    design, item, expected, actual, untrimmed, untrimmed_changes, untrimmed_peaks
+                )
+            else:
+                kinds, reason = classify(design, item, before, after, changed, actual, old_peaks)
             changes.append(
                 {
                     "case": design.case_id,

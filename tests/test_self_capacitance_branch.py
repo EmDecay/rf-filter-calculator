@@ -25,15 +25,22 @@ LP_440 = DesignRequest("lowpass", "chebyshev", "pi", 440e6, 50.0, 5, ripple_db=0
 
 
 def _spice_elements(deck: str) -> list[tuple[str, int, int, float]]:
-    """``(name, node 1, node 2, value)`` of every part line of a deck."""
+    """``(name, node 1, node 2, value)`` of every part line of a deck.
+
+    A trimmer's series inductance is an inductor after it through an internal node; it
+    is folded back into the trimmer's row (its own value is checked separately).
+    """
+    lines = [
+        line.split()
+        for line in deck.splitlines()
+        if line and not line.startswith(("*", ".", "VINPUT", "RSOURCE"))
+    ]
+    ends = {node1: node2 for name, node1, node2, _value in lines if name.startswith("LTRIM_")}
     rows = []
-    for line in deck.splitlines():
-        if not line or line.startswith(("*", ".")) or line.startswith(("VINPUT", "RSOURCE")):
+    for name, node1, node2, value in lines:
+        if name.startswith(("RLOAD", "RLOSS", "LTRIM_")):
             continue
-        name, node1, node2, value = line.split()
-        if name.startswith(("RLOAD", "RLOSS")):
-            continue
-        rows.append((name, int(node1), int(node2), float(value)))
+        rows.append((name, int(node1), int(ends.get(node2, node2)), float(value)))
     return rows
 
 
@@ -65,7 +72,9 @@ def test_the_deck_holds_the_solver_s_self_capacitance_branches(request_):
     for (_name, node1, node2, value), element in zip(deck, elements, strict=True):
         assert (node1, node2) == (element.node1, element.node2)
         assert value == pytest.approx(element.value, rel=1e-11, abs=0)
-    inductors = [element for element in elements if element.kind == "L"]
+    # The inductor parts: a trimmer's series inductance is a fixed element of the trimmer,
+    # which has no self-capacitance branch.
+    inductors = [element for element in elements if element.kind == "L" and not element.fixed]
     branches = {element.name: element for element in elements if element.name.startswith("CSELF_")}
     assert sorted(branches) == sorted(f"CSELF_{inductor.name}" for inductor in inductors)
     for inductor in inductors:

@@ -7,11 +7,14 @@ the case list nor the seeded draws of the real parts.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.design import DesignRequest, design, export_spice
 from filter_lib.shared.build_simulation import BuildConfig, analyze_build, realize_nominal_build
+from filter_lib.shared.circuit_display_names import series_inductance_name
 from filter_lib.shared.eseries import MatchPolicy
 from tests.parts_helpers import parts_for
 
@@ -23,7 +26,7 @@ def _calculated_inductor_parts(result: dict, policy: MatchPolicy | None = None):
     return parts_for(result, "bandpass", "E24", policy, build_inductors="calculated")
 
 
-def _spice_elements(deck: str) -> list[tuple[str, int, int, float]]:
+def _spice_elements(deck: str) -> list[tuple[str, str, str, float]]:
     """``(name, node 1, node 2, value)`` of every part line of a deck."""
     rows = []
     for line in deck.splitlines():
@@ -32,7 +35,7 @@ def _spice_elements(deck: str) -> list[tuple[str, int, int, float]]:
         name, node1, node2, value = line.split()
         if name.startswith(("RLOAD", "RLOSS")):
             continue
-        rows.append((name, int(node1), int(node2), float(value)))
+        rows.append((name, node1, node2, float(value)))
     return rows
 
 
@@ -56,23 +59,38 @@ def test_spice_deck_holds_the_solver_branches_with_their_kinds(request_fields):
         outcome.result, outcome.category, BuildConfig(), parts=outcome.parts
     )
 
-    deck = _spice_elements(export_spice(outcome, "nominal_build"))
+    deck = iter(_spice_elements(export_spice(outcome, "nominal_build")))
 
     elements = realization.circuit.elements
-    assert [row[0] for row in deck] == [element.name for element in elements]
-    for (name, node1, node2, value), element in zip(deck, elements, strict=True):
+    for element in elements:
+        name, node1, node2, value = next(deck)
         # SPICE reads an element's kind from its first letter.
-        assert name[0] == element.kind
-        assert (node1, node2) == (element.node1, element.node2)
+        assert (name, name[0]) == (element.name, element.kind)
+        assert node1 == str(element.node1)
         # abs=0: pytest.approx's default absolute tolerance would accept a 0 F stray.
         assert value == pytest.approx(element.value, rel=1e-11, abs=0)
-    # A chip inductor's self-capacitance is fixed too (tests/test_self_capacitance_branch.py).
+        if element.series_inductance_h:
+            # A trimmer's series inductance is its own deck line through a series node.
+            series = (series_inductance_name(name), node2, str(element.node2))
+            inductance = next(deck)
+            assert inductance[:3] == series
+            assert inductance[3] == pytest.approx(element.series_inductance_h, rel=1e-11)
+        else:
+            assert node2 == str(element.node2)
+    assert next(deck, None) is None
+    # A chip inductor's self-capacitance and a tank's trimmer are fixed too
+    # (tests/test_self_capacitance_branch.py, tests/test_tank_tuning.py).
     strays = [
         element for element in elements if element.fixed and element.name.startswith("CSTRAY_")
     ]
     assert strays
-    assert all(e.name.startswith(("CSTRAY_", "CSELF_")) for e in elements if e.fixed)
-    assert all(element.value == pytest.approx(0.2e-12, rel=1e-12, abs=0) for element in strays)
+    assert all(e.name.startswith(("CSTRAY_", "CSELF_", "CTRIM_")) for e in elements if e.fixed)
+    # The default 0.2 pF across a pair; beside a trimmer, 0.2 pF for each of the tank's fixed
+    # parts in its resolved split.
+    for element in strays:
+        tank = outcome.parts.tank(element.name.removeprefix("CSTRAY_"))
+        count = len(tank.split.fixed_parts_f) if tank and tank.split else 1
+        assert element.value == pytest.approx(count * 0.2e-12, rel=1e-12, abs=0)
 
 
 def test_tolerance_cases_leave_the_stray_unchanged_and_vary_only_real_parts():
@@ -92,12 +110,17 @@ def test_tolerance_cases_leave_the_stray_unchanged_and_vary_only_real_parts():
 def test_adding_the_stray_moves_no_case_or_seeded_draw_of_the_real_parts():
     result = calculate_bandpass_filter(14.2e6, 350e3, 50, 3, "butterworth", "top")
 
-    with_stray = analyze_build(result, "bandpass", FAST, parts=_calculated_inductor_parts(result))
+    # Without tank trimmers, whose fixed parts and settings would change with the stray.
+    with_stray = analyze_build(
+        result, "bandpass", FAST, parts=replace(_calculated_inductor_parts(result), tanks={})
+    )
     without = analyze_build(
         result,
         "bandpass",
         FAST,
-        parts=_calculated_inductor_parts(result, MatchPolicy(stray_capacitance_f=0)),
+        parts=replace(
+            _calculated_inductor_parts(result, MatchPolicy(stray_capacitance_f=0)), tanks={}
+        ),
     )
 
     assert not any(e.fixed for e in without.nominal_realization.circuit.elements)

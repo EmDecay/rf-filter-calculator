@@ -127,6 +127,20 @@ measured field of `synthesis_validation`.
   shared reason; both sourced exclusion texts reach every surface for a VHF design
 - truthful fallbacks ("calculated value used", with the reason) when a standard part or an
   inductor suggestion is unavailable
+- band-pass tank trimmers: the packaged trimmer table against the evidence page, its Knowles
+  appendix and its source index ([test_trimmer_data.py](../tests/test_trimmer_data.py)); each tank's need recomputed
+  from the branch formulas, the end coupling's effective shunt and its interior maximum, the
+  trimmer's range under its series inductance (BFC280820109 at 29, 146 and 440 MHz), sourced and
+  conditional needs, ranking and the no-fit message
+  ([test_tank_trimmers.py](../tests/test_tank_trimmers.py)); the tuned nominal build and deck
+  (susceptance residual near zero, also with an inductor Q of 1, the deck checked with its own
+  nodal reduction), every case's untuned and tuned records, the out-of-range flag and
+  cancellation between a case's two measurements
+  ([test_tank_tuning.py](../tests/test_tank_tuning.py))
+- coupling advice ([test_coupling_advice.py](../tests/test_coupling_advice.py)): the 2 m
+  band-pass's 21 nH advice and its CLI rerun as printed, the 21.06 nH estimate missing the
+  floor, when no advice applies, the no-candidate and search-budget messages, and cancellation
+  between trials
 
 ### Circuit and build analysis
 

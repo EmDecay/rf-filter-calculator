@@ -669,3 +669,114 @@ def test_calculated_values_with_no_suggestions_are_recorded_alike_everywhere(
 
     assert json.loads(expected)["build_model"]["build_inductor_choice"] == "calculated"
     assert api == download == wizard == expected
+
+
+def test_the_tank_trimmers_and_coupling_advice_are_the_same_everywhere(monkeypatch, capsys, client):
+    """The 2 m band-pass: its advice, every tank's split, and the tuned build with its
+    untuned and retuned tolerance cases read the same on the CLI, the web and the wizard."""
+    from filter_lib.wizard.calculation_handler import calculate_and_format
+    from tests.web_helpers import HTMX, output_text
+
+    argv = ("bp", "ch", "top", "-f", "146MHz", "-b", "4MHz", "-n", "3", "-r", "0.5")
+    table = cli_stdout(monkeypatch, capsys, *argv, *BUILD_FLAGS)
+    document = cli_stdout(monkeypatch, capsys, *argv, "--format", "json", *BUILD_FLAGS)
+    form = {
+        "filter_type": "chebyshev",
+        "coupling": "top",
+        "frequency": "146MHz",
+        "bandwidth": "4MHz",
+        "resonators": "3",
+        "ripple": "0.5",
+        "impedance": "50",
+        "eseries": "E24",
+        "output_format": "table",
+        "inductor_suggestions": "best",
+        "sim_build": "on",
+        "build_grid_points": "51",
+    }
+    page = output_text(client.post("/design/bandpass", data=form, headers=HTMX).text) + "\n"
+    api = client.post("/api/design/bandpass", data={**form, "output_format": "json"}).text
+    state = FilterState(
+        category="bandpass",
+        filter_type="chebyshev",
+        topology="top",
+        frequency_hz=146e6,
+        bandwidth_hz=4e6,
+        order=3,
+        ripple_db=0.5,
+        show_plot=False,
+        build_analysis_enabled=True,
+        build_grid_points=51,
+    )
+    wizard = calculate_and_format(state).output_text
+
+    assert page == table
+    assert api.strip() == document.strip()
+    assert wizard == _screen_text(table, build=True)
+    for heading in ("\nCoupling Advice\n", "\nTank Trimmers\n", "Spread after retuning"):
+        assert heading in table
+    data = json.loads(document)
+    assert data["coupling_advice"]["advised"]["setting"] == "21nH"
+    assert all(case["tuning"] for case in data["tolerance_analysis"]["cases"])
+
+
+def test_a_forced_inductor_does_not_change_the_tank_split(client):
+    """At 29 MHz with 75 nH tanks both a T50-2 winding and a chip inductor qualify. The
+    tanks are sized for the first suggestion whatever the build uses, so the page and JSON
+    with a forced chip and the Components CSV give the same sizing."""
+    import csv
+    import io
+
+    from tests.web_helpers import HTMX, output_text
+
+    form = {
+        "filter_type": "chebyshev",
+        "coupling": "top",
+        "frequency": "29MHz",
+        "bandwidth": "870kHz",
+        "resonators": "3",
+        "ripple": "0.5",
+        "impedance": "50",
+        "resonator_inductance": "75nH",
+        "eseries": "E24",
+        "output_format": "table",
+        "inductor_suggestions": "best",
+        "sim_build": "on",
+        "build_grid_points": "51",
+    }
+    chip = {**form, "build_inductors": "chip"}
+
+    def tanks(fields):
+        body = client.post("/api/design/bandpass", data={**fields, "output_format": "json"}).text
+        return json.loads(body)["tank_trimmers"]
+
+    def section(fields):
+        text = output_text(client.post("/design/bandpass", data=fields, headers=HTMX).text)
+        return text.split("\nTank Trimmers\n", 1)[1].split("\nInductor Suggestions", 1)[0]
+
+    assert tanks(chip) == tanks(form)
+    assert tanks(chip)["sized_for_inductor"] == {"kind": "toroid", "part": "T50-2"}
+    forced, default = " ".join(section(chip).split()), " ".join(section(form).split())
+    note = (
+        "The tanks are sized for toroid winding T50-2, the first inductor suggestion; the "
+        "build uses chip inductor"
+    )
+    assert note in forced and note not in default
+    rows = list(csv.DictReader(io.StringIO(client.post("/export/bandpass/csv", data=chip).text)))
+    for row, tank in zip(rows[:3], tanks(chip)["tanks"], strict=True):
+        assert row["Component"] == tank["name"]
+        assert (row["TrimmerFit"] == "no_fit") == (not tank["fits"])
+        # The CSV and the page name the JSON's first split: its trimmer and fixed parts.
+        split = tank["splits"][0] if tank["splits"] else None
+        assert row["TrimmerPart"] == (split["trimmer"]["part_numbers"][0] if split else "")
+        fixed = [float(text.split()[0]) for text in row["TankFixedParts"].split(" || ") if text]
+        assert fixed == pytest.approx(
+            [value * 1e12 for value in (split["fixed_parts_f"] if split else [])], abs=0.005
+        )
+        if split:
+            assert (
+                f"+ trimmer {row['TrimmerPart']} (see Tank Trimmers)"
+                in output_text(client.post("/design/bandpass", data=chip, headers=HTMX).text)
+                .split(f"{tank['name']} calculated", 1)[1]
+                .split("\n", 2)[1]
+            )

@@ -221,3 +221,22 @@ class TestCalibrationNewtonKernels:
                 [-1.0, 0.0],
             )
         assert [x for x, _ in calls] == [-(0.5**attempt) for attempt in range(9)]
+
+
+def test_every_calibrated_tank_is_resonant_at_the_tank_frequency(butterworth_design):
+    # Synthesis removes each tank's coupling and end-coupling shunts from its capacitor, so
+    # at the calibrated tank frequency every node's diagonal susceptance (other tanks
+    # shorted, the ports at the design impedance) is zero: the target tank tuning restores.
+    from filter_lib.shared.circuit_builders import build_named_circuit
+    from filter_lib.shared.tank_susceptance import node_susceptance
+
+    result = butterworth_design
+    circuit = build_named_circuit(result, "bandpass")
+    frequency = result["f_tank_hz"]
+    omega = 2 * math.pi * frequency
+    ports = {circuit.in_node: result["z0"], circuit.out_node: result["z0"]}
+    nodes = range(1, result["n_resonators"] + 1)
+
+    for node in nodes:
+        susceptance = node_susceptance(circuit, node, frequency, nodes, ports)
+        assert abs(susceptance / omega) < 1e-24, node

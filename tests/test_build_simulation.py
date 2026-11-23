@@ -829,13 +829,16 @@ class TestBuildAnalysis:
 
     def test_one_sided_censored_bandpass_edge_is_excluded_from_its_summary(self):
         result = calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top")
+        parts = _calculated_parts(
+            result, "bandpass", eseries="E96", policy=MatchPolicy(tolerance_override_pct=50)
+        )
         analysis = analyze_build(
             result,
             "bandpass",
             BuildConfig(inductor_tolerance_pct=50, grid_points=51),
-            parts=_calculated_parts(
-                result, "bandpass", eseries="E96", policy=MatchPolicy(tolerance_override_pct=50)
-            ),
+            # Without tank trimmers: a fixed trimmer would hold part of each tank's
+            # capacitance, so the all-low case would not move the whole passband.
+            parts=replace(parts, tanks={}),
         )
         # All parts 50% low double the center, pushing the upper skirt past the window.
         censored = next(case for case in analysis.cases if case.case_id == "coherent:low")
@@ -859,7 +862,8 @@ class TestBuildAnalysis:
             result,
             "bandpass",
             BuildConfig(grid_points=51),
-            parts=parts_for(result, "bandpass", eseries="E96"),
+            # Without tank trimmers, which would tune the tanks back onto the band.
+            parts=replace(parts_for(result, "bandpass", eseries="E96"), tanks={}),
         )
 
         assert analysis.calculated.bw == pytest.approx(1e3, rel=0.03)
@@ -896,6 +900,45 @@ class TestBuildAnalysis:
         assert measured.calculated == analysis.calculated
         assert measured.nominal_realization == analysis.nominal_realization
         assert measured.nominal_build == analysis.nominal_build == analysis.cases[0].measurement
+
+    @pytest.mark.runtime_budget
+    def test_a_9_resonator_build_with_trimmers_and_100_cases_fits_the_web_timeout(self):
+        # The web stops a calculation after 60 s (web/settings.py). Measured on an Apple
+        # M-series machine at full power: about 24 s (low-power mode took about 1.5 times as
+        # long); each case is measured twice, with its trimmers at their nominal settings and
+        # after retuning them.
+        from filter_lib.design import DesignRequest, design
+
+        request = DesignRequest(
+            "bandpass",
+            "chebyshev",
+            "top",
+            146e6,
+            50.0,
+            9,
+            ripple_db=0.5,
+            bandwidth_hz=4e6,
+            realization=BuildConfig(grid_points=601, sample_count=100),
+            run_build_analysis=True,
+        )
+
+        started = time.perf_counter()
+        analysis = design(request).build_analysis
+        elapsed = time.perf_counter() - started
+
+        assert analysis.has_trimmers
+        # Every case ran: nominal, all low, all high, each part alone at either end (a part is
+        # every element but the strays, self-capacitances and trimmers, named by kind, so a
+        # part wrongly held fixed is missed), and the 100 random cases.
+        elements = analysis.nominal_realization.circuit.elements
+        parts = [e.name for e in elements if not e.name.startswith(("CSTRAY_", "CSELF_", "CTRIM_"))]
+        expected = ["nominal", "coherent:low", "coherent:high"]
+        expected += [f"one:{name}:{end}" for name in parts for end in ("low", "high")]
+        expected += [f"sample:{index:04d}" for index in range(1, 101)]
+        assert [case.case_id for case in analysis.cases] == expected
+        assert {f"LT{index}" for index in range(1, 10)} <= set(parts)
+        assert all(case.tuning is not None for case in analysis.cases)
+        assert elapsed < 60.0
 
     @pytest.mark.runtime_budget
     def test_default_analysis_runtime_is_bounded(self):

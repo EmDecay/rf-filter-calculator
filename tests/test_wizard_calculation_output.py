@@ -245,6 +245,7 @@ class TestBandpassCalculator:
 def test_bandpass_recommendations_choose_no_part_below_one_picofarad():
     result = {
         "n_resonators": 1,
+        "z0": 50.0,
         "f0": 14.175e6,
         # The upper -3 dB edge, which the inductor suggestions are checked up to.
         "f_high": 14.2e6,

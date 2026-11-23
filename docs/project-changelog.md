@@ -1,6 +1,6 @@
 # Project Changelog
 
-## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Inductor Suggestions, Chip Inductors, Industry-Standard Filter Terms)
+## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Inductor Suggestions, Chip Inductors, Band-Pass Trimmers, Industry-Standard Filter Terms)
 
 The next release is 3.0.0: it removes and renames public names (listed below) without
 compatibility aliases.
@@ -247,6 +247,85 @@ only labels changed.
   `passband_top_hz` and `peak_range_hz`, and `refine_response` takes `peak_range`. A hand-made
   band-pass result without `f_high` gets it from `f0` and `bw`. `inductor_suggestion.CHIP_NOT_AVAILABLE` is
   removed.
+
+### Band-pass coupling advice and tank trimmers
+
+- **Added coupling advice.** When a band-pass coupling capacitor (Cs or Ce) gets no standard
+  part of 1 pF or more, the table adds a **Coupling Advice** section and JSON a
+  `coupling_advice` object (`null` otherwise): the tank inductance closest to the design's that
+  a built-in suggestion supplies (a chip catalog value or a verified toroid winding) and that
+  gives every coupling capacitor such a part, printed as the rerun setting
+  (`--tank-inductance 21nH` for `bp ch top -f 146MHz -b 4MHz -n 3 -r 0.5`). Each of at most 8
+  trials recalculates the design with the printed value read back, so the advice states what the
+  rerun gives (every coupler's part and the inductor that supplies the value); when none works,
+  it says so. CSV, values-only and SPICE leave it out.
+- **Added tank trimmers.** Every band-pass tank with standard values is sized as a fixed
+  standard part plus a sourced trimmer (table **Tank Trimmers**, JSON `tank_trimmers`, CSV
+  `TankFixedParts`, `TrimmerPart`, `TrimmerRequiredMinPF`, `TrimmerRequiredMaxPF`,
+  `TrimmerRangeMinPF`, `TrimmerRangeMaxPF`, `TrimmerSeriesInductanceNH`,
+  `TrimmerSeriesInductanceBasis`, `TrimmerFit` (always `conditional_on_series_inductance`, or
+  `no_fit`), `TankNeedMinPF`, `TankNeedMaxPF`, `TankNeedBasis` and `TankNeedAssumptions` on the
+  tank rows). At the calibrated tank frequency, the fixed part and trimmer
+  together must cover what the tank needs with every other part at its node at either end of its
+  tolerance: the inductor (a chip inductor at both tolerance ends, at its minimum SRF and with no
+  drift; the inductor's first suggestion, whatever the build uses), the coupling capacitors, and the end capacitors
+  through the design's source and load impedance, using the end coupling's effective shunt
+  `Ce/(1 + (ωRCe)²)` at both ends and at its maximum `Ce = 1/(ωR)`, with the loss of the
+  design's resonator Q. The build's own ports, Q, inductor tolerance and inductor choice never
+  change the split, so every output of a design lists the same trimmer; the build simulates it
+  under those settings and flags what it cannot reach. The need is **conditional** (and names each
+  assumption) when a tolerance in it is assumed: a toroid winding, a calculated inductor, an
+  unsourced capacitor, or a coupler with no chosen part. A trimmer's range is guaranteed only at
+  its maker's measurement frequency; at the tank frequency its series inductance (the bound from
+  Vishay's minimum SRF at Cmax, else an assumed 10 nH) raises it, so the range relied on runs
+  from the raised minimum to the unraised maximum and **every fit is conditional on that
+  inductance**. Splits rank by the smallest trimmer range, then the best-centred fixed part, then
+  fewer parts; when none fits, the output names what the tank needs. With a fit, the tank's
+  standard-value `Use:` line names the split and a `No trimmer:` line gives the plain choice
+  (JSON `standard_match` and CSV `RecommendedStd*` keep the plain choice). The trimmers are the
+  evidence page's per-part tables, packaged as `filter_lib/shared/trimmer_data.json` (Vishay BFC2
+  808, Exxelia AT 0300/1300 R2, AT 03HV, AT 9402G, AT 9410G and AT 23XXG, Suntan TSC3S, and the
+  Knowles Voltronics S, H, TF, TM, TP, QM, QP, K and K_HV lines listed part by part in
+  `docs/component-data-sources-knowles-trimmers.md`; 182 ranges, 354 part numbers).
+- **Build simulation and chosen-parts SPICE.** A tank with a fitting trimmer is built as its
+  fixed part(s), a fixed `CSTRAY_CT<i>` (the assumed stray for each extra part) and a fixed
+  trimmer `CTRIM_CT<i>` with its series inductance, written to the deck as `LTRIM_CT<i>` in
+  series. The nominal build sets each trimmer so that its tank node's susceptance (with every
+  built branch, its Q and the ports) matches the calculated design's at the tank frequency, and
+  the deck holds those settings. Every tolerance case is measured with the trimmers at the
+  nominal settings (the untuned response, `measurement`) and again after retuning each trimmer
+  within its range (`tuning`: each setting with `in_range`, and the tuned measurement); the
+  table prints both spreads and says whether any trimmer ran out of range (JSON
+  `trimmer_out_of_range_cases`, `trimmers_retuned_in_each_case`, `tuned_metric_summaries`). A
+  model limit says retuning restores each tank's resonance, not the coupling or external Q.
+  Substitutions gain `trimmer`; circuit elements gain `series_inductance_h`. The deck's
+  `* part used:` line gives each trimmer's `required` value and `in-range`, and a tank whose
+  trimmer cannot reach is said not to be tuned. JSON `tank_trimmers.sized_for_inductor` names
+  the inductor the tanks are sized for, and `coupling_advice.advised.remove_options` every
+  spelling of the options a rerun must drop (`--resonator-impedance`, `--tank-impedance`).
+  The advice search jumps past the inductance a too-low value names and tries the value
+  above the estimate before going down. The 2 m band-pass's
+  chosen parts now come out at 146.0002 MHz with a −2.76 dB lowest passband gain (untrimmed:
+  143.93 MHz, −23.68 dB).
+- **HF designs.** The trimmer split applies on all bands (permitted kind d). Eight of the nine
+  HF baseline band-pass designs get a trimmer on at least one tank (3.6 to 28.5 MHz; their
+  chosen-parts decks and builds change), mostly the wide-range Knowles Voltronics piston
+  trimmers; at 1.9 MHz a tank with a toroid winding at ±10% needs more span than any packaged
+  trimmer, so it keeps its standard-value part. The baseline tool proves kind (d) by recording
+  each design again with tank sizing switched off.
+- **Python API.** New modules `shared/trimmer_data.py`, `shared/tank_susceptance.py`,
+  `shared/tank_trimmers.py`, `shared/tank_tuning.py`, `bandpass/trimmer_display.py` and
+  `design/coupling_advice.py`. `DesignResult` gains `coupling_advice`; `ResolvedParts` gains
+  `tanks` and `tank()`; `CircuitElement` gains
+  `series_inductance_h` (a capacitor's, simulated in its own branch; solver branches gain an
+  optional sixth field); `ScreeningCase` gains `tuning`; `NominalRealization` gains `tuning`
+  and `trimmer_settings`; `BuildAnalysisResult` gains `tuned_metric_summaries`, `has_trimmers`
+  and `out_of_range_cases()`; `build_loss_models.loss_model` is the one Q rule for sizing and
+  realization. `capacitor_choice._best_pair` is now `best_pair` and takes the stray in pF.
+- **Speed.** The AC solver computes lossless parts' admittances and stamps the nodal matrix
+  inline and skips zero entries when choosing a pivot, and tank sizing searches each
+  fixed-part window once per design. Every result is unchanged bit for bit; the nine-resonator
+  2 m build with 601 points and 100 random cases runs in about 24 s instead of 34 s.
 
 ### Changed
 

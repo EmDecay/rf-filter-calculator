@@ -15,6 +15,7 @@ from ..shared.cancellation import (
     require_cancellation_check,
 )
 from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
+from .coupling_advice import advise_coupling
 from .design_request import DesignRequest
 from .design_result import DesignResult
 from .part_resolution import resolve_parts
@@ -124,13 +125,15 @@ def synthesize(request: DesignRequest, should_cancel: CancellationCheck | None =
 def design(request: DesignRequest, should_cancel: CancellationCheck | None = None) -> DesignResult:
     """Synthesize ``request``, resolve its parts, and run the build when asked.
 
-    The build simulation runs only when ``request.run_build_analysis`` is set.
-    ``should_cancel`` is polled by synthesis, part resolution and the build; when it
-    reports true the design stops by raising ``DesignCancelled`` (the build raises its
-    subclass ``BuildAnalysisCancelled``).
+    The build simulation runs only when ``request.run_build_analysis`` is set. A
+    band-pass design whose coupling capacitors are too small gets its tank-inductance
+    advice (``coupling_advice``). ``should_cancel`` is polled by synthesis, part
+    resolution, the advice and the build; when it reports true the design stops by raising
+    ``DesignCancelled`` (the build raises its subclass ``BuildAnalysisCancelled``).
     """
     result = synthesize(request, should_cancel)
     parts = resolve_parts(request, result, should_cancel)
+    advice = advise_coupling(request, result, parts, should_cancel)
     analysis = None
     if request.run_build_analysis:
         from ..shared.build_simulation import analyze_build
@@ -149,4 +152,5 @@ def design(request: DesignRequest, should_cancel: CancellationCheck | None = Non
         parts=parts,
         warnings=tuple(result.get("warnings", ())),
         build_analysis=analysis,
+        coupling_advice=advice,
     )

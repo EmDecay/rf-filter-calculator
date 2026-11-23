@@ -18,12 +18,14 @@ _DECIMAL_FALLBACK_LOG_RANGE = math.log(1e7)
 # 10**-7 / ratio; below this ratio they stay normal binary64 numbers.
 _PINNED_LOAD_LOG_LIMIT = math.log(1e250)
 
-# (node 1, node 2, kind, log(value), log(series resistance) or None when lossless)
-PreparedBranch = tuple[int, int, str, float, float | None]
+# (node 1, node 2, kind, log(value), log(series resistance) or None when lossless,
+# log(series inductance) or None when the branch has none)
+PreparedBranch = tuple[int, int, str, float, float | None, float | None]
 
-
-def _finite_complex(value: complex) -> bool:
-    return math.isfinite(value.real) and math.isfinite(value.imag)
+# The unit phase of a lossless capacitor's admittance (+j) and of a lossless inductor's (-j),
+# as ``branch_admittance_from_logs`` returns them.
+_CAPACITIVE_UNIT = complex(0.0, 1.0)
+_INDUCTIVE_UNIT = complex(0.0, -1.0)
 
 
 def _solve_complex_linear(matrix: list[list[complex]], rhs: list[complex]) -> list[complex]:
@@ -35,10 +37,19 @@ def _solve_complex_linear(matrix: list[list[complex]], rhs: list[complex]) -> li
     intermediate, and therefore every solution magnitude, bit-identical.
     """
     n = len(matrix)
+    isfinite = math.isfinite
     for col in range(n):
-        magnitudes = [abs(matrix[row][col]) for row in range(col, n)]
-        pivot_row = col + magnitudes.index(max(magnitudes))
-        if matrix[pivot_row][col] == 0 or not _finite_complex(matrix[pivot_row][col]):
+        # The first row of largest magnitude, as ``max`` then ``index`` would find it: a
+        # row replaces the best only when strictly larger, and a zero entry never is.
+        pivot_row, largest = col, abs(matrix[col][col])
+        for row in range(col + 1, n):
+            entry = matrix[row][col]
+            if entry:
+                magnitude = abs(entry)
+                if magnitude > largest:
+                    pivot_row, largest = row, magnitude
+        candidate = matrix[pivot_row][col]
+        if candidate == 0 or not (isfinite(candidate.real) and isfinite(candidate.imag)):
             raise ValueError("Singular nodal matrix: circuit has a floating or shorted node")
         if pivot_row != col:
             matrix[col], matrix[pivot_row] = matrix[pivot_row], matrix[col]
@@ -68,9 +79,10 @@ def _solve_complex_linear(matrix: list[list[complex]], rhs: list[complex]) -> li
         for index in range(row + 1, n):
             if row_values[index] != 0:
                 acc -= row_values[index] * solution[index]
-        solution[row] = acc / row_values[row]
-        if not _finite_complex(solution[row]):
+        value = acc / row_values[row]
+        if not (isfinite(value.real) and isfinite(value.imag)):
             raise ValueError("Nodal solution is outside the finite numeric range")
+        solution[row] = value
     return solution
 
 
@@ -106,7 +118,7 @@ def _validate_and_normalise(
         raise ValueError("frequencies must be positive and finite")
 
     normalised = [normalise_branch(branch) for branch in branches]
-    for n1, n2, _kind, _value, _loss in normalised:
+    for n1, n2, _kind, _value, _loss, _inductance in normalised:
         if not (
             isinstance(n1, int)
             and not isinstance(n1, bool)
@@ -118,8 +130,8 @@ def _validate_and_normalise(
             raise ValueError(f"Branch node out of range: ({n1}, {n2})")
     # Branch logarithms do not depend on frequency, so a sweep computes them once.
     return [
-        (n1, n2, kind, *branch_log_terms(value, series_resistance))
-        for n1, n2, kind, value, series_resistance in normalised
+        (n1, n2, kind, *branch_log_terms(value, series_resistance, series_inductance))
+        for n1, n2, kind, value, series_resistance, series_inductance in normalised
     ]
 
 
@@ -172,10 +184,22 @@ def _output_voltage_at(
 ) -> complex:
     """Solve one checked frequency for branches from ``_validate_and_normalise``."""
     log_omega = log_angular_frequency(frequency)
-    polar_stamps: list[tuple[int, int, float, complex]] = [
-        (n1, n2, *branch_admittance_from_logs(kind, log_value, log_omega, log_loss))
-        for n1, n2, kind, log_value, log_loss in prepared
-    ]
+    polar_stamps: list[tuple[int, int, float, complex]] = []
+    log_magnitudes: list[float] = []
+    for n1, n2, kind, log_value, log_loss, log_ls in prepared:
+        if log_loss is None and log_ls is None and kind != "R":
+            # ``branch_admittance_from_logs`` for a lossless capacitor or inductor, inline
+            # with the same arithmetic (a sweep solves this for every part at every point).
+            if kind == "L":
+                log_magnitude, unit = -(log_omega + log_value), _INDUCTIVE_UNIT
+            else:
+                log_magnitude, unit = -(-log_omega - log_value), _CAPACITIVE_UNIT
+        else:
+            log_magnitude, unit = branch_admittance_from_logs(
+                kind, log_value, log_omega, log_loss, log_ls
+            )
+        polar_stamps.append((n1, n2, log_magnitude, unit))
+        log_magnitudes.append(log_magnitude)
     source_log_admittance = -math.log(rs)
     load_log_admittance = -math.log(rl)
     polar_stamps.extend(
@@ -184,10 +208,11 @@ def _output_voltage_at(
             (out_node, 0, load_log_admittance, 1 + 0j),
         )
     )
-    log_scale = max(log_magnitude for _n1, _n2, log_magnitude, _unit in polar_stamps)
+    log_magnitudes += (source_log_admittance, load_log_admittance)
+    log_scale = max(log_magnitudes)
     if not math.isfinite(log_scale):
         raise ValueError("nodal admittance scale must be positive and finite")
-    log_minimum = min(log_magnitude for _n1, _n2, log_magnitude, _unit in polar_stamps)
+    log_minimum = min(log_magnitudes)
     if log_scale - log_minimum < _DECIMAL_FALLBACK_LOG_RANGE:
         return _solve_scaled_float(
             n_nodes, polar_stamps, source_log_admittance, in_node, out_node, log_scale
@@ -215,9 +240,17 @@ def _solve_scaled_float(
 ) -> complex:
     """Solve in float with every admittance scaled by the largest one, ``exp(log_scale)``."""
     matrix: list[list[complex]] = [[0j] * n_nodes for _ in range(n_nodes)]
+    exp = math.exp
     for n1, n2, log_magnitude, unit in polar_stamps:
-        scaled_admittance = unit * math.exp(log_magnitude - log_scale)
-        _stamp(matrix, n1, n2, scaled_admittance)
+        admittance = unit * exp(log_magnitude - log_scale)
+        # ``_stamp``, inline, in the same order.
+        if n1 > 0:
+            matrix[n1 - 1][n1 - 1] += admittance
+        if n2 > 0:
+            matrix[n2 - 1][n2 - 1] += admittance
+            if n1 > 0:
+                matrix[n1 - 1][n2 - 1] -= admittance
+                matrix[n2 - 1][n1 - 1] -= admittance
     rhs: list[complex] = [0j] * n_nodes
     rhs[in_node - 1] = math.exp(source_log_admittance - log_scale)
     voltages = _solve_complex_linear(matrix, rhs)

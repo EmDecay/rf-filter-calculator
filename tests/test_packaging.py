@@ -20,6 +20,7 @@ RUNTIME_RESOURCES = (
     "filter_lib/shared/capacitor_grade_data.json",
     "filter_lib/shared/chip_inductor_data.json",
     "filter_lib/shared/toroid_core_data.json",
+    "filter_lib/shared/trimmer_data.json",
     "filter_lib/wizard/styles.tcss",
     "filter_lib/web/templates/index.html",
     "filter_lib/web/templates/partials/result.html",
@@ -58,6 +59,7 @@ def test_runtime_resources_are_explicit_package_data(project_config: dict) -> No
         "capacitor_grade_data.json",
         "chip_inductor_data.json",
         "toroid_core_data.json",
+        "trimmer_data.json",
     ]
     assert package_data["filter_lib.wizard"] == ["styles.tcss"]
     assert package_data["filter_lib.web"] == [

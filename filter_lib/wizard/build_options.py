@@ -30,7 +30,8 @@ BUILD_OPTION_PREFIX = "Build simulation: "
 BUILD_OPTION_LABEL = "Simulate the built filter"
 BUILD_OPTION_HELP = (
     "Simulates the filter with the parts you would actually fit: standard capacitor "
-    "values, the suggested inductors, optional part Q, and component tolerances. "
+    "values, the suggested inductors, band-pass tank trimmers (retuned in each tolerance "
+    "case), optional part Q, and component tolerances. "
     "Choose Table or JSON format and E12, E24, or E96 first. Simulated, not measured."
 )
 

@@ -12,6 +12,7 @@ import functools
 import io
 import json
 import math
+import re
 import sys
 from unittest.mock import patch
 
@@ -214,6 +215,13 @@ def _preferred_value_rows(command: tuple[str, ...], series: str):
     return matches, [row for row in rows if row["Component"] in matches]
 
 
+def _first_splits(command: tuple[str, ...], series: str) -> dict:
+    """Each tank's first JSON split (``None`` without a fit), as the table is drawn."""
+    payload = _strict_json(_cli(*command, "--format", "json", "-e", series, *_NO_SUGGESTIONS))
+    tanks = (payload.get("tank_trimmers") or {}).get("tanks", [])
+    return {tank["name"]: (tank["splits"] or [None])[0] for tank in tanks}
+
+
 @pytest.mark.parametrize("series", ["E12", "E24", "E96"])
 @pytest.mark.parametrize(
     "command",
@@ -226,6 +234,7 @@ def _preferred_value_rows(command: tuple[str, ...], series: str):
 )
 def test_csv_and_table_preferred_values_restate_the_json_selection(command, series):
     matches, rows = _preferred_value_rows(command, series)
+    splits = _first_splits(command, series)
     table = _cli(*command, "-e", series, *_NO_SUGGESTIONS).splitlines()
 
     assert len(rows) == len(matches) > 0
@@ -249,19 +258,39 @@ def test_csv_and_table_preferred_values_restate_the_json_selection(command, seri
             assert selected["value_farads"] == pytest.approx(sum(parts), rel=1e-12, abs=0)
             assert row["RecommendedStdErrorPct"] == format_fixed(selected["error_pct"], 1)
         # The table's "Use:" row restates the chosen option, and its single-part row (the
-        # "Use:" row itself when a single part is chosen) the same nearest part and error.
+        # "Use:" row itself when a single part is chosen) the same nearest part and error. A
+        # tank with a trimmer says to use the split instead, and its "No trimmer:" row
+        # restates the chosen option.
         calculated = table.index(f"{row['Component']} calculated {row['Value']} {row['Unit']}")
-        use_line = table[calculated + 1]
+        split = splits.get(row["Component"])
+        trimmed = split is not None
+        if trimmed:
+            # The split's fixed parts and trimmer, as the JSON's first split gives them.
+            use = re.fullmatch(
+                r"  Use:            (?:(.+?) \+ )?trimmer (\S+)(?: alone)? \(see Tank Trimmers\)",
+                table[calculated + 1],
+            )
+            assert use, table[calculated + 1]
+            texts = use[1].split(" || ") if use[1] else []
+            assert len(texts) == len(split["fixed_parts_f"])
+            for text, part in zip(texts, split["fixed_parts_f"], strict=True):
+                _assert_engineering_text_matches(*text.split(" "), part)
+            assert use[2] == split["trimmer"]["part_numbers"][0]
+        else:
+            assert not table[calculated + 1].endswith("(see Tank Trimmers)")
+        plain = calculated + 1 + trimmed
+        label = "No trimmer:     " if trimmed else "Use:            "
+        plain_line = table[plain]
         if selected:
             chosen_error = float(row["RecommendedStdErrorPct"])
             chosen_sign = "+" if chosen_error > 0 else ""
-            assert use_line == (
-                f"  Use:            {row['RecommendedStdValues']} "
+            assert plain_line == (
+                f"  {label}{row['RecommendedStdValues']} "
                 f"({chosen_sign}{row['RecommendedStdErrorPct']}%)"
             )
         else:
-            assert use_line.startswith("  Use:            none")
-        nearest_line = use_line if row["RecommendedStdKind"] == "single" else table[calculated + 2]
+            assert plain_line.startswith(f"  {label}none")
+        nearest_line = plain_line if row["RecommendedStdKind"] == "single" else table[plain + 1]
         assert f"{row['NearestStdValue']} {row['NearestStdUnit']}" in nearest_line
         error = float(row["NearestStdErrorPct"])
         assert f"({'+' if error > 0 else ''}{row['NearestStdErrorPct']}%)" in nearest_line

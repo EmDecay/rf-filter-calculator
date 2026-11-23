@@ -17,6 +17,12 @@ from ..shared.formatting import format_capacitance, format_inductance
 from ..shared.inductor_display import CSV_INDUCTOR_HEADER, inductor_csv_columns
 from ..shared.resolved_parts import ResolvedParts
 from ..shared.strict_json import dumps_strict, validate_finite_tree
+from .trimmer_display import (
+    CSV_TRIMMER_HEADER,
+    coupling_advice_payload,
+    tank_trimmers_payload,
+    trimmer_csv_columns,
+)
 
 # Type alias for filter result dict
 BandpassResult = dict[str, Any]
@@ -29,6 +35,7 @@ def format_json(
     result: BandpassResult,
     parts: ResolvedParts,
     build_analysis=None,
+    coupling_advice=None,
 ) -> str:
     """Format results as JSON.
 
@@ -37,6 +44,7 @@ def format_json(
         parts: The parts ``design()`` resolved: capacitor choices (when the design has
             an E-series) and the inductor suggestions (unless they are off)
         build_analysis: Optional realized-build analysis result
+        coupling_advice: The design's tank-inductance advice (``coupling_advice`` key)
 
     Returns:
         JSON formatted string
@@ -95,6 +103,8 @@ def format_json(
         ]
     if result.get("ripple_db") is not None:
         output["ripple_db"] = result["ripple_db"]
+    output["tank_trimmers"] = tank_trimmers_payload(parts)
+    output["coupling_advice"] = coupling_advice_payload(coupling_advice)
     if build_analysis is not None:
         from ..shared.build_output import build_analysis_fields
 
@@ -128,21 +138,27 @@ def format_csv(result: BandpassResult, parts: ResolvedParts) -> str:
     writer = csv.writer(output, lineterminator="\n")
     eseries = parts.eseries
     emit_inductors = parts.shows_suggestions
+    emit_trimmers = bool(parts.tanks)
     header = ["Component", "Value", "Unit"]
     if eseries:
         header.extend(ESERIES_CSV_HEADER)
     if emit_inductors:
         header.extend(CSV_INDUCTOR_HEADER)
+    if emit_trimmers:
+        header.extend(CSV_TRIMMER_HEADER)
     writer.writerow(header)
 
-    # Inductor columns apply only to inductor rows; capacitor rows get blank padding,
-    # and inductor rows blank E-series columns, to keep the CSV rectangular.
+    # Inductor columns apply only to inductor rows and trimmer columns only to tank rows;
+    # every other row gets blank padding (and inductor rows blank E-series columns), to
+    # keep the CSV rectangular.
     def write_capacitor(name: str, circuit_name: str, value: float) -> None:
         row = [name, *split_value_unit(format_capacitance(value))]
         match = parts.capacitor(circuit_name) if eseries else None
         row.extend(csv_match_fields(match, format_capacitance, eseries))
         if emit_inductors:
             row.extend(inductor_csv_columns(None))
+        if emit_trimmers:
+            row.extend(trimmer_csv_columns(parts.tank(circuit_name)))
         writer.writerow(row)
 
     for i, v in enumerate(result["c_tank"]):
@@ -152,6 +168,8 @@ def format_csv(result: BandpassResult, parts: ResolvedParts) -> str:
         row.extend(csv_match_fields(None, format_inductance, eseries))
         if emit_inductors:
             row.extend(inductor_csv_columns(parts.inductor(f"LT{i + 1}")))
+        if emit_trimmers:
+            row.extend(trimmer_csv_columns(None))
         writer.writerow(row)
     for i, v in enumerate(result["c_coupling"]):
         write_capacitor(f"Cs{i + 1}{i + 2}", f"CK{i + 1}", v)

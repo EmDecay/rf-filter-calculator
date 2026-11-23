@@ -20,10 +20,16 @@ design(request, should_cancel)     filter_lib.design; the request is validated o
         │
         ├─ resolve_parts ──────────── ResolvedParts on DesignResult.parts (cancellable):
         │                               capacitor choices; per inductor, each kind's
-        │                               suggestions and the part the build uses
+        │                               suggestions and the part the build uses;
+        │                               band-pass tanks as fixed part + trimmer
         │
-        ├─ optional build simulation ─ named passive circuit from the parts
-        │                               loss + tolerance cases (cancellable)
+        ├─ advise_coupling ────────── band-pass only, when a coupler has no part ≥ 1 pF:
+        │                               reruns synthesize + resolve_parts per trial
+        │                               (cancellable between trials)
+        │
+        ├─ optional build simulation ─ named passive circuit from the parts, trimmers
+        │                               tuned; loss + tolerance cases, each retuned
+        │                               (cancellable)
         ▼
 DesignResult ──► table / strict JSON / CSV / generic SPICE / response data
                  (every renderer reads its parts from DesignResult.parts)
@@ -47,9 +53,12 @@ tolerance override, the assumed stray, the inductor suggestion detail
 (`realization`) and whether to run the build simulation (`run_build_analysis`). `design()`
 synthesizes, then resolves every chosen part once (`design/part_resolution.py::resolve_parts`)
 into a `ResolvedParts` (`shared/resolved_parts.py`): the `MatchPolicy`, each capacitor's
-choice, and each inductor's suggestions by kind with the part the build uses. The
-`DesignResult` holds the request, the calculator dict, those `parts` and the optional build
-analysis. Formatters, both SPICE decks and the build take `parts` and never select a part,
+choice, each inductor's suggestions by kind with the part the build uses, and, for a
+band-pass design with standard values, each tank's fixed-part-plus-trimmer sizing. A band-pass
+design whose coupling capacitors have no part of 1 pF or more then gets its tank-inductance
+advice (`design/coupling_advice.py`), whose trials rerun `synthesize` and `resolve_parts`
+(never `design()`, so there is no recursion). The `DesignResult` holds the request, the
+calculator dict, those `parts`, the advice and the optional build analysis. Formatters, both SPICE decks and the build take `parts` and never select a part,
 so the table, JSON, CSV, the build and the chosen-parts deck cannot disagree;
 `part_resolution.py` is the only caller of a part selection function
 (`tests/test_part_resolution.py`).

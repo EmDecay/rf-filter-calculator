@@ -13,6 +13,7 @@ Calculates LC filter component values for RF engineers and amateur radio operato
 - [Caveats & Known Issues](caveats-and-known-issues.md) - Edge cases and limitations
 - [Component Data Sources](component-data-sources.md) - Sourced part data and coverage evidence behind the planned VHF/UHF part suggestions
   - [VHF Toroid Core Data](component-data-sources-toroid-cores.md) - Per-core Micrometals datasheet record behind the decision not to offer VHF toroids
+  - [Knowles Voltronics Trimmer Data](component-data-sources-knowles-trimmers.md) - Per-part Knowles catalog ranges packaged with the other trimmers
 - [Sample Output](sample-output.md) - Example outputs for all filter types
 - [Testing Guide](testing.md) - Test suite documentation and coverage
 - [Textual Wizard Patterns](textual-wizard-patterns.md) - Developer guide to wizard screen architecture

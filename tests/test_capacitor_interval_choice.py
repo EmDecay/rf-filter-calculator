@@ -177,7 +177,9 @@ def test_equal_pair_scores_go_to_the_smaller_ratio_then_the_lower_total():
         (F("3.3"), F(1, 4)),
     ]
     # 1.0 + 3.3 and 1.3 + 3.0 both total 4.3 pF with ±0.5 pF: the 1.3 + 3.0 pair is balanced.
-    best = capacitor_choice._best_pair(candidates, F("4.3"), 10.0, DEFAULT_MATCH_POLICY)
+    best = capacitor_choice.best_pair(
+        candidates, F("4.3"), 10.0, capacitor_choice.stray_pf(DEFAULT_MATCH_POLICY)
+    )
 
     assert best[3][0] == F("1.3") and best[4][0] == F("3.0")
 

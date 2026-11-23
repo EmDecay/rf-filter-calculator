@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from .cancellation import CancellationCheck, DesignCancelled
 from .circuit_model import NamedCircuit
@@ -134,6 +135,55 @@ def raise_if_cancelled(should_cancel: CancellationCheck | None) -> None:
 
 
 @dataclass(frozen=True)
+class TrimmerSetting:
+    """One tank's trimmer setting in one simulated circuit.
+
+    ``required_f`` is the capacitance equivalent the trimmer must give at the tank
+    frequency to restore the calculated design's node susceptance; ``setting_f`` is the
+    knob value simulated (kept within the range) and ``effective_f`` what it gives there.
+    ``in_range``: the required value is inside the range, so the setting reaches it.
+    """
+
+    tank: str
+    required_f: float
+    setting_f: float
+    effective_f: float
+    in_range: bool
+
+
+@dataclass(frozen=True)
+class TrimmerUse:
+    """The trimmer a tank is built with and its nominal setting.
+
+    ``range_f`` is the trimmer's range at ``tuning_frequency_hz`` under
+    ``series_inductance_h`` (``series_inductance_assumed``: the labelled default, else the
+    bound from the maker's minimum SRF) and the build's Q; ``None`` when that Q leaves it no
+    rising (capacitive) part.
+    """
+
+    maker: str
+    family: str
+    part_numbers: tuple[str, ...]
+    series_inductance_h: float
+    series_inductance_assumed: bool
+    range_f: tuple[float, float] | None
+    tuning_frequency_hz: float
+    setting: TrimmerSetting
+
+
+@dataclass(frozen=True)
+class CaseTuning:
+    """A tolerance case after retuning every trimmer: the settings and the response."""
+
+    settings: tuple[TrimmerSetting, ...]
+    measurement: CircuitMeasurement
+
+    @property
+    def all_in_range(self) -> bool:
+        return all(setting.in_range for setting in self.settings)
+
+
+@dataclass(frozen=True)
 class ComponentSubstitution:
     """Trace from one calculated logical element to its nominal parts."""
 
@@ -165,16 +215,25 @@ class ComponentSubstitution:
     # guaranteed tolerance (no inductor tolerance entered); None for capacitors.
     tolerance_pct: float | None = None
     own_tolerance: bool = False
+    # A tank built as its fixed part (``physical_parts``) plus a trimmer; None otherwise.
+    trimmer: TrimmerUse | None = None
 
 
 @dataclass(frozen=True)
 class NominalRealization:
-    """Named nominal-build circuit plus auditable substitution metadata."""
+    """Named nominal-build circuit plus auditable substitution metadata.
+
+    ``tuning`` (a ``tank_tuning.TuningPlan``) retunes the trimmers of a band-pass build in
+    each tolerance case; ``None`` when no tank has one. ``trimmer_settings`` are the
+    nominal settings the circuit holds.
+    """
 
     circuit: NamedCircuit
     substitutions: tuple[ComponentSubstitution, ...]
     warnings: tuple[str, ...]
     limitations: tuple[str, ...]
+    tuning: Any = None
+    trimmer_settings: tuple[TrimmerSetting, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -296,11 +355,17 @@ _FREQUENCY_SPREAD_METRICS = frozenset({"cutoff_hz", "f_low_hz", "f_high_hz", "f0
 
 @dataclass(frozen=True)
 class ScreeningCase:
-    """One stable tolerance-screening case and its simulated result."""
+    """One stable tolerance-screening case and its simulated result.
+
+    ``measurement`` is the case with every trimmer left at its nominal setting (the
+    untuned response); ``tuning`` the case after retuning them, or ``None`` when the
+    build has no trimmer.
+    """
 
     case_id: str
     component_factors: tuple[tuple[str, float], ...]
     measurement: CircuitMeasurement
+    tuning: CaseTuning | None = None
 
 
 @dataclass(frozen=True)
@@ -348,14 +413,29 @@ class BuildAnalysisResult:
     # A high-pass build takes its peak, and so its half-power threshold, only here (the
     # qualified range within the sweep); None when the whole sweep is used.
     peak_range_hz: tuple[float, float] | None = None
+    # The spread after retuning every trimmer in each case (``metric_summaries`` is with
+    # the trimmers at their nominal settings); empty when no tank has a trimmer.
+    tuned_metric_summaries: tuple[MetricSummary, ...] = ()
 
-    def metrics_outside_qualified_range(self) -> frozenset[str]:
+    @property
+    def has_trimmers(self) -> bool:
+        """Whether any tank is built with a trimmer (every case then carries its tuning)."""
+        return self.nominal_realization.tuning is not None
+
+    def out_of_range_cases(self) -> int:
+        """The cases in which a trimmer could not reach its required setting."""
+        return sum(case.tuning is not None and not case.tuning.all_in_range for case in self.cases)
+
+    def metrics_outside_qualified_range(self, tuned: bool = False) -> frozenset[str]:
         """The spread metrics with an included case that rests on a frequency outside the
         qualified range, by the inclusion rule of ``tolerance_screening.summarize_cases``
-        (converged cases; frequency metrics also leave out a case at the grid's edge)."""
+        (converged cases; frequency metrics also leave out a case at the grid's edge).
+        ``tuned``: the retuned cases' measurements instead of the untuned ones."""
         metrics = set()
         for case in self.cases:
-            measurement = case.measurement
+            if tuned and case.tuning is None:
+                continue
+            measurement = case.tuning.measurement if tuned else case.measurement
             if not measurement.measurement_converged:
                 continue
             for key in measurement.outside_range(self.category, self.qualified_range_hz):

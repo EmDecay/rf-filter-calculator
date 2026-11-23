@@ -33,6 +33,7 @@ from ..shared.resolved_parts import ResolvedParts
 from .diagrams import format_top_c_diagram
 from .formatters import RESONATOR_INDUCTOR, capacitor_parts, coupling_capacitor_rows
 from .transfer import netlist_frequency_sweep
+from .trimmer_display import coupling_advice_lines, tank_trimmer_lines, tank_use_lines
 
 # Type alias for filter result dict
 BandpassResult = dict[str, Any]
@@ -60,6 +61,7 @@ def format_table_lines(
     *,
     raw: bool = False,
     show_plot: bool = False,
+    coupling_advice=None,
 ) -> list[str]:
     """Render the bandpass table output as lines, for the CLI, the wizard, and the web.
 
@@ -70,6 +72,8 @@ def format_table_lines(
             section the shared resonator inductance's suggestions at their detail
         raw: Print SI values in scientific notation and skip preferred values
         show_plot: Append the simulated response plot and threshold table
+        coupling_advice: The design's tank-inductance advice, shown after the standard
+            capacitor values (``design/coupling_advice.py``)
     """
     lines = format_header_lines(result)
 
@@ -103,6 +107,9 @@ def format_table_lines(
 
     if parts.eseries and not raw:
         lines.extend(format_eseries_lines(result, parts))
+        if coupling_advice is not None:
+            lines.extend(coupling_advice_lines(coupling_advice))
+        lines.extend(tank_trimmer_lines(parts))
 
     if resonator is not None:
         lines.extend(format_suggestion_block_lines(result, parts))
@@ -312,12 +319,15 @@ def _external_q_lines(result: BandpassResult) -> list[str]:
 def format_eseries_lines(result: BandpassResult, parts: ResolvedParts) -> list[str]:
     """Standard-value choice ``design()`` resolved for every tank and coupling capacitor.
 
-    Inductors have no standard values, so they get no standard-value choice.
+    Inductors have no standard values, so they get no standard-value choice. A tank with a
+    fitting trimmer says to use its split (``trimmer_display.tank_use_lines``).
     """
     lines = eseries_section_lines(parts.eseries, policy=parts.match_policy)
     for label, circuit_name, value in capacitor_parts(result):
         lines.append(f"{label} calculated {format_capacitance(value)}")
-        lines.extend(format_eseries_match(parts.capacitor(circuit_name), format_capacitance))
+        choice = format_eseries_match(parts.capacitor(circuit_name), format_capacitance)
+        # A tank with a fitting trimmer is built as its split; the plain choice follows.
+        lines.extend(tank_use_lines(parts.tank(circuit_name), choice))
     return lines
 
 

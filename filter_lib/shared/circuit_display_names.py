@@ -13,7 +13,9 @@ through unchanged. A physical part of a parallel pair has a one-letter suffix
 (``CK1A``, ``CK1B``); it reads as ``Cs12 (part A)``. The assumed stray across a pair is
 ``CSTRAY_`` plus the pair's name (``CSTRAY_CK1``); it reads as ``Cs12 stray``. A chip
 inductor's self-capacitance is ``CSELF_`` plus the inductor's name (``CSELF_LT1``); it
-reads as ``L1 self-capacitance``.
+reads as ``L1 self-capacitance``. A tank's trimmer is ``CTRIM_`` plus the tank's name
+(``CTRIM_CT1``, read as ``Cp1 trimmer``) and its assumed series inductance ``LTRIM_``
+(``Cp1 trimmer inductance``).
 """
 
 import re
@@ -29,6 +31,17 @@ _NUMBERED = re.compile(r"^([A-Za-z_]+?)(\d+)$")
 STRAY_PREFIX = "CSTRAY_"
 # Name prefix of an inductor's self-capacitance across it.
 SELF_CAPACITANCE_PREFIX = "CSELF_"
+# Name prefixes of a tank's trimmer (its capacitance at the knob setting) and of the
+# series inductance its fit assumes.
+TRIMMER_PREFIX = "CTRIM_"
+TRIMMER_INDUCTANCE_PREFIX = "LTRIM_"
+
+
+def series_inductance_name(element_name: str) -> str:
+    """The SPICE name of a capacitor's series inductance (``LTRIM_CT1`` for a trimmer)."""
+    if element_name.startswith(TRIMMER_PREFIX):
+        return TRIMMER_INDUCTANCE_PREFIX + element_name.removeprefix(TRIMMER_PREFIX)
+    return f"LSERIES{element_name}"
 
 
 def _with_part_suffix(name: str, suffix: str) -> str:
@@ -42,6 +55,11 @@ def display_component_name(name: str) -> str:
     if name.startswith(SELF_CAPACITANCE_PREFIX):
         inductor = name.removeprefix(SELF_CAPACITANCE_PREFIX)
         return f"{display_component_name(inductor)} self-capacitance"
+    if name.startswith(TRIMMER_PREFIX):
+        return f"{display_component_name(name.removeprefix(TRIMMER_PREFIX))} trimmer"
+    if name.startswith(TRIMMER_INDUCTANCE_PREFIX):
+        tank = name.removeprefix(TRIMMER_INDUCTANCE_PREFIX)
+        return f"{display_component_name(tank)} trimmer inductance"
     match = _INDEXED.match(name)
     if match:
         prefix, index_text, suffix = match.groups()
@@ -91,8 +109,9 @@ def spice_names_comment(circuit: NamedCircuit) -> str | None:
     """
     groups: dict[str, list[str]] = {}
     for element in circuit.elements:
-        if element.fixed:
-            # Assumed parasitics are named in their own comment, not as a part.
+        if element.fixed and not element.name.startswith(TRIMMER_PREFIX):
+            # Assumed parasitics are named in their own comment, not as a part; a trimmer
+            # is a part, set by tuning rather than varied.
             continue
         logical = element.logical_name or element.name
         groups.setdefault(logical, []).append(element.name)

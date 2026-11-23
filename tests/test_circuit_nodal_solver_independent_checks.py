@@ -268,8 +268,8 @@ def test_decimal_fallback_keeps_branch_precision_beside_an_extreme_port():
     prepared = nodal_solver._validate_and_normalise(3, branches, rs, rl, 1, 2, [frequency])
     log_omega = log_angular_frequency(frequency)
     stamps = [
-        (n1, n2, *branch_admittance_from_logs(kind, log_value, log_omega, log_loss))
-        for n1, n2, kind, log_value, log_loss in prepared
+        (n1, n2, *branch_admittance_from_logs(kind, log_value, log_omega, log_loss, log_ls))
+        for n1, n2, kind, log_value, log_loss, log_ls in prepared
     ]
     source_log = -math.log(rs)
     stamps += [(1, 0, source_log, 1 + 0j), (2, 0, -math.log(rl), 1 + 0j)]
@@ -281,3 +281,30 @@ def test_decimal_fallback_keeps_branch_precision_beside_an_extreme_port():
     voltage = solve_decimal_nodal(3, stamps, source_log, 1, 2)
 
     assert abs(voltage) == pytest.approx(expected, rel=1e-12, abs=0)
+
+
+def test_the_sweep_s_inline_lossless_branches_are_the_kernel_bit_for_bit(monkeypatch):
+    # The solver computes a lossless capacitor's or inductor's admittance inline for speed;
+    # it must stay exactly what ``branch_admittance_from_logs`` returns, at every scale.
+    import random
+
+    generator = random.Random(7)
+    branches = [(1, 0, generator.choice("LC"), 10 ** generator.uniform(-18, 3)) for _ in range(400)]
+    prepared = nodal_solver._validate_and_normalise(1, branches, 50.0, 50.0, 1, 1, [])
+    seen: list = []
+
+    def capture(_nodes, stamps, *_args):
+        seen.extend(stamps)
+        return 1 + 0j
+
+    monkeypatch.setattr(nodal_solver, "_solve_scaled_float", capture)
+    monkeypatch.setattr(nodal_solver, "solve_decimal_nodal", capture)
+    for frequency in (1e-3, 1.0, 7.1e6, 146e6, 4.4e8, 3e12):
+        seen.clear()
+        nodal_solver._output_voltage_at(1, prepared, 50.0, 50.0, 1, 1, frequency)
+        log_omega = log_angular_frequency(frequency)
+        # The last two stamps are the ports.
+        for (_n1, _n2, kind, value), stamp in zip(branches, seen[:-2], strict=True):
+            expected = branch_admittance_from_logs(kind, math.log(value), log_omega, None, None)
+            assert stamp[2:] == expected
+            assert math.copysign(1.0, stamp[2]) == math.copysign(1.0, expected[0])
