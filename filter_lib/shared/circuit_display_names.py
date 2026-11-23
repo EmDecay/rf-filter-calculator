@@ -11,7 +11,9 @@ the circuit names; the SPICE deck carries a ``* names:`` comment that maps them.
 Low-pass and high-pass names (``C1``, ``L1``) are the same in both places and pass
 through unchanged. A physical part of a parallel pair has a one-letter suffix
 (``CK1A``, ``CK1B``); it reads as ``Cs12 (part A)``. The assumed stray across a pair is
-``CSTRAY_`` plus the pair's name (``CSTRAY_CK1``); it reads as ``Cs12 stray``.
+``CSTRAY_`` plus the pair's name (``CSTRAY_CK1``); it reads as ``Cs12 stray``. A chip
+inductor's self-capacitance is ``CSELF_`` plus the inductor's name (``CSELF_LT1``); it
+reads as ``L1 self-capacitance``.
 """
 
 import re
@@ -25,6 +27,8 @@ _END_NAMES = {"CIN": "Ce_in", "COUT": "Ce_out"}
 _NUMBERED = re.compile(r"^([A-Za-z_]+?)(\d+)$")
 # Name prefix of the assumed stray capacitor across a parallel pair.
 STRAY_PREFIX = "CSTRAY_"
+# Name prefix of an inductor's self-capacitance across it.
+SELF_CAPACITANCE_PREFIX = "CSELF_"
 
 
 def _with_part_suffix(name: str, suffix: str) -> str:
@@ -35,6 +39,9 @@ def display_component_name(name: str) -> str:
     """Return the component-table name for a circuit element name."""
     if name.startswith(STRAY_PREFIX):
         return f"{display_component_name(name.removeprefix(STRAY_PREFIX))} stray"
+    if name.startswith(SELF_CAPACITANCE_PREFIX):
+        inductor = name.removeprefix(SELF_CAPACITANCE_PREFIX)
+        return f"{display_component_name(inductor)} self-capacitance"
     match = _INDEXED.match(name)
     if match:
         prefix, index_text, suffix = match.groups()

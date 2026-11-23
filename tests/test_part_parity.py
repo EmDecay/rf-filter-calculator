@@ -1,8 +1,9 @@
 """Every surface gives the same parts for a non-default capacitor grade and a forced kind.
 
-The matrix below names, for each scenario (capacitor grade "tight", or build inductors
-"air-coil"), with the build simulation on and off, and for each output (table, JSON, CSV,
-and the chosen-parts and calculated-values SPICE decks), what each surface does:
+The matrix below names, for each scenario (capacitor grade "tight", build inductors
+"air-coil", or build inductors "chip"), with the build simulation on and off, and for each
+output (table, JSON, CSV, and the chosen-parts and calculated-values SPICE decks), what
+each surface does:
 
 - the CLI accepts the flags (its output is the reference) or refuses them with its message;
 - the web gives the CLI's bytes for a stated set of flags, through the page (table) or the
@@ -15,7 +16,10 @@ and the chosen-parts and calculated-values SPICE decks), what each surface does:
 
 The grade scenario uses a 146 MHz low-pass whose C1 is 4.3 pF || 9.1 pF at the standard
 grade and 2.4 pF || 11 pF at the tight one, so a surface that dropped the grade would fail;
-the forced-kind scenario uses a 10 MHz low-pass whose toroids the forced kind replaces.
+the forced-kind scenario uses a 10 MHz low-pass whose toroids the forced kind replaces. The
+chip scenario uses a 40 MHz, 12.5 ohm low-pass whose 99.47 nH inductor auto builds as a
+T25-6 winding and the forced kind as a chip inductor with its self-capacitance, so a surface
+that dropped the choice would show the toroid.
 
 Two web cells follow the user's decision that the web uses its build fields ("Inductors in
 the build" among them) only while "Simulate the built filter" is ticked: with the build
@@ -28,6 +32,7 @@ all three surfaces for a VHF design.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 from dataclasses import dataclass
 
@@ -47,21 +52,44 @@ from filter_lib.design.option_applicability import (
 from filter_lib.design.render import BUILD_TARGET_NOTE
 from filter_lib.design.render_options import BUILD_NEEDS_TABLE_OR_JSON_MESSAGE
 from filter_lib.shared.build_output_formatting import BUILD_SIMULATION_HEADING
+from filter_lib.shared.chip_selection import no_qualifying_chip_reason
 from filter_lib.shared.inductor_suggestion import (
     AIR_COIL_EXCLUSION,
-    CHIP_NOT_AVAILABLE,
     VHF_TOROID_EXCLUSION,
 )
+from filter_lib.shared.srf_screen import LIMIT_ALLOWANCE, CheckWindow
 from filter_lib.wizard.state import CSV_WITH_BUILD_MESSAGE, FilterState
 from tests.cli_parity_helpers import cli_stderr, cli_stdout
 
 LOWPASS = ("lp", "bw", "pi", "10MHz", "-n", "3")
+# The 10 MHz low-pass's inductor (about 1.6 µH) is far above the chip catalog.
+LOWPASS_CHIP_REASON = no_qualifying_chip_reason(frozenset({LIMIT_ALLOWANCE}), CheckWindow(0, 10e6))
 # The grades choose different parts here (see the module docstring).
 GRADE_DESIGN = ("lp", "bw", "pi", "146MHz", "-n", "5")
 TIGHT_C1 = ("C1A 1 0 2.4e-12", "C1B 1 0 1.1e-11")
 STANDARD_C1 = ("C1A 1 0 4.3e-12", "C1B 1 0 9.1e-12")
 GRADE = ("--capacitor-grade", "tight")
 FORCED = ("--build-inductors", "air-coil")
+CHIP_DESIGN = ("lp", "bw", "pi", "40MHz", "-n", "3", "-z", "12.5")
+CHIP = ("--build-inductors", "chip")
+# Each scenario's design, its flags, and the same choices as web fields and wizard state.
+SCENARIOS = {
+    "grade": (
+        GRADE_DESIGN,
+        GRADE,
+        {"frequency": "146MHz", "components": "5", "capacitor_grade": "tight"},
+        {"frequency_hz": 146e6, "order": 5, "capacitor_grade": "tight"},
+    ),
+    "forced": (LOWPASS, FORCED, {"build_inductors": "air-coil"}, {"build_inductors": "air-coil"}),
+    "chip": (
+        CHIP_DESIGN,
+        CHIP,
+        {"frequency": "40MHz", "impedance": "12.5", "build_inductors": "chip"},
+        {"frequency_hz": 40e6, "impedance": 12.5, "build_inductors": "chip"},
+    ),
+}
+# The forced kind of each scenario that forces one.
+FORCED_KINDS = {"forced": "air-coil", "chip": "chip"}
 BUILD_FLAGS = ("--sim-build", "--analysis-points", "51")
 OUTPUT_FLAGS = {
     "table": (),
@@ -133,11 +161,11 @@ class Cell:
 
     @property
     def scenario_flags(self) -> tuple[str, ...]:
-        return GRADE if self.scenario == "grade" else FORCED
+        return SCENARIOS[self.scenario][1]
 
     @property
     def base(self) -> tuple[str, ...]:
-        return GRADE_DESIGN if self.scenario == "grade" else LOWPASS
+        return SCENARIOS[self.scenario][0]
 
     @property
     def cli_flags(self) -> tuple[str, ...]:
@@ -235,6 +263,20 @@ MATRIX = (
         NotOffered(),
     ),
 )
+
+
+def _as_chip(cell: Cell) -> Cell:
+    """A forced-kind cell with "chip" forced instead: the same rules for every kind."""
+
+    def swap(value):
+        if isinstance(value, (Same, ScreenText)) and value.flags[: len(FORCED)] == FORCED:
+            return dataclasses.replace(value, flags=CHIP + value.flags[len(FORCED) :])
+        return value
+
+    return dataclasses.replace(cell, scenario="chip", web=swap(cell.web), wizard=swap(cell.wizard))
+
+
+MATRIX = MATRIX + tuple(_as_chip(cell) for cell in MATRIX if cell.scenario == "forced")
 IDS = [cell.id for cell in MATRIX]
 
 
@@ -243,7 +285,7 @@ def test_the_matrix_covers_every_scenario_build_and_output():
 
     assert covered == {
         (scenario, build, output)
-        for scenario in ("grade", "forced")
+        for scenario in SCENARIOS
         for build in (False, True)
         for output in OUTPUT_FLAGS
     }
@@ -254,6 +296,15 @@ def test_the_matrix_covers_every_scenario_build_and_output():
             "csv": (Same, Refuse),
         }.get(cell.output, NotOffered)
         assert isinstance(cell.wizard, expected_wizard), cell.id
+
+
+def test_the_chip_design_tells_the_kinds_apart(monkeypatch, capsys):
+    auto = cli_stdout(monkeypatch, capsys, *CHIP_DESIGN, "--format", "spice")
+    chip = cli_stdout(monkeypatch, capsys, *CHIP_DESIGN, "--format", "spice", *CHIP)
+
+    assert "part=T25-6 turns=6" in auto and "CSELF_" not in auto
+    assert "part=LQW18ANR10G00D" in chip
+    assert "CSELF_L1 1 2 7.84219687634e-14" in chip.splitlines()
 
 
 def test_the_grade_design_tells_the_grades_apart(monkeypatch, capsys):
@@ -286,6 +337,10 @@ def test_cli_cell(monkeypatch, capsys, cell):
     if cell.scenario == "forced":
         # No part of the forced kind: its sourced reason, and the calculated value.
         assert _flat(AIR_COIL_EXCLUSION) in _flat(output)
+    if cell.scenario == "chip" and (cell.build or cell.output == "spice-nominal"):
+        # The forced chip inductor is built with its self-capacitance.
+        assert "LQW18ANR10G00D" in output
+        assert "CSELF_L1" in output or "self-capacitance" in output
     if cell.scenario == "grade" and cell.output == "csv":
         assert "grade=tight" in output
     if cell.scenario == "grade" and cell.output == "spice-nominal":
@@ -312,10 +367,7 @@ _OPTION_FIELDS = {CAPACITOR_GRADE: "capacitor_grade", BUILD_INDUCTORS: "build_in
 
 def _web_form(cell: Cell) -> dict[str, str]:
     form = dict(_WEB_FIELDS)
-    if cell.scenario == "grade":
-        form.update(frequency="146MHz", components="5", capacitor_grade="tight")
-    else:
-        form["build_inductors"] = "air-coil"
+    form.update(SCENARIOS[cell.scenario][2])
     if cell.build:
         form["sim_build"] = "on"
         # A deck sweeps the build's frequency points; keep the CLI's default there.
@@ -362,9 +414,10 @@ def test_web_cell(monkeypatch, capsys, client, cell):
     # The policy that reaches part resolution is the one the CLI reference uses.
     [request] = requests
     own = document_own_options(cell.output) if cell.output != "table" else frozenset()
-    forced = cell.scenario == "forced" and cell.build and BUILD_INDUCTORS not in own
+    kind = FORCED_KINDS.get(cell.scenario)
+    forced = kind is not None and cell.build and BUILD_INDUCTORS not in own
     graded = cell.scenario == "grade" and CAPACITOR_GRADE not in own
-    assert request.build_inductors == ("air-coil" if forced else "auto")
+    assert request.build_inductors == (kind if forced else "auto")
     assert request.capacitor_grade == ("tight" if graded else "standard")
     if cell.scenario == "grade" and cell.output == "spice-nominal":
         _assert_tight_deck(body)
@@ -396,10 +449,7 @@ def _wizard_state(scenario: str, build: bool) -> FilterState:
         build_analysis_enabled=build,
         build_grid_points=51,
     )
-    if scenario == "grade":
-        values.update(frequency_hz=146e6, order=5, capacitor_grade="tight")
-    else:
-        values["build_inductors"] = "air-coil"
+    values.update(SCENARIOS[scenario][3])
     return FilterState(**values)
 
 
@@ -471,8 +521,8 @@ def _screen_text(cli_table: str, build: bool) -> str:
 
 @pytest.mark.parametrize(
     "scenario, build",
-    [("grade", False), ("grade", True), ("forced", False), ("forced", True)],
-    ids=["grade-build-off", "grade-build-on", "forced-build-off", "forced-build-on"],
+    [(scenario, build) for scenario in SCENARIOS for build in (False, True)],
+    ids=[f"{scenario}-build-{on}" for scenario in SCENARIOS for on in ("off", "on")],
 )
 def test_wizard_cells(monkeypatch, capsys, tmp_path, scenario, build):
     monkeypatch.chdir(tmp_path)
@@ -482,7 +532,7 @@ def test_wizard_cells(monkeypatch, capsys, tmp_path, scenario, build):
         if (cell.scenario, cell.build) == (scenario, build)
         and not isinstance(cell.wizard, NotOffered)
     }
-    base = GRADE_DESIGN if scenario == "grade" else LOWPASS
+    base = SCENARIOS[scenario][0]
     expected = {
         output: cli_stdout(monkeypatch, capsys, *base, *OUTPUT_FLAGS[output], *cell.wizard.flags)
         for output, cell in cells.items()
@@ -510,7 +560,7 @@ def test_wizard_cells(monkeypatch, capsys, tmp_path, scenario, build):
 
 
 @pytest.mark.parametrize(
-    "kind, reason", [("air-coil", AIR_COIL_EXCLUSION), ("chip", CHIP_NOT_AVAILABLE)]
+    "kind, reason", [("air-coil", AIR_COIL_EXCLUSION), ("chip", LOWPASS_CHIP_REASON)]
 )
 def test_a_forced_kind_with_no_part_says_why_and_builds_calculated_everywhere(
     monkeypatch, capsys, client, kind, reason
@@ -554,7 +604,8 @@ def test_both_sourced_exclusions_reach_every_surface_for_a_vhf_design(monkeypatc
     from filter_lib.wizard.calculation_handler import calculate_and_format
     from tests.web_helpers import HTMX, output_text
 
-    argv = ("lp", "ch", "pi", "146MHz", "-n", "5", "-r", "0.1")
+    # A chip inductor qualifies, so the kinds with no part state why only in full detail.
+    argv = ("lp", "ch", "pi", "146MHz", "-n", "5", "-r", "0.1", "--inductor-suggestions", "full")
     table = cli_stdout(monkeypatch, capsys, *argv)
     form = {
         **_WEB_FIELDS,
@@ -562,6 +613,7 @@ def test_both_sourced_exclusions_reach_every_surface_for_a_vhf_design(monkeypatc
         "frequency": "146MHz",
         "components": "5",
         "ripple": "0.1",
+        "inductor_suggestions": "full",
     }
     page = output_text(client.post("/design/lowpass", data=form, headers=HTMX).text) + "\n"
     state = FilterState(
@@ -572,11 +624,13 @@ def test_both_sourced_exclusions_reach_every_surface_for_a_vhf_design(monkeypatc
         order=5,
         ripple_db=0.1,
         show_plot=False,
+        inductor_detail="full",
     )
     wizard = calculate_and_format(state).output_text
 
     assert page == table
     assert wizard == _screen_text(table, build=False)
+    assert "1. Chip inductor LQW15AN75NG80D" in table
     for reason in (VHF_TOROID_EXCLUSION, AIR_COIL_EXCLUSION):
         assert _flat(reason) in _flat(table)
 

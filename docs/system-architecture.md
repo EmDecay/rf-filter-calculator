@@ -233,10 +233,22 @@ suggestions for one inductor or the limit that failed. Kinds are always listed i
 order toroid, air coil, chip (`INDUCTOR_KINDS`); `auto` builds the first kind with a part,
 and a forced kind builds its best suggestion or the calculated value with that kind's reason.
 Each kind keeps its own selector and detail lines; ordering, the build, the table section
-(`shared/inductor_display.py`), JSON, and CSV use only the record. In this version only HF
-toroids are offered: air-core coils and chip inductors return their fixed reasons, and above
-every toroid core's rated range the toroid reason adds the VHF exclusion. Those texts are
-worded in [component-data-sources.md](component-data-sources.md), which records why.
+(`shared/inductor_display.py`), JSON, and CSV use only the record. HF toroids and chip
+inductors are offered: air-core coils return their fixed reason, and above every toroid core's
+rated range the toroid reason adds the VHF exclusion. Those texts are worded in
+[component-data-sources.md](component-data-sources.md), which records why.
+
+#### Chip inductor suggestions and the SRF screen
+
+`shared/chip_selection.py` screens every part of the packaged catalog
+(`chip_inductor_data.json` through `shared/chip_inductor_data.py`) with `shared/srf_screen.py`,
+the one screen for a kind with a checked SRF. Part resolution passes it the design's check
+window (`srf_screen.check_window`: low-pass DC to the cutoff, band-pass DC to the upper −3 dB
+edge, high-pass the cutoff to twice the cutoff). A suggestion with a checked SRF carries its
+part model (`L0` with `C_self`) and its allowance range; the build realizes it as `L0` with a
+fixed `CSELF_<inductor>` capacitor, `ResolvedParts.qualified_range_hz()` intersects the built
+parts' ranges, and the build labels a chosen-parts landmark outside that range and limits a
+high-pass build's figures to it (`build_response.highpass_passband_top`).
 
 #### Toroid winding suggestions
 

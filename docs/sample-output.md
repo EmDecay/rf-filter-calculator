@@ -225,8 +225,8 @@ A selected capacitor fragment is:
 }
 ```
 
-and the inductor's suggestions, with the toroid's `build` details (core, winding, wire, and
-what was and was not checked) left out here:
+and the inductor's suggestions (the first toroid of three shown), with the toroid's `build`
+details (core, winding, wire, and what was and was not checked) left out here:
 
 ```json
 {
@@ -254,8 +254,10 @@ what was and was not checked) left out here:
             "error_budget": {
               "nominal_mismatch_pct": -0.2481500632168454,
               "tolerance_pct": 4.987592496839158,
-              "srf_drift_pct": null
+              "srf_drift_pct": null,
+              "worst_case_pct": null
             },
+            "allowance_range_hz": null,
             "source": {
               "publisher": "Micrometals, Inc.",
               "title": "T50-2 DataSheet, revision 20190524",
@@ -276,7 +278,7 @@ what was and was not checked) left out here:
       {
         "kind": "chip",
         "suggestions": [],
-        "reason_none": "Chip inductor suggestions are not available in this version."
+        "reason_none": "No chip inductor qualifies: every part in the built-in chip catalog (10.00 nH to 100.00 nH) misses this inductance by more than ±10% once its tolerance and SRF drift are counted (checked from DC to 10 MHz)."
       }
     ]
   }
@@ -300,16 +302,21 @@ uv run filter-calc lp bw pi 10MHz --format csv
 ```
 
 ```csv
-Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy,InductorKind,InductorPart,InductorSRFBasis,InductorBudgetNominalPct,InductorBudgetTolerancePct,InductorBudgetSRFDriftLowPct,InductorBudgetSRFDriftHighPct,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidWireDCRReactanceRatioCeiling,ToroidTempCoeff_ppm,ToroidCandidateStatus,ToroidProvenanceStatus,ToroidCoreSourceURL,ToroidFrequencySourceURL,ToroidMechanicalStatus,ToroidMechanicalSourceURL,ToroidRFQStatus,ToroidSRFStatus,ToroidPowerStatus,ToroidWarnings
-C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,
-C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,
-L1,1.59,µH,,,,,,,,,,,,,,toroid,T50-2,not_checked,-0.25,4.99,,,T50-2,2,18,20,1.5876,-0.25,310.8,12.15,8210,95,screened_candidate,primary_verified,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,https://www.amidoncorp.com/2ipt/,manufacturer_single_layer,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,not_assessed,not_assessed,not_assessed,"Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
+Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy,InductorKind,InductorPart,InductorSRFBasis,InductorBudgetNominalPct,InductorBudgetTolerancePct,InductorBudgetSRFDriftLowPct,InductorBudgetSRFDriftHighPct,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidWireDCRReactanceRatioCeiling,ToroidTempCoeff_ppm,ToroidCandidateStatus,ToroidProvenanceStatus,ToroidCoreSourceURL,ToroidFrequencySourceURL,ToroidMechanicalStatus,ToroidMechanicalSourceURL,ToroidRFQStatus,ToroidSRFStatus,ToroidPowerStatus,ToroidWarnings,ChipManufacturer,ChipTolerancePct,ChipLTest_MHz,ChipSRFMin_MHz,ChipQMin,ChipQTest_MHz,ChipAchievedL_nH,ChipAchievedLAt_MHz,ChipSelfCapacitance_fF,ChipAllowanceLow_MHz,ChipAllowanceHigh_MHz,ChipSourceURL,ChipDriftAllowancePct,ChipDesignAllowancePct,ChipModelBasis,ChipWarnings
+C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+L1,1.59,µH,,,,,,,,,,,,,,toroid,T50-2,not_checked,-0.25,4.99,,,T50-2,2,18,20,1.5876,-0.25,310.8,12.15,8210,95,screened_candidate,primary_verified,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,https://www.amidoncorp.com/2ipt/,manufacturer_single_layer,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,not_assessed,not_assessed,not_assessed,"Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use.",,,,,,,,,,,,,,,,
 ```
 
 All rows have the same column count. Warning fields are CSV-quoted when necessary.
 The inductor columns describe each inductor's best suggestion: its kind, part, SRF basis and
 error budget (each term in percent of the target; the drift is blank when the SRF is not
-checked), then the `Toroid*` details; with `--inductor-suggestions none` they are left out.
+checked), then the `Toroid*` and `Chip*` details (blank for the other kind); with
+`--inductor-suggestions none` they are left out. A chip row gives its maker, tolerance and
+catalog test frequency, minimum SRF, minimum Q with its test frequency, the inductance at the
+top of the check window (and that frequency) and the self-capacitance, both at the minimum SRF,
+the range where the part stays within its allowances, the source URL, what the figures rest on
+(the part model and the maker's fixture; board mounting changes the SRF), and the chip caveats.
 
 ## Inductor Suggestions
 
@@ -331,7 +338,71 @@ Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure 
   1. Toroid T50-2    18 turns AWG 20   1.59 µH (-0.25%)   DCR 12.1 mΩ   Q limit (wire DCR): 8,210
 ```
 
-At 146 MHz no inductor kind has a part, and each kind says why
+At VHF the chip inductors take over: no toroid is rated there, and the sourced chip catalog
+(Coilcraft 0603CS, Murata LQW18AN_00, LQW18AN_80 and LQW15AN_80, 10 nH to 100 nH) is checked
+over the design's check window:
+
+```bash
+uv run filter-calc lp ch pi 146MHz -n 5 -r 0.1 --sim-build
+```
+
+The suggestion section (L2's block is the same) is:
+
+```text
+Inductor Suggestions
+──────────────────────────────────────────────────
+Chip inductors (wirewound; the maker's guaranteed tolerance and minimum SRF):
+Checked from DC to 146 MHz: SRF drift within ±5% of the catalog value, and tolerance
+plus drift within ±10% of the target.
+Not checked: Q (the minimum is shown, not used), current rating, heating, power
+handling, and the SRF once mounted on a board. Measure before use.
+L at 146 MHz: the part's inductance there at its minimum SRF. Self-capacitance: the
+upper bound from that SRF at the catalog inductance.
+Inductance, self-capacitance and allowance range come from the parallel-LC part model
+with the maker's minimum SRF and catalog values measured in its fixture; board mounting
+changes the SRF.
+
+  L1 target: 74.74 nH at 146 MHz
+  ────────────────────────────────────────────────
+  1. Chip inductor LQW15AN75NG80D  Murata LQW15AN_80, 0402 (1005) package
+     75.00 nH ±2% at 100 MHz   SRF min 2.4 GHz   Q min 25 at 200 MHz
+     L at 146 MHz: 75.15 nH   Self-capacitance: 58.74 fF
+     Within its allowances from DC to 532.7 MHz
+     Source: Murata LQW15AN_80 reference specification, Spec No. JELF243A_0100K-01, p. 8
+     Error budget: +0.35% nominal, ±2.01% tolerance, SRF drift -0.17% to +0.20%
+     Worst case: -1.83% to +2.56% of the target (allowance ±10%)
+```
+
+and its build simulation, where each chip inductor carries its self-capacitance and the parts are
+qualified up to 532.7 MHz:
+
+```text
+Build Simulation (chosen parts; simulated, not measured)
+──────────────────────────────────────────────────
+Simulated with a 50 Ω source and a 50 Ω load; gains are transducer gain (Gt).
+Source and load are equal, so each gain in dB is the negative of the insertion loss.
+Part losses (Q): none; all parts are lossless.
+Passband = up to the requested cutoff, including it.
+Qualified range: DC to 532.7 MHz, where every chip inductor stays within its allowances; results
+  outside it are predicted with the parasitic model, not qualified.
+Ideal values:  -3 dB cutoff 165.7 MHz
+               peak gain 0.00 dB, lowest gain in passband -0.10 dB
+Chosen parts:  -3 dB cutoff 165.1 MHz
+               peak gain 0.00 dB, lowest gain in passband -0.11 dB
+Parts used:
+  C1: 12.00 pF || 13.00 pF (E24), plus 200.00 fF stray (assumed)
+  L1: 75.00 nH, chip inductor LQW15AN75NG80D, plus 58.74 fF self-capacitance
+  C2: 43.00 pF (E24)
+  L2: 75.00 nH, chip inductor LQW15AN75NG80D, plus 58.74 fF self-capacitance
+  C3: 12.00 pF || 13.00 pF (E24), plus 200.00 fF stray (assumed)
+Tolerance cases: each capacitor at its standard-grade tolerance, each chip inductor at its own
+  tolerance (±2%).
+  17 cases: nominal, all low, all high,
+  and each part low and high alone.
+```
+
+When no kind has a part, each kind says why. The 109.01 nH of a third-order design at 146 MHz is
+above the chip catalog
 (`uv run filter-calc lp bw pi 146MHz -n 3 --inductor-suggestions compact`):
 
 ```text
@@ -345,14 +416,19 @@ Inductor Suggestions
     near the band cannot be checked.
   - Air-core coils are not offered: no published self-capacitance model is validated for
     coils of a few spaced turns, so their self-resonance cannot be checked.
-  - Chip inductor suggestions are not available in this version.
+  - No chip inductor qualifies: every part in the built-in chip catalog (10.00 nH to
+    100.00 nH) misses this inductance by more than ±10% once its tolerance and SRF drift
+    are counted (checked from DC to 146 MHz).
 ```
 
 A toroid suggestion is checked only for the core's rated frequency range, whole-turn inductance
 within the A_L tolerance, and wire fit; automatic suggestions are limited to the primary-sourced
 T25-6, T50-2, and T68-2 records. RF Q, core loss, SRF, saturation, heating, and power handling
-are not checked; measure the winding before use. The detailed views (`best`, the default, and
-`full`) end each suggestion with its error budget; see the
+are not checked; measure the winding before use. A chip inductor is checked for its SRF drift
+and its worst case against the target, from the maker's guaranteed tolerance and minimum SRF;
+its Q (shown), current rating, heating, power handling and the SRF once mounted on a board are
+not checked. The detailed views (`best`, the default, and `full`) end each suggestion with its
+error budget, and a chip inductor's with its worst case; see the
 [user guide](user-guide.md#inductor-suggestions).
 
 ## Build Simulation
@@ -423,6 +499,9 @@ uv run filter-calc lp bw pi 10MHz --sim-build \
   },
   "nominal_build": {
     "realization": "selected_nominal_physical_parts",
+    "qualified_range_hz": null,
+    "passband_top_hz": null,
+    "peak_range_hz": null,
     "substitutions": [
       {
         "logical_name": "L1",
@@ -432,7 +511,10 @@ uv run filter-calc lp bw pi 10MHz --sim-build \
         "inductor_kind": "toroid",
         "part_name": "T50-2",
         "turns": 18,
-        "wire_awg": 20
+        "wire_awg": 20,
+        "self_capacitance_f": null,
+        "tolerance_pct": 10.0,
+        "own_tolerance": false
       }
     ]
   },
@@ -441,7 +523,8 @@ uv run filter-calc lp bw pi 10MHz --sim-build \
     "tolerance_source": "each_part",
     "capacitor_grade": "standard",
     "capacitor_tolerance_override_pct": null,
-    "inductor_tolerance_pct": 10.0,
+    "inductor_tolerance_pct": null,
+    "inductor_fallback_tolerance_pct": 10.0,
     "sample_count": 20,
     "seed": 73,
     "grid_points": 601
@@ -467,7 +550,18 @@ the chosen-parts simulation, `simulated` the ideal values, and `tolerance_analys
 tolerance cases. `build_model.build_inductor_choice` is the `--build-inductors` value, and each
 inductor that uses a suggestion has `method: "suggested_inductor"` with its `inductor_kind` and
 `part_name`; an inductor simulated at its calculated value has `method: "exact_fallback"` and
-says why in its `status` and warning. The omitted fields include the other parts used, the
+says why in its `status` and warning. A chip inductor also gives its `self_capacitance_f` (the
+fixed `CSELF_` branch across it) and the `tolerance_pct` its tolerance cases use, with
+`own_tolerance: true` when no inductor tolerance was entered; `tolerance_analysis` gives the
+entered `inductor_tolerance_pct` (`null` here) and the 10% fallback for toroid windings and
+calculated values. With a chip inductor in the build,
+`nominal_build.qualified_range_hz` is the range where every chip inductor stays within its
+allowances (`null` here: a toroid winding's SRF is not checked), `passband_top_hz` and
+`peak_range_hz` are where a high-pass build's passband stops and where it takes its peak, and
+each chosen-parts measurement (`"model": "chosen_parts"`; the ideal one is `"ideal"`) lists in
+`outside_qualified_range` the figures predicted with the parasitic model, not qualified (each
+spread summary has `outside_qualified_range` too). Every measurement also gives
+`peak_frequency_hz`, where its peak gain is. The omitted fields include the other parts used, the
 simulated branches, measurements, every tolerance case, the spread summaries, the effective loss
 model, warnings, and limitations. This is a simulation, not a measurement, a yield estimate, or
 a guaranteed worst case.
@@ -519,7 +613,20 @@ capacitor values and the inductor suggestions `--build-inductors` picks) and the
 fixed-series-resistance Q model as the build simulation, and adds a `* part used:` comment for
 each part (`part=T50-2 turns=18` for a toroid winding). Each parallel pair also gets its assumed
 stray as a capacitor named `CSTRAY_<part>` across the pair's terminals, with a `* stray:`
-comment; it stays fixed in every tolerance case. `exact` uses the calculated values without
+comment; it stays fixed in every tolerance case. A chip inductor is its `L0` (the inductance
+without self-capacitance) with a capacitor named `CSELF_<inductor>` across it, the
+self-capacitance from its minimum SRF, with a `* self-capacitance:` comment; the two give the
+catalog value at the part's test frequency. From
+`uv run filter-calc lp ch pi 146MHz -n 5 -r 0.1 --format spice`:
+
+```spice
+* part used: L1 chip inductor calculated=7.47381012205e-08 nominal=7.5e-08 part=LQW15AN75NG80D self-capacitance=5.87369180535e-14
+* self-capacitance: CSELF_L1 is this inductor's self-capacitance from its minimum SRF, the same in every tolerance case; L1 is the inductance without it
+L1 1 2 7.48697916667e-08
+CSELF_L1 1 2 5.87369180535e-14
+```
+
+`exact` uses the calculated values without
 losses, and takes none of the standard-capacitor options or `--build-inductors`. `chosen-parts` and
 `calculated` are accepted as the same two choices. Band-pass decks keep the SPICE element names
 `CT1`, `LT1`, `CK1`, `CIN`, and `COUT`; the `* names:` comment maps them to the table names

@@ -58,3 +58,87 @@ def test_hf_design_matches_baseline_or_allowed_change(design):
         item for case_id, item in ALLOWED if case_id == design.case_id and item not in changes
     )
     assert not stale, f"listed changes that no longer happen: {stale}"
+
+
+def test_a_chip_substitution_is_recognised_only_with_its_inductor_kept():
+    """A CSELF_ branch explains a changed inductor only when that inductor stays on its
+    terminals and the branch is across them; a removed inductor is never a chip."""
+    design = next(item for item in tool.designs() if item.case_id == "hp-ch-pi-28MHz-n9")
+    before = [["L1", "1", "0", 1e-7], ["C1", "1", "2", 1e-11]]
+    chip = [["L1", "1", "0", 9.97e-8], ["CSELF_L1", "1", "0", 7.8e-14], ["C1", "1", "2", 1e-11]]
+    removed = [["CSELF_L1", "99", "0", 1.0], ["C1", "1", "2", 1e-11]]
+    moved = [["L1", "1", "0", 9.97e-8], ["CSELF_L1", "2", "0", 7.8e-14], ["C1", "1", "2", 1e-11]]
+    # A real chip substitution beside an unrelated removal, and a "chip" across a capacitor.
+    two = [["L1", "1", "0", 1e-7], ["L2", "2", "0", 1e-7], ["C1", "1", "2", 1e-11]]
+    chip_and_removal = [
+        ["L1", "1", "0", 9.97e-8],
+        ["CSELF_L1", "1", "0", 7.8e-14],
+        ["C1", "1", "2", 1e-11],
+    ]
+    capacitor = [["L1", "1", "0", 1e-7], ["C1", "1", "2", 1e-11], ["CSELF_C1", "1", "2", 1e-14]]
+
+    kinds, reason = tool.classify(design, "spice_nominal", before, chip, {}, {})
+    assert (kinds, reason) == (
+        ["b", "c"],
+        "inductors built as chip inductors with their self-capacitance (L1)",
+    )
+    for after in (removed, moved, capacitor):
+        assert tool.classify(design, "spice_nominal", before, after, {}, {})[0] == []
+    assert tool.classify(design, "spice_nominal", two, chip_and_removal, {}, {})[0] == []
+
+
+def test_the_peak_fix_explains_a_change_only_where_recomputing_shows_it():
+    """Kind (f) needs the item recorded under the old peak rule to differ from the new one;
+    an ideal band-pass measurement may change by (f) alone."""
+    design = next(item for item in tool.designs() if item.case_id == "bp-bw-top-1.9MHz-50kHz-n3")
+    before = {"f_low_hz": 1.0, "f_high_hz": 2.0, "worst_design_passband_gain_db": -3.0}
+    after = {**before, "f_low_hz": 1.1}
+    worse = {**before, "worst_design_passband_gain_db": -300.0}
+
+    fixed = tool.classify(
+        design, "build_calculated", before, after, {}, {}, {"build_calculated": before}
+    )
+    assert fixed[0] == ["f"]
+    # Recomputing under the old rule gives the same regression: the fix did not cause it.
+    assert (
+        tool.classify(
+            design, "build_calculated", before, worse, {}, {}, {"build_calculated": worse}
+        )[0]
+        == []
+    )
+    assert tool.classify(design, "build_calculated", before, after, {}, {}, None)[0] == []
+
+
+def test_a_capacitor_change_explains_only_that_capacitor_s_rows():
+    design = next(item for item in tool.designs() if item.case_id == "hp-ch-pi-28MHz-n9")
+    before = [["L1", "1", "0", 1e-7], ["L2", "2", "0", 1e-7], ["C1", "1", "2", 1e-11]]
+    # A real chip substitution, a changed C1, and L2 removed.
+    after = [["L1", "1", "0", 9.97e-8], ["CSELF_L1", "1", "0", 7.8e-14], ["C1", "1", "2", 1.1e-11]]
+    changes = {"capacitor:E24:C1": ({"parts": [1e-11]}, {"parts": [1.1e-11]})}
+
+    assert tool.classify(design, "spice_nominal", before, after, changes, {})[0] == []
+    kept = [*after[:2], ["L2", "2", "0", 1e-7], after[2]]
+    assert sorted(tool.classify(design, "spice_nominal", before, kept, changes, {})[0]) == [
+        "a",
+        "b",
+        "c",
+    ]
+
+
+def test_a_capacitor_change_must_be_its_recorded_parts_and_a_stray_a_pair_s():
+    design = next(item for item in tool.designs() if item.case_id == "hp-ch-pi-28MHz-n9")
+    before = [["L1", "1", "0", 1e-7], ["C1", "1", "2", 1e-11]]
+    changes = {"capacitor:E24:C1": ({"parts": [1e-11]}, {"parts": [1.1e-11]})}
+
+    def kinds(after, recorded=changes):
+        return tool.classify(design, "spice_nominal", before, after, recorded, {})[0]
+
+    assert kinds([["L1", "1", "0", 1e-7], ["C1", "1", "2", 1.1e-11]]) == ["a"]
+    assert kinds([["L1", "1", "0", 1e-7]]) == []  # deleted
+    assert kinds([["L1", "1", "0", 1e-7], ["C1", "1", "0", 1.1e-11]]) == []  # moved
+    assert kinds([["L1", "1", "0", 1e-7], ["C1", "1", "2", 1.2e-11]]) == []  # other value
+    # A stray must be the assumed 0.2 pF across a pair of the same capacitor.
+    pair = [["L1", "1", "0", 1e-7], ["C1A", "1", "2", 4.7e-12], ["C1B", "1", "2", 5.6e-12]]
+    pair_changes = {"capacitor:E24:C1": ({"parts": [1e-11]}, {"parts": [4.7e-12, 5.6e-12]})}
+    assert sorted(kinds([*pair, ["CSTRAY_C1", "1", "2", 2e-13]], pair_changes)) == ["a", "c"]
+    assert kinds([*before, ["CSTRAY_L1", "1", "0", 1.0]], {}) == []

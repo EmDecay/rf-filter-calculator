@@ -2,7 +2,13 @@
 
 from dataclasses import dataclass
 
-from .build_response import build_frequency_grid, evaluation_ports, measure_circuit
+from .build_response import (
+    build_frequency_grid,
+    evaluation_ports,
+    highpass_passband_top,
+    highpass_peak_range,
+    measure_circuit,
+)
 from .build_types import (
     BuildAnalysisResult,
     BuildConfig,
@@ -18,6 +24,12 @@ from .nominal_realization import realize_nominal_build
 from .resolved_parts import ResolvedParts
 from .tolerance_screening import run_screening_cases, summarize_cases
 
+# With a chip inductor's self-capacitance fixed, a tolerance case moves only its inductance.
+STRESS_CASE_LIMITATION = (
+    "The tolerance cases move each chip inductor's inductance with its self-capacitance "
+    "fixed, so a case can fall slightly outside the part's guaranteed range; treat those "
+    "cases as stress cases of the model, not qualified values."
+)
 # The table prints this one only when extra random tolerance cases were run.
 RANDOM_CASES_LIMITATION = (
     "The extra random tolerance cases repeat for the same seed; their spread is not a "
@@ -38,6 +50,7 @@ def _analysis_limitations(
     unresolved_cases: int,
     disconnected_cases: int,
     has_pair_stray: bool = False,
+    has_self_capacitance: bool = False,
 ) -> tuple[str, ...]:
     limitations = list(nominal_limitations)
     layout = (
@@ -45,11 +58,20 @@ def _analysis_limitations(
         if has_pair_stray
         else ("layout and wiring")
     )
+    # With a chip inductor's self-capacitance modelled, say what still is not.
+    resonance = (
+        "capacitor ESL and package parasitics, the self-resonance (SRF) of every part but "
+        "the chip inductors"
+        if has_self_capacitance
+        else "self-resonance (SRF)"
+    )
+    if has_self_capacitance:
+        limitations.append(STRESS_CASE_LIMITATION)
     limitations.extend(
         (
             "The tolerance cases do not guarantee the true worst case.",
             RANDOM_CASES_LIMITATION,
-            f"The simulation leaves out {layout}, self-resonance (SRF), temperature "
+            f"The simulation leaves out {layout}, {resonance}, temperature "
             "drift, nonlinear effects, and power handling.",
         )
     )
@@ -106,6 +128,9 @@ class _PreparedAnalysis:
     source: float
     load: float
     calculated: CircuitMeasurement
+    qualified_range: tuple[float, float] | None
+    passband_top: float | None
+    peak_range: tuple[float, float] | None
 
 
 def _prepare_analysis(
@@ -121,10 +146,24 @@ def _prepare_analysis(
     nominal = realize_nominal_build(result, category, active_config, parts=parts)
     freqs = build_frequency_grid(result, category, active_config.grid_points)
     source, load = evaluation_ports(result, category, active_config)
+    qualified_range = parts.qualified_range_hz()
+    passband_top = highpass_passband_top(result, category, freqs, qualified_range)
+    peak_range = highpass_peak_range(result, category, freqs, qualified_range)
     raise_if_cancelled(should_cancel)
-    calculated_measurement = measure_circuit(exact_circuit, result, category, freqs, source, load)
+    calculated_measurement = measure_circuit(
+        exact_circuit, result, category, freqs, source, load, passband_top, peak_range
+    )
     return _PreparedAnalysis(
-        active_config, parts, nominal, freqs, source, load, calculated_measurement
+        active_config,
+        parts,
+        nominal,
+        freqs,
+        source,
+        load,
+        calculated_measurement,
+        qualified_range,
+        passband_top,
+        peak_range,
     )
 
 
@@ -154,6 +193,8 @@ def measure_calculated_and_nominal(
             prepared.freqs,
             prepared.source,
             prepared.load,
+            prepared.passband_top,
+            prepared.peak_range,
         ),
     )
 
@@ -190,6 +231,8 @@ def analyze_build(
         load,
         active_config,
         should_cancel,
+        prepared.passband_top,
+        prepared.peak_range,
     )
     censored = sum(case.measurement.at_grid_edge for case in cases)
     return BuildAnalysisResult(
@@ -215,5 +258,9 @@ def analyze_build(
             sum(not case.measurement.measurement_converged for case in cases),
             sum(len(case.measurement.threshold_regions) > 1 for case in cases),
             any(item.stray_capacitance_f for item in nominal.substitutions),
+            any(item.self_capacitance_f for item in nominal.substitutions),
         ),
+        qualified_range_hz=prepared.qualified_range,
+        passband_top_hz=prepared.passband_top,
+        peak_range_hz=prepared.peak_range,
     )

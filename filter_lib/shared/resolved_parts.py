@@ -20,6 +20,7 @@ from .inductor_suggestion import (
     InductorSuggestion,
     KindSuggestions,
 )
+from .srf_screen import CheckWindow, common_range
 
 # A build or deck given another design's parts (the same element names, other values).
 PARTS_FROM_ANOTHER_DESIGN_MESSAGE = "The resolved parts belong to another design"
@@ -72,6 +73,7 @@ class ResolvedParts:
     ``capacitors`` is empty); ``match_policy`` decided the capacitors.
     ``inductor_detail`` is how much of the suggestions the table shows (``none`` leaves
     them out of every output) and ``build_inductors`` what the build uses.
+    ``check_window`` is the frequencies the inductor suggestions were checked over.
     """
 
     eseries: str | None
@@ -80,6 +82,7 @@ class ResolvedParts:
     inductors: Mapping[str, InductorParts] = field(default_factory=dict)
     inductor_detail: str = DEFAULT_INDUCTOR_DETAIL
     build_inductors: str = DEFAULT_BUILD_INDUCTORS
+    check_window: CheckWindow | None = None
 
     def __post_init__(self) -> None:
         # Own copies, so a caller's later change to its mapping cannot reach the parts.
@@ -90,6 +93,19 @@ class ResolvedParts:
     def shows_suggestions(self) -> bool:
         """Whether outputs list inductor suggestions (every detail but ``none``)."""
         return self.inductor_detail != "none"
+
+    def qualified_range_hz(self) -> tuple[float, float] | None:
+        """The frequencies at which every built part with a checked SRF is within allowance.
+
+        ``None`` when no part in the build has its SRF checked (toroid windings and
+        calculated values impose no range), so the build's figures are not limited.
+        """
+        return common_range(
+            inductor.build_pick.allowance_range_hz
+            for inductor in self.inductors.values()
+            if inductor.build_pick is not None
+            and inductor.build_pick.allowance_range_hz is not None
+        )
 
     def capacitor(self, name: str) -> ESeriesMatch:
         """The standard-value choice of capacitor ``name`` (a circuit element name)."""

@@ -65,7 +65,7 @@ include = ["filter_lib*"]
 version = {attr = "filter_lib.__version__"}
 
 [tool.setuptools.package-data]
-"filter_lib.shared" = ["capacitor_grade_data.json", "toroid_core_data.json"]
+"filter_lib.shared" = ["capacitor_grade_data.json", "chip_inductor_data.json", "toroid_core_data.json"]
 "filter_lib.wizard" = ["styles.tcss"]
 "filter_lib.web" = ["templates/*.html", "templates/partials/*.html", "static/*"]
 

@@ -139,3 +139,94 @@ def test_logspace_accepts_the_maximum_point_count():
 
     assert len(grid) == MAX_FREQUENCY_POINTS
     assert (grid[0], grid[-1]) == pytest.approx((1.0, 10.0), rel=1e-14, abs=0)
+
+
+def test_a_peak_range_compares_its_ends_with_neighbours_inside_it():
+    from filter_lib.shared.response_refinement import refine_response
+
+    refined = refine_response(
+        lambda f: f,
+        [1.0, 2.0, 3.0, 4.0],
+        (1.0, 4.0),
+        reference_frequency=2.5,
+        frequency_scale=1.0,
+        peak_range=(2.0, 3.0),
+    )
+
+    assert refined.reference_frequency == 3.0
+    assert refined.peak_frequency == 3.0
+    # The range is checked against the supplied frequencies, before a reference widens them.
+    with pytest.raises(ValueError, match="overlap"):
+        refine_response(
+            lambda f: f,
+            [1.0, 2.0],
+            (1.0, 2.0),
+            reference_frequency=6.0,
+            frequency_scale=1.0,
+            peak_range=(5.0, 6.0),
+        )
+    with pytest.raises(ValueError, match="overlap"):
+        refine_response(
+            lambda f: f, [1.0, 2.0], (1.0, 2.0), frequency_scale=1.0, peak_range=(5.0, 6.0)
+        )
+
+
+def test_two_points_one_rounding_step_apart_on_a_slope_are_not_a_peak():
+    """A sweep point and the exact reference frequency can differ by a rounding step; on a
+    slope their gains can come out equal, which once passed for a flat peak at the center."""
+    from filter_lib.shared.response_refinement import refine_response
+
+    pair = (4.0, 4.0 + 1e-10)
+
+    def response(frequency: float) -> float:
+        # A single peak at 3; the pair just above 4 has the same gain, on the falling side.
+        return -1.0 if pair[0] <= frequency <= pair[1] else -abs(frequency - 3.0)
+
+    refined = refine_response(
+        response,
+        [1.0, 2.0, 3.0, 3.5, pair[0], pair[1], 4.5, 5.0],
+        (1.0, 5.0),
+        reference_frequency=4.0,
+        frequency_scale=1.0,
+    )
+
+    assert refined.reference_frequency == pytest.approx(3.0, abs=1e-6)
+    assert refined.reference_db == pytest.approx(0.0, abs=1e-6)
+
+
+def test_a_noise_bump_at_the_bottom_of_a_dip_is_not_the_peak():
+    """Two real peaks around a dip, and solver-level wobble (1e-4 dB) at its bottom: the
+    peak nearest the center is a real one, not the wobble at the center."""
+    from filter_lib.shared.response_refinement import refine_response
+
+    def response(frequency: float) -> float:
+        # Peaks of 0 dB at 4 and 6, a dip of -8 dB at 5 with a 1e-4 dB bump right at 5.
+        base = -8.0 * math.exp(-((frequency - 5.0) ** 2) / 0.2)
+        bump = 1e-4 if abs(frequency - 5.0) < 1e-3 else 0.0
+        return min(0.0, -2.0 * abs(abs(frequency - 5.0) - 1.0)) + base + bump
+
+    refined = refine_response(
+        response,
+        [3.0 + 0.05 * i for i in range(81)],
+        (3.0, 7.0),
+        reference_frequency=5.0,
+        frequency_scale=1.0,
+    )
+
+    assert abs(refined.reference_frequency - 5.0) == pytest.approx(1.0, abs=0.05)
+    assert len(refined.regions) == 2
+
+
+def test_a_peak_range_is_cut_to_the_supplied_frequencies():
+    from filter_lib.shared.response_refinement import refine_response
+
+    refined = refine_response(
+        lambda f: f,
+        [1.0, 2.0],
+        (1.0, 2.0),
+        reference_frequency=6.0,
+        frequency_scale=1.0,
+        peak_range=(1.5, 5.0),
+    )
+
+    assert refined.reference_frequency == 2.0

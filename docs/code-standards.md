@@ -201,19 +201,36 @@ inductor suggestions; harmonic E-series matching keeps the nominal rule.
   and achieved inductance, tolerance, SRF basis, error budget, source, the kind's own `build`
   details, status, and warnings. Ordering, the build pick, the table section, JSON, and CSV
   read only the record; a kind adds only its selector and its own title and detail lines
-  (`toroid_display.py` for toroids).
+  (`toroid_display.py` for toroids, `chip_display.py` for chip inductors).
 - **Fixed kind order.** Kinds are always listed in `INDUCTOR_KINDS` order (toroid, air coil,
   chip), each kind's suggestions in its own rank, at most `MAX_SUGGESTIONS_PER_KIND` (3).
   `auto` builds the first suggestion in that order; "best" shows the build pick, else the first.
 - **Sourced-only guarantees.** A part qualifies only on a primary-source minimum or maximum,
   never a typical value ([component-data-sources.md](component-data-sources.md#how-to-read-this-page)).
   Its SRF basis is `guaranteed_minimum`, `model` (with `srf_accuracy`), or `not_checked`; only
-  the legacy HF toroids use `not_checked`, and their error budget then lists no SRF drift.
+  the legacy HF toroids use `not_checked`, and their error budget then lists no SRF drift. A
+  checked basis gives the drift, the part model the build simulates (`part_model`) and the
+  `allowance_range_hz`, all three or none.
+- **One SRF screen.** Every kind with a checked SRF uses `shared/srf_screen.py`: the part model
+  (`L0 = L_m (1 − (f_m/SRF)²)` with `C_self` from the minimum SRF), the check window
+  (`check_window`: low-pass DC to the cutoff, band-pass DC to the upper −3 dB edge, high-pass
+  the cutoff to `HIGHPASS_CHECK_MULTIPLE` × the cutoff), the drift limit
+  (`DRIFT_ALLOWANCE_PCT`) and the henry-based budget (`DESIGN_ALLOWANCE_PCT`) at both tolerance
+  ends, both window ends and both SRF limits. Limits are compared in exact arithmetic on the
+  stated decimals (a part exactly at a limit is within it), always with the maker's guaranteed
+  tolerance; an extreme design makes its parts fail, never aborts. The budget's terms are in
+  percent of the target, each drift term taken at the tolerance end it adds to, so
+  `ErrorBudget.worst_case_pct` is their exact total. Chip inductors (`chip_selection.py`,
+  `chip_inductor_data.py`) rank by the smallest worst case, then part number; the minimum Q is
+  shown, never ranked. The packaged catalog matches the evidence page's table
+  (`tests/test_chip_inductor_data.py`), and the acceptance designs match its coverage table
+  (`tests/test_vhf_acceptance_coverage.py`).
 - **Say why a kind has no part.** `KindSuggestions.reason_none` states the limit that failed
   and names the kind, so reasons read without labels. A kind that is never offered states why
   in the words of `docs/component-data-sources.md` (`VHF_TOROID_EXCLUSION`,
-  `AIR_COIL_EXCLUSION`); change the text and that page together. Chip inductors return
-  `CHIP_NOT_AVAILABLE` until their data is packaged.
+  `AIR_COIL_EXCLUSION`); change the text and that page together. A chip inductor's reason
+  (`chip_selection.no_qualifying_chip_reason`) names the allowance, the drift limit or both, and
+  the frequencies checked.
 
 Toroid screening uses only exact parts marked primary-source verified in
 `toroid_core_data.json`. Legacy records remain inspectable but are not auto-selected. Preserve
@@ -234,12 +251,29 @@ the tolerance cases, so making a SPICE deck never runs them:
   why (an inductor with no suggestion of the chosen kind gives that kind's reason);
 - each part varies by its own tolerance (`CircuitElement.tolerance`): a capacitor by its
   grade's (or the larger override; the assumed tolerance where not sourced), an inductor by
-  `BuildConfig.inductor_tolerance_pct` (unset: 10% for toroid windings and calculated values);
+  `BuildConfig.inductor_tolerance_pct` (unset: a part with a checked SRF by its own guaranteed
+  tolerance, `component_realization.inductor_tolerance`; 10% for toroid windings and
+  calculated values);
 - the assumed stray across a pair is a `fixed` capacitor across the pair's terminals named
   `CSTRAY_<part>` (`circuit_display_names.STRAY_PREFIX`, shown as "<part> stray"); fixed
   elements are never varied, so they change neither the case list nor the seeded draws, and a
   stray of 0 adds no element. Every element name starts with the letter of its kind
   (`CircuitElement` refuses any other), so a SPICE reader sees what the solver sees;
+- a suggestion with a part model (a chip inductor) is built as its `L0` with a `fixed`
+  capacitor `CSELF_<inductor>` across it (`circuit_display_names.SELF_CAPACITANCE_PREFIX`,
+  shown as "<inductor> self-capacitance"), the same in the build and the chosen-parts deck and
+  never varied; the tolerance cases are then stress cases of that fixed branch
+  (`build_analysis.STRESS_CASE_LIMITATION`), never qualified values;
+- `ResolvedParts.qualified_range_hz()` is where every built part with a checked SRF stays within
+  its allowances (each end rounded inward so it passes the exact screen; printed ranges round
+  inward too); `CircuitMeasurement.outside_range` checks every frequency a chosen-parts result
+  reports (edges or cutoff and the center and bandwidth from them, the reference peak, the peak
+  gain's frequency, other half-power regions), which are labelled
+  `build_output_formatting.PARASITIC_PREDICTION` (JSON `outside_qualified_range`); ideal results
+  never are. A high-pass build measures only up to `build_response.highpass_passband_top` and
+  takes its peak and threshold only inside `highpass_peak_range`. With no such part (toroid
+  windings, calculated values) nothing is limited or labelled. An entered inductor Q applies to
+  a chip's inductance branch alone (`nominal_realization.CHIP_Q_LIMITATION`);
 - Q is converted to constant series resistance at a stated reference frequency;
 - a custom loss reference without an effective Q is rejected;
 - fixed tolerance cases and seeded extra random cases are not measurements, probabilities,
@@ -286,9 +320,15 @@ field parsers for the grade, tolerance and stray), `shared/display_helpers.py`
 (`RESONATOR_Q_LABELS`, `RESONATOR_Q_CONFLICT_MESSAGE`, `RESONATOR_Q_FORMULA`),
 `shared/inductor_suggestion.py` (`FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE`, which
 `design/option_applicability.py` names `BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE`;
-`VHF_TOROID_EXCLUSION`, `AIR_COIL_EXCLUSION`, `CHIP_NOT_AVAILABLE`; the CLI help
+`VHF_TOROID_EXCLUSION`, `AIR_COIL_EXCLUSION`; the CLI help
 `INDUCTOR_SUGGESTIONS_HELP` and `BUILD_INDUCTORS_HELP`), `shared/toroid_selection.py`
 (`no_suitable_core_reason`, which names the limit that rejected the rated cores; `no_rated_core_reason`; `NOT_ASSESSED_WARNING`),
+`shared/chip_selection.py` (`no_qualifying_chip_reason`, `CHIP_NOT_ASSESSED_WARNING`),
+`shared/chip_display.py` (`CHIP_HEADING`, `CHIP_MODEL_LINE`, `checked_line`),
+`shared/nominal_realization.py` (`SELF_CAPACITANCE_LIMITATION`, `CHIP_Q_LIMITATION`), `shared/build_analysis.py`
+(`STRESS_CASE_LIMITATION`), `shared/build_output_formatting.py` (`PARASITIC_PREDICTION`,
+`qualified_range_line`, `highpass_passband_note`, `inductor_tolerance_text`),
+`shared/inductor_display.py` (`format_worst_case`),
 `design/part_resolution.py` (`NO_SUGGESTION_NOTE`, `SUGGESTIONS_NOT_USED_NOTE`),
 `design/inductor_option_inputs.py` (the wizard and web `INDUCTOR_DETAIL_LABEL`,
 `INDUCTOR_DETAIL_CHOICES`, `INDUCTOR_DETAIL_HELP`, `BUILD_INDUCTORS_LABEL`,
@@ -328,20 +368,28 @@ Caveats print once where they apply; JSON and CSV keep every warning entry.
   or `null`) and `kinds`, one entry per kind in the fixed order with `kind`, `suggestions` and
   `reason_none`. Each suggestion has `kind`, `rank`, `part_name`, `status`, `target_henries`,
   `achieved_henries`, `tolerance_pct`, `srf_basis`, `srf_accuracy`, `error_budget`
-  (`nominal_mismatch_pct`, `tolerance_pct`, `srf_drift_pct`), `source` (`publisher`, `title`,
-  `url`), `build` (the kind's own record; for a toroid the screened record without `rank`,
-  `candidate_status`, or `q_dc_upper_bound`), and `warnings`
+  (`nominal_mismatch_pct`, `tolerance_pct`, `srf_drift_pct`, `worst_case_pct`),
+  `allowance_range_hz`, `source` (`publisher`, `title`, `url`), `build` (the kind's own record:
+  for a toroid the screened record without `rank`, `candidate_status`, or `q_dc_upper_bound`;
+  for a chip `chip_display.chip_build_payload`), and `warnings`
   (`shared/inductor_display.py::suggestion_payload`).
 - CSV gives each inductor's best suggestion: the generic columns `InductorKind`, `InductorPart`, `InductorSRFBasis`, `InductorBudgetNominalPct`, `InductorBudgetTolerancePct`, `InductorBudgetSRFDriftLowPct` and `InductorBudgetSRFDriftHighPct` (the budget in percent of the
-  target, the drift blank when the SRF is not checked) precede the `Toroid*` columns
-  (`CSV_INDUCTOR_HEADER`); all are blank on capacitor rows and on inductors with no
-  suggestion; with `none` the inductor columns are left out.
+  target, the drift blank when the SRF is not checked) precede the `Toroid*` columns and then
+  the `Chip*` columns, ending with `ChipModelBasis` and `ChipWarnings`
+  (`CSV_INDUCTOR_HEADER`); the other kind's columns are blank, all are blank on capacitor rows
+  and on inductors with no suggestion, and with `none` the inductor columns are left out.
 - Build JSON `build_model` gives `build_inductor_choice` (the `--build-inductors` value),
   `suggested_inductors_used`, and `suggested_inductor_elements`. Each substitution carries
   `inductor_kind` and `part_name` (`null` for capacitors and calculated values); an inductor
   built from a suggestion has `method: "suggested_inductor"`, and one simulated at its
   calculated value has `method: "exact_fallback"` with status `suggestions_not_used`
   (suggestions off, or `calculated`) or `no_verified_candidate` (no part of the chosen kind).
+  Substitutions also carry `self_capacitance_f`, `tolerance_pct` and `own_tolerance`;
+  `nominal_build` carries `qualified_range_hz`, `passband_top_hz` and `peak_range_hz`; every
+  measurement carries `model` and `peak_frequency_hz`, a chosen-parts one
+  `outside_qualified_range`, and each spread summary `outside_qualified_range`;
+  `tolerance_analysis` gives the entered `inductor_tolerance_pct` (nullable) and
+  `inductor_fallback_tolerance_pct`.
 
 ## Wizard Architecture
 

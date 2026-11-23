@@ -51,7 +51,7 @@ BUILD_FIELDS = (
     BuildField(
         "build-inductor-tolerance",
         "Inductor tolerance (±%)",
-        "Applies to every inductor. Blank = "
+        "Applies to every inductor. Blank = each chip inductor's own tolerance, and "
         f"{DEFAULT_INDUCTOR_TOLERANCE_PCT:g} for toroid windings and calculated values.",
     ),
     BuildField(

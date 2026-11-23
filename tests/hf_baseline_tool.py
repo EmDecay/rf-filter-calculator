@@ -14,7 +14,11 @@ A later change may alter these facts only in the ways the VHF/UHF work permits:
 (b) a new inductor kind that qualifies;
 (c) build-simulation numbers that shift because stray and self-capacitance are modelled;
 (d) the band-pass trimmer split;
-(e) tolerance cases that use each part's own tolerance.
+(e) tolerance cases that use each part's own tolerance;
+(f) band-pass build measurements taken from the true peak nearest the center (the
+    refinement once took a two-point "plateau" at f0, the sweep's middle point and the
+    exact center one rounding step apart, or a noise bump, as the peak; a peak now needs a
+    prominence of at least the gain tolerance; user decision 2026-11-22).
 
 Each changed item is listed in ``tests/fixtures/hf_baseline_allowed_changes.json`` with
 its kind and reason; ``tests/test_hf_baseline.py`` fails on any change that is not listed,
@@ -56,7 +60,7 @@ SERIES = ("E12", "E24", "E96")
 SPICE_SERIES = "E24"
 
 # Which permitted kinds may explain a change to each item type. Items whose type is not
-# listed (the calculated values, the exact deck, the calculated-circuit measurement) may
+# listed, or lists no kind (the calculated values, the exact deck, the response check), may
 # never change.
 ITEM_KINDS: dict[str, frozenset[str]] = {
     "capacitor": frozenset("a"),
@@ -65,11 +69,12 @@ ITEM_KINDS: dict[str, frozenset[str]] = {
     "values": frozenset(),
     "spice_exact": frozenset(),
     "spice_nominal": frozenset("abcd"),
-    "build_calculated": frozenset(),
+    # The ideal circuit's build measurement changes only by the reference-peak fix (f).
+    "build_calculated": frozenset("f"),
     "build_parts": frozenset("abd"),
-    "build_nominal": frozenset("abcd"),
-    "build_summaries": frozenset("abcde"),
-    "build_cases": frozenset("abcde"),
+    "build_nominal": frozenset("abcdf"),
+    "build_summaries": frozenset("abcdef"),
+    "build_cases": frozenset("abcdef"),
 }
 
 # Relative tolerance for measured numbers: refinement is deterministic, but the last bits
@@ -438,6 +443,56 @@ def _describe_parts(facts: dict | None) -> str:
 
 
 _STRAY_NAME = re.compile(r"^CSTRAY_")
+# A chip inductor's self-capacitance branch, named for the inductor it is across.
+_SELF_CAPACITANCE_NAME = re.compile(r"^CSELF_(?P<inductor>\S+)$")
+
+
+# The assumed stray across each pair in the corpus decks (the default policy).
+_DEFAULT_STRAY_F = 0.2e-12
+
+
+def _part_rows(rows: list | None, table_name: str) -> list:
+    """The deck rows of a capacitor's parts (not its stray)."""
+    return [
+        row
+        for row in rows or []
+        if not _STRAY_NAME.match(str(row[0])) and _table_name(str(row[0])) == table_name
+    ]
+
+
+def _stray_across_a_pair(name: str, rows: list | None) -> bool:
+    """Whether stray ``name`` is the default stray across a pair on the same terminals."""
+    stray = next(row for row in rows or [] if row[0] == name)
+    parts = _part_rows(rows, _table_name(name.removeprefix("CSTRAY_")))
+    return (
+        len(parts) >= 2
+        and all(tuple(part[1:3]) == tuple(stray[1:3]) for part in parts)
+        and math.isclose(stray[3], _DEFAULT_STRAY_F, rel_tol=1e-9)
+    )
+
+
+def _rows_are_the_recorded_parts(item_name: str, before: list, after: list, changes) -> bool:
+    """Whether a changed capacitor's deck rows are its recorded parts on its old terminals."""
+    table_name = item_name.split(":", 2)[2]
+    old_rows = _part_rows(before, table_name)
+    new_rows = _part_rows(after, table_name)
+    recorded = (changes[item_name][1] or {}).get("parts") or []
+    terminals = {tuple(row[1:3]) for row in old_rows}
+    return (
+        len(new_rows) == len(recorded)
+        and len(terminals) == 1
+        and all(tuple(row[1:3]) in terminals for row in new_rows)
+        and _close(sorted(row[3] for row in new_rows), sorted(recorded), MEASUREMENT_REL_TOL)
+    )
+
+
+def _table_name(element: str) -> str:
+    """The component-table name a deck element belongs to (``CT1A`` is Cp1, ``C1B`` is C1)."""
+    from filter_lib.shared.circuit_display_names import display_component_name
+
+    name = display_component_name(element).split(" (part ")[0]
+    ladder_part = re.match(r"^([CL]\d+)[A-Z]$", name)
+    return ladder_part[1] if ladder_part else name
 
 
 def _changed_capacitors(changes: dict[str, tuple], series: str | None) -> list[str]:
@@ -475,13 +530,22 @@ def _parts_not_at_five_percent(parts: list) -> list[str]:
 
 
 def classify(
-    design: Design, item: str, before: Any, after: Any, changes: dict[str, tuple], actual: dict
+    design: Design,
+    item: str,
+    before: Any,
+    after: Any,
+    changes: dict[str, tuple],
+    actual: dict,
+    old_peaks: dict | None = None,
 ) -> tuple[list[str], str]:
     """Return the permitted kinds that explain a change, and a reason, by item type.
 
     A build change is explained by the causes present in that build: capacitor choices
-    of its series that changed (a), a stray capacitor added across a pair (c), and parts
-    whose own tolerance is not the old uniform 5% (e).
+    of its series that changed (a), a stray capacitor added across a pair (c), parts
+    whose own tolerance is not the old uniform 5% (e), and the reference-peak correction (f)
+    when ``old_peaks`` (the design recorded under the old peak rule) shows that it moved this
+    item. The ideal circuit's build measurement may change by (f) alone. A deck change is also explained by
+    inductors now built as chip inductors (b), each with its self-capacitance across it (c).
     """
     kind = item_type(item)
     if kind == "capacitor":
@@ -500,16 +564,68 @@ def classify(
         names_before = {row[0] for row in before or []}
         names_after = {row[0] for row in after or []}
         added = sorted(name for name in names_after - names_before if _STRAY_NAME.match(name))
+        # A stray is the assumed 0.2 pF across a parallel pair: two or more parts of the
+        # same capacitor on the stray's own terminals.
+        if any(not _stray_across_a_pair(name, after) for name in added):
+            return [], "not a permitted change"
         if added:
             kinds.append("c")
             reasons.append(f"stray capacitor across each pair ({', '.join(added)})")
-        other_before = [row for row in before or [] if not _STRAY_NAME.match(str(row[0]))]
-        other_after = [row for row in after or [] if not _STRAY_NAME.match(str(row[0]))]
-        if not _close(other_before, other_after, MEASUREMENT_REL_TOL):
-            changed = _changed_capacitors(changes, SPICE_SERIES)
-            if changed:
-                kinds.append("a")
-                reasons.append(f"chosen parts changed ({', '.join(changed)})")
+        # An inductor with a self-capacitance branch is a chip inductor: its value is the
+        # part model's L0, which the new kind (b) and the branch (c) explain together. It
+        # counts only when the inductor is still on its original terminals and the branch
+        # is across those same terminals.
+        terminals_before = {row[0]: tuple(row[1:3]) for row in before or []}
+        terminals_after = {row[0]: tuple(row[1:3]) for row in after or []}
+        chips = sorted(
+            inductor
+            for name in names_after - names_before
+            if (match := _SELF_CAPACITANCE_NAME.match(name))
+            and (inductor := match["inductor"]).startswith("L")
+            and inductor in terminals_before
+            and terminals_before[inductor] == terminals_after.get(inductor) == terminals_after[name]
+        )
+        self_capacitance = {f"CSELF_{inductor}" for inductor in chips}
+        if chips:
+            kinds.extend(code for code in ("b", "c") if code not in kinds)
+            reasons.append(
+                f"inductors built as chip inductors with their self-capacitance "
+                f"({', '.join(chips)})"
+            )
+
+        changed = _changed_capacitors(changes, SPICE_SERIES)
+        # The table name of each changed capacitor (``capacitor:E24:Cp1`` is Cp1).
+        changed_names = {item_name.split(":", 2)[2] for item_name in changed}
+
+        def unexplained(rows, explained=frozenset()):
+            return [
+                row
+                for row in rows or []
+                if not _STRAY_NAME.match(str(row[0]))
+                and row[0] not in self_capacitance
+                and row[0] not in chips
+                and _table_name(str(row[0])) not in explained
+            ]
+
+        if _close(unexplained(before), unexplained(after), MEASUREMENT_REL_TOL):
+            return kinds, "; ".join(reasons)
+        # Every remaining difference must be in a changed capacitor's own rows, and those
+        # rows must be its recorded new parts on its original terminals.
+        if (
+            not changed
+            or not _close(
+                unexplained(before, changed_names),
+                unexplained(after, changed_names),
+                MEASUREMENT_REL_TOL,
+            )
+            or not all(
+                _rows_are_the_recorded_parts(item_name, before, after, changes)
+                for item_name in changed
+            )
+        ):
+            return [], "not a permitted change"
+        kinds.append("a")
+        reasons.append(f"chosen parts changed ({', '.join(changed)})")
         return kinds, "; ".join(reasons)
     if kind == "build_parts":
         changed = _changed_capacitors(changes, design.build_series)
@@ -525,20 +641,49 @@ def classify(
                 "a"
             ], f"parts unchanged, labelled tolerance not sourced ({', '.join(relabelled)})"
         return [], "not a permitted change"
+    peak_fix = old_peaks is not None and not _same(item, old_peaks.get(item), after)
+    if kind == "build_calculated":
+        # Only the fix may move it: under the old rule it must equal the corpus.
+        if peak_fix and _same(item, before, old_peaks.get(item)):
+            return ["f"], "-3 dB points measured from the true peak (nearest the center)"
+        return [], "not a permitted change"
     if kind in {"build_nominal", "build_summaries", "build_cases"}:
         parts = actual.get("build_parts")
         causes = (
             ("a", _changed_capacitors(changes, design.build_series), "new capacitor choices"),
             ("c", _build_pairs(parts), "a fixed stray across each pair"),
             ("e", _parts_not_at_five_percent(parts), "parts at their own tolerance"),
+            (
+                "f",
+                ["nearest the center"] if peak_fix else [],
+                "-3 dB points measured from the true peak",
+            ),
         )
         if kind == "build_nominal":
             # The nominal build has no tolerance cases.
-            causes = causes[:2]
+            causes = (*causes[:2], causes[3])
         kinds = [code for code, names, _text in causes if names]
         reason = "; ".join(f"{text} ({', '.join(names)})" for _code, names, text in causes if names)
         return kinds, reason
     return [], "not a permitted change"
+
+
+def record_with_old_peak_rule(design: Design) -> dict[str, object]:
+    """``record(design)`` with response refinement as before the reference-peak fix.
+
+    Every local maximum counts as a peak (no prominence), and no evaluated dip splits a
+    region, so a rounding-step pair or a noise bump near the center can be taken as the
+    peak. Only the difference between this and ``record`` is the fix's effect (kind f).
+    """
+    from filter_lib.shared import response_refinement
+
+    saved = (response_refinement.PEAK_PROMINENCE_DB, response_refinement._hidden_dips)
+    response_refinement.PEAK_PROMINENCE_DB = 0.0
+    response_refinement._hidden_dips = lambda *_args: []
+    try:
+        return record(design)
+    finally:
+        response_refinement.PEAK_PROMINENCE_DB, response_refinement._hidden_dips = saved
 
 
 def current_changes() -> list[dict]:
@@ -548,8 +693,14 @@ def current_changes() -> list[dict]:
     for design in designs():
         actual = record(design)
         changed = changed_items(corpus[design.case_id], actual)
+        old_peaks = (
+            record_with_old_peak_rule(design)
+            if design.category == "bandpass"
+            and any(item_type(item) in _MEASUREMENT_ITEMS for item in changed)
+            else None
+        )
         for item, (before, after) in changed.items():
-            kinds, reason = classify(design, item, before, after, changed, actual)
+            kinds, reason = classify(design, item, before, after, changed, actual, old_peaks)
             changes.append(
                 {
                     "case": design.case_id,

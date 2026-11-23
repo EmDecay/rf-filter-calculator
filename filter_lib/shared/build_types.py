@@ -43,7 +43,8 @@ class BuildConfig:
     settings: ``design()`` resolves them once and passes them with this config.
     """
 
-    # None: each part's own tolerance; the toroid windings and calculated values use
+    # None: each chip inductor (or other part with a checked SRF) at its own guaranteed
+    # tolerance; the toroid windings and calculated values use
     # ``DEFAULT_INDUCTOR_TOLERANCE_PCT``. A value applies to every inductor. Which part
     # each inductor is built as is a design input (``DesignRequest.build_inductors``).
     inductor_tolerance_pct: float | None = None
@@ -157,6 +158,13 @@ class ComponentSubstitution:
     # The assumed stray across a parallel pair, simulated as a fixed capacitor across the
     # same terminals; None when there is no pair or the stray is zero.
     stray_capacitance_f: float | None = None
+    # An inductor's self-capacitance from its minimum SRF, simulated as a fixed capacitor
+    # across it (the inductance element is then the part model's L0); None otherwise.
+    self_capacitance_f: float | None = None
+    # The ± percent an inductor's tolerance cases use, and whether it is the part's own
+    # guaranteed tolerance (no inductor tolerance entered); None for capacitors.
+    tolerance_pct: float | None = None
+    own_tolerance: bool = False
 
 
 @dataclass(frozen=True)
@@ -186,6 +194,10 @@ class CircuitMeasurement:
     center_in_selected_region: bool | None = None
     measurement_converged: bool = True
     response_evaluations: int = 0
+    # Where ``peak_transducer_gain_db`` was found.
+    peak_frequency_hz: float | None = None
+    # The frequencies the measurement evaluated (its sweep's first and last point).
+    sweep_hz: tuple[float, float] | None = None
 
     @property
     def f0(self) -> float | None:
@@ -202,6 +214,84 @@ class CircuitMeasurement:
     def ladder_cutoff(self, category: str) -> float | None:
         """Return the -3 dB cutoff of a ladder: the upper edge for lowpass, else the lower."""
         return self.f_high if category == "lowpass" else self.f_low
+
+    def outside_range(
+        self, category: str, qualified_range: tuple[float, float] | None
+    ) -> tuple[str, ...]:
+        """The reported figures (JSON keys) that rest on frequencies outside the range.
+
+        Every reported frequency is checked: the -3 dB edges or cutoff, the reference peak,
+        the frequency of the peak gain, and the span of every half-power region. The edges
+        are measured from the reference peak's threshold, so an outside reference makes
+        every measured edge outside too; a band-pass center and bandwidth (when both edges
+        are measured) come from the edges. ``open_half_power_region``: the selected region
+        is left open at the end of the sweep, which is outside the range;
+        ``half_power_regions``: another region reaches outside it. None without a range.
+        """
+        if qualified_range is None:
+            return ()
+        low, high = qualified_range
+
+        def outside(value: float | None) -> bool:
+            return value is not None and not low <= value <= high
+
+        edges = (
+            (("f_low_hz", self.f_low), ("f_high_hz", self.f_high))
+            if category == "bandpass"
+            else (("cutoff_hz", self.ladder_cutoff(category)),)
+        )
+        reference_outside = outside(self.reference_peak_frequency_hz)
+        keys = [
+            key
+            for key, value in edges
+            if value is not None and (reference_outside or outside(value))
+        ]
+        if category == "bandpass" and keys and self.f0 is not None:
+            keys += ["f0_hz", "bandwidth_hz"]
+        if reference_outside:
+            keys.append("reference_peak_frequency_hz")
+        if outside(self.peak_frequency_hz):
+            keys.append("peak_frequency_hz")
+        # Every region is measured against the reference's threshold, so an outside
+        # reference makes each of them outside too.
+        open_ends, other_ends = self._region_ends()
+        if open_ends and (reference_outside or any(outside(end) for end in open_ends)):
+            keys.append("open_half_power_region")
+        if other_ends and (reference_outside or any(outside(end) for end in other_ends)):
+            keys.append("half_power_regions")
+        return tuple(keys)
+
+    def _region_ends(self) -> tuple[list[float | None], list[float | None]]:
+        """The sweep ends the selected region is left open at, and every end of the others.
+
+        The selected region's measured ends are the edges; an open end stands for the end
+        of the sweep it reaches, as does any open end of another region.
+        """
+        first, last = self.sweep_hz if self.sweep_hz is not None else (None, None)
+        open_ends: list[float | None] = []
+        other_ends: list[float | None] = []
+        for index, (low, high) in enumerate(self.threshold_regions):
+            selected = index == self.selected_region_index
+            for end, sweep_end in ((low, first), (high, last)):
+                if selected:
+                    if end is None:
+                        open_ends.append(sweep_end)
+                else:
+                    other_ends.append(sweep_end if end is None else end)
+        return open_ends, other_ends
+
+
+# The spread metric each figure outside the qualified range feeds, and the frequency
+# metrics, which leave out a case whose -3 dB point is at the grid's edge.
+_SPREAD_METRICS = {
+    "cutoff_hz": "cutoff_hz",
+    "f_low_hz": "f_low_hz",
+    "f_high_hz": "f_high_hz",
+    "f0_hz": "f0_hz",
+    "bandwidth_hz": "bw_hz",
+    "peak_frequency_hz": "peak_transducer_gain_db",
+}
+_FREQUENCY_SPREAD_METRICS = frozenset({"cutoff_hz", "f_low_hz", "f_high_hz", "f0_hz", "bw_hz"})
 
 
 @dataclass(frozen=True)
@@ -248,3 +338,31 @@ class BuildAnalysisResult:
     cases: tuple[ScreeningCase, ...]
     metric_summaries: tuple[MetricSummary, ...]
     limitations: tuple[str, ...]
+    # The frequencies at which every built part with a checked SRF (a chip inductor) is
+    # within its allowances; results outside it are predicted with the parasitic model,
+    # not qualified. None when no built part has its SRF checked.
+    qualified_range_hz: tuple[float, float] | None = None
+    # A high-pass build's passband figures stop here (the qualified range's top, never
+    # below twice the cutoff); None when they use the whole sweep.
+    passband_top_hz: float | None = None
+    # A high-pass build takes its peak, and so its half-power threshold, only here (the
+    # qualified range within the sweep); None when the whole sweep is used.
+    peak_range_hz: tuple[float, float] | None = None
+
+    def metrics_outside_qualified_range(self) -> frozenset[str]:
+        """The spread metrics with an included case that rests on a frequency outside the
+        qualified range, by the inclusion rule of ``tolerance_screening.summarize_cases``
+        (converged cases; frequency metrics also leave out a case at the grid's edge)."""
+        metrics = set()
+        for case in self.cases:
+            measurement = case.measurement
+            if not measurement.measurement_converged:
+                continue
+            for key in measurement.outside_range(self.category, self.qualified_range_hz):
+                metric = _SPREAD_METRICS.get(key)
+                if metric is None or (
+                    metric in _FREQUENCY_SPREAD_METRICS and measurement.at_grid_edge
+                ):
+                    continue
+                metrics.add(metric)
+        return frozenset(metrics)

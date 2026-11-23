@@ -39,7 +39,8 @@ def add_build_analysis_args(parser: ArgumentParser) -> None:
         default=None,
         metavar="PCT",
         help="Inductor tolerance in ± percent for every inductor in --sim-build, 0 to under "
-        "100 (default: 10 for toroid windings and calculated values)",
+        "100 (default: each chip inductor's own guaranteed tolerance, and 10 for toroid "
+        "windings and calculated values)",
     )
     parser.add_argument(
         "--inductor-q",

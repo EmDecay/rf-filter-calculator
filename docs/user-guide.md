@@ -95,7 +95,7 @@ uses the chosen parts: the standard capacitor values and the inductor suggestion
 | Option | Meaning |
 |--------|---------|
 | `--sim-build` | Simulate the ideal values and the chosen parts, at nominal values and across tolerance cases (all parts low, all high, each part low and high alone). Table or JSON output only |
-| `--inductor-tolerance PCT` (alias `--ind-tolerance`) | Tolerance of every inductor in ± percent, 0 to under 100 (default 10 for toroid windings and calculated values). Capacitors use their own tolerances; see Standard Capacitor Values |
+| `--inductor-tolerance PCT` (alias `--ind-tolerance`) | Tolerance of every inductor in ± percent, 0 to under 100 (default: each chip inductor's own guaranteed tolerance, and 10 for toroid windings and calculated values). Capacitors use their own tolerances; see Standard Capacitor Values |
 | `--inductor-q Q`, `--capacitor-q Q` | Part losses (Q), 0.01 to 1e9, for `--sim-build` and the chosen-parts SPICE deck. Each Q becomes a fixed series resistance at the frequency where the Q values apply. Omit for lossless parts |
 | `--source-resistance`, `--load-resistance` | Simulation source and load resistance (1e-6 to 1e6 times `-z`). Component values are still designed for equal source and load impedance |
 | `--loss-reference-frequency` | Frequency at which the Q values apply (default: cutoff or center frequency); needs a Q option |
@@ -410,7 +410,7 @@ Field names mirror the CLI flags, so a design can move between the two.
 | Raw units (F, H) (`raw`) | `--raw` | Table or Values only |
 | Response graph (`svg_plot`) | none | Web only |
 | Simulate the built filter (`sim_build`) | `--sim-build` | Needs table or JSON output and an E-series |
-| Build fields (`build_inductor_tolerance_pct`, `build_inductor_q`, `build_capacitor_q`, `build_reference_frequency`, `build_source_resistance`, `build_load_resistance`, `build_sample_count`, `build_seed`, `build_grid_points`) | `--inductor-tolerance`, `--inductor-q`, `--capacitor-q`, `--loss-reference-frequency`, `--source-resistance`, `--load-resistance`, `--sample-count`, `--seed`, `--analysis-points` | Labeled Inductor tolerance (±%), Inductor/Capacitor Q, Frequency at which the Q values apply, Simulation source/load resistance (Ω), Extra random tolerance cases, Random seed, Frequency points. Pre-filled with the CLI defaults (the inductor tolerance is blank: 10% for toroid windings and calculated values); a blank takes the default. Read only when the build box is ticked. A nonzero seed needs extra random cases |
+| Build fields (`build_inductor_tolerance_pct`, `build_inductor_q`, `build_capacitor_q`, `build_reference_frequency`, `build_source_resistance`, `build_load_resistance`, `build_sample_count`, `build_seed`, `build_grid_points`) | `--inductor-tolerance`, `--inductor-q`, `--capacitor-q`, `--loss-reference-frequency`, `--source-resistance`, `--load-resistance`, `--sample-count`, `--seed`, `--analysis-points` | Labeled Inductor tolerance (±%), Inductor/Capacitor Q, Frequency at which the Q values apply, Simulation source/load resistance (Ω), Extra random tolerance cases, Random seed, Frequency points. Pre-filled with the CLI defaults (the inductor tolerance is blank: each chip inductor's own tolerance, and 10% for toroid windings and calculated values); a blank takes the default. Read only when the build box is ticked. A nonzero seed needs extra random cases |
 | Inductors in the build (`build_inductors`: auto, toroid, air-coil, chip, calculated) | `--build-inductors` | Auto (default) / Toroid windings / Air-core coils / Chip inductors / Calculated values. A build field: read only when the build box is ticked. With Inductor suggestions None, the three forced kinds are disabled; the SPICE – calculated values and response-data downloads leave it out |
 
 An option that cannot apply is disabled, with the reason under it, by the wizard's rule, and is
@@ -472,8 +472,13 @@ contains commas. The standard-value columns give the one choice
 made for each capacitor and the selection rule (`RecommendationPolicy`). For each inductor's best
 suggestion, `InductorKind`, `InductorPart` and `InductorSRFBasis` name it, the
 `InductorBudget*` columns give its error budget in percent of the target (the SRF drift columns
-blank when it is not checked), and the `Toroid*` columns give a toroid's details and repeat
-that RF Q, SRF, and power handling are not checked.
+blank when it is not checked), the `Toroid*` columns give a toroid's details and repeat
+that RF Q, SRF, and power handling are not checked, and the `Chip*` columns give a chip
+inductor's maker, tolerance and catalog test frequency, minimum SRF, minimum Q with its test
+frequency, the inductance at the top of the check window with that frequency, the
+self-capacitance, the range within its allowances, the two allowances, the source URL, the model basis (the
+parallel-LC model and the maker's fixture; board mounting changes the SRF) and the chip
+caveats.
 
 ### SPICE
 
@@ -632,17 +637,18 @@ example `uv run filter-calc lp bw pi 10MHz --plot-data json > response.json`.
 
 For every inductor the calculator looks for a buildable part of each kind, always in the same
 order: toroid winding, air-core coil, chip inductor. Each kind keeps its own selection rules,
-and a kind with no part for an inductor states the limit that failed. In this version only
-toroid windings on HF cores are offered:
+and a kind with no part for an inductor states the limit that failed. Toroid windings on HF
+cores and chip inductors are offered:
 
 | Kind | Offered | Reason shown when there is no part |
 |---|---|---|
 | Toroid winding | T25-6, T50-2, and T68-2, within each core's rated frequency range ([below](#toroid-winding-suggestions)) | "No suitable toroid core in the built-in list: …" naming the limit that failed (whole-turn inductance within the A_L tolerance, or winding fit), or above every core's range "No built-in toroid core is rated for 146 MHz. VHF toroids are not offered: the core maker publishes no self-resonance or winding-capacitance data, so the inductance near the band cannot be checked." |
 | Air-core coil | No | "Air-core coils are not offered: no published self-capacitance model is validated for coils of a few spaced turns, so their self-resonance cannot be checked." |
-| Chip inductor | No | "Chip inductor suggestions are not available in this version." |
+| Chip inductor | 259 parts from Coilcraft 0603CS and Murata LQW18AN_00, LQW18AN_80 and LQW15AN_80, 10 nH to 100 nH, each with a guaranteed tolerance, minimum SRF and minimum Q ([below](#chip-inductor-suggestions)) | "No chip inductor qualifies: …" naming the limit that failed (the ±10% allowance once tolerance and SRF drift are counted, the ±5% SRF drift, or either) and the frequencies checked |
 
 [component-data-sources.md](component-data-sources.md) records the evidence behind each
-decision (its "VHF iron-powder toroids", "Air-core coils", and "Decisions" sections).
+decision (its "Chip inductors", "VHF iron-powder toroids", "Air-core coils", and "Decisions"
+sections); the packaged chip catalog is its "Recommended catalog" table.
 
 ### How much is shown
 
@@ -667,11 +673,13 @@ nominal, ±4.99% tolerance, SRF drift not checked`, every term in percent of the
 part's nominal distance from the target, its ± manufacturing tolerance (for a toroid, the
 core's ±5% A_L tolerance of the achieved inductance, restated against the target), and the
 change of inductance from self-resonance, not checked for toroid windings. The terms add up
-to the part's true worst case. An inductor with no
-suggestion lists one reason per kind, as from `uv run filter-calc lp bw pi 146MHz -n 5`:
+to the part's true worst case. A chip inductor, whose SRF is checked, adds a line with the
+worst case they total and the ±10% allowance it meets. An inductor with no suggestion lists one
+reason per kind, as from `uv run filter-calc lp bw pi 146MHz -n 5 -z 300`, whose 529 nH is
+above the chip catalog:
 
 ```text
-  L1 target: 88.19 nH at 146 MHz
+  L1 target: 529.15 nH at 146 MHz
   ────────────────────────────────────────────────
   No inductor suggestion qualifies:
   - No built-in toroid core is rated for 146 MHz. VHF toroids are not offered: the core
@@ -679,7 +687,9 @@ suggestion lists one reason per kind, as from `uv run filter-calc lp bw pi 146MH
     near the band cannot be checked.
   - Air-core coils are not offered: no published self-capacitance model is validated for
     coils of a few spaced turns, so their self-resonance cannot be checked.
-  - Chip inductor suggestions are not available in this version.
+  - No chip inductor qualifies: every part in the built-in chip catalog (10.00 nH to
+    100.00 nH) misses this inductance by more than ±10% once its tolerance and SRF drift
+    are counted (checked from DC to 146 MHz).
 ```
 
 The component table's footnote reads `Inductors: no standard values; see Inductor
@@ -690,8 +700,11 @@ design frequency is the cutoff (lowpass, highpass) or the center frequency `f0` 
 In JSON each inductor carries `inductor_suggestions` (absent with `none`): `best` (`kind` and
 `rank`, or `null`) and `kinds`, one entry per kind in order with its `suggestions` and
 `reason_none`. Each suggestion gives `kind`, `rank`, `part_name`, `status`, `target_henries`,
-`achieved_henries`, `tolerance_pct`, `srf_basis` (`not_checked` for toroids), `srf_accuracy`,
-`error_budget`, `source`, the kind's own `build` details, and `warnings`.
+`achieved_henries`, `tolerance_pct`, `srf_basis` (`not_checked` for toroids,
+`guaranteed_minimum` for chip inductors), `srf_accuracy`, `error_budget` (with `worst_case_pct`
+when the SRF is checked), `allowance_range_hz` (the frequencies where a chip inductor stays
+within its allowances; `null` for toroids), `source`, the kind's own `build` details, and
+`warnings`.
 
 ### Inductors in the build
 
@@ -707,8 +720,11 @@ In JSON each inductor carries `inductor_suggestions` (absent with `none`): `best
 It needs `--sim-build` or `--format spice` (`--build-inductors requires --sim-build or --format
 spice`) and is refused with an exact SPICE deck, which uses no parts. An inductor with no
 suggestion of the chosen kind is simulated at its calculated value and the build warnings say
-why; with `--build-inductors chip`: `L1: Chip inductor suggestions are not available in this
-version. The simulation uses the calculated value.` A kind cannot be forced without
+why; with `uv run filter-calc lp bw pi 10MHz --sim-build --build-inductors chip`, whose 1.59 µH is
+above the chip catalog: `L1: No chip inductor qualifies: every part in the built-in chip catalog
+(10.00 nH to 100.00 nH) misses this inductance by more than ±10% once its tolerance and SRF
+drift are counted (checked from DC to 10 MHz). The simulation uses the calculated value.` A kind
+cannot be forced without
 suggestions: `--inductor-suggestions none --build-inductors toroid` is refused with `There are
 no inductor suggestions to build with when Inductor suggestions is None; the build uses the
 calculated inductances`. `auto` and `calculated` are accepted with `none`.
@@ -771,6 +787,103 @@ Published winding tables decide the fit where they exist; a geometric estimate i
 filter and consult the manufacturer data before applying power; see the
 [caveats](caveats-and-known-issues.md#toroid-winding-suggestions).
 
+
+### Chip inductor suggestions
+
+A chip inductor is suggested only from the sourced catalog: Coilcraft 0603CS and Murata
+LQW18AN_00, LQW18AN_80 and LQW15AN_80 wirewound parts from 10 nH to 100 nH, each with its
+guaranteed inductance tolerance (2%, 3% or 5%), minimum self-resonant frequency (SRF) and
+minimum Q, as listed in [component-data-sources.md](component-data-sources.md#recommended-catalog).
+Each part is modelled as `L0` in parallel with a self-capacitance `C_self`, where
+`L0 = L_m (1 − (f_m/SRF)²)` from its catalog value `L_m` at its test frequency `f_m`, and
+`C_self = 1/((2π·SRF)²·L0)` from the minimum SRF (an upper bound at the catalog inductance,
+because a real part's SRF is at or above the minimum; a part at the low end of its tolerance may
+have a slightly larger one). Its inductance then drifts with frequency, `L(f) = L0/(1 − (f/SRF)²)`,
+below its catalog value under `f_m` and above it over `f_m`.
+
+**Check window.** A part is checked over the design's check window: a low-pass from DC to the
+cutoff, a band-pass from DC to the upper −3 dB edge, and a high-pass from the cutoff to twice
+the cutoff. It qualifies when, everywhere in the window:
+
+- its drift at the minimum SRF stays within ±5% of the catalog value, and
+- at both ends of its guaranteed tolerance, both window ends, and both SRF limits (the
+  minimum, and no drift), its inductance stays within ±10% of the target. Tolerance and drift
+  combine in henries, so a 5% part at 5% drift is 10.25% and fails. A part exactly at a limit
+  is within it.
+
+The checks always use the maker's guaranteed tolerance, even when a tighter inductor tolerance
+is entered for the build. Qualifying parts rank by the smallest worst case, then by part
+number; the minimum Q is shown and never used for ranking. The figures depend on this
+parallel-LC model and on the maker's fixture measurements: on a board the SRF changes.
+
+From `uv run filter-calc lp ch pi 146MHz -n 5 -r 0.1`:
+
+```text
+Chip inductors (wirewound; the maker's guaranteed tolerance and minimum SRF):
+Checked from DC to 146 MHz: SRF drift within ±5% of the catalog value, and tolerance
+plus drift within ±10% of the target.
+Not checked: Q (the minimum is shown, not used), current rating, heating, power
+handling, and the SRF once mounted on a board. Measure before use.
+L at 146 MHz: the part's inductance there at its minimum SRF. Self-capacitance: the
+upper bound from that SRF at the catalog inductance.
+Inductance, self-capacitance and allowance range come from the parallel-LC part model
+with the maker's minimum SRF and catalog values measured in its fixture; board mounting
+changes the SRF.
+
+  L1 target: 74.74 nH at 146 MHz
+  ────────────────────────────────────────────────
+  1. Chip inductor LQW15AN75NG80D  Murata LQW15AN_80, 0402 (1005) package
+     75.00 nH ±2% at 100 MHz   SRF min 2.4 GHz   Q min 25 at 200 MHz
+     L at 146 MHz: 75.15 nH   Self-capacitance: 58.74 fF
+     Within its allowances from DC to 532.7 MHz
+     Source: Murata LQW15AN_80 reference specification, Spec No. JELF243A_0100K-01, p. 8
+     Error budget: +0.35% nominal, ±2.01% tolerance, SRF drift -0.17% to +0.20%
+     Worst case: -1.83% to +2.56% of the target (allowance ±10%)
+```
+
+The lines give the part number, maker, family and package; the catalog value with its
+guaranteed tolerance and test frequency, the minimum SRF and the minimum Q; the inductance at
+the top of the check window and the self-capacitance, both at the minimum SRF; the frequencies
+at which the part stays within both allowances; the source (title, revision and page); and the
+error budget. The budget's drift runs from the most negative to the most positive drift in the
+window, including no drift, each taken at the tolerance end it adds to, so the worst case is
+the budget's total; the printed range is rounded inward, so the part is within its allowances
+everywhere in it. `compact` prints `1. Chip LQW15AN75NG80D (Murata)   75.15 nH at 146 MHz   ±2%
+SRF min 2.4 GHz`.
+
+**In the build.** The build simulation and the chosen-parts SPICE deck model each chip inductor
+as `L0` with a fixed capacitor `CSELF_<inductor>` across it (`L1 self-capacitance` in readable
+text), which together give the catalog value at the test frequency; the `Parts used:` line
+reads `L1: 75.00 nH, chip inductor LQW15AN75NG80D, plus 58.74 fF self-capacitance`. Without an
+entered inductor tolerance each chip inductor's tolerance cases use its own guaranteed
+tolerance (`Tolerance cases: …, each chip inductor at its own tolerance (±2%).`); toroid
+windings and calculated values keep ±10%. The self-capacitance stays fixed while a case moves
+the inductance, so a case can fall slightly outside the part's guaranteed range: the cases are
+stress cases of the model, not qualified values. Capacitor ESL, package and trace parasitics,
+and each part's Q and loss (unless a Q is given) are not modelled. An entered inductor Q is
+applied to the chip's inductance alone, so with its self-capacitance across it the Q at its
+terminals is a little lower, more so near its SRF (the model limits say so), and the qualified
+range says it is the lossless part model's.
+
+**Qualified range.** The build states the frequencies where every chip inductor it uses stays
+within its allowances: `Qualified range: DC to 532.7 MHz, where every chip inductor stays
+within its allowances; results outside it are predicted with the parasitic model, not
+qualified.` Every frequency a chosen-parts result reports is checked against it: a cutoff or
+edge (and a band-pass center and bandwidth taken from it), the peak the −3 dB points are
+measured from, the frequency of the peak gain, and any separate range above −3 dB. Any of them
+outside the range is labelled (`-3 dB cutoff predicted with the parasitic model, not
+qualified`), a spread row with such a case says so, and JSON lists them in
+`outside_qualified_range` (each spread summary has the same flag); edges measured from a peak
+outside the range are outside too, and a range above −3 dB left open at the end of the sweep is
+reported when that end is outside; ideal values, the band-pass attenuation at 2×f₀ and 3×f₀ (ideal
+lossless parts), and the response data are never labelled. A high-pass build's passband has no
+upper edge, so it ends at the top of the qualified range (never below twice the cutoff), and
+its peak and half-power threshold are taken only inside that range: `Passband = from the
+requested cutoff up to 900 MHz, including both; a high-pass build takes its peak and half-power
+threshold only where its chip inductors are qualified.` (`uv run filter-calc hp bw pi 125MHz -n
+3 -z 19.8 --sim-build`). A cutoff crossing below the range is still reported, labelled. A build
+whose inductors are toroid windings or calculated values has no qualified range, and its figures
+use the whole sweep as before.
 ## Migrating from 2.x
 
 Version 3.0.0 renames the toroid-only options to generic inductor-suggestion names, without

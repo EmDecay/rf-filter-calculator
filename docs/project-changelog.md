@@ -1,6 +1,6 @@
 # Project Changelog
 
-## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Inductor Suggestions, Industry-Standard Filter Terms)
+## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Inductor Suggestions, Chip Inductors, Industry-Standard Filter Terms)
 
 The next release is 3.0.0: it removes and renames public names (listed below) without
 compatibility aliases.
@@ -132,7 +132,7 @@ only labels changed.
   no suggestion shows `No inductor suggestion qualifies:` and one reason per kind, worded as in
   [component-data-sources.md](component-data-sources.md): "No suitable toroid core in the
   built-in list. …" or, above every core's range, the VHF toroid exclusion; the air-core coil
-  exclusion; and "Chip inductor suggestions are not available in this version." The table
+  exclusion; and the limit a chip inductor failed ([below](#chip-inductor-suggestions-srf-screen-and-self-capacitance)). The table
   footnote reads "…; see Inductor Suggestions." or "…; use the calculated value." Build
   fallbacks say "no inductor suggestion used" or "inductor suggestions not used", and the
   chosen-parts deck writes `part=T50-2` where it wrote `core=T50-2`.
@@ -164,6 +164,89 @@ only labels changed.
   synthesis, part resolution, and the build when `design(should_cancel=…)` reports true;
   `BuildAnalysisCancelled` is now its subclass, `synthesize()` takes `should_cancel`, and
   `BuildAnalysisResult` gains `build_inductors`.
+
+### Chip inductor suggestions, SRF screen and self-capacitance
+
+- **Added chip inductor suggestions.** A packaged, sourced catalog
+  (`filter_lib/shared/chip_inductor_data.json`, the "Recommended catalog" of
+  [component-data-sources.md](component-data-sources.md)) lists 259 orderable wirewound parts
+  from Coilcraft 0603CS and Murata LQW18AN_00, LQW18AN_80 and LQW15AN_80, 10 nH to 100 nH, each
+  with its guaranteed tolerance, minimum SRF and minimum Q. Every inductor of every design is
+  screened against it; up to three qualifying parts are listed by the smallest worst case, then
+  part number, with the maker, family, package and part number (the guarantees belong to the
+  exact part). The minimum Q is shown and never used for ranking. Every inductor of the four
+  VHF/UHF acceptance designs now has a chip inductor (146, 222 and 440 MHz low-pass, and the
+  146 MHz band-pass as designed and with `--tank-inductance 20nH` or `21nH`).
+- **Added the SRF screen** (`filter_lib/shared/srf_screen.py`). A part is `L0` in parallel with
+  `C_self`, `L0 = L_m (1 − (f_m/SRF)²)` and `C_self = 1/((2π·SRF)²·L0)` from the minimum SRF, so
+  it reproduces its catalog value at its test frequency. Over the check window (low-pass DC to
+  the cutoff, band-pass DC to the upper −3 dB edge, high-pass the cutoff to twice the cutoff) its
+  drift must stay within ±5% (`DRIFT_ALLOWANCE_PCT`), and at both tolerance ends, both window
+  ends and both SRF limits (the minimum, and no drift) its inductance within ±10% of the target
+  (`DESIGN_ALLOWANCE_PCT`), combined in henries, so 5% plus 5% is 10.25% and fails. The limits
+  are compared exactly: a part exactly at a limit is within it. Qualification always uses the
+  maker's guaranteed tolerance.
+- **Output.** Chip suggestions print their rating, the inductance at the top of the window and
+  the self-capacitance (both at the minimum SRF), the frequencies where the part stays within
+  its allowances, the source with its page, the error budget, and a `Worst case:` line with the
+  ±10% allowance; a preamble states what is checked and what is not (Q, current rating,
+  heating, power handling, the SRF once mounted on a board). A kind with no part says "No chip
+  inductor qualifies: …", naming the allowance, the drift limit or either, and the frequencies
+  checked. JSON suggestions gain `error_budget.worst_case_pct` and `allowance_range_hz` (each end
+  rounded inward so it passes the exact screen; printed ranges round inward too), and a chip's
+  `build` record its catalog data, model (`l0_henries`, `self_capacitance_farads`), window,
+  drift (`drift_at_minimum_srf_pct` at the window's ends, `drift_range_pct` including no
+  drift), worst case, allowances and source with SHA-256; CSV gains `ChipManufacturer`,
+  `ChipTolerancePct`, `ChipLTest_MHz`, `ChipSRFMin_MHz`, `ChipQMin`, `ChipQTest_MHz`,
+  `ChipAchievedL_nH`, `ChipAchievedLAt_MHz`, `ChipSelfCapacitance_fF`, `ChipAllowanceLow_MHz`,
+  `ChipAllowanceHigh_MHz`, `ChipSourceURL`, `ChipDriftAllowancePct`, `ChipDesignAllowancePct`,
+  `ChipModelBasis` and `ChipWarnings` after the `Toroid*` columns; the chip build record and
+  the table preamble give the same model basis. The compact line names the maker.
+- **Build simulation and chosen-parts SPICE.** `--build-inductors chip` (and `auto` where no
+  toroid qualifies) now builds real parts: each chip inductor is its `L0` with a fixed capacitor
+  `CSELF_<inductor>` across it (`L1 self-capacitance`), the same in the build and the deck and
+  never varied in the tolerance cases; the deck adds a `* self-capacitance:` comment and
+  `self-capacitance=` on the part's `* part used:` line. Without `--inductor-tolerance` each chip
+  inductor's tolerance cases use its own guaranteed tolerance (`each chip inductor at its own
+  tolerance (±2%)`); toroid windings and calculated values keep 10%. New model limits say the
+  self-capacitance is an upper bound from the maker's fixture and that the tolerance cases are
+  stress cases of the fixed branch, and the "leaves out" limit names capacitor ESL and package
+  parasitics. The build states its **qualified range** (where every chip inductor it uses
+  stays within its allowances) and labels every chosen-parts figure that rests on a frequency
+  outside it (an edge or cutoff and the center and bandwidth from it, the reference peak, the
+  peak gain's frequency, another range above −3 dB) "predicted with the parasitic model, not
+  qualified"; ideal values never are. A high-pass build with chip inductors ends its passband at
+  the top of that range (never below twice the cutoff) and takes its peak and half-power
+  threshold only inside it; a cutoff crossing below it is still reported, labelled. Edges
+  measured from a peak outside the range are labelled too. Builds with toroid windings or
+  calculated values keep every figure (apart from the band-pass fix under Fixed) and their table
+  text; their JSON gains the new keys below: `null`, empty or `false` qualification fields, the
+  `model` string, the measured `peak_frequency_hz`, and the 10% fallback tolerance. An entered inductor Q applies to a
+  chip's inductance alone, which the model limits state, and the qualified range is then said
+  to be the lossless part model's. JSON `nominal_build` gains
+  `qualified_range_hz`, `passband_top_hz` and `peak_range_hz`, each measurement `model` (`ideal`
+  or `chosen_parts`), `peak_frequency_hz` and, for the chosen parts, `outside_qualified_range`
+  (keys of the figures outside it: `open_half_power_region` for a range left open at the
+  sweep's end, `half_power_regions` for another range); each spread summary gains `outside_qualified_range`; substitutions gain `self_capacitance_f`,
+  `tolerance_pct` and `own_tolerance`. **Changed (breaking):**
+  `tolerance_analysis.inductor_tolerance_pct` is the entered tolerance (`null` when none was
+  entered, when each chip uses its own) and `inductor_fallback_tolerance_pct` gives the 10% for
+  toroid windings and calculated values.
+- **HF designs.** Chip inductors change one HF baseline design: in
+  `hp ch pi 28MHz -n 9 -r 0.5`, L2–L4 (104–107 nH), which had no toroid, now build as
+  LQW18ANR10G00D chip inductors with their self-capacitance (permitted kinds b and c) in its
+  chosen-parts deck. Every other HF toroid pick and deck is unchanged. Separately, the six HF
+  band-pass builds change by the reference-peak fix (permitted kind f; see Fixed).
+- **Python API.** New modules `shared/srf_screen.py`, `shared/chip_inductor_data.py`,
+  `shared/chip_selection.py` and `shared/chip_display.py`. `InductorSuggestion` gains
+  `part_model` and `allowance_range_hz` (given exactly when the SRF is checked), `ErrorBudget`
+  gains `worst_case_pct`, `ResolvedParts` gains `check_window` and `qualified_range_hz()`,
+  `BuildAnalysisResult` gains `qualified_range_hz`, `passband_top_hz` and `peak_range_hz`,
+  `CircuitMeasurement` gains `peak_frequency_hz` and `outside_range`, `ComponentSubstitution`
+  gains `self_capacitance_f`, `tolerance_pct` and `own_tolerance`, `measure_circuit` takes
+  `passband_top_hz` and `peak_range_hz`, and `refine_response` takes `peak_range`. A hand-made
+  band-pass result without `f_high` gets it from `f0` and `bw`. `inductor_suggestion.CHIP_NOT_AVAILABLE` is
+  removed.
 
 ### Changed
 
@@ -197,6 +280,19 @@ RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
 
 ### Fixed
 
+- **Band-pass build measurements are taken from the true peak nearest the center.** The
+  refinement adds the exact center frequency next to the sweep's middle point, one rounding
+  step away; on a slope the two could have equal gains and pass for a flat peak, and at the
+  bottom of a dip the solver's wobble could too, so the −3 dB edges were measured from the
+  gain at the center instead of the peak. A peak now needs a prominence of at least the
+  0.001 dB gain tolerance (`PEAK_PROMINENCE_DB`), and an evaluation inside a reported range
+  above −3 dB that falls below the threshold (a dip the grid missed) splits the range and
+  keeps the measurement from counting as converged. The build table prints band-pass centers
+  and edges with the digits the design header uses for its edges, so narrow bands show
+  distinct edges. Detuned tolerance cases and
+  chosen-parts builds change most: for `bp bs top -f 21.2MHz -b 500kHz -n 3 --sim-build
+  --eseries E96` the chosen-parts −3 dB bandwidth is 507.0 kHz, not 676.4 kHz; the ideal values
+  move by tens of hertz. In the HF baseline this is permitted change (f), listed for the six band-pass builds.
 - **`POST /api/design/<category>` now returns the Design JSON download's bytes.** It used to
   read the posted fields directly, ignoring the `visible.<name>` values the page sends for a
   disabled control, so the same fields could give two different JSON documents: Values only

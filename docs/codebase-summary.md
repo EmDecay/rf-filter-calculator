@@ -134,13 +134,15 @@ option.
 Inductors are not E-series matched. Each inductor gets inductor suggestions
 (`shared/inductor_suggestion.py`): one record for every kind, listed in the fixed order
 toroid, air coil, chip, each with an error budget, or the limit that failed for that kind.
-Only toroid windings are offered, from primary-sourced T25-6, T50-2, and T68-2 entries
+Toroid windings come from primary-sourced T25-6, T50-2, and T68-2 entries
 (`toroid_selection.suggest_toroids`); other vendored legacy records remain inspectable but
 are not eligible. Selection checks frequency guidance, whole-turn error within the `A_L`
 tolerance, and winding capacity; it does not check RF Q, SRF, core loss, saturation,
-heating, or power. VHF toroids and air-core coils carry the exclusion texts worded in
-[component-data-sources.md](component-data-sources.md), and chip inductors are not
-available yet.
+heating, or power. Chip inductors come from the packaged sourced catalog
+(`chip_inductor_data.json`, `chip_selection.suggest_chips`), screened by `srf_screen.py` over
+the design's check window for SRF drift and a henry-based worst case against the target. VHF
+toroids and air-core coils carry the exclusion texts worded in
+[component-data-sources.md](component-data-sources.md).
 
 `design/part_resolution.py` resolves all of it once per design into
 `shared/resolved_parts.py::ResolvedParts` (keyed by circuit element name: `C1`/`L1`, band-pass
@@ -207,6 +209,8 @@ controls, with the reason, from `design/option_applicability.py`.
   columns; shared by every surface
 - `toroid_display.py` — the toroid-specific title, detail lines, preamble, JSON build record and
   CSV columns
+- `chip_display.py` — the chip inductor's title, detail lines, preamble, JSON build record and
+  CSV columns
 - `circuit_display_names.py` — maps bandpass circuit names to table names (CT1→Cp1, CK1→Cs12,
   CIN→Ce_in) for readable text and the SPICE `* names:` comment
 - `response_export.py` — standalone response schema
@@ -229,13 +233,17 @@ controls, with the reason, from `design/option_applicability.py`.
 ### Realization and analysis
 
 - `component_realization.py`, `nominal_realization.py` — chosen parts with their own
-  tolerances, and the fixed `CSTRAY_<part>` stray across each pair
+  tolerances, the fixed `CSTRAY_<part>` stray across each pair, and each chip inductor's `L0`
+  with its fixed `CSELF_<inductor>` self-capacitance
 - `capacitor_grades.py`, `capacitor_choice.py` — the sourced grade table and the worst-case
   capacitor choice
 - `inductor_suggestion.py` — the suggestion record for every kind (`InductorSuggestion`,
   `KindSuggestions`, `ErrorBudget`), the kind order, option values, exclusion texts, and CLI help
 - `resolved_parts.py` — `ResolvedParts` and `InductorParts`, the parts every output reads
 - `toroid_core_data.py`, `toroid_inductance.py`, `toroid_selection.py`, `toroid_wire.py`
+- `srf_screen.py` — the SRF screen every kind with a checked SRF uses: part model (`L0`,
+  `C_self`), check window, drift and henry-based budget, allowance range, qualified range
+- `chip_inductor_data.py`, `chip_selection.py` — the packaged chip catalog and its selector
 - `cancellation.py` — `DesignCancelled` and the cancellation check that synthesis, part
   resolution and the build poll
 - `build_loss_models.py`, `tolerance_screening.py`, `build_analysis.py`
@@ -266,6 +274,8 @@ or after failure. Component format selection and response-data sidecar selection
 - `filter_lib/shared/toroid_core_data.json` — packaged toroid data
 - `filter_lib/shared/capacitor_grade_data.json` — packaged capacitor grade table (evidence in
   `docs/component-data-sources.md`)
+- `filter_lib/shared/chip_inductor_data.json` — packaged chip-inductor catalog (the evidence
+  page's "Recommended catalog")
 - `filter_lib/wizard/styles.tcss` — packaged wizard stylesheet
 - `filter_lib/web/templates/`, `filter_lib/web/static/` — packaged web templates and assets
 - `tests/wheel_smoke.py` — isolated installed-wheel smoke check

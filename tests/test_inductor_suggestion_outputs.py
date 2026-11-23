@@ -136,10 +136,12 @@ def test_quiet_output_omits_suggestion_section():
 
 
 def test_out_of_range_frequency_explains_why_no_kind_qualifies():
-    out = _render(_lp_request(500e6, eseries=None))
+    # At 3 GHz no toroid is rated and every chip inductor drifts too far below its SRF.
+    out = _render(_lp_request(3e9, eseries=None))
 
     assert "No inductor suggestion qualifies:" in out
-    assert "No built-in toroid core is rated for 500 MHz." in out
+    assert "No built-in toroid core is rated for 3 GHz." in out
+    assert "No chip inductor qualifies:" in out
     # The note does not point at a section that holds no suggestion.
     assert INDUCTOR_NOTE in out
     assert INDUCTOR_NOTE_WITH_POINTER not in out
@@ -300,9 +302,10 @@ def test_cli_json_and_csv_keep_the_not_assessed_warning_per_suggestion(monkeypat
 
 
 def test_bp_inductor_note_drops_the_pointer_when_no_core_suits():
-    """At 500 MHz no listed core is rated, so the note must not point at an empty section."""
-    out = _render(_bp_request(500e6, 25e6, eseries=None))
+    """At 3 GHz no part of any kind qualifies, so the note must not point at an empty section."""
+    out = _render(_bp_request(3e9, 150e6, eseries=None))
 
-    assert "No built-in toroid core is rated for 500 MHz." in out
+    assert "No built-in toroid core is rated for 3 GHz." in out
+    assert "No chip inductor qualifies:" in out
     assert INDUCTOR_NOTE in out
     assert INDUCTOR_NOTE_WITH_POINTER not in out

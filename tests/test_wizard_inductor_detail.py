@@ -18,7 +18,6 @@ import pytest
 from textual.widgets import RadioSet
 
 from filter_lib.bandpass.display import format_suggestion_block_lines
-from filter_lib.shared.inductor_suggestion import CHIP_NOT_AVAILABLE
 from filter_lib.shared.toroid_selection import recommend_cores
 from filter_lib.wizard.app import FilterWizardApp
 from filter_lib.wizard.filter_type_calculators import (
@@ -36,8 +35,9 @@ NOT_ASSESSED_NOTE = (
     "Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
 )
 INDUCTOR_NOTE = "Inductors: no standard values; see Inductor Suggestions."
-# In "full", every inductor states why no chip inductor is suggested.
-CHIP_REASON = f"  - {CHIP_NOT_AVAILABLE}"
+# In "full", every inductor states why no chip inductor is suggested (10 MHz inductors are
+# far above the chip catalog); the reason wraps, so its first line is counted.
+CHIP_REASON = "  - No chip inductor qualifies: every part in the built-in chip catalog (10.00"
 # Ranked suggestion rows in both detail levels start "  1. ", "  2. ", ...
 CANDIDATE_ROW = re.compile(r"^  \d\. ")
 
@@ -105,7 +105,7 @@ def test_lp_hp_full_detail_lists_up_to_three_candidates_per_inductor(category):
         assert f"L{index + 1} target:" in output
     assert len(_candidate_rows(lines)) == expected
     assert output.count("     Wire: ") == expected
-    assert _text_lines(lines).count(CHIP_REASON) == len(inductors)
+    assert sum(line.startswith(CHIP_REASON) for line in _text_lines(lines)) == len(inductors)
 
 
 @pytest.mark.parametrize("category", ["lowpass", "highpass"])
@@ -121,7 +121,7 @@ def test_lp_hp_compact_detail_is_one_line_for_best_candidate(category):
     assert ACCURACY_NOTE not in output
     assert output.count(NOT_ASSESSED_NOTE) == 1
     assert "     Wire: " not in output
-    assert CHIP_REASON not in _text_lines(lines)
+    assert not any(line.startswith(CHIP_REASON) for line in _text_lines(lines))
     rows = _candidate_rows(lines)
     assert len(rows) == expected
     assert all(row.startswith("  1. Toroid ") and " turns AWG " in row for row in rows)
