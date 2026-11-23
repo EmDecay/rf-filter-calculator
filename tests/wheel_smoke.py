@@ -18,7 +18,7 @@ import textwrap
 import venv
 from pathlib import Path
 
-EXPECTED_VERSION = "2.3.0"
+EXPECTED_VERSION = "3.0.0"
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -134,7 +134,10 @@ def _probe_cli(filter_calc: Path, *, cwd: Path, env: dict[str, str]) -> None:
     assert abs(capacitors[0]["value_farads"] / 318.30988618e-12 - 1) < 1e-9
     assert abs(inductor["value_henries"] / 1.5915494309e-6 - 1) < 1e-9
     # Toroid screening reads the packaged core manifest through the installed CLI.
-    assert inductor["toroid_recommendations"], "no screened toroid from installed core data"
+    [toroids] = [
+        group for group in inductor["inductor_suggestions"]["kinds"] if group["kind"] == "toroid"
+    ]
+    assert toroids["suggestions"], "no screened toroid from installed core data"
 
     bandpass = _json_output(
         _run(
@@ -147,7 +150,8 @@ def _probe_cli(filter_calc: Path, *, cwd: Path, env: dict[str, str]) -> None:
                 "14.2MHz",
                 "-b",
                 "500kHz",
-                "--no-toroids",
+                "--inductor-suggestions",
+                "none",
                 "--format",
                 "json",
             ],

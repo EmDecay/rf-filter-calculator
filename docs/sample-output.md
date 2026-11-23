@@ -1,12 +1,13 @@
 # Sample Output
 
-These examples reflect version 2.3.0 (see the [changelog](project-changelog.md)). Long machine-readable payloads are shown as selected valid
-fragments; run the command to obtain the complete schema.
+These examples reflect version 3.0.0 (see the [changelog](project-changelog.md)). Long
+machine-readable payloads are shown as selected valid fragments; run the command to obtain the
+complete schema.
 
 ## Low-Pass Table
 
 ```bash
-uv run filter-calc lp bw pi 10MHz --no-toroids
+uv run filter-calc lp bw pi 10MHz --inductor-suggestions none
 ```
 
 ```text
@@ -32,7 +33,7 @@ Topology:
 │ C1: 318.31 pF          │ L1: 1.59 µH            │
 │ C2: 318.31 pF          │                        │
 └────────────────────────┴────────────────────────┘
-Inductors: no standard values; wind to the calculated value.
+Inductors: no standard values; use the calculated value.
 
 E24 Standard Capacitor Values
 ──────────────────────────────────────────────────
@@ -57,15 +58,17 @@ single part or parallel pair whose interval (each part at either end of its tole
 assumed stray across a pair) ends closest to the calculated value. A pair is used only when it
 is at least 0.5 percentage points better than the best single part; `Nearest single:` then
 shows the nearest single part for comparison. A value the sourced table does not list is
-chosen by the nominal rule and marked "Tolerance not sourced". Below 1 pF no part is chosen automatically: the row reads
-`Use: none (below 1 pF; see warning)`, the nearest single value is shown for reference only,
-and a warning names the `--allow-sub-pf` option (**Allow capacitors below 1 pF** in the wizard
-and web UI), which lets the calculator choose those values too.
+chosen by the nominal rule and marked "Tolerance not sourced". Below 1 pF no part is chosen
+automatically: the row reads `Use: none (below 1 pF; see warning)`, the nearest single value is
+shown for reference only, and a warning names the `--allow-sub-pf` option (**Allow capacitors
+below 1 pF** in the wizard and web UI), which lets the calculator choose those values too.
+Without `--inductor-suggestions none`, the table ends with the
+[inductor suggestions](#inductor-suggestions) and its footnote points to them.
 
 ## High-Pass Table
 
 ```bash
-uv run filter-calc hp bw t 10MHz --no-toroids
+uv run filter-calc hp bw t 10MHz --inductor-suggestions none
 ```
 
 ```text
@@ -91,7 +94,7 @@ Topology:
 │ C1: 318.31 pF          │ L1: 397.89 nH          │
 │ C2: 318.31 pF          │                        │
 └────────────────────────┴────────────────────────┘
-Inductors: no standard values; wind to the calculated value.
+Inductors: no standard values; use the calculated value.
 
 E24 Standard Capacitor Values
 ──────────────────────────────────────────────────
@@ -114,7 +117,7 @@ C2 calculated 318.31 pF
 ## Band-Pass Table
 
 ```bash
-uv run filter-calc bp bw top -f 14.175MHz -b 350kHz --no-toroids --no-match
+uv run filter-calc bp bw top -f 14.175MHz -b 350kHz --inductor-suggestions none --no-match
 ```
 
 ```text
@@ -158,7 +161,7 @@ Topology:
 │ Cp2: 216.75 pF         │ L2: 561.45 nH          │
 │ Cp3: 185.84 pF         │ L3: 561.45 nH          │
 └────────────────────────┴────────────────────────┘
-Inductors: no standard values; wind to the calculated value.
+Inductors: no standard values; use the calculated value.
 
 ┌────────────────────────┐
 │  Coupling Capacitors   │
@@ -180,10 +183,10 @@ lossless circuit at harmonics of f₀; it is not part of the response check.
 ## Strict JSON
 
 ```bash
-uv run filter-calc lp bw pi 10MHz --format json --no-toroids
+uv run filter-calc lp bw pi 10MHz --format json
 ```
 
-A selected component fragment is:
+A selected capacitor fragment is:
 
 ```json
 {
@@ -203,8 +206,12 @@ A selected component fragment is:
           "selected": {
             "kind": "parallel",
             "components": [
-              {"value_farads": 4.7e-11},
-              {"value_farads": 2.7e-10}
+              {
+                "value_farads": 4.7e-11
+              },
+              {
+                "value_farads": 2.7e-10
+              }
             ],
             "value_farads": 3.17e-10,
             "error_pct": -0.41151288120356627
@@ -218,10 +225,69 @@ A selected component fragment is:
 }
 ```
 
+and the inductor's suggestions, with the toroid's `build` details (core, winding, wire, and
+what was and was not checked) left out here:
+
+```json
+{
+  "name": "L1",
+  "value_henries": 1.5915494309189518e-06,
+  "inductor_suggestions": {
+    "best": {
+      "kind": "toroid",
+      "rank": 1
+    },
+    "kinds": [
+      {
+        "kind": "toroid",
+        "suggestions": [
+          {
+            "kind": "toroid",
+            "rank": 1,
+            "part_name": "T50-2",
+            "status": "screened_candidate",
+            "target_henries": 1.5915494309189518e-06,
+            "achieved_henries": 1.5875999999999992e-06,
+            "tolerance_pct": 5.0,
+            "srf_basis": "not_checked",
+            "srf_accuracy": null,
+            "error_budget": {
+              "nominal_mismatch_pct": -0.2481500632168454,
+              "tolerance_pct": 4.987592496839158,
+              "srf_drift_pct": null
+            },
+            "source": {
+              "publisher": "Micrometals, Inc.",
+              "title": "T50-2 DataSheet, revision 20190524",
+              "url": "https://datasheets.micrometals.com/T50-2-DataSheet.pdf"
+            },
+            "warnings": [
+              "Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
+            ]
+          }
+        ],
+        "reason_none": null
+      },
+      {
+        "kind": "air-coil",
+        "suggestions": [],
+        "reason_none": "Air-core coils are not offered: no published self-capacitance model is validated for coils of a few spaced turns, so their self-resonance cannot be checked."
+      },
+      {
+        "kind": "chip",
+        "suggestions": [],
+        "reason_none": "Chip inductor suggestions are not available in this version."
+      }
+    ]
+  }
+}
+```
+
 The complete result includes all components and the selection-rule fields
 (`standard_match.policy`: the rule, the capacitor series and grade with its tolerances, any
 override, the assumed stray, and `allow_sub_pf`). JSON serialization is strict: `NaN` and
-infinities are never emitted.
+infinities are never emitted. With `--inductor-suggestions none` the `inductor_suggestions` key
+is absent.
 
 For explicit band-pass edges, `requested_parameters` and the `--sim-build` `target` block
 retain the parsed requested values exactly and mark
@@ -230,41 +296,64 @@ retain the parsed requested values exactly and mark
 ## Rectangular CSV
 
 ```bash
-uv run filter-calc lp bw pi 10MHz --format csv --no-toroids
+uv run filter-calc lp bw pi 10MHz --format csv
 ```
 
 ```csv
-Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy
-C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF
-C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF
-L1,1.59,µH,,,,,,,,,,,,,
+Component,Value,Unit,NearestStdValue,NearestStdUnit,NearestStdErrorPct,ParallelStdValues,ParallelStdErrorPct,Eseries,RecommendedStdKind,RecommendedStdValues,RecommendedStdErrorPct,RecommendationStatus,RecommendationReason,RecommendationWarnings,RecommendationPolicy,InductorKind,InductorPart,InductorSRFBasis,InductorBudgetNominalPct,InductorBudgetTolerancePct,InductorBudgetSRFDriftLowPct,InductorBudgetSRFDriftHighPct,ToroidCore,ToroidMix,ToroidTurns,ToroidAWG,ToroidActualL_uH,ToroidErrorPct,ToroidWireLength_mm,ToroidDCR_mohm,ToroidWireDCRReactanceRatioCeiling,ToroidTempCoeff_ppm,ToroidCandidateStatus,ToroidProvenanceStatus,ToroidCoreSourceURL,ToroidFrequencySourceURL,ToroidMechanicalStatus,ToroidMechanicalSourceURL,ToroidRFQStatus,ToroidSRFStatus,ToroidPowerStatus,ToroidWarnings
+C1,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,
+C2,318.31,pF,330.00,pF,3.7,47.00 pF || 270.00 pF,-0.4,E24,parallel,47.00 pF || 270.00 pF,-0.4,recommended,parallel_worst_case_materially_better,,worst-case;grade=standard;grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;part-tolerance=larger-of-grade-and-override;tolerance-override=none;not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);parallel-improvement>=0.5pp;minimum-cap=1pF,,,,,,,,,,,,,,,,,,,,,,,,,,,
+L1,1.59,µH,,,,,,,,,,,,,,toroid,T50-2,not_checked,-0.25,4.99,,,T50-2,2,18,20,1.5876,-0.25,310.8,12.15,8210,95,screened_candidate,primary_verified,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,https://www.amidoncorp.com/2ipt/,manufacturer_single_layer,https://datasheets.micrometals.com/T50-2-DataSheet.pdf,not_assessed,not_assessed,not_assessed,"Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use."
 ```
 
 All rows have the same column count. Warning fields are CSV-quoted when necessary.
+The inductor columns describe each inductor's best suggestion: its kind, part, SRF basis and
+error budget (each term in percent of the target; the drift is blank when the SRF is not
+checked), then the `Toroid*` details; with `--inductor-suggestions none` they are left out.
 
-## Toroid Winding Suggestions
+## Inductor Suggestions
 
 ```bash
-uv run filter-calc lp bw pi 10MHz --toroid-compact
+uv run filter-calc lp bw pi 10MHz --inductor-suggestions compact
 ```
 
-The toroid section of the output is:
+The suggestion section of the output is:
 
 ```text
-Toroid Winding Suggestions (iron-powder T-series)
+Inductor Suggestions
 ──────────────────────────────────────────────────
+Toroid windings (iron-powder T-series):
 Checked: rated frequency range, whole-turn inductance within A_L tolerance, wire fit.
 Not checked: RF Q, core loss, SRF, saturation, heating, power handling. Measure before use.
 % in parentheses: error vs target from rounding to whole turns.
 
   L1 target: 1.59 µH at 10 MHz
-  1. T50-2    18 turns AWG 20   1.59 µH (-0.25%)   DCR 12.1 mΩ   Q limit (wire DCR): 8,210
+  1. Toroid T50-2    18 turns AWG 20   1.59 µH (-0.25%)   DCR 12.1 mΩ   Q limit (wire DCR): 8,210
 ```
 
-A suggestion is checked only for the core's rated frequency range, whole-turn inductance within
-the A_L tolerance, and wire fit. Automatic suggestions are limited to the primary-sourced T25-6,
-T50-2, and T68-2 records. RF Q, core loss, SRF, saturation, heating, and power handling are not
-checked; measure the winding before use.
+At 146 MHz no inductor kind has a part, and each kind says why
+(`uv run filter-calc lp bw pi 146MHz -n 3 --inductor-suggestions compact`):
+
+```text
+Inductor Suggestions
+──────────────────────────────────────────────────
+
+  L1 target: 109.01 nH at 146 MHz
+  No inductor suggestion qualifies:
+  - No built-in toroid core is rated for 146 MHz. VHF toroids are not offered: the core
+    maker publishes no self-resonance or winding-capacitance data, so the inductance
+    near the band cannot be checked.
+  - Air-core coils are not offered: no published self-capacitance model is validated for
+    coils of a few spaced turns, so their self-resonance cannot be checked.
+  - Chip inductor suggestions are not available in this version.
+```
+
+A toroid suggestion is checked only for the core's rated frequency range, whole-turn inductance
+within the A_L tolerance, and wire fit; automatic suggestions are limited to the primary-sourced
+T25-6, T50-2, and T68-2 records. RF Q, core loss, SRF, saturation, heating, and power handling
+are not checked; measure the winding before use. The detailed views (`best`, the default, and
+`full`) end each suggestion with its error budget; see the
+[user guide](user-guide.md#inductor-suggestions).
 
 ## Build Simulation
 
@@ -272,7 +361,7 @@ checked; measure the winding before use.
 uv run filter-calc lp bw pi 10MHz -n 5 --sim-build
 ```
 
-The build-simulation block that follows the table and the toroid suggestions is:
+The build-simulation block that follows the table and the inductor suggestions is:
 
 ```text
 Build Simulation (chosen parts; simulated, not measured)
@@ -314,7 +403,7 @@ Model limits:
 With `--format json`, the complete component JSON gains these top-level blocks:
 
 ```bash
-uv run filter-calc lp bw pi 10MHz --sim-build --no-toroids \
+uv run filter-calc lp bw pi 10MHz --sim-build \
   --inductor-q 100 --capacitor-q 500 \
   --sample-count 20 --seed 73 --format json > build.json
 ```
@@ -333,7 +422,19 @@ uv run filter-calc lp bw pi 10MHz --sim-build --no-toroids \
     "realization": "calculated_exact_values"
   },
   "nominal_build": {
-    "realization": "selected_nominal_parts_and_calculated_exact_fallbacks"
+    "realization": "selected_nominal_physical_parts",
+    "substitutions": [
+      {
+        "logical_name": "L1",
+        "kind": "L",
+        "method": "suggested_inductor",
+        "status": "screened_candidate",
+        "inductor_kind": "toroid",
+        "part_name": "T50-2",
+        "turns": 18,
+        "wire_awg": 20
+      }
+    ]
   },
   "tolerance_analysis": {
     "method": "deterministic_corners_plus_seeded_uniform_screening",
@@ -350,16 +451,26 @@ uv run filter-calc lp bw pi 10MHz --sim-build --no-toroids \
     "load_resistance_ohm": 50.0,
     "gain_metric": "transducer_power_gain_db",
     "unequal_loads_change_evaluation_not_synthesis": true
+  },
+  "build_model": {
+    "build_inductor_choice": "auto",
+    "suggested_inductors_used": true,
+    "suggested_inductor_elements": [
+      "L1"
+    ]
   }
 }
 ```
 
 JSON key and enum names did not change when the readable text was reworded: `nominal_build` is
 the chosen-parts simulation, `simulated` the ideal values, and `tolerance_analysis` the
-tolerance cases. The omitted fields include the parts used (`substitutions`), calculated values
-used in place of a part, the simulated branches, measurements, every tolerance case, the spread
-summaries, the effective loss model, warnings, and limitations. This is a simulation, not a
-measurement, a yield estimate, or a guaranteed worst case.
+tolerance cases. `build_model.build_inductor_choice` is the `--build-inductors` value, and each
+inductor that uses a suggestion has `method: "suggested_inductor"` with its `inductor_kind` and
+`part_name`; an inductor simulated at its calculated value has `method: "exact_fallback"` and
+says why in its `status` and warning. The omitted fields include the other parts used, the
+simulated branches, measurements, every tolerance case, the spread summaries, the effective loss
+model, warnings, and limitations. This is a simulation, not a measurement, a yield estimate, or
+a guaranteed worst case.
 
 The measurement records also identify `measurement_converged`, `response_evaluations`,
 `reference_peak_gain_db`, `half_power_threshold_db`, `half_power_regions`, and the selected
@@ -404,15 +515,18 @@ RLOAD 5 0 50
 ```
 
 `nominal-build` is the default `--spice-realization`: it uses the chosen parts (standard
-capacitor values and toroid windings) and the same fixed-series-resistance Q model as the build
-simulation, and adds a `* part used:` comment for each part. Each parallel pair also gets its
-assumed stray as a capacitor named `CSTRAY_<part>` across the pair's terminals, with a
-`* stray:` comment; it stays fixed in every tolerance case. `exact` uses the calculated values
-without losses, and takes none of the standard-capacitor options. `chosen-parts` and `calculated` are accepted as the same two choices. Band-pass decks keep the SPICE element names `CT1`, `LT1`, `CK1`, `CIN`, and
-`COUT`; the `* names:` comment maps them to the table names (`Cp1`, `L1`, `Cs12`, `Ce_in`,
-`Ce_out`). The `.print` trace is load voltage; use the commented expression for transducer
-power gain. The band-pass sweep is linear and sized by bandwidth and resonator count so narrow
-bands are sampled. Low-pass and high-pass decks keep a logarithmic sweep.
+capacitor values and the inductor suggestions `--build-inductors` picks) and the same
+fixed-series-resistance Q model as the build simulation, and adds a `* part used:` comment for
+each part (`part=T50-2 turns=18` for a toroid winding). Each parallel pair also gets its assumed
+stray as a capacitor named `CSTRAY_<part>` across the pair's terminals, with a `* stray:`
+comment; it stays fixed in every tolerance case. `exact` uses the calculated values without
+losses, and takes none of the standard-capacitor options or `--build-inductors`. `chosen-parts` and
+`calculated` are accepted as the same two choices. Band-pass decks keep the SPICE element names
+`CT1`, `LT1`, `CK1`, `CIN`, and `COUT`; the `* names:` comment maps them to the table names
+(`Cp1`, `L1`, `Cs12`, `Ce_in`, `Ce_out`). The `.print` trace is load voltage; use the commented
+expression for transducer power gain. The band-pass sweep is linear and sized by bandwidth and
+resonator count so narrow bands are sampled. Low-pass and high-pass decks keep a logarithmic
+sweep.
 
 ## Response-Data Export
 
@@ -440,9 +554,9 @@ uv run filter-calc web   # web UI (needs the optional web dependencies)
 uv run filter-calc --version
 ```
 
-The wizard uses four screens: Welcome (Choose a filter), one filter form, Output options, and Results. The
-Results screen renders a selected plot in place and offers Design another, Export (Save as
-Text, JSON, or CSV), and Quit. Escape navigates back; Ctrl+C exits.
+The wizard uses four screens: Welcome (Choose a filter), one filter form, Output options, and
+Results. The Results screen renders a selected plot in place and offers Design another, Export
+(Save as Text, JSON, or CSV), and Quit. Escape navigates back; Ctrl+C exits.
 
 The web UI's result panel shows the same text as the table examples above, and its downloads
 match the JSON, CSV, SPICE, and response-data examples byte for byte.

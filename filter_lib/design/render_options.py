@@ -3,7 +3,8 @@
 Each surface owns its defaults and maps them here: the CLI from its flags, the wizard
 from ``FilterState.to_render_options()``, the web from its form. The standard capacitor
 series is a design input (``DesignRequest.eseries``), not a presentation choice, so
-every document of one design shows the same parts.
+every document of one design shows the same parts; so is the inductor suggestion detail
+(``DesignRequest.inductor_suggestions``).
 """
 
 from __future__ import annotations
@@ -48,17 +49,12 @@ class RenderOptions:
     output_format: str = "table"
     raw: bool = False
     show_plot: bool = False
-    include_toroids: bool = True
-    toroid_compact: bool = False
-    toroid_full: bool = False
     trailing_blank: bool = True
     build_target_note: bool = False
 
     def __post_init__(self) -> None:
         if self.output_format not in OUTPUT_FORMATS:
             raise ValueError(f"Unknown output format: {self.output_format}")
-        if self.toroid_compact and self.toroid_full:
-            raise ValueError("Choose either compact or full toroid detail, not both")
 
     @property
     def shows_design_warnings(self) -> bool:

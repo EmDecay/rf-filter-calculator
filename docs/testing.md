@@ -1,7 +1,7 @@
 # Testing Guide
 
-**Last updated:** November 7, 2026
-**Applies to:** RF Filter Calculator 2.3.0
+**Last updated:** November 20, 2026
+**Applies to:** RF Filter Calculator 3.0.0 (unreleased)
 
 ## Quality gates
 
@@ -112,8 +112,21 @@ measured field of `synthesis_validation`.
   ([test_sub_pf_selection.py](../tests/test_sub_pf_selection.py))
 - toroid primary-source eligibility, frequency guidance, integer-turn error, winding
   capacity, deterministic ranking, and empty-candidate behavior
-- truthful fallbacks ("calculated value used") when a standard part or toroid winding is
-  unavailable
+- part resolution ([test_part_resolution.py](../tests/test_part_resolution.py)): one
+  suggestion record for every kind in the fixed order, the sourced reasons a kind has no part,
+  which part "best" shows and the build uses for each `--build-inductors` value, capacitor
+  choices keyed by circuit name, cancellation of synthesis and part resolution, and an AST
+  check that only `design/part_resolution.py` calls a part selection function
+- the 3.0.0 renames ([test_option_migration.py](../tests/test_option_migration.py)): each
+  row of the migration table keeps its old behaviour under the new name, the old name is
+  refused or absent (including `--sim-matched`, whose `test_matched_simulation.py` was
+  removed with it), and no removed spelling remains in the package
+- the same parts on every surface ([test_part_parity.py](../tests/test_part_parity.py)): for a
+  tight capacitor grade and a forced inductor kind, with the build on and off, the CLI, the web
+  page and downloads, and the wizard's saved files agree byte for byte or refuse with the
+  shared reason; both sourced exclusion texts reach every surface for a VHF design
+- truthful fallbacks ("calculated value used", with the reason) when a standard part or an
+  inductor suggestion is unavailable
 
 ### Circuit and build analysis
 
@@ -220,6 +233,8 @@ Numerical comparisons are simulations, not measured hardware or an external-SPIC
 
 Web tests call `pytest.importorskip("fastapi")` and share `tests/web_helpers.py`; CLI
 comparisons go through `tests/cli_parity_helpers.py`. A browser is not a test dependency.
+Tests that call a formatter or the build directly with a hand-made result resolve its parts
+with `tests/parts_helpers.py::parts_for`, the same function `design()` uses.
 
 ### Packaging and CI
 

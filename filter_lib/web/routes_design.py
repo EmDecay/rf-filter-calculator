@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
 from ..design import design, render_lines, response_series
+from .download_inputs import download_fields
 from .form_parsing import parse_design_form
 from .responses import (
     design_error,
@@ -19,6 +18,7 @@ from .responses import (
     runner,
     templates,
 )
+from .routes_export import document_body
 from .svg_plot import render_response_svg
 
 router = APIRouter()
@@ -65,12 +65,16 @@ async def design_view(request: Request, category: str) -> HTMLResponse:
 
 @router.post("/api/design/{category}")
 async def design_json(request: Request, category: str) -> Response:
-    """Return exactly what ``filter-calc <category> ... --format json`` prints."""
-    submitted = parse_design_form(category, await form_fields(request))
-    options = replace(submitted.options, output_format="json", raw=False, show_plot=False)
+    """Return exactly what ``filter-calc <category> ... --format json`` prints.
 
-    def work(should_cancel) -> str:
-        outcome = design(submitted.request, should_cancel=should_cancel)
-        return render_lines(outcome, options)[0] + "\n"
-
-    return Response(content=await runner(request).run(work), media_type="application/json")
+    This is the Design JSON download under another address: the same fields give the same
+    bytes. Display-only fields (format, raw units, text plot, the table-only inductor
+    detail) are left out, as for that download, and a ``visible.<name>`` value is used
+    where it applies to the JSON document.
+    """
+    fields = download_fields(await form_fields(request), "json")
+    submitted = parse_design_form(category, fields)
+    body = await runner(request).run(
+        lambda should_cancel: document_body("json", submitted, should_cancel)
+    )
+    return Response(content=body, media_type="application/json")

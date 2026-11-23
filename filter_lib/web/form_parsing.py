@@ -4,7 +4,8 @@ Field names mirror the CLI flags (``frequency``, ``impedance``, ``components`` o
 ``resonators``, ``ripple``, ``bandwidth``, ``f_low``, ``f_high``, ``qu``, ``ql``,
 ``qc``, ``resonator_impedance``, ``resonator_inductance``, ``eseries``,
 ``allow_sub_pf``, ``capacitor_grade``, ``capacitor_tolerance_pct``, ``stray_capacitance``,
-``raw``, ``plot``, ``sim_build``, ``build_*``, ``toroid_build``). Units are parsed with the CLI's parsers and
+``inductor_suggestions``, ``raw``, ``plot``, ``sim_build``, ``build_*``,
+``build_inductors``). Units are parsed with the CLI's parsers and
 labels (so a value the CLI would reject gets the CLI's message), defaults come from the
 CLI's constants, and all cross-field rules are left to ``DesignRequest`` and
 ``RenderOptions`` so the web reports the CLI's messages. Messages only the form can
@@ -23,16 +24,18 @@ from ..design.capacitor_policy_inputs import (
     parse_tolerance_field,
 )
 from ..design.design_request import CATEGORIES
+from ..design.inductor_option_inputs import BUILD_INDUCTORS_LABEL, INDUCTOR_DETAIL_LABEL
 from ..design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    BUILD_INDUCTORS,
     CAPACITOR_GRADE,
     CAPACITOR_TOLERANCE,
+    INDUCTOR_DETAIL,
     LOSS_Q,
     RAW_UNITS,
     STRAY_CAPACITANCE,
     TEXT_PLOT,
-    TOROID_DETAIL,
     OutputChoices,
     option_reason,
     require_applicable,
@@ -56,6 +59,14 @@ from ..shared.cli_bandpass_output_validation import (
     QU_LABEL,
 )
 from ..shared.cli_helpers import FILTER_TYPE_CHOICES, validate_filter_args
+from ..shared.inductor_suggestion import (
+    BUILD_INDUCTOR_CHOICES,
+    DEFAULT_BUILD_INDUCTORS,
+    DEFAULT_INDUCTOR_DETAIL,
+    FORCED_KINDS,
+    INDUCTOR_DETAILS,
+    NON_DEFAULT_TABLE_DETAILS,
+)
 from ..shared.parsing import parse_frequency, parse_impedance, parse_inductance
 from .build_form_parsing import BUILD_FIELD_DEFAULTS, parse_build_config
 from .form_values import FormData, choice, flag, float_or, int_or, optional_float, required, text
@@ -63,7 +74,6 @@ from .form_values import FormData, choice, flag, float_or, int_or, optional_floa
 FILTER_TYPES = tuple(FILTER_TYPE_CHOICES)
 OUTPUT_FORMATS = ("table", "quiet", "json", "csv")
 ESERIES_CHOICES = ("E12", "E24", "E96", "none")
-TOROID_CHOICES = ("best", "full", "compact", "none")
 BAND_SPECS = ("center", "edges")
 
 
@@ -85,12 +95,13 @@ class DesignForm:
     def option_choices(self) -> OutputChoices:
         """The submitted choices, as the shared applicability rule judges them."""
         options = self.options
+        request = self.request
         return OutputChoices(
             output_format=options.output_format,
-            eseries=self.request.eseries,
+            eseries=request.eseries,
             raw=options.raw,
-            build=self.request.run_build_analysis,
-            include_toroids=options.include_toroids,
+            build=request.run_build_analysis,
+            inductor_detail=request.inductor_suggestions,
         )
 
     def require_applicable_options(self) -> None:
@@ -102,20 +113,23 @@ class DesignForm:
         refused with the shared message naming only the Q values sent.
         """
         options = self.options
+        request = self.request
         selected = (
             (RAW_UNITS, options.raw),
             (TEXT_PLOT, options.show_plot),
-            (TOROID_DETAIL, options.toroid_full or options.toroid_compact),
-            (ALLOW_SUB_PF, self.request.allow_sub_pf),
-            (CAPACITOR_GRADE, self.request.capacitor_grade != DEFAULT_GRADE),
-            (CAPACITOR_TOLERANCE, self.request.capacitor_tolerance_pct is not None),
+            (INDUCTOR_DETAIL, request.inductor_suggestions in NON_DEFAULT_TABLE_DETAILS),
+            (ALLOW_SUB_PF, request.allow_sub_pf),
+            (CAPACITOR_GRADE, request.capacitor_grade != DEFAULT_GRADE),
+            (CAPACITOR_TOLERANCE, request.capacitor_tolerance_pct is not None),
             (STRAY_CAPACITANCE, self.stray_entered),
-            (BUILD, self.request.run_build_analysis),
+            (BUILD, request.run_build_analysis),
+            # "Calculated values" is what None means anyway; only a forced kind counts.
+            (BUILD_INDUCTORS, request.build_inductors in FORCED_KINDS),
         )
         choices = self.option_choices()
         require_applicable(choices, [option for option, ticked in selected if ticked])
         if option_reason(choices, LOSS_Q) is not None:
-            self.request.reject_loss_q()
+            request.reject_loss_q()
 
 
 # Example designs prefilled on a fresh page: the README examples, the same values the
@@ -140,8 +154,7 @@ def form_defaults(category: str) -> dict[str, str]:
 
     Checkbox names map to ``"on"`` when checked by default; the web shows the
     response plot by default, a deliberate choice of this surface. The build fields
-    are filled with the CLI's defaults, and the toroid-winding build box is ticked,
-    as the CLI simulates the windings unless ``--no-toroid-build`` is given.
+    are filled with the CLI's defaults, "Inductors in the build" included.
     """
     order_field = (
         {"resonators": str(DEFAULT_RESONATORS)}
@@ -154,7 +167,7 @@ def form_defaults(category: str) -> dict[str, str]:
         "ripple": f"{DEFAULT_RIPPLE_DB:g}",
         "eseries": DEFAULT_ESERIES,
         "capacitor_grade": DEFAULT_GRADE,
-        "toroids": "best",
+        "inductor_suggestions": DEFAULT_INDUCTOR_DETAIL,
         "output_format": "table",
         "svg_plot": "on",
         **BUILD_FIELD_DEFAULTS,
@@ -175,14 +188,10 @@ def _eseries(form: FormData) -> str | None:
 
 
 def _render_options(form: FormData) -> RenderOptions:
-    toroids = choice(form, "toroids", TOROID_CHOICES, "best", "Toroid detail")
     return RenderOptions(
         output_format=choice(form, "output_format", OUTPUT_FORMATS, "table", "Output format"),
         raw=flag(form, "raw"),
         show_plot=flag(form, "plot"),
-        include_toroids=toroids != "none",
-        toroid_compact=toroids == "compact",
-        toroid_full=toroids == "full",
     )
 
 
@@ -286,7 +295,15 @@ def parse_design_form(category: str, form: FormData) -> DesignForm:
         capacitor_tolerance_pct=parse_tolerance_field(text(form, "capacitor_tolerance_pct")),
         stray_capacitance_f=parse_stray_field(stray_text),
     )
+    detail = choice(
+        form,
+        "inductor_suggestions",
+        INDUCTOR_DETAILS,
+        DEFAULT_INDUCTOR_DETAIL,
+        INDUCTOR_DETAIL_LABEL,
+    )
     run_build = flag(form, "sim_build")
+    build_inductors = DEFAULT_BUILD_INDUCTORS
     if run_build:
         # Whether the chosen output can show the build is checked by each route against
         # the document it actually produces.
@@ -294,15 +311,27 @@ def parse_design_form(category: str, form: FormData) -> DesignForm:
             raise ValueError(BUILD_NEEDS_ESERIES_MESSAGE)
         realization = parse_build_config(
             form,
-            use_toroids=options.include_toroids,
             resonator_q_supplied=any(q is not None for q in (request.qu, request.ql, request.qc)),
         )
+        build_inductors = choice(
+            form,
+            "build_inductors",
+            BUILD_INDUCTOR_CHOICES,
+            DEFAULT_BUILD_INDUCTORS,
+            BUILD_INDUCTORS_LABEL,
+        )
     else:
-        # Build fields are ignored unless the build section is enabled; the deck then
-        # uses the CLI's defaults for the chosen toroid setting.
-        realization = BuildConfig(use_toroid_candidates=options.include_toroids)
+        # Build fields, "Inductors in the build" among them, are ignored unless the build
+        # section is enabled; the deck then uses the CLI's defaults.
+        realization = BuildConfig()
     return DesignForm(
-        request=replace(request, realization=realization, run_build_analysis=run_build),
+        request=replace(
+            request,
+            inductor_suggestions=detail,
+            build_inductors=build_inductors,
+            realization=realization,
+            run_build_analysis=run_build,
+        ),
         options=options,
         svg_plot=flag(form, "svg_plot"),
         stray_entered=bool(stray_text.strip()),

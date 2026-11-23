@@ -1,7 +1,7 @@
 # System Architecture
 
-**Last updated:** November 7, 2026
-**Applies to:** RF Filter Calculator 2.3.0
+**Last updated:** November 20, 2026
+**Applies to:** RF Filter Calculator 3.0.0 (unreleased)
 
 ## Overview
 
@@ -13,18 +13,20 @@ they are not interchangeable claims.
 ```text
 CLI · Textual wizard · web UI      (each parses its own input into a DesignRequest)
         │
-        ├─ filter_lib.design: validate the request
+        ▼
+design(request, should_cancel)     filter_lib.design; the request is validated on creation
         │
-        ├─ ideal synthesis ────────────────┐
-        │    LP/HP ladder or Top-C BP      │
-        │                                 │
-        ├─ optional chosen parts          │
-        │    E-series parts + toroid windings
-        │                                 ▼
-        ├─ optional build simulation ── named passive circuit
-        │    loss + tolerance cases          │
-        │                                    ▼
-        └─ table / strict JSON / CSV / generic SPICE / response data
+        ├─ synthesize ─────────────── LP/HP ladder or Top-C BP (cancellable)
+        │
+        ├─ resolve_parts ──────────── ResolvedParts on DesignResult.parts (cancellable):
+        │                               capacitor choices; per inductor, each kind's
+        │                               suggestions and the part the build uses
+        │
+        ├─ optional build simulation ─ named passive circuit from the parts
+        │                               loss + tolerance cases (cancellable)
+        ▼
+DesignResult ──► table / strict JSON / CSV / generic SPICE / response data
+                 (every renderer reads its parts from DesignResult.parts)
 ```
 
 The package entry point is `filter_lib.cli:main`; the repository-level
@@ -40,11 +42,23 @@ formatter, or the build analysis directly.
 
 The request is the one carrier of everything that decides the parts: the standard capacitor
 series (`eseries`, `None` for no standard values), the sub-pF switch, the capacitor grade, the
-tolerance override, the assumed stray, the build settings (`realization`) and whether to run
-the build simulation (`run_build_analysis`). `design()` resolves the part policy once
-(`resolve_match_policy`) and returns a `DesignResult` holding the request, that `MatchPolicy`,
-the calculator dict and the optional build analysis. Every output reads its parts from the
-result, so the table, JSON, CSV, the build and the chosen-parts deck cannot disagree. A
+tolerance override, the assumed stray, the inductor suggestion detail
+(`inductor_suggestions`) and build choice (`build_inductors`), the build settings
+(`realization`) and whether to run the build simulation (`run_build_analysis`). `design()`
+synthesizes, then resolves every chosen part once (`design/part_resolution.py::resolve_parts`)
+into a `ResolvedParts` (`shared/resolved_parts.py`): the `MatchPolicy`, each capacitor's
+choice, and each inductor's suggestions by kind with the part the build uses. The
+`DesignResult` holds the request, the calculator dict, those `parts` and the optional build
+analysis. Formatters, both SPICE decks and the build take `parts` and never select a part,
+so the table, JSON, CSV, the build and the chosen-parts deck cannot disagree;
+`part_resolution.py` is the only caller of a part selection function
+(`tests/test_part_resolution.py`).
+
+`design(request, should_cancel=…)` passes the check to synthesis (before it starts, and for
+band-pass before each circuit evaluation of the calibration and response check), to part
+resolution (before each part), and to the build (before each case). A true check raises
+`DesignCancelled` (`shared/cancellation.py`; the build's `BuildAnalysisCancelled` is a
+subclass), which is deliberately not a `ValueError`. A
 chosen-parts SPICE deck uses `realization` without running the tolerance cases. The CLI builds
 the whole request before calling `design()`; the wizard keeps the result it shows and reuses it
 for a saved file only when that file's request is equal, designing any other file in its save
@@ -62,7 +76,7 @@ Messages shared by surfaces outside those classes are module constants (see
 [code standards](code-standards.md#user-facing-text)).
 
 The CLI keeps a few things outside the service on purpose: argparse usage errors for
-contradictory flags, `--explain`, and the deprecated `--sim-matched` path.
+contradictory flags and `--explain`.
 
 ### Option applicability
 
@@ -72,7 +86,9 @@ submission. Which options apply is one rule,
 [`design/option_applicability.py`](../filter_lib/design/option_applicability.py):
 `inapplicable_options(OutputChoices)` returns `{option: reason}` for the eleven options
 (`eseries`, `allow_sub_pf`, `capacitor_grade`, `capacitor_tolerance`, `stray_capacitance`,
-`toroid_detail`, `plot`, `raw`, `build`, `toroid_build`, `loss_q`). It restates, in the interfaces' words, exactly the combinations the CLI refuses
+`inductor_detail`, `plot`, `raw`, `build`, `build_inductors`, `loss_q`); `OutputChoices`
+carries the `inductor_detail`, because a forced inductor kind needs suggestions to build with.
+It restates, in the interfaces' words, exactly the combinations the CLI refuses
 (`shared/cli_output_validation.py`, `shared/cli_bandpass_output_validation.py`,
 `RenderOptions`); a test checks every combination against the CLI validators. A disabled control
 counts as unset, which is what leaving out the CLI flag means.
@@ -90,7 +106,8 @@ added to each document it applies to, so Values only with E-series None download
 call it. A new option or rule belongs here, never in one interface.
 
 The build simulation's Q reference frequency label, help, and parser are shared the same way in
-`design/q_reference_frequency.py`.
+`design/q_reference_frequency.py`, and the inductor controls' labels and help in
+`design/inductor_option_inputs.py`.
 
 ## Command layer
 
@@ -100,8 +117,9 @@ The build simulation's Q reference frequency label, help, and parser are shared 
 
 The handlers share parser construction and compatibility validation from
 `filter_lib/shared/cli_*.py`. Validation is mode-aware. For example, an explicit
-E-series request is rejected when the selected output cannot represent it; toroid table
-detail flags are rejected in JSON/CSV/quiet modes; and exact SPICE rejects build/Q flags
+E-series request is rejected when the selected output cannot represent it;
+`--inductor-suggestions full`/`compact` are rejected outside table output; `--build-inductors`
+needs a build or a chosen-parts deck, and a forced kind needs suggestions; and exact SPICE rejects build/Q flags
 that cannot change that deck. This prevents accepted-but-ignored options. All three
 subcommands accept `-f`, `--frequency`, and `--freq`, and check `-n` in `run()` with
 `require_count` and the shared count message rather than with argparse choices.
@@ -201,10 +219,26 @@ tolerance. Capacitor selection (`shared/capacitor_choice.py`) is deterministic a
 
 `component_realization.py` and `nominal_realization.py` turn that choice into named
 physical branches, each with its own tolerance, plus a fixed `CSTRAY_<part>` capacitor across
-each pair for the assumed stray. If no eligible preferred value or winding exists, the
-realization records an exact calculated fallback explicitly.
+each pair for the assumed stray. They read every part from `ResolvedParts`; where it holds no
+part (no eligible preferred value, or no inductor suggestion for the chosen build kind), the
+realization records an exact calculated fallback explicitly, with the reason.
 
-### Toroid winding suggestions
+### Inductor suggestions
+
+Every inductor kind produces the same record, `shared/inductor_suggestion.py::InductorSuggestion`:
+kind, rank, part name, target and achieved inductance, tolerance, the basis of its
+self-resonance check (`guaranteed_minimum`, `model`, or `not_checked`), an error budget,
+source, the kind's own build details, and warnings. `KindSuggestions` holds one kind's ranked
+suggestions for one inductor or the limit that failed. Kinds are always listed in the fixed
+order toroid, air coil, chip (`INDUCTOR_KINDS`); `auto` builds the first kind with a part,
+and a forced kind builds its best suggestion or the calculated value with that kind's reason.
+Each kind keeps its own selector and detail lines; ordering, the build, the table section
+(`shared/inductor_display.py`), JSON, and CSV use only the record. In this version only HF
+toroids are offered: air-core coils and chip inductors return their fixed reasons, and above
+every toroid core's rated range the toroid reason adds the VHF exclusion. Those texts are
+worded in [component-data-sources.md](component-data-sources.md), which records why.
+
+#### Toroid winding suggestions
 
 The vendored database contains legacy records for inspection, but automatic suggestions are
 limited to T25-6, T50-2, and T68-2 because those entries have primary-source dimensional,
@@ -215,9 +249,10 @@ limited to T25-6, T50-2, and T68-2 because those entries have primary-source dim
 - manufacturer winding-capacity limits where available;
 - wire length and DC resistance as construction diagnostics.
 
-It does **not** check RF Q, SRF, core loss, saturation, heating, or power handling.
-The legacy `q_dc_upper_bound` API name is retained, but the value is labeled as a
-wire-DCR reactance-ratio ceiling and is not presented as predicted RF Q.
+It does **not** check RF Q, SRF, core loss, saturation, heating, or power handling, so its
+SRF basis is `not_checked`. The wire-DCR reactance-ratio ceiling is published as
+`wire_dcr_reactance_ratio_ceiling` and is not presented as predicted RF Q; the deprecated
+`q_dc_upper_bound` name no longer appears in the JSON suggestion record.
 
 ## Circuit and build analysis
 
@@ -225,7 +260,7 @@ The shared circuit stack is intentionally independent of display formatting:
 
 - `circuit_model.py` — named passive branches, ports, and circuit metadata
 - `circuit_builders.py` — category-specific exact circuits
-- `nominal_realization.py` — selected physical parts and explicit fallbacks
+- `nominal_realization.py` — the chosen parts from `ResolvedParts` and explicit fallbacks
 - `build_loss_models.py` — converts Q at a stated reference frequency to series loss
 - `tolerance_screening.py` — fixed tolerance cases and optional seeded extra random cases
 - `nodal_solver.py` and `branch_admittance.py` — passive AC solution
@@ -325,10 +360,10 @@ the core install never needs the `web` extra.
   still refuses a hand-made request that sets an option the rule disables.
 - **Execution.** Calculations run on a bounded thread pool (two workers by default) so
   the event loop stays free. Each request waits up to 60 seconds; on expiry its
-  cancellation flag is set and the request returns 503. Only the build simulation
-  polls that flag. A synthesis already running finishes in the background and its result
-  is dropped; the accepted input ranges bound how long that can take. Shutdown flags
-  running work and joins the pool threads.
+  cancellation flag is set and the request returns 503. `design()` polls that flag, so a
+  band-pass calibration, part resolution, or build simulation stops at its next check
+  and its result is dropped; a ladder synthesis is one closed-form step, checked before it
+  starts. Shutdown flags running work and joins the pool threads.
 - **Exposure.** The server binds to loopback by default, has no authentication, stores
   nothing, and writes no files. `request_guard.py` accepts submissions only from the
   page's own origin (`Sec-Fetch-Site`, else `Origin` against `Host`), which blocks
@@ -386,7 +421,8 @@ release.
 
 - Add synthesis behavior behind the category calculation layer, not in display code.
 - Add a new physical realization through the named circuit model so analysis and SPICE
-  stay aligned.
+  stay aligned, and a new part kind as an inductor-suggestion selector called only from
+  `design/part_resolution.py`.
 - Extend output schemas additively unless a versioned breaking change is intentional.
 - Add new wizard inputs to `FilterState`, validation, CLI-equivalent build configuration,
   and lifecycle tests together.

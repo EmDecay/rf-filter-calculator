@@ -460,7 +460,7 @@ def test_ladder_scaling_avoids_overflowing_intermediate_angular_frequency(calcul
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["lp", "bw", "pi", "5e-324", "--no-toroids", "--no-match"],
+        ["lp", "bw", "pi", "5e-324", "--inductor-suggestions", "none", "--no-match"],
         [
             "lp",
             "bw",
@@ -469,7 +469,8 @@ def test_ladder_scaling_avoids_overflowing_intermediate_angular_frequency(calcul
             "--sim-build",
             "--capacitor-q",
             "5e-324",
-            "--no-toroids",
+            "--inductor-suggestions",
+            "none",
         ],
         [
             "bp",
@@ -483,7 +484,8 @@ def test_ladder_scaling_avoids_overflowing_intermediate_angular_frequency(calcul
             "5e-324",
             "--format",
             "json",
-            "--no-toroids",
+            "--inductor-suggestions",
+            "none",
         ],
         ["lp", "bw", "pi", "1.7976931348623157e307", "--format", "spice"],
         [
@@ -492,7 +494,8 @@ def test_ladder_scaling_avoids_overflowing_intermediate_angular_frequency(calcul
             "pi",
             "1.7976931348623157e307",
             "--sim-build",
-            "--no-toroids",
+            "--inductor-suggestions",
+            "none",
             "--analysis-points",
             "51",
         ],
@@ -523,7 +526,8 @@ def test_extreme_ladder_build_json_keeps_center_frequency_finite(monkeypatch, ca
             "pi",
             frequency,
             "--sim-build",
-            "--no-toroids",
+            "--inductor-suggestions",
+            "none",
             "--analysis-points",
             "51",
             "--format",
@@ -559,7 +563,8 @@ def test_extreme_bandpass_centers_remain_finite(monkeypatch, capsys, frequency_a
             "bw",
             "top",
             *frequency_args,
-            "--no-toroids",
+            "--inductor-suggestions",
+            "none",
             "--no-match",
             "--format",
             "json",

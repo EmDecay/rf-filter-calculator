@@ -109,8 +109,8 @@ def test_stream_stops_at_overflow_without_reading_the_remainder(monkeypatch):
 def test_exact_limits_and_last_value_wins_are_accepted():
     fields = [
         ("x" * MAX_FIELD_NAME_LENGTH, "v" * MAX_FIELD_VALUE_LENGTH),
-        ("toroid_build", "off"),
-        ("toroid_build", "on"),
+        ("build_inductors", "auto"),
+        ("build_inductors", "calculated"),
         *[("extra", "v")] * (MAX_FORM_FIELDS - 3),
     ]
     body = urlencode(fields).encode()
@@ -120,7 +120,7 @@ def test_exact_limits_and_last_value_wins_are_accepted():
     result = asyncio.run(form_fields(request))
     assert result == {
         "x" * MAX_FIELD_NAME_LENGTH: "v" * MAX_FIELD_VALUE_LENGTH,
-        "toroid_build": "on",
+        "build_inductors": "calculated",
         "extra": "v",
     }
 

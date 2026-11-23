@@ -16,13 +16,20 @@ from .capacitor_choice import assumed_tolerance_pct
 from .circuit_builders import build_named_circuit
 from .circuit_display_names import STRAY_PREFIX, spice_names_comment
 from .circuit_model import CircuitElement
-from .eseries import DEFAULT_MATCH_POLICY, TOLERANCE_NOT_SOURCED, MatchPolicy
+from .eseries import TOLERANCE_NOT_SOURCED, MatchPolicy
+from .inductor_suggestion import (
+    KIND_LABELS,
+    NO_QUALIFYING_SUGGESTION,
+    SUGGESTED_INDUCTOR_METHOD,
+    SUGGESTIONS_NOT_USED,
+)
 from .nominal_realization import (
     applicable_part_limitations,
     grouped_part_warnings,
     realize_nominal_build,
 )
 from .numeric import require_positive_finite
+from .resolved_parts import ResolvedParts
 
 
 def _number(value: float) -> str:
@@ -78,8 +85,8 @@ def _element_lines(element: CircuitElement) -> list[str]:
 # Plain words for the substitution method/status values; JSON keeps the enum values.
 _FALLBACK_REASONS = {
     "expert_override_required": "(below 1 pF)",
-    "no_verified_candidate": "(no suitable toroid)",
-    "candidate_screen_disabled": "(toroid windings off)",
+    NO_QUALIFYING_SUGGESTION: "(no inductor suggestion used)",
+    SUGGESTIONS_NOT_USED: "(inductor suggestions not used)",
 }
 
 
@@ -88,8 +95,8 @@ def _part_description(substitution: ComponentSubstitution, eseries: str) -> str:
         return f"{eseries} single"
     if substitution.method == "e_series_parallel":
         return f"{eseries} parallel pair"
-    if substitution.method == "verified_toroid_integer_turns":
-        return "toroid winding"
+    if substitution.method == SUGGESTED_INDUCTOR_METHOD:
+        return KIND_LABELS[substitution.inductor_kind].lower()
     reason = _FALLBACK_REASONS.get(substitution.status, "(no part chosen)")
     return f"calculated value {reason}"
 
@@ -105,8 +112,8 @@ def _nominal_comments(
             f"calculated={_number(substitution.calculated_value)}",
             f"nominal={_number(substitution.nominal_value)}",
         ]
-        if substitution.core_name is not None:
-            details.append(f"core={substitution.core_name}")
+        if substitution.part_name is not None:
+            details.append(f"part={substitution.part_name}")
         if substitution.turns is not None:
             details.append(f"turns={substitution.turns}")
         if substitution.stray_capacitance_f:
@@ -154,14 +161,14 @@ def export_spice_deck(
     *,
     realization: str = "exact",
     config: BuildConfig | None = None,
-    eseries: str = "E24",
-    policy: MatchPolicy = DEFAULT_MATCH_POLICY,
+    parts: ResolvedParts | None = None,
 ) -> str:
     """Export an exact or nominal-build passive network as generic SPICE.
 
     The deck includes a 1 V AC Thevenin source, separate finite source/load
     resistances, a bandwidth-aware BP sweep (logarithmic for LP/HP), and losses.
-    The chosen-parts deck picks capacitors from ``eseries`` under ``policy``.
+    The chosen-parts deck uses the parts ``design()`` resolved (``parts``, required for
+    it); the exact deck uses the calculated values.
     """
     active_config = resolve_build_config(config)
     nominal: NominalRealization | None = None
@@ -169,9 +176,9 @@ def export_spice_deck(
         circuit = build_named_circuit(result, category)
         realization_label = "calculated, lossless (exact)"
     elif realization == "nominal_build":
-        nominal = realize_nominal_build(
-            result, category, active_config, eseries=eseries, policy=policy
-        )
+        if parts is None:
+            raise ValueError("A chosen-parts SPICE deck needs the design's resolved parts")
+        nominal = realize_nominal_build(result, category, active_config, parts=parts)
         circuit = nominal.circuit
         realization_label = "chosen parts (nominal-build)"
     else:
@@ -205,7 +212,7 @@ def export_spice_deck(
     if names is not None:
         lines.append(names)
     if nominal is not None:
-        lines.extend(_nominal_comments(nominal, eseries, policy))
+        lines.extend(_nominal_comments(nominal, parts.eseries, parts.match_policy))
     lines.extend(
         (
             "VINPUT NSOURCE 0 AC 1",

@@ -1,5 +1,10 @@
 """High-level orchestration for calibrated Top-C bandpass designs."""
 
+from ..shared.cancellation import (
+    CancellationCheck,
+    raise_if_cancelled,
+    require_cancellation_check,
+)
 from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
 from ..shared.numeric import require_positive_finite
 from .coupling_math import require_end_coupling_resonator
@@ -92,19 +97,23 @@ def calculate_bandpass_filter(
     qc: float | None = None,
     resonator_impedance: float | None = None,
     resonator_inductance: float | None = None,
+    should_cancel: CancellationCheck | None = None,
 ) -> BandpassResult:
     """Calculate a calibrated Top-C bandpass filter and response validation.
 
     ``bw`` is the true -3 dB bandwidth for every filter family. ``qu`` is the
     complete resonator unloaded Q; alternatively ``ql`` and ``qc`` combine by
     reciprocal loss. Tank impedance or inductance may be selected independently
-    of the source/load impedance.
+    of the source/load impedance. ``should_cancel`` is polled before each circuit
+    evaluation of the calibration and before the response check; it raises
+    ``DesignCancelled``.
 
     Raises:
         ValueError: If inputs are invalid or the requested circuit is unrealizable.
     """
     _validate_inputs(f0, bw, z0, n_resonators, filter_type, coupling)
     require_positive_finite(q_safety, "q_safety")
+    require_cancellation_check(should_cancel)
     resonator_qu = combine_resonator_q(qu=qu, ql=ql, qc=qc)
     _resolve_resonator_components(f0, z0, resonator_impedance, resonator_inductance)
     if filter_type == "chebyshev":
@@ -133,6 +142,7 @@ def calculate_bandpass_filter(
             g_values,
             resonator_impedance,
             resonator_inductance,
+            should_cancel,
         )
         result.update(
             {
@@ -149,6 +159,7 @@ def calculate_bandpass_filter(
             }
         )
 
+        raise_if_cancelled(should_cancel)
         validation = validate_netlist_shape(result, f0, bw, points=VALIDATION_POINTS)
         _finish_result(
             result,

@@ -13,8 +13,14 @@ from filter_lib.bandpass import calculate_bandpass_filter
 from filter_lib.design import DesignRequest, design, export_spice
 from filter_lib.shared.build_simulation import BuildConfig, analyze_build, realize_nominal_build
 from filter_lib.shared.eseries import MatchPolicy
+from tests.parts_helpers import parts_for
 
-FAST = BuildConfig(grid_points=51, sample_count=4, seed=11, use_toroid_candidates=False)
+FAST = BuildConfig(grid_points=51, sample_count=4, seed=11)
+
+
+def _calculated_inductor_parts(result: dict, policy: MatchPolicy | None = None):
+    """E24 band-pass capacitors with every inductor built at its calculated value."""
+    return parts_for(result, "bandpass", "E24", policy, build_inductors="calculated")
 
 
 def _spice_elements(deck: str) -> list[tuple[str, int, int, float]]:
@@ -47,7 +53,7 @@ def _spice_elements(deck: str) -> list[tuple[str, int, int, float]]:
 def test_spice_deck_holds_the_solver_branches_with_their_kinds(request_fields):
     outcome = design(DesignRequest(filter_type="butterworth", impedance=50.0, **request_fields))
     realization = realize_nominal_build(
-        outcome.result, outcome.category, BuildConfig(), eseries="E24", policy=outcome.match_policy
+        outcome.result, outcome.category, BuildConfig(), parts=outcome.parts
     )
 
     deck = _spice_elements(export_spice(outcome, "nominal_build"))
@@ -68,7 +74,7 @@ def test_spice_deck_holds_the_solver_branches_with_their_kinds(request_fields):
 def test_tolerance_cases_leave_the_stray_unchanged_and_vary_only_real_parts():
     result = calculate_bandpass_filter(14.2e6, 350e3, 50, 3, "butterworth", "top")
 
-    analysis = analyze_build(result, "bandpass", FAST)
+    analysis = analyze_build(result, "bandpass", FAST, parts=_calculated_inductor_parts(result))
 
     strays = {e.name for e in analysis.nominal_realization.circuit.elements if e.fixed}
     parts = {e.name for e in analysis.nominal_realization.circuit.elements if not e.fixed}
@@ -82,8 +88,13 @@ def test_tolerance_cases_leave_the_stray_unchanged_and_vary_only_real_parts():
 def test_adding_the_stray_moves_no_case_or_seeded_draw_of_the_real_parts():
     result = calculate_bandpass_filter(14.2e6, 350e3, 50, 3, "butterworth", "top")
 
-    with_stray = analyze_build(result, "bandpass", FAST)
-    without = analyze_build(result, "bandpass", FAST, policy=MatchPolicy(stray_capacitance_f=0))
+    with_stray = analyze_build(result, "bandpass", FAST, parts=_calculated_inductor_parts(result))
+    without = analyze_build(
+        result,
+        "bandpass",
+        FAST,
+        parts=_calculated_inductor_parts(result, MatchPolicy(stray_capacitance_f=0)),
+    )
 
     assert not any(e.fixed for e in without.nominal_realization.circuit.elements)
     assert [case.case_id for case in with_stray.cases] == [case.case_id for case in without.cases]
@@ -107,7 +118,9 @@ def test_a_fixed_element_keeps_its_value_even_when_a_factor_names_it():
     from filter_lib.shared.tolerance_screening import perturb_circuit
 
     result = calculate_bandpass_filter(14.2e6, 350e3, 50, 3, "butterworth", "top")
-    circuit = realize_nominal_build(result, "bandpass", FAST).circuit
+    circuit = realize_nominal_build(
+        result, "bandpass", FAST, parts=_calculated_inductor_parts(result)
+    ).circuit
     stray = next(element for element in circuit.elements if element.fixed)
 
     perturbed = perturb_circuit(circuit, ((stray.name, 2.0),))

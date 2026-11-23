@@ -12,7 +12,6 @@ import csv
 import json
 import math
 import re
-from contextlib import redirect_stdout
 from copy import deepcopy
 from fractions import Fraction
 from io import StringIO
@@ -26,7 +25,9 @@ from filter_lib.lowpass import display as lp_display
 from filter_lib.lowpass.calculations import calculate_butterworth as lp_butterworth
 from filter_lib.lowpass.calculations import calculate_chebyshev as lp_chebyshev
 from filter_lib.shared.formatting import format_capacitance
+from filter_lib.shared.lp_hp_display import CAPACITOR_MATCH, LpHpRenderOptions, render_results_lines
 from tests.capacitor_interval_oracle import best_choice
+from tests.parts_helpers import parts_for
 
 
 def _make_result(category: str, filter_type: str, topology: str) -> dict:
@@ -70,11 +71,18 @@ def _make_result(category: str, filter_type: str, topology: str) -> dict:
     }
 
 
-def _table_output(module, result: dict) -> str:
-    buf = StringIO()
-    with redirect_stdout(buf):
-        module.display_results(result, eseries="E24", show_match=True, include_toroids=False)
-    return buf.getvalue()
+def _parts(category: str, result: dict):
+    """E24 capacitor choices without inductor suggestions."""
+    return parts_for(result, category, "E24", inductor_detail="none")
+
+
+def _table_output(module, category: str, result: dict) -> str:
+    """The table document as the CLI prints it: the lines, then a final newline."""
+    config = (
+        module.LOWPASS_DISPLAY_CONFIG if category == "lowpass" else module.HIGHPASS_DISPLAY_CONFIG
+    )
+    options = LpHpRenderOptions(config, _parts(category, result), match=CAPACITOR_MATCH)
+    return "\n".join(render_results_lines(result, options)) + "\n"
 
 
 GOLDENS = {
@@ -105,7 +113,7 @@ GOLDENS = {
         "│ C1: 318.31 pF          │ L1: 1.59 µH            │\n"
         "│ C2: 318.31 pF          │                        │\n"
         "└────────────────────────┴────────────────────────┘\n"
-        "Inductors: no standard values; wind to the calculated value.\n"
+        "Inductors: no standard values; use the calculated value.\n"
         "\n"
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
@@ -219,7 +227,7 @@ GOLDENS = {
         "│ L1: 795.77 nH          │ C1: 636.62 pF          │\n"
         "│ L2: 795.77 nH          │                        │\n"
         "└────────────────────────┴────────────────────────┘\n"
-        "Inductors: no standard values; wind to the calculated value.\n"
+        "Inductors: no standard values; use the calculated value.\n"
         "\n"
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
@@ -314,7 +322,7 @@ GOLDENS = {
         "│ C1: 508.11 pF          │ L1: 872.72 nH          │\n"
         "│ C2: 508.11 pF          │                        │\n"
         "└────────────────────────┴────────────────────────┘\n"
-        "Inductors: no standard values; wind to the calculated value.\n"
+        "Inductors: no standard values; use the calculated value.\n"
         "\n"
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
@@ -431,7 +439,7 @@ GOLDENS = {
         "│ L1: 1.27 µH            │ C1: 349.09 pF          │\n"
         "│ L2: 1.27 µH            │                        │\n"
         "└────────────────────────┴────────────────────────┘\n"
-        "Inductors: no standard values; wind to the calculated value.\n"
+        "Inductors: no standard values; use the calculated value.\n"
         "\n"
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
@@ -524,7 +532,7 @@ GOLDENS = {
         "│ L1: 7.96 µH            │ C1: 1.59 nF            │\n"
         "│ L2: 7.96 µH            │                        │\n"
         "└────────────────────────┴────────────────────────┘\n"
-        "Inductors: no standard values; wind to the calculated value.\n"
+        "Inductors: no standard values; use the calculated value.\n"
         "\n"
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
@@ -615,7 +623,7 @@ GOLDENS = {
         "│ C1: 3.18 nF            │ L1: 3.98 µH            │\n"
         "│ C2: 3.18 nF            │                        │\n"
         "└────────────────────────┴────────────────────────┘\n"
-        "Inductors: no standard values; wind to the calculated value.\n"
+        "Inductors: no standard values; use the calculated value.\n"
         "\n"
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
@@ -733,7 +741,7 @@ GOLDENS = {
         "│ L1: 4.99 µH            │ C1: 2.90 nF            │\n"
         "│ L2: 4.99 µH            │                        │\n"
         "└────────────────────────┴────────────────────────┘\n"
-        "Inductors: no standard values; wind to the calculated value.\n"
+        "Inductors: no standard values; use the calculated value.\n"
         "\n"
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
@@ -829,7 +837,7 @@ GOLDENS = {
         "│ C1: 1.99 nF            │ L1: 7.26 µH            │\n"
         "│ C2: 1.99 nF            │                        │\n"
         "└────────────────────────┴────────────────────────┘\n"
-        "Inductors: no standard values; wind to the calculated value.\n"
+        "Inductors: no standard values; use the calculated value.\n"
         "\n"
         "E24 Standard Capacitor Values\n"
         "──────────────────────────────────────────────────\n"
@@ -923,7 +931,7 @@ def test_lp_hp_table_output_matches_golden(case: dict) -> None:
     module = lp_display if case["category"] == "lowpass" else hp_display
     result = _make_result(case["category"], case["filter_type"], case["topology"])
 
-    assert _table_output(module, result) == case["table"]
+    assert _table_output(module, case["category"], result) == case["table"]
 
 
 @pytest.mark.parametrize("case", GOLDENS.values(), ids=GOLDENS.keys())
@@ -931,7 +939,7 @@ def test_lp_hp_json_output_matches_golden(case: dict) -> None:
     module = lp_display if case["category"] == "lowpass" else hp_display
     result = _make_result(case["category"], case["filter_type"], case["topology"])
 
-    actual = json.loads(module.format_json(result, eseries="E24", include_toroids=False))
+    actual = json.loads(module.format_json(result, _parts(case["category"], result)))
     expected = json.loads(case["json"])
 
     actual_core = deepcopy(actual)
@@ -984,7 +992,7 @@ def test_lp_hp_csv_output_matches_golden(case: dict) -> None:
     result = _make_result(case["category"], case["filter_type"], case["topology"])
 
     actual_reader = csv.DictReader(
-        StringIO(module.format_csv(result, eseries="E24", include_toroids=False))
+        StringIO(module.format_csv(result, _parts(case["category"], result)))
     )
     expected_reader = csv.DictReader(StringIO(case["csv"]))
     actual_rows = list(actual_reader)

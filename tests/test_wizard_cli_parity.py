@@ -18,12 +18,12 @@ from filter_lib.wizard.export_formatting import format_response_export
 from filter_lib.wizard.state import CSV_DOCUMENT, JSON_DOCUMENT, FilterState
 
 _ALIAS = {"butterworth": "bw", "chebyshev": "ch", "bessel": "bs"}
-# Wizard toroid choice -> CLI flags; "Best, detailed" is the CLI default (no flag).
-_TOROID_FLAGS = {
+# Wizard inductor suggestion choice -> CLI flags; "Best, detailed" is the CLI default.
+_INDUCTOR_FLAGS = {
     "best": (),
-    "full": ("--toroid-full",),
-    "compact": ("--toroid-compact",),
-    "none": ("--no-toroids",),
+    "full": ("--inductor-suggestions", "full"),
+    "compact": ("--inductor-suggestions", "compact"),
+    "none": ("--inductor-suggestions", "none"),
 }
 
 
@@ -145,19 +145,26 @@ def test_json_and_csv_output_is_the_cli_document(monkeypatch, capsys, state):
             _ladder("lowpass", "chebyshev", "t", eseries="E12", show_plot=True),
             ("--plot",),
         ),
-        (_ladder("highpass", "bessel", "pi", eseries="E96", toroid_detail="compact"), ()),
-        (_ladder("highpass", "chebyshev", "pi", eseries="E12", toroid_detail="full"), ()),
-        (_ladder("lowpass", "butterworth", "t", eseries="E24", toroid_detail="none"), ()),
+        (_ladder("highpass", "bessel", "pi", eseries="E96", inductor_detail="compact"), ()),
+        (_ladder("highpass", "chebyshev", "pi", eseries="E12", inductor_detail="full"), ()),
+        (_ladder("lowpass", "butterworth", "t", eseries="E24", inductor_detail="none"), ()),
         (_ladder("highpass", "butterworth", "t", eseries="none", raw_units=True), ("--raw",)),
         (_ladder("lowpass", "bessel", "pi", eseries="none", quiet=True), ("-q",)),
     ],
-    ids=["lp-plot", "hp-compact-toroids", "hp-full-toroids", "lp-no-toroids", "hp-raw", "lp-quiet"],
+    ids=[
+        "lp-plot",
+        "hp-compact-suggestions",
+        "hp-full-suggestions",
+        "lp-no-suggestions",
+        "hp-raw",
+        "lp-quiet",
+    ],
 )
 def test_ladder_table_is_the_cli_table(monkeypatch, capsys, state, flags):
-    # Quiet output has no toroid section, and the CLI rejects a detail flag with -q.
-    toroid_flag = () if state.quiet else _TOROID_FLAGS[state.toroid_detail]
+    # Quiet output has no suggestion section, and the CLI rejects a detail flag with -q.
+    detail_flags = () if state.quiet else _INDUCTOR_FLAGS[state.inductor_detail]
     expected = _cli_stdout(
-        monkeypatch, capsys, *_ladder_argv(state), *_eseries_argv(state), *toroid_flag, *flags
+        monkeypatch, capsys, *_ladder_argv(state), *_eseries_argv(state), *detail_flags, *flags
     )
 
     assert _document(_wizard_output(state)) == _document(expected)
@@ -173,7 +180,7 @@ def test_ladder_table_is_the_cli_table(monkeypatch, capsys, state, flags):
                 4,
                 eseries="none",
                 raw_units=True,
-                toroid_detail="compact",
+                inductor_detail="compact",
                 resonator_impedance=100.0,
             ),
             ("--raw",),
@@ -183,7 +190,7 @@ def test_ladder_table_is_the_cli_table(monkeypatch, capsys, state, flags):
             ("--plot",),
         ),
         (
-            _bandpass("chebyshev", 5, eseries="E12", toroid_detail="compact", show_plot=True),
+            _bandpass("chebyshev", 5, eseries="E12", inductor_detail="compact", show_plot=True),
             ("--plot",),
         ),
     ],
@@ -191,7 +198,7 @@ def test_ladder_table_is_the_cli_table(monkeypatch, capsys, state, flags):
         "chebyshev-e24",
         "butterworth-raw-tank-impedance",
         "bessel-plot-tank-inductance",
-        "chebyshev-plot-compact-toroids",
+        "chebyshev-plot-compact-suggestions",
     ],
 )
 def test_bandpass_table_is_the_cli_table(monkeypatch, capsys, state, flags):
@@ -200,11 +207,11 @@ def test_bandpass_table_is_the_cli_table(monkeypatch, capsys, state, flags):
         capsys,
         *_bandpass_argv(state),
         *_eseries_argv(state),
-        *_TOROID_FLAGS[state.toroid_detail],
+        *_INDUCTOR_FLAGS[state.inductor_detail],
         *flags,
     )
 
-    # Header with both band edges, component tables, preferred values, toroid windings,
+    # Header with both band edges, component tables, preferred values, inductor suggestions,
     # Q/loss notes, plot, and threshold table: one renderer, so the text is identical.
     assert _document(_wizard_output(state)) == _document(expected)
 
@@ -250,7 +257,8 @@ _BUILD_ARGV = (
     "42",
     "--analysis-points",
     "51",
-    "--no-toroid-build",
+    "--build-inductors",
+    "calculated",
 )
 _BUILD_STATE = dict(
     build_analysis_enabled=True,
@@ -267,7 +275,7 @@ _BUILD_STATE = dict(
     build_sample_count=3,
     build_seed=42,
     build_grid_points=51,
-    build_use_toroid_candidates=False,
+    build_inductors="calculated",
 )
 
 
@@ -371,20 +379,25 @@ def _saved(state: FilterState):
     return saved
 
 
-# --- Toroid windings "None" (--no-toroids) --------------------------------------------
+# --- Inductor suggestions "None" (--inductor-suggestions none) ------------------------
 
 
 @pytest.mark.parametrize(
     "state, flags",
     [
-        (_bandpass("butterworth", 3, eseries="E24", toroid_detail="none"), ()),
+        (_bandpass("butterworth", 3, eseries="E24", inductor_detail="none"), ()),
         (
-            _bandpass("chebyshev", 5, eseries="E12", toroid_detail="none", output_format="json"),
+            _bandpass("chebyshev", 5, eseries="E12", inductor_detail="none", output_format="json"),
             ("--format", "json"),
         ),
         (
             _ladder(
-                "highpass", "bessel", "pi", eseries="E96", toroid_detail="none", output_format="csv"
+                "highpass",
+                "bessel",
+                "pi",
+                eseries="E96",
+                inductor_detail="none",
+                output_format="csv",
             ),
             ("--format", "csv"),
         ),
@@ -394,39 +407,45 @@ def _saved(state: FilterState):
                 "chebyshev",
                 "pi",
                 eseries="E96",
-                toroid_detail="none",
+                inductor_detail="none",
                 output_format="json",
-                **{**_BUILD_STATE, "build_use_toroid_candidates": True},
+                **{**_BUILD_STATE, "build_inductors": "auto"},
             ),
-            ("--format", "json", *_BUILD_ARGV[:-1]),
+            # Auto (the default) is not a flag: the build uses calculated inductances.
+            ("--format", "json", *_BUILD_ARGV[:-2]),
         ),
     ],
     ids=["bp-table", "bp-json", "hp-csv", "lp-build-json"],
 )
-def test_toroid_none_is_the_cli_no_toroids_output(monkeypatch, capsys, state, flags):
-    """None leaves the windings out of every output, and the build uses calculated L."""
+def test_inductor_suggestions_none_is_the_cli_output(monkeypatch, capsys, state, flags):
+    """None leaves the suggestions out of every output, and the build uses calculated L."""
     expected = _cli_stdout(
-        monkeypatch, capsys, *_design_argv(state), *_eseries_argv(state), "--no-toroids", *flags
+        monkeypatch,
+        capsys,
+        *_design_argv(state),
+        *_eseries_argv(state),
+        *_INDUCTOR_FLAGS["none"],
+        *flags,
     )
 
     assert _document(_wizard_output(state)) == _document(expected)
     wizard = _wizard_output(state)
-    assert "Toroid Winding Suggestions" not in wizard
-    assert '"toroid_candidates"' not in wizard
+    assert "Inductor Suggestions" not in wizard
+    assert '"inductor_suggestions"' not in wizard
 
 
 @pytest.mark.parametrize("document", ["json", "csv"])
-def test_toroid_none_reaches_the_saved_files(monkeypatch, capsys, document):
+def test_inductor_suggestions_none_reach_the_saved_files(monkeypatch, capsys, document):
     from filter_lib.wizard.export_formatting import format_component_csv, format_component_json
 
-    state = _saved(_bandpass("butterworth", 4, eseries="E96", toroid_detail="none"))
+    state = _saved(_bandpass("butterworth", 4, eseries="E96", inductor_detail="none"))
     expected = _cli_stdout(
         monkeypatch,
         capsys,
         *_bandpass_argv(state),
         "-e",
         "E96",
-        "--no-toroids",
+        *_INDUCTOR_FLAGS["none"],
         "--format",
         document,
     )

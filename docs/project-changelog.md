@@ -1,6 +1,6 @@
 # Project Changelog
 
-## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Industry-Standard Filter Terms)
+## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Inductor Suggestions, Industry-Standard Filter Terms)
 
 The next release is 3.0.0: it removes and renames public names (listed below) without
 compatibility aliases.
@@ -59,8 +59,6 @@ compatibility aliases.
   `part-tolerance=larger-of-grade-and-override` rule and `not-sourced-tolerance=5%(assumed)`;
   the chosen-parts deck's
   `* part used:` comment adds `tolerance-not-sourced=5%-assumed` for such a choice.
-- The deprecated `--sim-matched` refuses `--capacitor-grade`, `--capacitor-tolerance` and
-  `--stray-capacitance`, as it already refused `--allow-sub-pf`.
 - **HF output changes**, each checked against a committed baseline of 45 HF designs
   (`tests/test_hf_baseline.py`): (a) capacitor choices the worst-case rule changes (41 of 213
   E12 and 66 of 213 E24 choices in the corpus; 196 E96 choices keep their parts and become
@@ -74,16 +72,98 @@ compatibility aliases.
 - `DesignRequest` is the one carrier of the part policy and build settings: it gains
   `eseries`, `capacitor_grade`, `capacitor_tolerance_pct`, `stray_capacitance_f`,
   `realization` (a `BuildConfig`) and `run_build_analysis`, and loses `build`. `design()`
-  resolves one `MatchPolicy` and returns a `DesignResult` holding the `request` and
-  `match_policy`; `DesignResult` loses its `allow_sub_pf` field (now a property).
+  resolves one `MatchPolicy` and returns a `DesignResult` holding the `request` and the
+  resolved parts (`match_policy` is a property); `DesignResult` loses its `allow_sub_pf`
+  field (now a property).
 - Removed: `with_build_analysis`, `apply_sub_pf_policy`, `BuildConfig.eseries`,
   `BuildConfig.match_policy`, `BuildConfig.capacitor_tolerance_pct`,
   `MatchPolicy.prefer_single_within_pct`, `RenderOptions.eseries` and
   `RenderOptions.validate_for_sub_pf`. `export_spice(outcome, realization)` takes no config;
-  `analyze_build`, `realize_nominal_build` and `export_spice_deck` take `eseries=` and
-  `policy=`. `BuildConfig.inductor_tolerance_pct` defaults to `None`.
+  `analyze_build`, `realize_nominal_build` and `export_spice_deck` take `parts=` (see
+  [below](#inductor-suggestions-and-parts-resolved-once-breaking)).
+  `BuildConfig.inductor_tolerance_pct` defaults to `None`.
 - `CircuitElement` gains `tolerance` and `fixed`, and refuses a name whose first letter is not
   its kind.
+
+### Inductor suggestions and parts resolved once (breaking)
+
+Every chosen part, standard capacitors and inductor suggestions alike, is resolved once in
+`design()` and read by the table, JSON, CSV, both SPICE decks, the build simulation, and the
+wizard and web documents, so they cannot disagree. The toroid-only options and names become
+generic inductor-suggestion names, without aliases. **This change leaves HF values unchanged**:
+the HF baseline corpus (`tests/test_hf_baseline.py`) matches with no new allowed change;
+only labels changed.
+
+| 2.x | 3.0.0 |
+|---|---|
+| `--sim-matched`, `shared/matched_simulation.py` | removed; use `--sim-build` |
+| `--no-toroids` | `--inductor-suggestions none` (hides suggestions everywhere; build and chosen-parts SPICE use calculated inductances) |
+| `--no-toroid-build` | `--build-inductors calculated` (suggestions stay visible; build and SPICE use calculated inductances) |
+| `--toroid-full` / `--toroid-compact` | `--inductor-suggestions full` / `compact` (table detail only; JSON and CSV unaffected) |
+| `BuildConfig.use_toroid_candidates` | `DesignRequest.build_inductors` |
+| `RenderOptions.include_toroids`/`toroid_full`/`toroid_compact`, `OutputChoices.include_toroids` | `DesignRequest.inductor_suggestions`; `OutputChoices.inductor_detail` |
+| `option_applicability.TOROID_DETAIL`/`TOROID_BUILD` | `INDUCTOR_DETAIL`/`BUILD_INDUCTORS` |
+| Web `toroids`, `toroid_build`, `no_toroid_build`, `simulate_toroid_windings` | `inductor_suggestions`, `build_inductors` |
+| Wizard `FilterState.toroid_detail` | `inductor_detail`, plus `build_inductors` |
+| JSON `toroid_recommendations`, `resonator_toroid_recommendations`, `resonator_toroid_candidates` | per-inductor `inductor_suggestions` |
+| Build JSON `toroid_candidate_screen_enabled`, `verified_toroid_candidate_used`, `verified_toroid_elements`, `uses_verified_toroid_candidates` | `build_inductor_choice`, `suggested_inductors_used`, `suggested_inductor_elements` |
+| Method `verified_toroid_integer_turns`; status `candidate_screen_disabled`, `calculated_exact_value_toroid_selection_disabled` | method `suggested_inductor` with `inductor_kind`; status `suggestions_not_used` |
+
+- **Added `--inductor-suggestions {best,full,compact,none}`** (default `best`; wizard and web
+  **Inductor suggestions (table detail)**): `best` shows the part the build uses, else the
+  first in the fixed order toroid, air coil, chip; `full` up to three per kind and why a kind
+  has none; `compact` the best on one line; `none` leaves them out of every output. `full`
+  and `compact` need table output; JSON always lists up to three per kind and CSV the best.
+- **Added `--build-inductors {auto,toroid,air-coil,chip,calculated}`** (default `auto`; wizard
+  and web **Inductors in the build**, which the web reads only while **Simulate the built
+  filter** is ticked): what `--sim-build` and the chosen-parts deck use for each inductor. It
+  needs `--sim-build` or `--format spice` and is refused with an exact deck (the web's
+  SPICE – calculated values and response-data downloads leave it out). A forced kind
+  without a part simulates the calculated value and says why; a forced kind with
+  `--inductor-suggestions none` is refused, and the wizard and web disable only the forced
+  kinds then.
+- **`--version` reports the running code's version** (`filter_lib.__version__`, the literal
+  packaging reads) instead of installed metadata, which an editable checkout keeps at the
+  version it was installed at.
+- **Output text.** The table section "Toroid Winding Suggestions (iron-powder T-series)" is now
+  **Inductor Suggestions**; toroid details follow "Toroid windings (iron-powder T-series):",
+  titles read `1. Toroid winding T68-2`, and each detailed suggestion ends with an error budget
+  line (`Error budget: -0.25% nominal, ±4.99% tolerance, SRF drift not checked`, every term in percent of the target, so a toroid's ±5% A_L tolerance of the achieved inductance is restated against the target). An inductor with
+  no suggestion shows `No inductor suggestion qualifies:` and one reason per kind, worded as in
+  [component-data-sources.md](component-data-sources.md): "No suitable toroid core in the
+  built-in list. …" or, above every core's range, the VHF toroid exclusion; the air-core coil
+  exclusion; and "Chip inductor suggestions are not available in this version." The table
+  footnote reads "…; see Inductor Suggestions." or "…; use the calculated value." Build
+  fallbacks say "no inductor suggestion used" or "inductor suggestions not used", and the
+  chosen-parts deck writes `part=T50-2` where it wrote `core=T50-2`.
+- **JSON and CSV.** Each inductor component, band-pass resonators included, carries an
+  `inductor_suggestions` object (`best`, and `kinds` with each kind's `suggestions` and
+  `reason_none`); a suggestion gives its kind, rank, part name, status, target and achieved
+  inductance, tolerance, SRF basis, error budget, source, `build` details, and warnings. The
+  toroid `build` record drops `rank`, `candidate_status` (now the suggestion's `status`), and
+  the deprecated `q_dc_upper_bound`. Build substitutions gain `inductor_kind` and `part_name`.
+  CSV gains the generic columns `InductorKind`, `InductorPart`, `InductorSRFBasis`, `InductorBudgetNominalPct`, `InductorBudgetTolerancePct`, `InductorBudgetSRFDriftLowPct` and `InductorBudgetSRFDriftHighPct` columns (the best suggestion's error budget in percent of the
+  target) before the `Toroid*` columns.
+- **Web timeout.** The 60-second limit now also stops a band-pass calibration (before its next
+  circuit evaluation) and part resolution (before its next part), not only the build
+  simulation; a ladder synthesis is one closed-form step, checked before it starts.
+- **Python API.** `DesignRequest` gains `inductor_suggestions` and `build_inductors`;
+  `DesignResult` gains `parts` (`ResolvedParts`, `shared/resolved_parts.py`), resolved by
+  `design/part_resolution.py`, the only caller of a part selection function. Formatters take
+  `ResolvedParts` instead of `eseries`, `include_toroids`, `match_policy`, or `matched_sim`
+  (for example `lowpass.display.format_json(result, parts, build_analysis=None)`), keyed by
+  circuit element name (`C1`, `L1`; band-pass `CT1`, `LT1`, `CK1`, `CIN`, `COUT`).
+  `realize_nominal_build`, `analyze_build`, `measure_calculated_and_nominal`, and
+  `export_spice_deck` take `parts=`. `RenderOptions` loses `include_toroids`, `toroid_full`,
+  and `toroid_compact`; `BuildConfig.use_toroid_candidates` is removed; the `display_results`
+  print functions and `display_results_for_config` are removed (use `design()` and
+  `render_lines`). `shared/inductor_suggestion.py` holds the one suggestion record for every
+  kind and `shared/inductor_display.py` the shared section, JSON, and CSV;
+  `toroid_selection.suggest_toroids` returns `KindSuggestions`, and `toroid_display.py` keeps
+  only the toroid-specific pieces. `DesignCancelled` (`filter_lib.design`) is raised by
+  synthesis, part resolution, and the build when `design(should_cancel=…)` reports true;
+  `BuildAnalysisCancelled` is now its subclass, `synthesize()` takes `should_cancel`, and
+  `BuildAnalysisResult` gains `build_inductors`.
 
 ### Changed
 
@@ -114,6 +194,19 @@ RF practice. Flags, choice values, JSON keys, and CSV columns are unchanged.
   inductor and capacitor Q.
 - Filter theory lists the ARRL Handbook names for each ladder: low-pass Pi is capacitor-input
   and T is inductor-input; high-pass T is capacitor-input and Pi is inductor-input.
+
+### Fixed
+
+- **`POST /api/design/<category>` now returns the Design JSON download's bytes.** It used to
+  read the posted fields directly, ignoring the `visible.<name>` values the page sends for a
+  disabled control, so the same fields could give two different JSON documents: Values only
+  with Standard capacitor values "None" gave a document with E24 values from the API and one
+  without standard values (`--format json --no-match`) from the download. The API now builds
+  its inputs with the download's `download_fields(..., "json")` and renders through the same
+  `routes_export.document_body`, so both addresses give identical bytes and the same
+  refusals. Display-only fields (Format, Raw units, Text plot, the table-only inductor detail)
+  stay ignored, not refused: they cannot change the JSON, and refusing them would break
+  scripts that post the page's own form.
 
 ### Python support and CI
 

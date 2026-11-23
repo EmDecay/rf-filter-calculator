@@ -16,16 +16,14 @@ from .cli_argument_parsers import (
     add_common_filter_args,
     add_eseries_args,
     add_filter_type_args,
+    add_inductor_suggestions_arg,
     add_output_args,
     add_plot_args,
-    add_sim_matched_arg,
     require_count,
 )
 from .cli_build_options import add_build_analysis_args, make_build_config
 from .cli_output_validation import usage_error, validate_output_mode_args
 from .numeric import require_positive_finite
-
-SIM_MATCHED_DEPRECATION_WARNING = "Warning: --sim-matched is deprecated; use --sim-build"
 
 
 def validate_filter_args(freq_hz: float, impedance: float, components: object) -> None:
@@ -84,15 +82,14 @@ def export_plot_data(
 __all__ = [
     "FILTER_TYPE_CHOICES",
     "FREQ_SUFFIX_HELP",
-    "SIM_MATCHED_DEPRECATION_WARNING",
     "TOPOLOGY_CHOICES",
     "add_build_analysis_args",
     "add_common_filter_args",
     "add_eseries_args",
     "add_filter_type_args",
+    "add_inductor_suggestions_arg",
     "add_output_args",
     "add_plot_args",
-    "add_sim_matched_arg",
     "export_plot_data",
     "get_filter_type_arg",
     "make_build_config",

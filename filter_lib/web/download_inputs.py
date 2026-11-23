@@ -6,8 +6,8 @@ the CLI command without that flag. The page also sends the control's visible val
 ``visible.<name>`` and the result keeps it with its inputs. A download is a different
 document: it uses each visible value that applies to it, judged by the shared rule, so
 Values only with E-series "None" downloads JSON as ``--format json --no-match``, never
-with a substituted E24. Display-only choices (raw units, text plot, toroid detail) never
-reach a download, as before.
+with a substituted E24. Display-only choices (raw units, text plot, the table-only
+inductor detail) never reach a download, as before; inductor suggestions None does.
 """
 
 from __future__ import annotations
@@ -15,21 +15,22 @@ from __future__ import annotations
 from ..design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    BUILD_INDUCTORS,
     CAPACITOR_GRADE,
     CAPACITOR_TOLERANCE,
     DOCUMENT_FORMATS,
     ESERIES,
+    INDUCTOR_DETAIL,
     LOSS_Q,
     RAW_UNITS,
     STRAY_CAPACITANCE,
     TEXT_PLOT,
-    TOROID_BUILD,
-    TOROID_DETAIL,
     OutputChoices,
     document_options,
     document_own_options,
 )
 from ..shared.cli_aliases import DEFAULT_ESERIES
+from ..shared.inductor_suggestion import DEFAULT_INDUCTOR_DETAIL
 from .form_values import FormData, flag, text
 
 VISIBLE_PREFIX = "visible."
@@ -40,11 +41,11 @@ FIELD_OPTIONS = {
     "capacitor_grade": CAPACITOR_GRADE,
     "capacitor_tolerance_pct": CAPACITOR_TOLERANCE,
     "stray_capacitance": STRAY_CAPACITANCE,
-    "toroids": TOROID_DETAIL,
+    "inductor_suggestions": INDUCTOR_DETAIL,
     "plot": TEXT_PLOT,
     "raw": RAW_UNITS,
     "sim_build": BUILD,
-    "toroid_build": TOROID_BUILD,
+    "build_inductors": BUILD_INDUCTORS,
     "qu": LOSS_Q,
     "ql": LOSS_Q,
     "qc": LOSS_Q,
@@ -61,7 +62,7 @@ def _choices(fields: FormData) -> OutputChoices:
         eseries=None if eseries == "none" else eseries,
         raw=flag(fields, "raw"),
         build=flag(fields, "sim_build"),
-        include_toroids=text(fields, "toroids") != "none",
+        inductor_detail=text(fields, "inductor_suggestions", DEFAULT_INDUCTOR_DETAIL),
     )
 
 

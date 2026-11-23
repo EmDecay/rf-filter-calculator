@@ -16,6 +16,7 @@ from .component_realization import inductor_case_tolerance_pct
 from .display_helpers import SECTION_RULE
 from .eseries import TOLERANCE_NOT_SOURCED
 from .formatting import format_capacitance, format_fixed, format_frequency, format_inductance
+from .inductor_suggestion import KIND_LABELS, NO_QUALIFYING_SUGGESTION, SUGGESTIONS_NOT_USED
 from .nominal_realization import TOROID_LIMITATION, grouped_part_warnings, uses_toroid
 
 BUILD_SIMULATION_HEADING = "Build Simulation (chosen parts; simulated, not measured)"
@@ -39,8 +40,8 @@ METRIC_LABELS = {
 # Why a calculated value was used instead of a chosen part, by substitution status.
 _FALLBACK_REASONS = {
     "expert_override_required": "below 1 pF; no part chosen",
-    "no_verified_candidate": "no suitable toroid",
-    "candidate_screen_disabled": "toroid windings off",
+    NO_QUALIFYING_SUGGESTION: "no inductor suggestion used",
+    SUGGESTIONS_NOT_USED: "inductor suggestions not used",
 }
 
 PASSBAND_NOTES = {
@@ -126,6 +127,8 @@ def _format_substitution(substitution: ComponentSubstitution, eseries: str | Non
         detail += f" on {substitution.core_name}"
         if substitution.wire_length_mm is not None:
             detail += f" ({substitution.wire_length_mm:.0f} mm wire)"
+    elif substitution.inductor_kind is not None:
+        detail += f", {KIND_LABELS[substitution.inductor_kind].lower()} {substitution.part_name}"
     elif eseries is not None:
         detail += f" ({eseries})"
     if substitution.stray_capacitance_f:

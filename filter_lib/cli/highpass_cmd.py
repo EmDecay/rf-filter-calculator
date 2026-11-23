@@ -8,12 +8,11 @@ from ..shared.cli_helpers import (
     add_common_filter_args,
     add_eseries_args,
     add_filter_type_args,
+    add_inductor_suggestions_arg,
     add_output_args,
     add_plot_args,
-    add_sim_matched_arg,
 )
 from .ladder_command import run_ladder
-from .toroid_flags import add_toroid_flags
 
 
 def setup_parser(parser: ArgumentParser) -> None:
@@ -22,10 +21,9 @@ def setup_parser(parser: ArgumentParser) -> None:
     add_common_filter_args(parser)
     add_output_args(parser)
     add_eseries_args(parser)
-    add_sim_matched_arg(parser)
     add_build_analysis_args(parser)
     add_plot_args(parser)
-    add_toroid_flags(parser)
+    add_inductor_suggestions_arg(parser)
     # Make the subparser reachable from run() so missing-argument problems
     # exit with a usage line (argparse error) instead of a raw traceback.
     parser.set_defaults(_parser=parser)

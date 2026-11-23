@@ -17,8 +17,8 @@ from .circuit_builders import build_named_circuit
 from .circuit_display_names import display_component_name, format_name_list
 from .circuit_model import CircuitElement, NamedCircuit
 from .component_realization import _realize_capacitor, _realize_inductor
-from .eseries import DEFAULT_MATCH_POLICY, MatchPolicy
 from .formatting import format_frequency
+from .resolved_parts import PARTS_FROM_ANOTHER_DESIGN_MESSAGE, ResolvedParts
 
 NOMINAL_PARTS_LIMITATION = (
     "Chosen parts are simulated at their nominal values, without lead or package parasitics."
@@ -42,7 +42,7 @@ TOROID_LIMITATION = (
 
 def uses_toroid(substitutions: Iterable[ComponentSubstitution]) -> bool:
     """Return whether any inductor was realized as a toroid winding."""
-    return any(item.core_name is not None for item in substitutions)
+    return any(item.inductor_kind == "toroid" for item in substitutions)
 
 
 def applicable_part_limitations(realization: NominalRealization) -> list[str]:
@@ -69,31 +69,31 @@ def grouped_part_warnings(substitutions: Iterable[ComponentSubstitution]) -> lis
 def _realize_element(
     element: CircuitElement,
     config: BuildConfig,
-    eseries: str,
-    policy: MatchPolicy,
+    parts: ResolvedParts,
     inductor_q: float | None,
     capacitor_q: float | None,
     capacitor_q_tank_only: bool,
-    design_frequency: float,
     loss_reference_frequency: float,
 ) -> tuple[list[CircuitElement], ComponentSubstitution, list[str]]:
+    if parts.target(element.name) != element.value:
+        raise ValueError(PARTS_FROM_ANOTHER_DESIGN_MESSAGE)
     if element.kind == "C":
         element_capacitor_q = (
             capacitor_q if not capacitor_q_tank_only or element.name.startswith("CT") else None
         )
         return _realize_capacitor(
             element,
-            eseries,
-            policy,
+            parts.capacitor(element.name),
+            parts.match_policy,
             element_capacitor_q,
             loss_reference_frequency,
         )
     if element.kind == "L":
         part, substitution, warnings = _realize_inductor(
             element,
+            parts.inductor(element.name),
             config,
             inductor_q,
-            design_frequency,
             loss_reference_frequency,
         )
         return [part], substitution, warnings
@@ -105,17 +105,19 @@ def realize_nominal_build(
     category: str,
     config: BuildConfig | None = None,
     *,
-    eseries: str = "E24",
-    policy: MatchPolicy = DEFAULT_MATCH_POLICY,
+    parts: ResolvedParts,
 ) -> NominalRealization:
-    """Realize selected physical parts while preserving topology and traceability.
+    """Realize the chosen parts while preserving topology and traceability.
 
-    Capacitors get the standard values ``match_component`` chooses from ``eseries``
-    under ``policy``; ``design()`` passes the request's series and policy.
+    Every capacitor and inductor is the part ``design()`` resolved in ``parts`` (which
+    must have standard capacitor values); nothing is selected here.
     """
     active_config = resolve_build_config(config)
+    if parts.eseries is None:
+        raise ValueError("The chosen parts need standard capacitor values (an E-series)")
     exact = build_named_circuit(result, category)
-    design_frequency = _design_frequency(result, category)
+    # The cutoff or center frequency must be physical even when no part depends on it.
+    _design_frequency(result, category)
     inductor_q, capacitor_q, tank_only, q_limitations = _loss_quality_factors(
         result, category, active_config
     )
@@ -134,18 +136,16 @@ def realize_nominal_build(
     substitutions: list[ComponentSubstitution] = []
     warnings: list[str] = []
     for element in exact.elements:
-        parts, substitution, part_warnings = _realize_element(
+        realized, substitution, part_warnings = _realize_element(
             element,
             active_config,
-            eseries,
-            policy,
+            parts,
             inductor_q,
             capacitor_q,
             tank_only,
-            design_frequency,
             loss_reference_frequency,
         )
-        physical.extend(parts)
+        physical.extend(realized)
         substitutions.append(substitution)
         warnings.extend(part_warnings)
 

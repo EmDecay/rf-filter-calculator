@@ -2,10 +2,12 @@
 
 Every calculation runs on a small dedicated thread pool. A request waits at most
 ``calculation_timeout_s``; on expiry its cancellation flag is set and the request
-fails with ``CalculationTimeout``. Only the build simulation polls that flag,
-so a synthesis already in progress finishes in the background (input limits bound
-its run time) and its result is discarded. Shutdown cancels queued work, flags
-running work, and joins the pool threads so none outlive the app.
+fails with ``CalculationTimeout``. ``design()`` polls that flag before synthesis,
+before each circuit evaluation of a band-pass calibration and its response check,
+before each part it resolves, and before each build case, so running work stops at
+its next check (a ladder synthesis is one closed-form step) and its result is
+discarded. Shutdown cancels queued work, flags running work, and joins the pool
+threads so none outlive the app.
 """
 
 from __future__ import annotations
@@ -29,6 +31,18 @@ def _consume_outcome(waiter: asyncio.Future) -> None:
 
 class CalculationTimeout(Exception):
     """Raised when a calculation exceeds the configured timeout."""
+
+
+def timeout_message(timeout_s: float) -> str:
+    """What a timed-out request says: what can make each kind of calculation shorter.
+
+    A band-pass calibration takes longer with more resonators, the build simulation with
+    more tolerance cases or frequency points; a ladder synthesis is instant.
+    """
+    return (
+        f"Calculation stopped after {timeout_s:g} s. Try fewer resonators, or with the "
+        "build simulation, fewer extra random tolerance cases or frequency points."
+    )
 
 
 class CalculationRunner:
@@ -61,10 +75,7 @@ class CalculationRunner:
                 waiter.add_done_callback(_consume_outcome)
                 if isinstance(stop, asyncio.CancelledError):
                     raise
-                raise CalculationTimeout(
-                    f"Calculation stopped after {self.timeout_s:g} s. "
-                    "Try fewer extra random tolerance cases or frequency points."
-                ) from None
+                raise CalculationTimeout(timeout_message(self.timeout_s)) from None
         finally:
             with self._lock:
                 self._flags.discard(flag)

@@ -7,7 +7,7 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-from textual.widgets import Button, Checkbox, Input
+from textual.widgets import Button, Checkbox, Input, RadioSet
 
 import filter_lib.shared.tolerance_screening as tolerance_screening
 import filter_lib.wizard.screens.results as results_module
@@ -46,7 +46,8 @@ def test_advanced_build_controls_are_keyboard_accessible() -> None:
             assert {
                 selector: app.screen.query_one(selector, Input).value for selector in expected
             } == expected
-            assert app.screen.query_one("#build-use-toroids", Checkbox).value is True
+            build_inductors = app.screen.query_one("#build-inductors", RadioSet)
+            assert build_inductors.pressed_button.id == "build-inductors-auto"
             # Resonator Q is entered on the band-pass design screen, not here (D5).
             assert not app.screen.query("#build-resonator-q")
 
@@ -67,7 +68,7 @@ def test_advanced_build_controls_are_keyboard_accessible() -> None:
 
             app.screen.query_one("#build-grid-points", Input).focus()
             await pilot.press("enter")
-            assert app.screen.query_one("#build-use-toroids", Checkbox).has_focus
+            assert build_inductors.has_focus
             await pilot.press("enter")
             assert app.screen.query_one("#results-btn").has_focus
 
@@ -89,7 +90,7 @@ def test_realized_build_worker_completes_in_running_app() -> None:
             eseries="E24",
             build_analysis_enabled=True,
             build_grid_points=51,
-            build_use_toroid_candidates=False,
+            build_inductors="calculated",
         )
         async with app.run_test(size=(120, 45)) as pilot:
             await pilot.pause()
@@ -122,7 +123,7 @@ def _minutes_long_build_state() -> FilterState:
         build_analysis_enabled=True,
         build_sample_count=10_000,
         build_grid_points=5001,
-        build_use_toroid_candidates=False,
+        build_inductors="calculated",
     )
 
 

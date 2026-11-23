@@ -22,9 +22,9 @@ Calculates LC filter component values for RF engineers and amateur radio operato
 - **Filter Types**: Low-pass (Pi/T), High-pass (Pi/T), Band-pass (coupled resonators)
 - **Response Types**: Butterworth, Chebyshev, Bessel
 - **Standard Capacitor Values**: E12/E24/E96 with one stated choice rule per capacitor; the E-series sets values per decade, not tolerance. `--allow-sub-pf` also chooses values below 1 pF
-- **Build Simulation**: The chosen parts (standard capacitors and toroid windings, or the calculated value where no part was chosen), optional part losses (Q), fixed tolerance cases, and optional repeatable extra random cases
+- **Build Simulation**: The chosen parts (standard capacitors and inductor suggestions, or the calculated value where no part was chosen), optional part losses (Q), fixed tolerance cases, and optional repeatable extra random cases
 - **Checked Band-Pass Results**: Top-coupled designs with a per-design response check rather than a blanket support claim
-- **Toroid Winding Suggestions**: Primary-sourced whole-turn windings that fit the core, with what is and is not checked stated explicitly
+- **Inductor Suggestions**: One record for every inductor kind (toroid winding, air-core coil, chip inductor) with an error budget, and the reason a kind has no part; only primary-sourced HF toroid windings are offered in this version, with what is and is not checked stated explicitly
 - **Outputs**: Table, strict JSON, rectangular CSV, response data, ASCII plots, and generic SPICE decks (calculated values or chosen parts)
 - **Interactive Wizard**: Guided design and build-simulation controls with safe export behavior
 - **Web UI**: Local browser page with the CLI's output text, an SVG response graph, and byte-identical downloads (optional `web` dependencies)

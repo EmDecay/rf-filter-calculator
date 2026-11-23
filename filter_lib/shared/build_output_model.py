@@ -3,6 +3,7 @@
 from typing import Any
 
 from .build_types import BuildAnalysisResult, NominalRealization
+from .inductor_suggestion import SUGGESTED_INDUCTOR_METHOD
 
 
 def realization_summary(realization: NominalRealization) -> dict[str, Any]:
@@ -63,10 +64,10 @@ def _effective_loss_model(result: dict, analysis: BuildAnalysisResult) -> dict[s
 def build_model_payload(result: dict, analysis: BuildAnalysisResult) -> dict[str, Any]:
     """Report configured controls separately from what realization actually used."""
     config = analysis.config
-    toroid_elements = [
+    suggested_elements = [
         item.logical_name
         for item in analysis.nominal_realization.substitutions
-        if item.method == "verified_toroid_integer_turns"
+        if item.method == SUGGESTED_INDUCTOR_METHOD
     ]
     return {
         "eseries": analysis.eseries,
@@ -76,9 +77,8 @@ def build_model_payload(result: dict, analysis: BuildAnalysisResult) -> dict[str
         "q_fields_semantics": "explicit_build_config_overrides",
         "effective_loss_model": _effective_loss_model(result, analysis),
         "reference_frequency_hz": config.reference_frequency_hz,
-        "toroid_candidate_screen_enabled": config.use_toroid_candidates,
-        "verified_toroid_candidate_used": bool(toroid_elements),
-        "verified_toroid_elements": toroid_elements,
-        "uses_verified_toroid_candidates": bool(toroid_elements),
+        "build_inductor_choice": analysis.build_inductors,
+        "suggested_inductors_used": bool(suggested_elements),
+        "suggested_inductor_elements": suggested_elements,
         "match_policy": analysis.match_policy.as_dict(),
     }

@@ -15,11 +15,27 @@ from .eseries import (
     STRAY_CAPACITANCE_FLAG,
     SUB_PF_CLI_FLAG,
 )
+from .inductor_suggestion import (
+    BUILD_INDUCTORS_FLAG,
+    DEFAULT_BUILD_INDUCTORS,
+    DEFAULT_INDUCTOR_DETAIL,
+    INDUCTOR_SUGGESTIONS_FLAG,
+    NON_DEFAULT_TABLE_DETAILS,
+    require_build_with_suggestions,
+)
 
 
 def join_flags(flags: list[str], singular: str, plural: str) -> str:
     """``"--a has"`` or ``"--a, --b have"``: a flag list with a verb that agrees with it."""
     return f"{', '.join(flags)} {singular if len(flags) == 1 else plural}"
+
+
+def table_detail_flag(args: Namespace) -> str | None:
+    """``--inductor-suggestions full`` or ``compact`` when given: they change only the table."""
+    detail = getattr(args, "inductor_suggestions", None)
+    if detail not in NON_DEFAULT_TABLE_DETAILS:
+        return None
+    return f"{INDUCTOR_SUGGESTIONS_FLAG} {detail}"
 
 
 def tolerance_analysis_options(args: Namespace) -> list[str]:
@@ -46,7 +62,7 @@ def _circuit_build_options(args: Namespace) -> list[str]:
             (getattr(args, "build_source_resistance", None), "--source-resistance"),
             (getattr(args, "build_load_resistance", None), "--load-resistance"),
             (getattr(args, "build_reference_frequency", None), "--loss-reference-frequency"),
-            (True if getattr(args, "no_toroid_build", False) else None, "--no-toroid-build"),
+            (getattr(args, "build_inductors", None), BUILD_INDUCTORS_FLAG),
         )
         if value is not None
     ]
@@ -107,21 +123,21 @@ def _validate_primary_output_mode(args: Namespace) -> None:
     quiet = bool(getattr(args, "quiet", False))
     raw = bool(getattr(args, "raw", False))
     plot = bool(getattr(args, "plot", False))
-    sim_matched = bool(getattr(args, "sim_matched", False))
     sim_build = bool(getattr(args, "sim_build", False))
     explain = bool(getattr(args, "explain", False))
-    toroid_text_mode = bool(
-        getattr(args, "toroid_compact", False) or getattr(args, "toroid_full", False)
-    )
+    detail = getattr(args, "inductor_suggestions", None)
+    table_detail = table_detail_flag(args)
     matching = matching_options(args)
     no_match = bool(getattr(args, "no_match", False))
-    no_toroids = bool(getattr(args, "no_toroids", False))
     if matching and no_match:
         usage_error(args, f"{', '.join(matching)} cannot be combined with --no-match")
-    if getattr(args, "toroid_compact", False) and getattr(args, "toroid_full", False):
-        usage_error(args, "use only one of --toroid-compact or --toroid-full")
-    if no_toroids and toroid_text_mode:
-        usage_error(args, "--no-toroids cannot be combined with --toroid-compact or --toroid-full")
+    try:
+        require_build_with_suggestions(
+            detail or DEFAULT_INDUCTOR_DETAIL,
+            getattr(args, "build_inductors", None) or DEFAULT_BUILD_INDUCTORS,
+        )
+    except ValueError as error:
+        usage_error(args, str(error))
     if explain:
         incompatible = (
             _enabled_explain_design_options(args)
@@ -133,11 +149,9 @@ def _validate_primary_output_mode(args: Namespace) -> None:
                     (raw, "--raw"),
                     (plot, "--plot"),
                     (bool(getattr(args, "plot_data", None)), "--plot-data"),
-                    (sim_matched, "--sim-matched"),
                     (sim_build, "--sim-build"),
                     (no_match, "--no-match"),
-                    (no_toroids, "--no-toroids"),
-                    (toroid_text_mode, "--toroid-compact/--toroid-full"),
+                    (detail is not None, f"{INDUCTOR_SUGGESTIONS_FLAG} {detail}"),
                 )
                 if enabled
             ]
@@ -156,7 +170,7 @@ def _validate_primary_output_mode(args: Namespace) -> None:
                 (quiet, "--quiet"),
                 (raw, "--raw"),
                 (plot, "--plot"),
-                (toroid_text_mode, "--toroid-compact/--toroid-full"),
+                (table_detail is not None, table_detail),
             )
             if enabled
         ]
@@ -166,37 +180,21 @@ def _validate_primary_output_mode(args: Namespace) -> None:
             )
     if quiet and plot:
         usage_error(args, "--quiet and --plot cannot be used together")
-    if quiet and sim_matched:
-        usage_error(args, "--quiet and --sim-matched cannot be used together")
     if quiet and sim_build:
         usage_error(args, "--quiet and --sim-build cannot be used together")
-    if quiet and toroid_text_mode:
-        usage_error(args, "--toroid-compact/--toroid-full cannot be used with --quiet")
+    if quiet and table_detail is not None:
+        usage_error(args, f"{table_detail} cannot be used with --quiet")
     if quiet and matching:
         usage_error(
             args,
             f"{join_flags(matching, 'has', 'have')} no effect with --quiet, which prints only "
             f"calculated values; remove {', '.join(matching)}",
         )
-    if raw and matching and not (sim_matched or sim_build):
+    if raw and matching and not sim_build:
         usage_error(
             args,
             f"{join_flags(matching, 'has', 'have')} no effect with --raw, which skips "
             f"standard-value matching; remove {', '.join(matching)}",
-        )
-    if sim_matched and sim_build:
-        usage_error(
-            args,
-            "--sim-matched and --sim-build cannot be used together; --sim-matched is "
-            "deprecated, so use --sim-build alone",
-        )
-    # The deprecated path uses only the E-series, never the capacitor policy options.
-    policy = [flag for flag in matching if flag != "--eseries"]
-    if sim_matched and policy:
-        usage_error(
-            args,
-            f"{', '.join(policy)} cannot be used with the deprecated --sim-matched; "
-            "use --sim-build",
         )
 
 
@@ -204,6 +202,7 @@ def _validate_plot_data_mode(args: Namespace) -> None:
     if not getattr(args, "plot_data", None):
         return
     output_format = getattr(args, "format", "table")
+    table_detail = table_detail_flag(args)
     incompatible = [
         flag
         for enabled, flag in (
@@ -211,12 +210,8 @@ def _validate_plot_data_mode(args: Namespace) -> None:
             (bool(getattr(args, "quiet", False)), "--quiet"),
             (bool(getattr(args, "raw", False)), "--raw"),
             (bool(getattr(args, "plot", False)), "--plot"),
-            (bool(getattr(args, "sim_matched", False)), "--sim-matched"),
             (bool(getattr(args, "sim_build", False)), "--sim-build"),
-            (
-                bool(getattr(args, "toroid_compact", False) or getattr(args, "toroid_full", False)),
-                "--toroid-compact/--toroid-full",
-            ),
+            (table_detail is not None, table_detail),
         )
         if enabled
     ] + matching_options(args)
@@ -229,18 +224,14 @@ def _validate_plot_data_mode(args: Namespace) -> None:
 
 def _validate_build_mode(args: Namespace) -> None:
     output_format = getattr(args, "format", "table")
-    sim_matched = bool(getattr(args, "sim_matched", False))
     sim_build = bool(getattr(args, "sim_build", False))
     no_match = bool(getattr(args, "no_match", False))
     spice_realization = getattr(args, "spice_realization", None)
 
-    if sim_matched and output_format not in {"table", "json"}:
-        usage_error(args, "--sim-matched is supported only with table or JSON output")
     if sim_build and output_format not in {"table", "json"}:
         usage_error(args, "--sim-build is supported only with table or JSON output")
-    if (sim_matched or sim_build) and no_match:
-        flag = "--sim-build" if sim_build else "--sim-matched"
-        usage_error(args, f"{flag} uses standard E-series capacitor values; remove --no-match")
+    if sim_build and no_match:
+        usage_error(args, "--sim-build uses standard E-series capacitor values; remove --no-match")
     if not sim_build and output_format != "spice":
         requirements = [
             f"{join_flags(flags, 'requires', 'require')} {needed}"

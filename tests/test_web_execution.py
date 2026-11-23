@@ -24,8 +24,15 @@ from tests.web_helpers import HTMX, pool_threads, web_client  # noqa: E402
 LP = {"filter_type": "butterworth", "topology": "pi", "frequency": "10MHz"}
 BUILD = {**LP, "sim_build": "on"}
 TIMEOUT_MESSAGE = (
-    "Calculation stopped after 0.2 s. Try fewer extra random tolerance cases or frequency points."
+    "Calculation stopped after 0.2 s. Try fewer resonators, or with the build simulation, "
+    "fewer extra random tolerance cases or frequency points."
 )
+BANDPASS = {
+    "filter_type": "butterworth",
+    "coupling": "top",
+    "frequency": "14.2MHz",
+    "bandwidth": "500kHz",
+}
 
 
 def _wait_until(condition, timeout: float = 5.0) -> bool:
@@ -65,6 +72,33 @@ def test_timeout_returns_503_and_cancels_the_analysis(cancellable_analysis):
         assert cancellable_analysis["cancelled"].wait(5)
 
     assert _wait_until(lambda: len(pool_threads()) == baseline)
+
+
+def test_timeout_stops_a_band_pass_calibration_without_a_build(monkeypatch):
+    """The timeout reaches synthesis: the calibration stops before its next evaluation."""
+    from filter_lib.bandpass import top_c_calibration
+
+    real = top_c_calibration._synthesize_top_c_raw
+    evaluations = [0]
+    released = threading.Event()
+
+    def slow(*args, **kwargs):
+        evaluations[0] += 1
+        # Bounded so a regression that never cancels fails instead of hanging the suite.
+        released.wait(0.15)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(top_c_calibration, "_synthesize_top_c_raw", slow)
+    with web_client(calculation_timeout_s=0.2, max_workers=1) as client:
+        response = client.post("/api/design/bandpass", data=BANDPASS)
+
+        assert response.status_code == 503
+        assert response.json() == {"error": TIMEOUT_MESSAGE}
+        stopped_at = evaluations[0]
+        released.set()
+    # The pool is joined on exit, so the worker has ended: it stopped at its next check,
+    # finishing at most the evaluation under way (an uncancelled run makes four).
+    assert evaluations[0] <= stopped_at + 1
 
 
 def test_timeout_in_the_design_view_is_an_html_notice(cancellable_analysis):

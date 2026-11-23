@@ -38,6 +38,12 @@ from ..shared.eseries import (
     STRAY_CAPACITANCE_LABEL,
     SUB_PF_OPTION_LABEL,
 )
+from ..shared.inductor_suggestion import (
+    DEFAULT_INDUCTOR_DETAIL,
+    FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE,
+    forced_kinds_unavailable,
+    require_inductor_detail,
+)
 from .render_options import (
     BUILD_NEEDS_ESERIES_MESSAGE,
     BUILD_NEEDS_TABLE_OR_JSON_MESSAGE,
@@ -52,11 +58,11 @@ ALLOW_SUB_PF = "allow_sub_pf"  # Allow capacitors below 1 pF
 CAPACITOR_GRADE = "capacitor_grade"  # Capacitor grade (CLI --capacitor-grade)
 CAPACITOR_TOLERANCE = "capacitor_tolerance"  # Capacitor tolerance (CLI --capacitor-tolerance)
 STRAY_CAPACITANCE = "stray_capacitance"  # Stray capacitance (CLI --stray-capacitance)
-TOROID_DETAIL = "toroid_detail"  # Up to 3, detailed / Best, one line (CLI --toroid-full/-compact)
+INDUCTOR_DETAIL = "inductor_detail"  # Up to 3 per kind / Best, one line (full/compact)
 TEXT_PLOT = "plot"  # Text plot in the table (CLI --plot)
 RAW_UNITS = "raw"  # Raw units (F, H) (CLI --raw)
 BUILD = "build"  # Simulate the built filter (CLI --sim-build)
-TOROID_BUILD = "toroid_build"  # Simulate inductors as the suggested toroid windings
+BUILD_INDUCTORS = "build_inductors"  # Inductors in the build (CLI --build-inductors)
 LOSS_Q = "loss_q"  # Band-pass resonator Q (CLI --qu/--ql/--qc)
 OPTIONS = (
     ESERIES,
@@ -64,20 +70,23 @@ OPTIONS = (
     CAPACITOR_GRADE,
     CAPACITOR_TOLERANCE,
     STRAY_CAPACITANCE,
-    TOROID_DETAIL,
+    INDUCTOR_DETAIL,
     TEXT_PLOT,
     RAW_UNITS,
     BUILD,
-    TOROID_BUILD,
+    BUILD_INDUCTORS,
     LOSS_Q,
 )
 
 TEXT_PLOT_NEEDS_TABLE_MESSAGE = "The text plot can be used only with Table format"
-TOROID_DETAIL_NEEDS_TABLE_MESSAGE = "Toroid winding detail can be chosen only with Table format"
-RAW_NEEDS_TABLE_MESSAGE = "Raw units can be used only with Table or Values only format"
-TOROID_BUILD_NEEDS_TOROIDS_MESSAGE = (
-    "There are no toroid windings to simulate when Toroid windings is None"
+INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE = (
+    "Inductor suggestion detail can be chosen only with Table format"
 )
+RAW_NEEDS_TABLE_MESSAGE = "Raw units can be used only with Table or Values only format"
+# A forced inductor kind needs suggestions; the rule disables only the forced kinds (Auto
+# and Calculated values stay usable). The CLI refuses --build-inductors toroid, air-coil
+# or chip with --inductor-suggestions none in the same words.
+BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE = FORCED_KIND_NEEDS_SUGGESTIONS_MESSAGE
 # The shared message every surface gives when resonator Q is refused, for all three fields.
 LOSS_Q_NOT_SHOWN_MESSAGE = loss_q_not_shown_message(list(RESONATOR_Q_LABELS))
 # Why the resonator Q fields are disabled: a disabled field cannot be cleared, so this names the
@@ -133,19 +142,21 @@ class OutputChoices:
     ``output_format`` is one of ``RenderOptions``' formats; ``"quiet"`` is Values only.
     ``eseries`` is ``None`` for "None" (no standard values). ``raw`` and ``build`` are
     the Raw units and Simulate the built filter boxes as ticked, even when the rule
-    says they do not apply: the rule resolves that itself. ``include_toroids`` is
-    False when Toroid windings is None (CLI ``--no-toroids``).
+    says they do not apply: the rule resolves that itself. ``inductor_detail`` is the
+    Inductor suggestions choice (CLI ``--inductor-suggestions``); ``none`` leaves
+    nothing for a forced inductor kind to build with.
     """
 
     output_format: str = "table"
     eseries: str | None = DEFAULT_ESERIES
     raw: bool = False
     build: bool = False
-    include_toroids: bool = True
+    inductor_detail: str = DEFAULT_INDUCTOR_DETAIL
 
     def __post_init__(self) -> None:
         if self.output_format not in OUTPUT_FORMATS:
             raise ValueError(f"Unknown output format: {self.output_format}")
+        require_inductor_detail(self.inductor_detail)
 
 
 def _build_reason(choices: OutputChoices) -> str | None:
@@ -173,7 +184,7 @@ def inapplicable_options(choices: OutputChoices) -> dict[str, str]:
     values_only = choices.output_format == "quiet"
     if not table:
         reasons[TEXT_PLOT] = TEXT_PLOT_NEEDS_TABLE_MESSAGE
-        reasons[TOROID_DETAIL] = TOROID_DETAIL_NEEDS_TABLE_MESSAGE
+        reasons[INDUCTOR_DETAIL] = INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE
     if not (table or values_only):
         reasons[RAW_UNITS] = RAW_NEEDS_TABLE_MESSAGE
     build_reason = _build_reason(choices)
@@ -191,8 +202,8 @@ def inapplicable_options(choices: OutputChoices) -> dict[str, str]:
     elif choices.eseries is None:
         reasons.update(_POLICY_NEEDS_ESERIES)
 
-    if not choices.include_toroids:
-        reasons[TOROID_BUILD] = TOROID_BUILD_NEEDS_TOROIDS_MESSAGE
+    if forced_kinds_unavailable(choices.inductor_detail):
+        reasons[BUILD_INDUCTORS] = BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE
     if choices.output_format not in _LOSS_Q_FORMATS:
         reasons[LOSS_Q] = LOSS_Q_DISABLED_MESSAGE
     return {option: reasons[option] for option in OPTIONS if option in reasons}
@@ -208,9 +219,11 @@ def option_reason(choices: OutputChoices, option: str) -> str | None:
 def require_applicable(choices: OutputChoices, selected: Iterable[str]) -> None:
     """Refuse the first selected option that cannot apply, with its reason.
 
-    ``selected`` names the options the user actually set (a ticked box, a non-default
-    toroid detail), checked in ``OPTIONS`` order. A surface passes only options it can
-    tell were set: the web always submits an E-series, so it does not pass ``ESERIES``.
+    ``selected`` names the options the user actually set (a ticked box, a table-only
+    inductor detail, a forced inductor kind), checked in ``OPTIONS`` order. A surface
+    passes only options it can tell were set: the web always submits an E-series, so it
+    does not pass ``ESERIES``; "Calculated values" for the build inductors is what
+    Inductor suggestions None means anyway, so only a forced kind counts as set there.
     Resonator Q is refused with the CLI's ``LOSS_Q_NOT_SHOWN_MESSAGE``, which asks for
     the values to be removed, rather than with its disabled-control reason.
     """
@@ -251,10 +264,30 @@ EXACT_SPICE_MATCHING_MESSAGE = (
 RESPONSE_DATA_MATCHING_MESSAGE = (
     "Standard capacitor choices have no effect on response data, which is the ideal response"
 )
+# Neither uses the chosen inductors either (the CLI refuses --build-inductors with them).
+EXACT_SPICE_BUILD_INDUCTORS_MESSAGE = (
+    "Inductors in the build have no effect on the calculated-values SPICE deck, which uses "
+    "the calculated values"
+)
+RESPONSE_DATA_BUILD_INDUCTORS_MESSAGE = (
+    "Inductors in the build have no effect on response data, which is the ideal response"
+)
+# The CSV never carries the build (the CLI refuses --build-inductors with --format csv), so
+# its best suggestion is the one Auto would build.
+CSV_BUILD_INDUCTORS_MESSAGE = (
+    "Inductors in the build do not apply to the Components CSV, which has no build simulation"
+)
 _DOCUMENT_REASONS = {
-    "spice-exact": {option: EXACT_SPICE_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
+    "csv": {BUILD_INDUCTORS: CSV_BUILD_INDUCTORS_MESSAGE},
+    "spice-exact": {
+        **{option: EXACT_SPICE_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
+        BUILD_INDUCTORS: EXACT_SPICE_BUILD_INDUCTORS_MESSAGE,
+    },
     **{
-        document: {option: RESPONSE_DATA_MATCHING_MESSAGE for option in MATCHING_OPTIONS}
+        document: {
+            **{option: RESPONSE_DATA_MATCHING_MESSAGE for option in MATCHING_OPTIONS},
+            BUILD_INDUCTORS: RESPONSE_DATA_BUILD_INDUCTORS_MESSAGE,
+        }
         for document in ("response-json", "response-csv")
     },
 }

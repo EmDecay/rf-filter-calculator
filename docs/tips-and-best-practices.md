@@ -63,8 +63,8 @@ assumed 0.2 pF stray across a pair) ends closest to the target, a pair only when
 least 0.5 percentage points better. At VHF a pair of small parts can beat one larger part,
 because parts below 10 pF have tolerances in pF rather than percent; `--capacitor-grade tight`
 narrows them. Below 1 pF no part is chosen automatically; add `--allow-sub-pf` (**Allow capacitors below 1 pF** in the
-wizard and web UI) to have those chosen too. Inductors are not E-series matched; a toroid
-winding suggestion is an option, not a suitability claim.
+wizard and web UI) to have those chosen too. Inductors are not E-series matched; an inductor
+suggestion is an option, not a suitability claim.
 
 Example: Need 196.73 pF (`uv run filter-calc lp bw pi 10MHz -n 5`)
 - `Use:` 47 pF || 150 pF (+0.1% error)
@@ -121,8 +121,10 @@ stability or select parts. For a real loss model:
 ### Inductors
 
 - Air-core for highest Q at RF
-- Choose core material from manufacturer frequency/loss data; the built-in toroid winding
-  suggestions currently cover only primary-sourced T25-6, T50-2, and T68-2 iron-powder cores
+- Choose core material from manufacturer frequency/loss data; the built-in inductor
+  suggestions currently offer only toroid windings on primary-sourced T25-6, T50-2, and T68-2
+  iron-powder cores (VHF toroids and air-core coils are not offered; see
+  [Component Data Sources](component-data-sources.md#decisions))
 - Consider using adjustable cores for tuning
 - Minimize lead length
 

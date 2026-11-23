@@ -1,7 +1,7 @@
-{%- from "partials/fields.html" import checkbox, text_field with context -%}
+{%- from "partials/fields.html" import checkbox, segmented, text_field with context -%}
 <fieldset class="group build">
   <legend class="group__title">Build simulation (optional)</legend>
-  {{ checkbox("sim_build", "Simulate the built filter", "Simulates the filter with the parts you would actually fit: standard capacitor values, the suggested toroid windings, optional part Q, and component tolerances. Choose Table or JSON format and E12, E24, or E96 first. The “SPICE – chosen parts” download then also uses the Q and source/load values below.", option="build") }}
+  {{ checkbox("sim_build", "Simulate the built filter", "Simulates the filter with the parts you would actually fit: standard capacitor values, the suggested inductors, optional part Q, and component tolerances. Choose Table or JSON format and E12, E24, or E96 first. The “SPICE – chosen parts” download then also uses the Q and source/load values below.", option="build") }}
   <div class="build__fields fields">
     {{ text_field("build_inductor_tolerance_pct", "Inductor tolerance (±%)", help="Applies to every inductor. Blank = 10 for toroid windings and calculated values.") }}
     {{ text_field("build_inductor_q", "Inductor Q", help="Q of each inductor; blank = lossless. For band-pass, enter Q here or in the resonator Q fields, not both.") }}
@@ -12,8 +12,7 @@
     {{ text_field("build_sample_count", "Extra random tolerance cases", help="Random part values within tolerance, added to the fixed tolerance cases. 0 to 10000; blank = 0.", inputmode="numeric") }}
     {{ text_field("build_seed", "Random seed", help="The same seed repeats the same random cases. Blank = 0.", inputmode="numeric") }}
     {{ text_field("build_grid_points", "Frequency points", help="Points in the simulated frequency sweep, 51 to 5001; refined automatically between points. Blank = 601.", inputmode="numeric", wide=true) }}
-    <div class="field field--wide">
-      {{ checkbox("toroid_build", "Simulate inductors as the suggested toroid windings", "Uses the inductance of each suggested whole-turn toroid winding. Untick to simulate each inductor at its calculated value.", option="toroid_build", default_on=true) }}
-    </div>
+    {{ segmented("build_inductors", labels.build_inductors, labels.build_inductors_choices, option="build_inductors", option_values=("toroid", "air-coil", "chip")) }}
+    <p class="field__help field--wide">{{ labels.build_inductors_help }}</p>
   </div>
 </fieldset>

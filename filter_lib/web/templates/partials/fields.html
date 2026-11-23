@@ -43,10 +43,7 @@
 </div>
 {%- endmacro %}
 
-{#- `default_on` boxes are ticked by default, so a hidden "off" goes first: an unticked
-    box sends nothing, and the server keeps the last value of a repeated name. #}
-{% macro checkbox(name, label, help="", option="", default_on=false) -%}
-{% if default_on %}<input type="hidden" name="{{ name }}" value="off"{% if option %} data-option="{{ option }}"{% endif %}>{% endif %}
+{% macro checkbox(name, label, help="", option="") -%}
 <label class="check">
   <input type="checkbox" name="{{ name }}"{% if (values.get(name) or "") | lower in ("on", "true", "1", "yes") %} checked{% endif %}
          {{- option_attrs(option) }}>

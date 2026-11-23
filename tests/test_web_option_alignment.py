@@ -1,8 +1,8 @@
 """The web form offers the CLI's options, defaults, and rules, and downloads match the result.
 
 Covers the controls that cannot apply (disabled by the page from the shared rule, refused
-by the server with the same reason), the ticked-by-default toroid-winding build box, the
-pre-filled defaults, and downloads that post the inputs of the result shown.
+by the server with the same reason), the "Inductors in the build" choice, the pre-filled
+defaults, and downloads that post the inputs of the result shown.
 """
 
 from __future__ import annotations
@@ -19,6 +19,8 @@ pytest.importorskip("fastapi")
 from markupsafe import escape  # noqa: E402
 
 from filter_lib.design.option_applicability import (  # noqa: E402
+    BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE,
+    INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE,
     LOSS_Q,
     LOSS_Q_DISABLED_MESSAGE,
     OPTIONS,
@@ -26,11 +28,11 @@ from filter_lib.design.option_applicability import (  # noqa: E402
     SUB_PF_RAW_MESSAGE,
     SUB_PF_VALUES_ONLY_MESSAGE,
     TEXT_PLOT_NEEDS_TABLE_MESSAGE,
-    TOROID_DETAIL_NEEDS_TABLE_MESSAGE,
     OutputChoices,
     inapplicable_options,
 )
 from filter_lib.shared.build_types import BuildConfig  # noqa: E402
+from filter_lib.shared.inductor_suggestion import BUILD_INDUCTOR_CHOICES  # noqa: E402
 from filter_lib.web.form_parsing import form_defaults, parse_design_form  # noqa: E402
 from filter_lib.web.option_states import PAGE_FORMATS, option_states, state_key  # noqa: E402
 from filter_lib.wizard.state import FilterState  # noqa: E402
@@ -121,20 +123,20 @@ def test_unavailable_options_are_announced_in_a_polite_live_region(client):
     assert 'aria-describedby="reason-eseries"' in page
 
 
-def test_only_the_table_detail_toroid_choices_can_be_disabled(client):
+def test_only_the_table_detail_inductor_choices_can_be_disabled(client):
     page = client.get("/").text
 
     for value in ("full", "compact"):
-        assert f'name="toroids" value="{value}" data-option="toroid_detail"' in page
+        assert f'name="inductor_suggestions" value="{value}" data-option="inductor_detail"' in page
     for value in ("best", "none"):
-        assert re.search(rf'name="toroids" value="{value}"( checked)?>', page)
+        assert re.search(rf'name="inductor_suggestions" value="{value}"( checked)?>', page)
 
 
 def test_the_script_builds_the_same_state_key():
     """``app.js`` reads the five choices in ``state_key``'s order."""
     script = APP_JS.read_text()
     body = script[script.index("function stateKey") : script.index("function refreshOptions")]
-    names = ["output_format", "eseries", "raw", "sim_build", "toroids"]
+    names = ["output_format", "eseries", "raw", "sim_build", "inductor_suggestions"]
 
     positions = [body.index(f'"{name}"') for name in names]
 
@@ -146,16 +148,26 @@ def test_the_script_builds_the_same_state_key():
 REFUSED = [
     ("plot-json", {"output_format": "json", "plot": "on"}, ("--plot", "--format", "json")),
     ("raw-csv", {"output_format": "csv", "raw": "on"}, ("--raw", "--format", "csv")),
-    ("detail-quiet", {"output_format": "quiet", "toroids": "full"}, ("-q", "--toroid-full")),
+    (
+        "detail-quiet",
+        {"output_format": "quiet", "inductor_suggestions": "full"},
+        ("-q", "--inductor-suggestions", "full"),
+    ),
     ("sub-pf-quiet", {"output_format": "quiet", "allow_sub_pf": "on"}, ("-q", "--allow-sub-pf")),
     ("sub-pf-raw", {"raw": "on", "allow_sub_pf": "on"}, ("--raw", "--allow-sub-pf")),
+    (
+        "forced-kind-no-suggestions",
+        {"inductor_suggestions": "none", "sim_build": "on", "build_inductors": "toroid"},
+        ("--inductor-suggestions", "none", "--sim-build", "--build-inductors", "toroid"),
+    ),
 ]
 REFUSED_MESSAGES = {
     "plot-json": TEXT_PLOT_NEEDS_TABLE_MESSAGE,
     "raw-csv": RAW_NEEDS_TABLE_MESSAGE,
-    "detail-quiet": TOROID_DETAIL_NEEDS_TABLE_MESSAGE,
+    "detail-quiet": INDUCTOR_DETAIL_NEEDS_TABLE_MESSAGE,
     "sub-pf-quiet": SUB_PF_VALUES_ONLY_MESSAGE,
     "sub-pf-raw": SUB_PF_RAW_MESSAGE,
+    "forced-kind-no-suggestions": BUILD_INDUCTORS_NEEDS_SUGGESTIONS_MESSAGE,
 }
 
 
@@ -176,9 +188,12 @@ def test_the_design_view_refuses_an_option_that_cannot_apply(
     "extra, flags",
     [
         ({"output_format": "quiet", "raw": "on"}, ("-q", "--raw")),
-        ({"output_format": "json", "toroids": "none"}, ("--format", "json", "--no-toroids")),
+        (
+            {"output_format": "json", "inductor_suggestions": "none"},
+            ("--format", "json", "--inductor-suggestions", "none"),
+        ),
     ],
-    ids=["raw-values-only", "no-toroids-json"],
+    ids=["raw-values-only", "no-suggestions-json"],
 )
 def test_options_that_apply_are_still_accepted(monkeypatch, capsys, client, extra, flags):
     expected = cli_stdout(monkeypatch, capsys, "lp", "bw", "pi", "10MHz", *flags)
@@ -205,66 +220,78 @@ def test_raw_units_with_the_build_still_choose_sub_pf_parts(monkeypatch, capsys,
     assert output_text(response.text) + "\n" == expected
 
 
-# "Simulate inductors as the suggested toroid windings", ticked by default --------
+# "Inductors in the build", Auto by default ---------------------------------------
 
 
-def test_the_toroid_build_box_is_ticked_by_default_after_a_hidden_off(client):
+def test_build_inductors_is_a_choice_that_starts_at_auto(client):
     page = client.get("/").text
 
-    hidden = '<input type="hidden" name="toroid_build" value="off" data-option="toroid_build">'
-    box = '<input type="checkbox" name="toroid_build" checked data-option="toroid_build"'
-    assert hidden in page and box in page
-    assert page.index(hidden) < page.index(box)
-    assert "Simulate inductors as the suggested toroid windings" in page
-    assert "Use calculated inductances" not in page
+    for value in BUILD_INDUCTOR_CHOICES:
+        checked = " checked" if value == "auto" else ""
+        # Only the forced kinds follow the rule (Inductor suggestions None disables them).
+        forced = value in ("toroid", "air-coil", "chip")
+        option = ' data-option="build_inductors"' if forced else ""
+        radio = f'name="build_inductors" value="{value}"{checked}{option}'
+        assert re.search(re.escape(radio) + r'( aria-describedby="[^"]*")?>', page), value
+    assert "Inductors in the build" in page
+    assert 'type="hidden" name="build_inductors"' not in page
+    assert "Simulate inductors as the suggested toroid windings" not in page
 
 
 @pytest.mark.parametrize(
-    "toroid_build, simulated",
+    "build_inductors, kind",
     [
-        (None, True),  # a request without the field: the CLI default
-        (["off", "on"], True),  # the page with the box ticked
-        ("off", False),  # the page with the box unticked
+        (None, "toroid"),  # a request without the field: the CLI default, auto
+        ("auto", "toroid"),
+        ("toroid", "toroid"),
+        ("air-coil", None),  # no air-core coil qualifies: the calculated value
+        ("chip", None),
+        ("calculated", None),
     ],
-    ids=["absent", "ticked", "unticked"],
+    ids=["absent", "auto", "toroid", "air-coil", "chip", "calculated"],
 )
-def test_toroid_build_round_trips_through_a_form_post(client, toroid_build, simulated):
+def test_build_inductors_round_trip_through_a_form_post(client, build_inductors, kind):
     form = {**LP, "sim_build": "on", "build_grid_points": "51", "output_format": "json"}
-    if toroid_build is not None:
-        form["toroid_build"] = toroid_build
+    if build_inductors is not None:
+        form["build_inductors"] = build_inductors
 
     body = client.post("/api/design/lowpass", data=form).json()
     inductors = [part for part in body["nominal_build"]["substitutions"] if part["kind"] == "L"]
 
     assert inductors
-    assert all((part["core_name"] is not None) is simulated for part in inductors), inductors
+    assert all(part["inductor_kind"] == kind for part in inductors), inductors
+    assert all((part["part_name"] is not None) is (kind is not None) for part in inductors)
 
 
-def test_unticked_toroid_build_is_the_cli_no_toroid_build(monkeypatch, capsys, client):
-    form = {**LP, "sim_build": "on", "build_grid_points": "51", "toroid_build": "off"}
+def test_calculated_build_inductors_are_the_cli_flag(monkeypatch, capsys, client):
+    form = {**LP, "sim_build": "on", "build_grid_points": "51", "build_inductors": "calculated"}
     expected = cli_stdout(
         monkeypatch,
         capsys,
         *("lp", "bw", "pi", "10MHz", "--sim-build", "--analysis-points", "51"),
-        *("--no-toroid-build", "--format", "json"),
+        *("--build-inductors", "calculated", "--format", "json"),
     )
 
     assert client.post("/api/design/lowpass", data=form).text == expected
 
 
-def test_the_2_2_field_still_means_no_toroid_build():
-    form = {**LP, "sim_build": "on", "no_toroid_build": "on"}
+def test_the_removed_toroid_build_fields_no_longer_change_the_build():
+    """``toroid_build`` and ``no_toroid_build`` are gone; only ``build_inductors`` counts."""
+    form = {**LP, "sim_build": "on", "toroid_build": "off", "no_toroid_build": "on"}
 
-    assert parse_design_form("lowpass", form).request.realization.use_toroid_candidates is False
+    assert parse_design_form("lowpass", form).request.build_inductors == "auto"
+    with pytest.raises(ValueError, match="^Inductors in the build must be one of: auto, "):
+        parse_design_form("lowpass", {**LP, "sim_build": "on", "build_inductors": "off"})
 
 
-@pytest.mark.parametrize("toroid_build, checked", [("off", False), ("on", True)])
-def test_a_page_without_javascript_keeps_the_box_as_submitted(client, toroid_build, checked):
-    form = {**LP, "sim_build": "on", "build_grid_points": "51", "toroid_build": toroid_build}
+@pytest.mark.parametrize("build_inductors", BUILD_INDUCTOR_CHOICES)
+def test_a_page_without_javascript_keeps_the_choice_as_submitted(client, build_inductors):
+    form = {**LP, "sim_build": "on", "build_grid_points": "51", "build_inductors": build_inductors}
 
     page = client.post("/design/lowpass", data=form).text
 
-    assert ('name="toroid_build" checked' in page) is checked
+    checked = re.findall(r'name="build_inductors" value="([^"]+)" checked', page)
+    assert checked == [build_inductors]
 
 
 # Defaults ---------------------------------------------------------------------------
@@ -315,7 +342,7 @@ def test_example_defaults_are_the_wizards(category):
     ],
 )
 def test_the_fresh_form_shows_the_cli_default_output(monkeypatch, capsys, client, category, argv):
-    """Toroid detail "Best, detailed" and every other default are the CLI's defaults."""
+    """Inductor detail "Best, detailed" and every other default are the CLI's defaults."""
     expected = cli_stdout(monkeypatch, capsys, *argv)
 
     response = client.post(f"/design/{category}", data=form_defaults(category), headers=HTMX)
@@ -328,7 +355,7 @@ def test_the_fresh_form_shows_the_cli_default_output(monkeypatch, capsys, client
 
 
 def test_the_result_carries_its_inputs_for_the_downloads(client):
-    form = {**LP, "components": "5", "eseries": "E12", "toroid_build": "on"}
+    form = {**LP, "components": "5", "eseries": "E12", "build_inductors": "calculated"}
 
     fragment = client.post("/design/lowpass", data=form, headers=HTMX).text
 
@@ -480,7 +507,12 @@ def test_visible_build_reaches_the_json_download(monkeypatch, capsys, client):
 
 def test_display_only_choices_never_reach_a_download(client):
     plain = client.post("/export/lowpass/json", data=LP).text
-    sent = {**LP, "output_format": "json", "visible.plot": "on", "visible.toroids": "full"}
+    sent = {
+        **LP,
+        "output_format": "json",
+        "visible.plot": "on",
+        "visible.inductor_suggestions": "full",
+    }
 
     assert client.post("/export/lowpass/json", data=sent).text == plain
 

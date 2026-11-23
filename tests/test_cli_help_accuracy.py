@@ -38,7 +38,7 @@ def test_ladder_help_pi_and_t_forms_match_rendered_topology(command: str, capsys
     assert "t=series-first" in output
 
     for topology, first_element in (("pi", "  IN ───┬"), ("t", "  IN ───┤")):
-        _main(command, "bw", topology, "10MHz", "--no-match", "--no-toroids")
+        _main(command, "bw", topology, "10MHz", "--no-match", "--inductor-suggestions", "none")
         lines = capsys.readouterr().out.splitlines()
         diagram_first_line = lines[lines.index("Topology:") + 1]
         assert diagram_first_line.startswith(first_element)
@@ -59,7 +59,7 @@ def test_eseries_help_and_table_both_disclaim_part_tolerance(command, design, ca
     assert "e12, e24, or e96 (12, 24, or 96 values per decade)" in output
     assert "not part tolerance" in output
 
-    _main(command, *design, "--no-toroids")
+    _main(command, *design, "--inductor-suggestions", "none")
     assert "E24 = 24 standard values per decade; it does not set the part tolerance." in (
         capsys.readouterr().out
     )
@@ -112,7 +112,7 @@ def test_advertised_defaults_are_the_defaults_used(
 ):
     advertised = _help_defaults(setup)
 
-    _main(*design, "--format", "json", "--no-toroids")
+    _main(*design, "--format", "json", "--inductor-suggestions", "none")
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["impedance_ohms"] == float(advertised["impedance"])

@@ -29,6 +29,7 @@ from filter_lib.shared.build_types import BuildAnalysisCancelled
 from filter_lib.shared.eseries import MatchPolicy
 from filter_lib.shared.parsing import parse_impedance
 from filter_lib.shared.tolerance_screening import summarize_cases
+from tests.parts_helpers import parts_for
 
 
 def test_build_simulation_facade_preserves_public_contract():
@@ -72,6 +73,11 @@ def _lp_result(order: int = 3, frequency_hz: float = 10e6) -> dict:
     }
 
 
+def _calculated_parts(result: dict, category: str, eseries: str = "E24", policy=None):
+    """Chosen capacitors, with every inductor built at its calculated value."""
+    return parts_for(result, category, eseries, policy, build_inductors="calculated")
+
+
 def _one_cap_result(value: float) -> dict:
     return {
         "filter_type": "butterworth",
@@ -112,18 +118,28 @@ class TestBuildConfig:
             ({"seed": True}, "^Random seed must be a whole number$"),
             ({"grid_points": 20}, "^Frequency points must be a whole number from 51 to 5001$"),
             ({"reference_frequency_hz": 0}, "^The frequency at which the Q values apply must be"),
-            ({"use_toroid_candidates": 1}, "use_toroid_candidates must be boolean"),
         ],
     )
     def test_invalid_config_rejected(self, kwargs, message):
         with pytest.raises(ValueError, match=message):
             BuildConfig(**kwargs)
 
-    @pytest.mark.parametrize("field", ["eseries", "match_policy", "capacitor_tolerance_pct"])
+    @pytest.mark.parametrize(
+        "field", ["eseries", "match_policy", "capacitor_tolerance_pct", "use_toroid_candidates"]
+    )
     def test_part_policy_is_not_a_build_setting(self, field):
-        """The series and match policy are design inputs, resolved once by ``design()``."""
+        """The series, match policy and inductor choice are design inputs, resolved once by
+        ``design()``."""
         with pytest.raises(TypeError):
             BuildConfig(**{field: None})
+
+    @pytest.mark.parametrize("build_inductors", [1, True, None, "toroids", "Auto"])
+    def test_build_inductor_choice_must_be_a_known_value(self, build_inductors):
+        with pytest.raises(
+            ValueError,
+            match="^Build inductors must be auto, toroid, air-coil, chip, or calculated$",
+        ):
+            parts_for(_lp_result(), "lowpass", build_inductors=build_inductors)
 
     @pytest.mark.parametrize(
         "settings",
@@ -149,7 +165,7 @@ class TestBuildConfig:
     @pytest.mark.parametrize("operation", [realize_nominal_build, analyze_build])
     def test_public_build_operations_reject_wrong_config_type(self, operation, config):
         with pytest.raises(ValueError, match="config must be a BuildConfig or None"):
-            operation(_lp_result(), "lowpass", config)
+            operation(_lp_result(), "lowpass", config, parts=parts_for(_lp_result(), "lowpass"))
 
 
 class TestDesignResultValidation:
@@ -170,22 +186,22 @@ class TestDesignResultValidation:
             if category == "lowpass"
             else calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top")
         )
+        parts = _calculated_parts(result, category)
         result[key] = value
 
         with pytest.raises(ValueError, match=message):
-            analyze_build(
-                result, category, BuildConfig(grid_points=51, use_toroid_candidates=False)
-            )
+            analyze_build(result, category, BuildConfig(grid_points=51), parts=parts)
 
     @pytest.mark.parametrize("reference", [float("nan"), 0.0])
     def test_nonphysical_synthesis_loss_reference_is_rejected(self, reference):
         result = calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top", qu=150)
+        parts = _calculated_parts(result, "bandpass")
         result["q_model"]["reference_frequency_hz"] = reference
 
         with pytest.raises(
             ValueError, match="q_model reference_frequency_hz must be positive and finite"
         ):
-            realize_nominal_build(result, "bandpass", BuildConfig(use_toroid_candidates=False))
+            realize_nominal_build(result, "bandpass", BuildConfig(), parts=parts)
 
     @pytest.mark.parametrize("category, key", [("lowpass", "freq_hz"), ("bandpass", "f0")])
     def test_nominal_realization_rejects_a_zero_design_frequency(self, category, key):
@@ -194,10 +210,11 @@ class TestDesignResultValidation:
             if category == "lowpass"
             else calculate_bandpass_filter(10e6, 1e6, 50, 2, "butterworth", "top")
         )
+        parts = _calculated_parts(result, category)
         result[key] = 0.0
 
         with pytest.raises(ValueError, match=f"^{key} must be positive and finite$"):
-            realize_nominal_build(result, category, BuildConfig(use_toroid_candidates=False))
+            realize_nominal_build(result, category, BuildConfig(), parts=parts)
 
     def test_frequency_grid_rejects_a_span_that_overflows_near_the_float_maximum(self):
         # The span's stop is finite here, but its last log-spaced point rounds past it.
@@ -233,14 +250,23 @@ class TestNominalRealization:
     def test_loss_reference_requires_an_effective_q_model(self):
         config = BuildConfig(
             reference_frequency_hz=12_345,
-            use_toroid_candidates=False,
             grid_points=51,
         )
 
         with pytest.raises(ValueError, match="Q values apply was given without any Q"):
-            realize_nominal_build(_lp_result(), "lowpass", config)
+            realize_nominal_build(
+                _lp_result(),
+                "lowpass",
+                config,
+                parts=_calculated_parts(_lp_result(), "lowpass"),
+            )
         with pytest.raises(ValueError, match="Q values apply was given without any Q"):
-            analyze_build(_lp_result(), "lowpass", config)
+            analyze_build(
+                _lp_result(),
+                "lowpass",
+                config,
+                parts=_calculated_parts(_lp_result(), "lowpass"),
+            )
 
     def test_loss_reference_can_use_bandpass_synthesis_q_model(self):
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", qu=150)
@@ -249,8 +275,8 @@ class TestNominalRealization:
             "bandpass",
             BuildConfig(
                 reference_frequency_hz=12e6,
-                use_toroid_candidates=False,
             ),
+            parts=_calculated_parts(result, "bandpass"),
         )
 
         lossy = [element for element in realization.circuit.elements if element.quality_factor]
@@ -261,7 +287,8 @@ class TestNominalRealization:
         realization = realize_nominal_build(
             _one_cap_result(318.31e-12),
             "lowpass",
-            BuildConfig(use_toroid_candidates=False),
+            BuildConfig(),
+            parts=_calculated_parts(_one_cap_result(318.31e-12), "lowpass"),
         )
 
         elements = realization.circuit.elements
@@ -286,7 +313,8 @@ class TestNominalRealization:
         realization = realize_nominal_build(
             _one_cap_result(target),
             "lowpass",
-            BuildConfig(use_toroid_candidates=False),
+            BuildConfig(),
+            parts=_calculated_parts(_one_cap_result(target), "lowpass"),
         )
 
         substitution = realization.substitutions[0]
@@ -302,8 +330,10 @@ class TestNominalRealization:
             for warning in realization.warnings
         )
 
-    def test_verified_integer_turn_candidate_replaces_inductor(self):
-        realization = realize_nominal_build(_lp_result(), "lowpass", BuildConfig())
+    def test_suggested_toroid_winding_replaces_inductor(self):
+        realization = realize_nominal_build(
+            _lp_result(), "lowpass", BuildConfig(), parts=parts_for(_lp_result(), "lowpass")
+        )
         inductor_substitutions = [
             substitution for substitution in realization.substitutions if substitution.kind == "L"
         ]
@@ -315,10 +345,12 @@ class TestNominalRealization:
         }
         assert inductor_substitutions
         for substitution in inductor_substitutions:
-            assert substitution.method == "verified_toroid_integer_turns"
+            assert substitution.method == "suggested_inductor"
+            assert substitution.inductor_kind == "toroid"
             assert substitution.status == "screened_candidate"
             assert isinstance(substitution.turns, int) and substitution.turns >= 1
             assert substitution.core_name is not None
+            assert substitution.part_name == substitution.core_name
             # Qualified cores accept an integer-turn error within their 5% AL tolerance.
             assert substitution.nominal_value != substitution.calculated_value
             assert substitution.nominal_value == pytest.approx(
@@ -327,8 +359,13 @@ class TestNominalRealization:
             # The simulated nominal circuit uses the wound value, not the calculated one.
             assert simulated[substitution.logical_name] == substitution.nominal_value
 
-    def test_no_verified_candidate_is_recorded_as_fallback(self):
-        realization = realize_nominal_build(_lp_result(frequency_hz=1e12), "lowpass", BuildConfig())
+    def test_no_qualifying_suggestion_is_recorded_as_fallback(self):
+        realization = realize_nominal_build(
+            _lp_result(frequency_hz=1e12),
+            "lowpass",
+            BuildConfig(),
+            parts=parts_for(_lp_result(frequency_hz=1e12), "lowpass"),
+        )
         inductor_substitutions = [
             substitution for substitution in realization.substitutions if substitution.kind == "L"
         ]
@@ -337,14 +374,17 @@ class TestNominalRealization:
         assert all(item.method == "exact_fallback" for item in inductor_substitutions)
         assert all(item.status == "no_verified_candidate" for item in inductor_substitutions)
         assert any(
-            "No suitable toroid; the simulation uses the calculated value." in warning
+            "L1: No inductor suggestion qualifies. The simulation uses the calculated value."
+            in warning
             for warning in realization.warnings
         )
 
     def test_poor_integer_turn_match_is_an_exact_fallback(self):
         result = _lp_result()
         result["inductors"] = [10e-9]
-        realization = realize_nominal_build(result, "lowpass", BuildConfig())
+        realization = realize_nominal_build(
+            result, "lowpass", BuildConfig(), parts=parts_for(result, "lowpass")
+        )
 
         substitution = next(item for item in realization.substitutions if item.kind == "L")
         assert substitution.method == "exact_fallback"
@@ -354,14 +394,13 @@ class TestNominalRealization:
     def test_loss_reference_override_does_not_change_toroid_screen_frequency(self):
         result = _lp_result(frequency_hz=30e6)
         design_reference = realize_nominal_build(
-            result,
-            "lowpass",
-            BuildConfig(inductor_q=100),
+            result, "lowpass", BuildConfig(inductor_q=100), parts=parts_for(result, "lowpass")
         )
         overridden_loss_reference = realize_nominal_build(
             result,
             "lowpass",
             BuildConfig(inductor_q=100, reference_frequency_hz=3e6),
+            parts=parts_for(result, "lowpass"),
         )
 
         default_sub = next(item for item in design_reference.substitutions if item.kind == "L")
@@ -387,9 +426,13 @@ class TestNominalRealization:
         config = BuildConfig(
             inductor_q=80,
             capacitor_q=200,
-            use_toroid_candidates=False,
         )
-        realization = realize_nominal_build(_lp_result(), "lowpass", config)
+        realization = realize_nominal_build(
+            _lp_result(),
+            "lowpass",
+            config,
+            parts=_calculated_parts(_lp_result(), "lowpass"),
+        )
 
         omega = 2 * math.pi * 10e6  # the design frequency is the default loss reference
         for element in realization.circuit.elements:
@@ -423,7 +466,8 @@ class TestNominalRealization:
         realization = realize_nominal_build(
             result,
             "bandpass",
-            BuildConfig(use_toroid_candidates=False, **config_q),
+            BuildConfig(**config_q),
+            parts=_calculated_parts(result, "bandpass"),
         )
 
         inductors = [element for element in realization.circuit.elements if element.kind == "L"]
@@ -444,7 +488,8 @@ class TestNominalRealization:
             realize_nominal_build(
                 _lp_result(),
                 "lowpass",
-                BuildConfig(resonator_q=150, use_toroid_candidates=False),
+                BuildConfig(resonator_q=150),
+                parts=_calculated_parts(_lp_result(), "lowpass"),
             )
 
     def test_bandpass_separate_ql_qc_remain_separate_loss_channels(self):
@@ -452,7 +497,8 @@ class TestNominalRealization:
         realization = realize_nominal_build(
             result,
             "bandpass",
-            BuildConfig(use_toroid_candidates=False),
+            BuildConfig(),
+            parts=_calculated_parts(result, "bandpass"),
         )
 
         assert all(
@@ -486,7 +532,10 @@ class TestNominalRealization:
         """An omitted QL or QC is ideal: the supplied Q is not moved to the other part."""
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top", **synthesis_q)
         realization = realize_nominal_build(
-            result, "bandpass", BuildConfig(use_toroid_candidates=False)
+            result,
+            "bandpass",
+            BuildConfig(),
+            parts=_calculated_parts(result, "bandpass"),
         )
 
         (quality_factor,) = synthesis_q.values()
@@ -506,7 +555,8 @@ class TestNominalRealization:
         realization = realize_nominal_build(
             result,
             "bandpass",
-            BuildConfig(capacitor_q=400, use_toroid_candidates=False),
+            BuildConfig(capacitor_q=400),
+            parts=_calculated_parts(result, "bandpass"),
         )
 
         assert all(
@@ -522,7 +572,8 @@ class TestBuildAnalysis:
         lossless = analyze_build(
             result,
             "lowpass",
-            BuildConfig(inductor_tolerance_pct=0, grid_points=101, use_toroid_candidates=False),
+            BuildConfig(inductor_tolerance_pct=0, grid_points=101),
+            parts=_calculated_parts(result, "lowpass"),
         )
         lossy = analyze_build(
             result,
@@ -532,8 +583,8 @@ class TestBuildAnalysis:
                 inductor_q=40,
                 capacitor_q=80,
                 grid_points=101,
-                use_toroid_candidates=False,
             ),
+            parts=_calculated_parts(result, "lowpass"),
         )
 
         assert lossy.nominal_build.peak_transducer_gain_db < (
@@ -548,8 +599,8 @@ class TestBuildAnalysis:
                 source_resistance_ohm=25,
                 load_resistance_ohm=100,
                 grid_points=101,
-                use_toroid_candidates=False,
             ),
+            parts=_calculated_parts(_lp_result(), "lowpass"),
         )
         assert analysis.source_resistance_ohm == 25
         assert analysis.load_resistance_ohm == 100
@@ -565,10 +616,19 @@ class TestBuildAnalysis:
             sample_count=3,
             seed=73,
             grid_points=101,
-            use_toroid_candidates=False,
         )
-        first = analyze_build(_lp_result(order=3), "lowpass", config)
-        second = analyze_build(_lp_result(order=3), "lowpass", config)
+        first = analyze_build(
+            _lp_result(order=3),
+            "lowpass",
+            config,
+            parts=_calculated_parts(_lp_result(order=3), "lowpass"),
+        )
+        second = analyze_build(
+            _lp_result(order=3),
+            "lowpass",
+            config,
+            parts=_calculated_parts(_lp_result(order=3), "lowpass"),
+        )
 
         expected_prefix = [
             "nominal",
@@ -612,13 +672,10 @@ class TestBuildAnalysis:
                 assert factors[f"one:{name}:{direction}"] == pytest.approx(expected)
 
     def test_different_seed_changes_only_uniform_sample_cases(self):
-        common = {
-            "sample_count": 2,
-            "grid_points": 101,
-            "use_toroid_candidates": False,
-        }
-        first = analyze_build(_lp_result(), "lowpass", BuildConfig(seed=1, **common))
-        second = analyze_build(_lp_result(), "lowpass", BuildConfig(seed=2, **common))
+        common = {"sample_count": 2, "grid_points": 101}
+        parts = _calculated_parts(_lp_result(), "lowpass")
+        first = analyze_build(_lp_result(), "lowpass", BuildConfig(seed=1, **common), parts=parts)
+        second = analyze_build(_lp_result(), "lowpass", BuildConfig(seed=2, **common), parts=parts)
 
         deterministic_count = len(first.cases) - 2
         assert first.cases[:deterministic_count] == second.cases[:deterministic_count]
@@ -631,6 +688,7 @@ class TestBuildAnalysis:
             _lp_result(),
             "lowpass",
             BuildConfig(sample_count=2, seed=7, grid_points=101),
+            parts=parts_for(_lp_result(), "lowpass"),
         )
 
         assert analysis.metric_summaries
@@ -741,7 +799,8 @@ class TestBuildAnalysis:
         analysis = analyze_build(
             _lp_result(),
             "lowpass",
-            BuildConfig(sample_count=1, grid_points=101, use_toroid_candidates=False),
+            BuildConfig(sample_count=1, grid_points=101),
+            parts=_calculated_parts(_lp_result(), "lowpass"),
         )
 
         metrics = {summary.metric for summary in analysis.metric_summaries}
@@ -752,8 +811,10 @@ class TestBuildAnalysis:
         analysis = analyze_build(
             _lp_result(),
             "lowpass",
-            BuildConfig(inductor_tolerance_pct=99, grid_points=101, use_toroid_candidates=False),
-            policy=MatchPolicy(tolerance_override_pct=99),
+            BuildConfig(inductor_tolerance_pct=99, grid_points=101),
+            parts=_calculated_parts(
+                _lp_result(), "lowpass", policy=MatchPolicy(tolerance_override_pct=99)
+            ),
         )
 
         cutoff = next(item for item in analysis.metric_summaries if item.metric == "cutoff_hz")
@@ -770,9 +831,10 @@ class TestBuildAnalysis:
         analysis = analyze_build(
             result,
             "bandpass",
-            BuildConfig(inductor_tolerance_pct=50, grid_points=51, use_toroid_candidates=False),
-            eseries="E96",
-            policy=MatchPolicy(tolerance_override_pct=50),
+            BuildConfig(inductor_tolerance_pct=50, grid_points=51),
+            parts=_calculated_parts(
+                result, "bandpass", eseries="E96", policy=MatchPolicy(tolerance_override_pct=50)
+            ),
         )
         # All parts 50% low double the center, pushing the upper skirt past the window.
         censored = next(case for case in analysis.cases if case.case_id == "coherent:low")
@@ -792,7 +854,12 @@ class TestBuildAnalysis:
         """Integer-turn toroids detune a 0.01% fractional-bandwidth design far beyond its
         passband, so no screened case has two half-power edges to summarize."""
         result = calculate_bandpass_filter(10e6, 1e3, 50, 2, "butterworth", "top")
-        analysis = analyze_build(result, "bandpass", BuildConfig(grid_points=51), eseries="E96")
+        analysis = analyze_build(
+            result,
+            "bandpass",
+            BuildConfig(grid_points=51),
+            parts=parts_for(result, "bandpass", eseries="E96"),
+        )
 
         assert analysis.calculated.bw == pytest.approx(1e3, rel=0.03)
         assert analysis.nominal_build.at_grid_edge is True
@@ -817,9 +884,10 @@ class TestBuildAnalysis:
     )
     def test_calculated_and_nominal_helper_matches_full_analysis(self, category, result):
         config = BuildConfig(inductor_q=60, capacitor_q=400, grid_points=201)
-        analysis = analyze_build(result, category, config)
+        parts = parts_for(result, category)
+        analysis = analyze_build(result, category, config, parts=parts)
 
-        measured = measure_calculated_and_nominal(result, category, config)
+        measured = measure_calculated_and_nominal(result, category, config, parts=parts)
 
         assert measured.config == analysis.config
         assert measured.source_resistance_ohm == analysis.source_resistance_ohm
@@ -831,7 +899,12 @@ class TestBuildAnalysis:
     @pytest.mark.runtime_budget
     def test_default_analysis_runtime_is_bounded(self):
         started = time.perf_counter()
-        analysis = analyze_build(_lp_result(order=5), "lowpass", BuildConfig())
+        analysis = analyze_build(
+            _lp_result(order=5),
+            "lowpass",
+            BuildConfig(),
+            parts=parts_for(_lp_result(order=5), "lowpass"),
+        )
         elapsed = time.perf_counter() - started
         assert analysis.cases
         assert elapsed < 2.0
@@ -840,7 +913,8 @@ class TestBuildAnalysis:
 class TestBuildAnalysisCancellation:
     """``should_cancel`` lets an interactive caller stop a long analysis between cases."""
 
-    CONFIG = BuildConfig(sample_count=20, grid_points=51, use_toroid_candidates=False)
+    CONFIG = BuildConfig(sample_count=20, grid_points=51)
+    PARTS = _calculated_parts(_lp_result(), "lowpass")
 
     def test_analysis_stops_before_the_next_case_once_the_check_flips(self, monkeypatch):
         measured_cases: list[object] = []
@@ -860,7 +934,11 @@ class TestBuildAnalysisCancellation:
 
         with pytest.raises(BuildAnalysisCancelled, match="^Build simulation was cancelled$"):
             analyze_build(
-                _lp_result(), "lowpass", self.CONFIG, should_cancel=cancel_on_fourth_check
+                _lp_result(),
+                "lowpass",
+                self.CONFIG,
+                should_cancel=cancel_on_fourth_check,
+                parts=self.PARTS,
             )
 
         # Check 1 precedes the calculated measurement and checks 2-3 precede the nominal
@@ -878,7 +956,13 @@ class TestBuildAnalysisCancellation:
         monkeypatch.setattr(tolerance_screening, "measure_circuit", record)
 
         with pytest.raises(BuildAnalysisCancelled):
-            analyze_build(_lp_result(), "lowpass", self.CONFIG, should_cancel=lambda: True)
+            analyze_build(
+                _lp_result(),
+                "lowpass",
+                self.CONFIG,
+                should_cancel=lambda: True,
+                parts=self.PARTS,
+            )
 
         assert measured == []
 
@@ -889,8 +973,19 @@ class TestBuildAnalysisCancellation:
             checks.append(1)
             return False
 
-        expected = analyze_build(_lp_result(), "lowpass", self.CONFIG)
-        actual = analyze_build(_lp_result(), "lowpass", self.CONFIG, should_cancel=never_cancel)
+        expected = analyze_build(
+            _lp_result(),
+            "lowpass",
+            self.CONFIG,
+            parts=self.PARTS,
+        )
+        actual = analyze_build(
+            _lp_result(),
+            "lowpass",
+            self.CONFIG,
+            should_cancel=never_cancel,
+            parts=self.PARTS,
+        )
 
         assert actual == expected
         # One check before the calculated measurement and one before every case.
@@ -902,7 +997,13 @@ class TestBuildAnalysisCancellation:
     @pytest.mark.parametrize("should_cancel", [True, "stop", 0])
     def test_a_non_callable_check_is_rejected(self, should_cancel):
         with pytest.raises(ValueError, match="should_cancel must be a zero-argument callable"):
-            analyze_build(_lp_result(), "lowpass", self.CONFIG, should_cancel=should_cancel)
+            analyze_build(
+                _lp_result(),
+                "lowpass",
+                self.CONFIG,
+                should_cancel=should_cancel,
+                parts=self.PARTS,
+            )
 
 
 class TestPhysicalInputLimits:
@@ -929,7 +1030,12 @@ class TestPhysicalInputLimits:
     )
     def test_lowpass_analysis_at_each_accepted_limit_is_bounded(self, settings):
         started = time.perf_counter()
-        analysis = analyze_build(_lp_result(), "lowpass", BuildConfig(**settings))
+        analysis = analyze_build(
+            _lp_result(),
+            "lowpass",
+            BuildConfig(**settings),
+            parts=parts_for(_lp_result(), "lowpass"),
+        )
         elapsed = time.perf_counter() - started
 
         assert analysis.cases
@@ -940,10 +1046,15 @@ class TestPhysicalInputLimits:
     def test_bandpass_measurement_at_the_high_impedance_limit_is_bounded(self, port):
         """1e6 times the design impedance is the last decade that avoids the slow exact path."""
         result = calculate_bandpass_filter(10e6, 0.5e6, 50, 3, "butterworth", "top")
-        config = BuildConfig(**{port: 50e6}, use_toroid_candidates=False)
+        config = BuildConfig(**{port: 50e6})
 
         started = time.perf_counter()
-        measured = measure_calculated_and_nominal(result, "bandpass", config)
+        measured = measure_calculated_and_nominal(
+            result,
+            "bandpass",
+            config,
+            parts=_calculated_parts(result, "bandpass"),
+        )
         elapsed = time.perf_counter() - started
 
         assert math.isfinite(measured.calculated.peak_transducer_gain_db)

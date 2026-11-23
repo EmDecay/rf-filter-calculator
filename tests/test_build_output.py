@@ -16,6 +16,7 @@ from filter_lib.shared.build_output_payloads import _measurement_payload
 from filter_lib.shared.build_simulation import BuildConfig, CircuitMeasurement, analyze_build
 from filter_lib.shared.eseries import MatchPolicy
 from filter_lib.shared.toroid_selection import recommend_cores
+from tests.parts_helpers import parts_for
 
 
 def _lowpass_result() -> dict:
@@ -32,12 +33,18 @@ def _lowpass_result() -> dict:
     }
 
 
+def _calculated_inductor_parts(result: dict, category: str, policy=None):
+    """E24 capacitors with every inductor built at its calculated value."""
+    return parts_for(result, category, "E24", policy, build_inductors="calculated")
+
+
 def test_json_fields_keep_target_ideal_nominal_and_tolerance_results_separate():
     result = _lowpass_result()
     analysis = analyze_build(
         result,
         "lowpass",
-        BuildConfig(sample_count=1, seed=17, grid_points=101, use_toroid_candidates=False),
+        BuildConfig(sample_count=1, seed=17, grid_points=101),
+        parts=_calculated_inductor_parts(result, "lowpass"),
     )
 
     fields = build_analysis_fields(result, analysis)
@@ -144,7 +151,8 @@ def test_bandpass_target_carries_per_design_validation_status():
     analysis = analyze_build(
         result,
         "bandpass",
-        BuildConfig(grid_points=51, use_toroid_candidates=False),
+        BuildConfig(grid_points=51),
+        parts=_calculated_inductor_parts(result, "bandpass"),
     )
 
     target = build_analysis_fields(result, analysis)["target"]
@@ -167,11 +175,13 @@ def test_bandpass_target_carries_per_design_validation_status():
 
 def test_toroid_substitutions_report_winding_wire_in_text_and_json():
     result = _lowpass_result()
-    analysis = analyze_build(result, "lowpass", BuildConfig(grid_points=101))
+    analysis = analyze_build(
+        result, "lowpass", BuildConfig(grid_points=101), parts=parts_for(result, "lowpass")
+    )
     toroid_substitutions = [
         item
         for item in analysis.nominal_realization.substitutions
-        if item.method == "verified_toroid_integer_turns"
+        if item.method == "suggested_inductor" and item.inductor_kind == "toroid"
     ]
     assert toroid_substitutions
 
@@ -182,6 +192,7 @@ def test_toroid_substitutions_report_winding_wire_in_text_and_json():
     }
     for substitution in toroid_substitutions:
         best = recommend_cores(substitution.calculated_value, result["freq_hz"], top_n=1)[0]
+        assert substitution.part_name == substitution.core_name == best.core.name
         assert substitution.wire_awg == best.mechanical.awg
         assert substitution.wire_length_mm == best.mechanical.wire_length_mm
         assert (
@@ -196,7 +207,10 @@ def test_toroid_substitutions_report_winding_wire_in_text_and_json():
 def test_exact_fallback_inductors_carry_no_winding_wire():
     result = _lowpass_result()
     analysis = analyze_build(
-        result, "lowpass", BuildConfig(grid_points=101, use_toroid_candidates=False)
+        result,
+        "lowpass",
+        BuildConfig(grid_points=101),
+        parts=_calculated_inductor_parts(result, "lowpass"),
     )
 
     inductors = [item for item in analysis.nominal_realization.substitutions if item.kind == "L"]
@@ -210,15 +224,12 @@ def test_exact_fallback_inductors_carry_no_winding_wire():
 
 
 def test_text_block_states_metric_and_model_limits_without_measurement_claim():
+    result = _lowpass_result()
     analysis = analyze_build(
-        _lowpass_result(),
+        result,
         "lowpass",
-        BuildConfig(
-            source_resistance_ohm=25,
-            load_resistance_ohm=100,
-            grid_points=101,
-            use_toroid_candidates=False,
-        ),
+        BuildConfig(source_resistance_ohm=25, load_resistance_ohm=100, grid_points=101),
+        parts=_calculated_inductor_parts(result, "lowpass"),
     )
 
     text = "\n".join(format_build_analysis_block(analysis))
@@ -239,7 +250,8 @@ def test_nonfinite_measurement_cannot_enter_machine_output():
     analysis = analyze_build(
         result,
         "lowpass",
-        BuildConfig(grid_points=101, use_toroid_candidates=False),
+        BuildConfig(grid_points=101),
+        parts=_calculated_inductor_parts(result, "lowpass"),
     )
     invalid = replace(
         analysis,
@@ -255,8 +267,10 @@ def test_metric_outputs_expose_included_omitted_and_grid_censored_counts():
     analysis = analyze_build(
         result,
         "lowpass",
-        BuildConfig(inductor_tolerance_pct=99, grid_points=101, use_toroid_candidates=False),
-        policy=MatchPolicy(tolerance_override_pct=99),
+        BuildConfig(inductor_tolerance_pct=99, grid_points=101),
+        parts=_calculated_inductor_parts(
+            result, "lowpass", policy=MatchPolicy(tolerance_override_pct=99)
+        ),
     )
     cutoff = next(item for item in analysis.metric_summaries if item.metric == "cutoff_hz")
     payload = build_analysis_fields(result, analysis)
@@ -282,7 +296,10 @@ def test_metric_outputs_expose_included_omitted_and_grid_censored_counts():
 def test_unresolved_case_counts_are_disclosed_in_text_and_json():
     result = _lowpass_result()
     analysis = analyze_build(
-        result, "lowpass", BuildConfig(grid_points=51, use_toroid_candidates=False)
+        result,
+        "lowpass",
+        BuildConfig(grid_points=51),
+        parts=_calculated_inductor_parts(result, "lowpass"),
     )
     unresolved = replace(
         analysis,
@@ -305,7 +322,12 @@ def test_unresolved_case_counts_are_disclosed_in_text_and_json():
 
 def _bandpass_analysis(**config):
     result = calculate_bandpass_filter(10e6, 0.5e6, 50.0, 3, "butterworth", "top")
-    return result, analyze_build(result, "bandpass", BuildConfig(grid_points=51, **config))
+    return result, analyze_build(
+        result,
+        "bandpass",
+        BuildConfig(grid_points=51, **config),
+        parts=parts_for(result, "bandpass"),
+    )
 
 
 def test_bandpass_block_uses_component_table_names():
@@ -340,9 +362,17 @@ def test_caveats_print_only_for_features_the_run_used():
 
     result = _lowpass_result()
     plain = analyze_build(
-        result, "lowpass", BuildConfig(grid_points=51, use_toroid_candidates=False)
+        result,
+        "lowpass",
+        BuildConfig(grid_points=51),
+        parts=_calculated_inductor_parts(result, "lowpass"),
     )
-    sampled = analyze_build(result, "lowpass", BuildConfig(grid_points=51, sample_count=2, seed=4))
+    sampled = analyze_build(
+        result,
+        "lowpass",
+        BuildConfig(grid_points=51, sample_count=2, seed=4),
+        parts=parts_for(result, "lowpass"),
+    )
 
     plain_text = " ".join(" ".join(format_build_analysis_block(plain)).split())
     sampled_text = " ".join(" ".join(format_build_analysis_block(sampled)).split())
@@ -360,25 +390,30 @@ def test_caveats_print_only_for_features_the_run_used():
 
 
 def test_chosen_parts_row_says_when_calculated_values_were_used():
+    result = _lowpass_result()
     analysis = analyze_build(
-        _lowpass_result(), "lowpass", BuildConfig(grid_points=51, use_toroid_candidates=False)
+        result,
+        "lowpass",
+        BuildConfig(grid_points=51),
+        parts=_calculated_inductor_parts(result, "lowpass"),
     )
 
     lines = format_build_analysis_block(analysis)
 
     chosen = lines.index(next(line for line in lines if line.startswith("Chosen parts:")))
     assert lines[chosen + 2] == " " * 15 + "calculated value used for 1 of 3 parts (see Parts used)"
-    assert "  L1: 1.59 µH, calculated value used (toroid windings off)" in lines
+    assert "  L1: 1.59 µH, calculated value used (inductor suggestions not used)" in lines
 
 
 def test_block_states_part_losses_and_metric_labels_not_json_keys():
-    lossless = analyze_build(
-        _lowpass_result(), "lowpass", BuildConfig(grid_points=51, use_toroid_candidates=False)
-    )
+    result = _lowpass_result()
+    parts = _calculated_inductor_parts(result, "lowpass")
+    lossless = analyze_build(result, "lowpass", BuildConfig(grid_points=51), parts=parts)
     lossy = analyze_build(
-        _lowpass_result(),
+        result,
         "lowpass",
-        BuildConfig(grid_points=51, inductor_q=120, capacitor_q=900, use_toroid_candidates=False),
+        BuildConfig(grid_points=51, inductor_q=120, capacitor_q=900),
+        parts=parts,
     )
 
     lossless_text = "\n".join(format_build_analysis_block(lossless))

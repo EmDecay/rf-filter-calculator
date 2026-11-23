@@ -12,7 +12,7 @@ import pytest
 from filter_lib.cli import main
 
 _LOWPASS = ("lp", "bw", "pi", "10MHz")
-_SIM_BUILD_JSON_ARGS = ("--sim-build", "--no-toroids", "--analysis-points", "101")
+_SIM_BUILD_JSON_ARGS = ("--sim-build", "--inductor-suggestions", "none", "--analysis-points", "101")
 _BANDPASS_EDGE_COMMAND = ("bp", "bw", "top", "-n", "2", "--fl", "14MHz", "--fh", "14.35MHz")
 
 
@@ -82,7 +82,8 @@ def test_sim_build_uses_accuracy_safe_default_grid(monkeypatch, capsys):
         "pi",
         "10MHz",
         "--sim-build",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
         "--format",
         "json",
     )
@@ -118,7 +119,9 @@ def test_bandpass_edge_targets_preserve_exact_requested_values(sim_build_json):
     assert payload["target"]["f_high_hz"] == payload["requested_parameters"]["f_high_hz"]
 
 
-def test_no_toroid_build_keeps_calculated_inductance_as_disclosed_fallback(monkeypatch, capsys):
+def test_calculated_build_inductors_keep_calculated_inductance_as_disclosed_fallback(
+    monkeypatch, capsys
+):
     _run(
         monkeypatch,
         "lp",
@@ -126,7 +129,8 @@ def test_no_toroid_build_keeps_calculated_inductance_as_disclosed_fallback(monke
         "pi",
         "10MHz",
         "--sim-build",
-        "--no-toroid-build",
+        "--build-inductors",
+        "calculated",
         "--analysis-points",
         "51",
         "--format",
@@ -137,14 +141,13 @@ def test_no_toroid_build_keeps_calculated_inductance_as_disclosed_fallback(monke
     inductor = next(
         item for item in payload["nominal_build"]["substitutions"] if item["kind"] == "L"
     )
-    assert payload["build_model"]["toroid_candidate_screen_enabled"] is False
-    assert (inductor["method"], inductor["status"]) == (
-        "exact_fallback",
-        "candidate_screen_disabled",
-    )
+    assert payload["build_model"]["build_inductor_choice"] == "calculated"
+    assert payload["build_model"]["suggested_inductors_used"] is False
+    assert (inductor["method"], inductor["status"]) == ("exact_fallback", "suggestions_not_used")
     assert inductor["nominal_value_si"] == inductor["calculated_value_si"]
-    # Unlike --no-toroids, the build-only opt-out leaves the winding recommendations visible.
-    assert payload["components"]["inductors"][0]["toroid_recommendations"]
+    # Unlike --inductor-suggestions none, the build-only choice leaves the suggestions visible.
+    kinds = payload["components"]["inductors"][0]["inductor_suggestions"]["kinds"]
+    assert next(kind for kind in kinds if kind["kind"] == "toroid")["suggestions"]
 
 
 def test_build_controls_are_forwarded_to_analysis_json(monkeypatch, capsys):
@@ -155,7 +158,8 @@ def test_build_controls_are_forwarded_to_analysis_json(monkeypatch, capsys):
         "t",
         "10MHz",
         "--sim-build",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
         "--cap-tolerance",
         "2.5",
         "--ind-tolerance",
@@ -236,13 +240,14 @@ def test_nominal_spice_uses_physical_parallel_caps_and_q_loss(monkeypatch, capsy
         "nominal-build",
         "--capacitor-q",
         "200",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
     )
 
     deck = capsys.readouterr().out
     values = _deck_values(deck)
     assert "* part used: C1 E24 parallel pair calculated=" in deck
-    assert "* part used: L1 calculated value (toroid windings off) calculated=" in deck
+    assert "* part used: L1 calculated value (inductor suggestions not used) calculated=" in deck
     # 318.31 pF is realized as the selected E24 pair 47 pF || 270 pF (see sample output).
     assert (values["C1A"], values["C1B"]) == (47e-12, 270e-12)
     assert "calculated=3.18309886184e-10 nominal=3.17e-10" in deck
@@ -262,23 +267,25 @@ def test_nominal_spice_uses_physical_parallel_caps_and_q_loss(monkeypatch, capsy
     ],
     ids=["lowpass", "highpass"],
 )
-def test_deprecated_alias_has_json_parity_and_warning(
-    monkeypatch, capsys, command, cutoff_key, absent_skirt_key
+def test_ladder_build_json_measures_one_cutoff_edge(
+    sim_build_json, command, cutoff_key, absent_skirt_key
 ):
-    _run(monkeypatch, *command, "--sim-matched", "--format", "json", "--no-toroids")
+    payload = sim_build_json(*command)
 
-    captured = capsys.readouterr()
-    block = json.loads(captured.out, parse_constant=_reject_constant)["matched_sim"]
-    assert block["deprecated"] is True
-    assert block["replacement"] == "build_analysis"
-    assert block["inductors"] == "calculated_exact_value_toroid_selection_disabled"
-    assert "Warning: --sim-matched is deprecated; use --sim-build" in captured.err
-    for side in ("exact", "matched"):
-        assert block[side]["cutoff_hz"] == block[side][cutoff_key]
-        assert block[side]["cutoff_hz"] == pytest.approx(10e6, rel=0.05)
-        assert block[side][absent_skirt_key] is None
-        assert block[side]["f0_hz"] is None
-        assert block[side]["bw_hz"] is None
+    inductors = [item for item in payload["nominal_build"]["substitutions"] if item["kind"] == "L"]
+    assert inductors
+    for inductor in inductors:
+        assert (inductor["method"], inductor["status"]) == (
+            "exact_fallback",
+            "suggestions_not_used",
+        )
+    for side in ("simulated", "nominal_build"):
+        measurement = payload[side]["measurement"]
+        assert measurement["cutoff_hz"] == measurement[cutoff_key]
+        assert measurement["cutoff_hz"] == pytest.approx(10e6, rel=0.05)
+        assert measurement[absent_skirt_key] is None
+        assert measurement["f0_hz"] is None
+        assert measurement["bandwidth_hz"] is None
 
 
 @pytest.mark.parametrize(
@@ -298,16 +305,16 @@ def test_deprecated_alias_has_json_parity_and_warning(
         ),
         (
             (*_LOWPASS, "--sim-matched", "--format", "csv"),
-            "--sim-matched is supported only with table or JSON output",
+            "unrecognized arguments: --sim-matched",
         ),
         (
             (*_LOWPASS, "--sim-matched", "--sim-build"),
-            "--sim-matched and --sim-build cannot be used together; --sim-matched is deprecated, so use --sim-build alone",
+            "unrecognized arguments: --sim-matched",
         ),
         ((*_LOWPASS, "--sim-build", "--quiet"), "--quiet and --sim-build cannot be used together"),
         (
             (*_LOWPASS, "--sim-matched", "--quiet"),
-            "--quiet and --sim-matched cannot be used together",
+            "unrecognized arguments: --sim-matched",
         ),
         (
             (*_LOWPASS, "--ind-tolerance", "5"),
@@ -362,12 +369,11 @@ def test_deprecated_alias_has_json_parity_and_warning(
         ),
         (
             (*_LOWPASS, "--sim-matched", "--capacitor-grade", "tight", "--stray-capacitance", "0"),
-            "--capacitor-grade, --stray-capacitance cannot be used with the deprecated "
-            "--sim-matched; use --sim-build",
+            "unrecognized arguments: --sim-matched",
         ),
         (
             (*_LOWPASS, "--sim-matched", "--cap-tolerance", "8"),
-            "--capacitor-tolerance cannot be used with the deprecated --sim-matched",
+            "unrecognized arguments: --sim-matched",
         ),
         (
             (*_LOWPASS, "-q", "--stray-capacitance", "0pF"),
@@ -534,7 +540,8 @@ def test_legacy_q_safety_remains_available_in_json(monkeypatch, capsys):
         "3",
         "--format",
         "json",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
     )
 
     captured = capsys.readouterr()
@@ -558,7 +565,8 @@ def test_nominal_bandpass_spice_applies_complete_resonator_q(monkeypatch, capsys
         "100",
         "--format",
         "spice",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
     )
 
     deck = capsys.readouterr().out
@@ -584,7 +592,8 @@ def test_loss_reference_frequency_is_applied_when_q_is_supplied(monkeypatch, cap
         "100",
         "--loss-reference-frequency",
         "1MHz",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
     )
 
     deck = capsys.readouterr().out

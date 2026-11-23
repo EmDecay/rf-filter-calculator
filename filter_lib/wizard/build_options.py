@@ -30,13 +30,8 @@ BUILD_OPTION_PREFIX = "Build simulation: "
 BUILD_OPTION_LABEL = "Simulate the built filter"
 BUILD_OPTION_HELP = (
     "Simulates the filter with the parts you would actually fit: standard capacitor "
-    "values, the suggested toroid windings, optional part Q, and component tolerances. "
+    "values, the suggested inductors, optional part Q, and component tolerances. "
     "Choose Table or JSON format and E12, E24, or E96 first. Simulated, not measured."
-)
-TOROID_BUILD_LABEL = "Simulate inductors as the suggested toroid windings"
-TOROID_BUILD_HELP = (
-    "Uses the inductance of each suggested whole-turn toroid winding. Untick to simulate "
-    "each inductor at its calculated value."
 )
 
 _DEFAULTS = BuildConfig()
@@ -127,7 +122,6 @@ class BuildOptionValues:
     sample_count: str = str(_DEFAULTS.sample_count)
     seed: str = str(_DEFAULTS.seed)
     grid_points: str = str(_DEFAULTS.grid_points)
-    use_toroid_candidates: bool = True
 
 
 def build_field_values(state: FilterState) -> dict[str, str]:
@@ -198,7 +192,7 @@ def parse_build_config(
     def frequency(value: str, _label: str) -> float | None:
         return parse_q_frequency(value) if value else None
 
-    defaults = BuildConfig(use_toroid_candidates=values.use_toroid_candidates)
+    defaults = BuildConfig()
 
     # (BuildConfig field, Input id, parser, raw text, label used in messages), in form order.
     fields = (
@@ -291,4 +285,3 @@ def apply_build_config(state: FilterState, enabled: bool, config: BuildConfig) -
     state.build_sample_count = config.sample_count
     state.build_seed = config.seed
     state.build_grid_points = config.grid_points
-    state.build_use_toroid_candidates = config.use_toroid_candidates

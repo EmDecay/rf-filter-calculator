@@ -5,6 +5,7 @@ Surfaces build a ``DesignRequest``, call ``design()``, and pass the ``DesignResu
 calculator, a category formatter, or the build analysis directly.
 """
 
+from ..shared.cancellation import DesignCancelled
 from .design_request import DesignRequest, band_from_edges
 from .design_result import DesignResult
 from .design_service import design, synthesize
@@ -13,6 +14,7 @@ from .render import render_lines
 from .render_options import RenderOptions
 
 __all__ = [
+    "DesignCancelled",
     "DesignRequest",
     "DesignResult",
     "RenderOptions",

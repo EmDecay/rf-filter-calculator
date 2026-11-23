@@ -1,7 +1,7 @@
 # Codebase Summary
 
-**Last updated:** November 7, 2026
-**Version:** 2.3.0
+**Last updated:** November 20, 2026
+**Version:** 3.0.0 (unreleased)
 
 RF Filter Calculator is a Python 3.11+ command-line, Textual TUI, and local web application for
 synthesizing lowpass, highpass, and coupled-resonator bandpass LC filters. The current
@@ -32,7 +32,7 @@ and simulated build behavior.
 ```text
 filter_lib/
 ├── cli/            argparse setup, category handlers, mode validation, web launcher
-├── design/         shared request → synthesis/build analysis → render/export path
+├── design/         shared request → synthesis → part resolution → build → render/export
 ├── lowpass/        LP public calculations, transfer, and display facades
 ├── highpass/       HP public calculations, transfer, and display facades
 ├── bandpass/       calibrated Top-C synthesis and independent verification
@@ -47,13 +47,21 @@ filter_lib/
 [system-architecture.md](system-architecture.md#shared-design-service) for why.
 
 - `design_request.py` — `DesignRequest` (synthesis inputs; the part policy: `eseries`,
-  `allow_sub_pf`, `capacitor_grade`, `capacitor_tolerance_pct`, `stray_capacitance_f`; the
-  build settings `realization` and the `run_build_analysis` switch) and the cross-field rules
-  every surface enforces
-- `design_result.py` — `DesignResult`: the request, the resolved `match_policy`, the result
-  dict and the optional build analysis; only `design()` builds one
-- `design_service.py` — `design()`, `synthesize()`, and `resolve_match_policy` (the one place a
-  request's part policy becomes a `MatchPolicy`)
+  `allow_sub_pf`, `capacitor_grade`, `capacitor_tolerance_pct`, `stray_capacitance_f`,
+  `inductor_suggestions`, `build_inductors`; the build settings `realization` and the
+  `run_build_analysis` switch) and the cross-field rules every surface enforces
+- `design_result.py` — `DesignResult`: the request, the result dict, the resolved `parts`
+  (`ResolvedParts`; `match_policy` is a property of it) and the optional build analysis;
+  only `design()` builds one
+- `design_service.py` — `design(request, should_cancel=None)` and `synthesize()`;
+  synthesis, part resolution and the build poll `should_cancel` and stop with
+  `DesignCancelled`
+- `part_resolution.py` — `resolve_parts` (from a request) and `resolve_parts_for` (explicit
+  settings, for a hand-made result) choose every capacitor and each inductor's suggestions
+  and build part once; `resolve_match_policy` is the one place a request's part policy becomes
+  a `MatchPolicy`. The only caller of a part selection function
+- `inductor_option_inputs.py` — wizard and web labels, choices, and help for **Inductor
+  suggestions (table detail)** and **Inductors in the build**
 - `capacitor_policy_inputs.py` — wizard and web labels, help, and field parsers for the
   capacitor grade, tolerance override, and stray
 - `render_options.py`, `render.py` — `RenderOptions` and `render_lines` for table, quiet,
@@ -123,17 +131,28 @@ does not list keeps the nominal rule (single within 1%, else a pair) and is mark
 (`--allow-sub-pf`, wizard/web **Allow capacitors below 1 pF**) is set; the warning names that
 option.
 
-Inductors are not E-series matched. Toroid winding suggestions use only primary-sourced
-T25-6, T50-2, and T68-2 entries. Other vendored legacy records remain inspectable but are
-not eligible for automatic suggestion. Selection checks frequency guidance, whole-turn
-error within the `A_L` tolerance, and winding capacity; it does not check RF Q, SRF, core
-loss, saturation, heating, or power.
+Inductors are not E-series matched. Each inductor gets inductor suggestions
+(`shared/inductor_suggestion.py`): one record for every kind, listed in the fixed order
+toroid, air coil, chip, each with an error budget, or the limit that failed for that kind.
+Only toroid windings are offered, from primary-sourced T25-6, T50-2, and T68-2 entries
+(`toroid_selection.suggest_toroids`); other vendored legacy records remain inspectable but
+are not eligible. Selection checks frequency guidance, whole-turn error within the `A_L`
+tolerance, and winding capacity; it does not check RF Q, SRF, core loss, saturation,
+heating, or power. VHF toroids and air-core coils carry the exclusion texts worded in
+[component-data-sources.md](component-data-sources.md), and chip inductors are not
+available yet.
+
+`design/part_resolution.py` resolves all of it once per design into
+`shared/resolved_parts.py::ResolvedParts` (keyed by circuit element name: `C1`/`L1`, band-pass
+`CT1`/`LT1`/`CK1`/`CIN`/`COUT`), including the part the build uses for each inductor
+(`--build-inductors`). Every output, both SPICE decks and the build read it.
 
 ## Build simulation
 
 `--sim-build` (user-facing name: build simulation) creates a named circuit from the chosen
-parts: standard capacitors, whole-turn toroid windings where available, and explicit
-exact-value fallbacks ("calculated value used"). Optional inputs add:
+parts in `DesignResult.parts`: standard capacitors, the inductor suggestion each inductor's
+`--build-inductors` choice picks, and explicit exact-value fallbacks ("calculated value
+used", with the reason). Optional inputs add:
 
 - separate simulation source and load resistances;
 - capacitor and inductor tolerances;
@@ -155,16 +174,13 @@ Response accuracy owners are [build_response.py](../filter_lib/shared/build_resp
 selection and model-comparison limits; [accuracy tests](../tests/test_response_accuracy.py)
 provide independent circuit evidence.
 
-`--sim-matched` is retained as a deprecated compatibility alias for the simpler
-ideal-versus-chosen-parts comparison. New integrations should use `--sim-build`.
-
 ## Output surfaces
 
 | Surface | Notes |
 |---|---|
 | Table | Human-oriented circuit, values, standard-value choices, warnings, plots, optional build-simulation block |
 | JSON | Strict finite JSON with explicit requested/calculated/nominal/simulated semantics |
-| CSV | Quoted rectangular component rows; best toroid suggestion only |
+| CSV | Quoted rectangular component rows; each inductor's best suggestion (`InductorKind`, part, SRF basis, `InductorBudget*` and the `Toroid*` columns) |
 | SPICE | Generic deck (`exact` calculated values or `nominal-build` chosen parts) from the shared named circuit; BP decks add a `* names:` map |
 | Plot data | Shared JSON/CSV response schema; analytic LP/HP, nodal BP |
 | Wizard save | Component export plus independent optional response-data sidecar |
@@ -172,7 +188,8 @@ ideal-versus-chosen-parts comparison. New integrations should use `--sim-build`.
 
 Unsupported option/output combinations are rejected by the CLI rather than silently ignored.
 Examples include E-series flags (and `--allow-sub-pf`) with raw/quiet/plot-data/exact-SPICE
-output and toroid detail flags outside table mode. The wizard and web disable the matching
+output, `--inductor-suggestions full`/`compact` outside table mode, and `--build-inductors`
+without a build or chosen-parts deck. The wizard and web disable the matching
 controls, with the reason, from `design/option_applicability.py`.
 
 ## Important shared modules
@@ -185,8 +202,11 @@ controls, with the reason, from `design/option_applicability.py`.
 - `strict_json.py` — non-finite-tree rejection and JSON serialization
 - `display_common.py`, `lp_hp_display.py` — common table/JSON/CSV presentation
 - `display_helpers.py` — shared `SECTION_RULE`, E-series section heading/note, and `Use:` rows
-- `toroid_display.py` — toroid winding suggestion text/JSON/CSV; the table section shared by
-  CLI and wizard
+- `inductor_display.py` — the Inductor Suggestions table section (every kind, the error budget
+  line, the reasons a kind has none), the `inductor_suggestions` JSON object, and the CSV
+  columns; shared by every surface
+- `toroid_display.py` — the toroid-specific title, detail lines, preamble, JSON build record and
+  CSV columns
 - `circuit_display_names.py` — maps bandpass circuit names to table names (CT1→Cp1, CK1→Cs12,
   CIN→Ce_in) for readable text and the SPICE `* names:` comment
 - `response_export.py` — standalone response schema
@@ -212,7 +232,12 @@ controls, with the reason, from `design/option_applicability.py`.
   tolerances, and the fixed `CSTRAY_<part>` stray across each pair
 - `capacitor_grades.py`, `capacitor_choice.py` — the sourced grade table and the worst-case
   capacitor choice
+- `inductor_suggestion.py` — the suggestion record for every kind (`InductorSuggestion`,
+  `KindSuggestions`, `ErrorBudget`), the kind order, option values, exclusion texts, and CLI help
+- `resolved_parts.py` — `ResolvedParts` and `InductorParts`, the parts every output reads
 - `toroid_core_data.py`, `toroid_inductance.py`, `toroid_selection.py`, `toroid_wire.py`
+- `cancellation.py` — `DesignCancelled` and the cancellation check that synthesis, part
+  resolution and the build poll
 - `build_loss_models.py`, `tolerance_screening.py`, `build_analysis.py`
 - `build_output*.py`, `spice_export.py`
 
@@ -254,7 +279,7 @@ or after failure. Component format selection and response-data sidecar selection
 - Ideal responses omit layout, package parasitics, transmission-line effects, and
   component self-resonance.
 - Q-based loss uses a stated-frequency constant series-resistance model.
-- Toroid results are winding suggestions, not RF/power suitability claims.
+- Inductor suggestions are buildable options, not RF/power suitability claims.
 - Generic SPICE decks need simulator- and component-model-specific refinement for final
   hardware prediction.
 - A VNA measurement of the assembled filter remains the acceptance test.

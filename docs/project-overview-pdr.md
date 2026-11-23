@@ -21,7 +21,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Hardware Designers (prototyping)
 
 ### Current Status
-**Version**: 2.3.0 (plain-language output and aligned CLI, wizard, and web UI)
+**Version**: 3.0.0, unreleased (worst-case capacitor choice; generic inductor suggestions with every part resolved once per design)
 - More than 4,500 collected tests, with a 90% CI coverage floor
 - Full CLI, interactive TUI, and local web UI with advanced plotting
 - Complete documentation
@@ -32,7 +32,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Bandpass top-coupled design calibrated to the requested −3 dB edges, with a per-design response check; 128-cell maintained acceptance matrix
 - Chebyshev g-values computed by formula for arbitrary ripple; capacitors-only E-series matching
 - Graph enhancements (GH-7): dB threshold tables + zoomed plots
-- Automatic toroid winding suggestions restricted to primary-sourced T25-6, T50-2, and T68-2; RF Q, SRF, core loss, heating, saturation, and power are explicitly not checked
+- Inductor suggestions in one record for every kind (toroid winding, air-core coil, chip inductor) with an error budget and the reason a kind has no part; only toroid windings on primary-sourced T25-6, T50-2, and T68-2 are offered, and RF Q, SRF, core loss, heating, saturation, and power are explicitly not checked
 - Build simulation with the chosen parts (or the calculated value where no part was chosen), part losses (Q), separate simulation source/load resistance, fixed tolerance cases, and optional repeatable extra random cases
 - Generic SPICE export (calculated values or chosen parts); strict JSON and rectangular quoted CSV
 - Plain-language help, errors, output, wizard, and web text, with one shared message per rule
@@ -185,10 +185,10 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Same options, labels, defaults, and order as the web form
 - Format: Table, Values only, JSON, or CSV
 - Standard capacitor values (E12/E24/E96/None) and the **Allow capacitors below 1 pF** checkbox
-- Toroid windings (table detail): Best, detailed (default), Up to 3, detailed, Best, one line, or None (`--no-toroids`)
+- Inductor suggestions (table detail): Best, detailed (default), Up to 3 per kind, detailed, Best, one line, or None (`--inductor-suggestions`)
 - Text plot in the table (off by default) and raw units
 - Response data file option (leaves out resonator Q)
-- Optional build simulation controls for tolerances, part Q, the frequency at which the Q values apply, simulation source/load resistance, extra random tolerance cases and seed, frequency points, and toroid use (ticked by default); fields pre-filled with the CLI defaults; refined measurements report convergence and separate −3 dB ranges
+- Optional build simulation controls for tolerances, part Q, the frequency at which the Q values apply, simulation source/load resistance, extra random tolerance cases and seed, frequency points, and Inductors in the build (Auto by default; `--build-inductors`); fields pre-filled with the CLI defaults; refined measurements report convergence and separate −3 dB ranges
 - Options that cannot apply to the chosen format are disabled with a one-line reason from the shared rule (`filter_lib.design.option_applicability`); saved files use each disabled option's visible value where it applies
 - Async calculation with loading indicator
 
@@ -197,7 +197,7 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 - Ripple: 0.5 dB (Chebyshev)
 - E-series: E24 (values per decade; not tolerance)
 - Components/Resonators: 3 (user configurable)
-- Build simulation: CLI defaults pre-filled (5 % / 10 % tolerance, 0 extra cases, seed 0, 601 points)
+- Build simulation: CLI defaults (capacitors at their sourced grade tolerance; inductor tolerance blank, which is 10 % for toroid windings and calculated values; 0 extra cases, seed 0, 601 points; Inductors in the build: Auto)
 
 #### 1.7 Web UI (optional `web` extra)
 
@@ -207,7 +207,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
   defaults, and error messages
 - The result panel shows the CLI's text output; an optional SVG response graph uses the response-data samples
 - Downloads (Design JSON, Components CSV, SPICE – calculated values, SPICE – chosen parts, response data JSON/CSV) are byte-identical to
-  CLI output; `POST /api/design/<category>` returns the `--format json` document
+  CLI output; `POST /api/design/<category>` returns the `--format json` document, the same
+  bytes as the Design JSON download for the same fields
 - Same options, labels, defaults, and order as the wizard; options that cannot apply are disabled with a reason, and the server refuses them in hand-made requests
 - Downloads use the inputs of the result shown (plus visible values of disabled controls where they apply); a notice appears when the form has changed since
 
@@ -381,8 +382,8 @@ Provide RF engineers and amateur radio operators with a fast, accurate tool to c
 **DD-4.2.1: Capacitor and Winding Guidance**
 - Standard capacitor values apply to capacitors in every topology
 - Inductors remain calculated winding targets rather than E-series substitutions
-- Toroid winding suggestions may provide whole-turn construction options when exact
-  primary-source eligibility and frequency/tolerance checks are met
+- Inductor suggestions may provide a buildable part (in this version, a whole-turn toroid
+  winding) when exact primary-source eligibility and frequency/tolerance checks are met
 - Displays distinguish calculated values, chosen parts, calculated values used in place of a
   part, and capacitors below 1 pF that must be chosen manually
 
@@ -568,6 +569,7 @@ Status: ✓ Measured ~200ms on reference machine
 | 2.1.0 | Jul 19 2026 | Per-design calibrated bandpass validation; deterministic preferred-value policy; primary-sourced toroid screening; realized-build loss/tolerance analysis; generic SPICE; strict machine output; numeric/API hardening; wizard/export lifecycle fixes; Python 3.10–3.13 packaging and CI gates |
 | 2.2.0 | Oct 7 2026 | Local web UI (`filter-calc web`, optional `web` extra) with CLI-identical output and an SVG response plot; one shared design service for CLI, wizard, and web; accuracy and stability fixes made after 2.1.0 |
 | 2.3.0 | Oct 8 2026 | Plain-language help, errors, output, wizard, and web text; `--allow-sub-pf` on CLI, wizard, and web; wizard and web aligned (same options, labels, defaults; inapplicable options disabled with a reason; downloads use the result's inputs); `--frequency`/`--freq` everywhere, `--spice-realization` aliases, one `-n` error; no JSON key, CSV column, flag, or choice value removed; numbers unchanged |
+| 3.0.0 | Unreleased | Worst-case capacitor choice from a sourced C0G grade table (`--capacitor-grade`, `--capacitor-tolerance`, `--stray-capacitance`); generic inductor suggestions (`--inductor-suggestions`, `--build-inductors`) replace the toroid-only options; every chosen part resolved once in `design()`; `--sim-matched` removed; Python 3.11–3.14 |
 
 ---
 
@@ -582,7 +584,7 @@ Status: ✓ Measured ~200ms on reference machine
 
 ## Document Control
 
-**Last Updated**: October 7, 2026
+**Last Updated**: November 20, 2026
 **Author**: Matt N3AR
 **Status**: Active (Production)
 **Next Review**: Q1 2027

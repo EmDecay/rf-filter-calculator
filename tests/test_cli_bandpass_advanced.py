@@ -21,7 +21,8 @@ def test_component_q_and_resonator_impedance_reach_result(capsys) -> None:
         "500kHz",
         "--format",
         "json",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
         "--ql",
         "180",
         "--qc",
@@ -52,7 +53,8 @@ def test_fixed_resonator_inductance_accepts_units(capsys) -> None:
         "500kHz",
         "--format",
         "json",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
         "--resonator-inductance",
         "1.2uH",
     ]
@@ -78,7 +80,8 @@ def test_explicit_edge_metadata_preserves_parsed_requested_values(capsys) -> Non
         "14.35MHz",
         "--format",
         "json",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
     ]
     with patch("sys.argv", argv):
         cli.main()
@@ -117,7 +120,8 @@ def test_mutually_exclusive_advanced_controls_fail_cleanly(extra, message, capsy
         "14.2MHz",
         "-b",
         "500kHz",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
         *extra,
     ]
     with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
@@ -154,7 +158,8 @@ def test_table_explains_component_q_behind_resonator_q(q_flags, expected_lines, 
         "14.2MHz",
         "-b",
         "500kHz",
-        "--no-toroids",
+        "--inductor-suggestions",
+        "none",
         "--no-match",
         *q_flags,
     ]
