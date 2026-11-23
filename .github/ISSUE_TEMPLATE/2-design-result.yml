@@ -1,0 +1,101 @@
+name: Wrong or suspicious design result
+description: A calculated value, chosen part, inductor suggestion, response check, build simulation or SPICE deck looks wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when the program runs but a result looks wrong: it disagrees with a reference, with the documentation, or with another output of the calculator.
+
+        **Before you file**
+
+        The results are design guidance from circuit models, published part data and stated assumptions. They are not measurements: check chosen parts against their datasheets, and measure before you build. Layout and part parasitics make a built filter differ from the calculation ([Construction reality](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/caveats-and-known-issues.md#construction-reality)). A measurement is still a useful reference when the difference is larger than those explain.
+
+        These results are documented and are not errors on their own:
+
+        - **Chebyshev cutoff.** A low-pass or high-pass cutoff is the ripple-band edge, where the loss equals the ripple; with less than 3 dB of ripple, the −3 dB point lies beyond it, toward the stopband. A band-pass bandwidth is always measured between the −3 dB edges ([Filter Theory](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/filter-theory.md#chebyshev-equiripple)).
+        - **Response Check: Not confirmed.** Read the warnings printed with it. The band-pass design method was tested up to 10% fractional bandwidth (bandwidth divided by center frequency), and some designs within that range are also not confirmed. Attenuation at 2× and 3× the center frequency is reported for information only ([Band-pass response check](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/caveats-and-known-issues.md#band-pass-response-check)).
+        - **Standard capacitors.** A part with a sourced tolerance is chosen by its worst case within that tolerance, plus an assumed stray across a pair, so the nominally closest value can lose. A choice marked "Tolerance not sourced" (a value the sourced tolerance table does not list) is made by nominal value. No part is chosen below 1 pF unless you turn on **Allow capacitors below 1 pF** (`--allow-sub-pf`) ([E-series selection](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/caveats-and-known-issues.md#e-series-selection-is-not-tolerance)).
+        - **Inductor suggestions.** Toroid windings cover the cores T25-6, T50-2 and T68-2, and the chip inductor catalog lists parts from 10 to 100 nH. VHF toroids and air-core coils are not offered. An inductor gets no suggestion when no part meets the limits ([Inductor suggestions](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/caveats-and-known-issues.md#inductor-suggestions)).
+        - **Build simulation.** The tolerance cases show spread, not a guaranteed worst case. Retuning a band-pass tank restores its resonance when the trimmer has the range, but not the coupling, so the bandwidth and ripple can still change ([Build simulation](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/caveats-and-known-issues.md#build-simulation)).
+
+        If the documentation does not explain what you see, please report it.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What looks wrong?
+      options:
+        - Calculated component values
+        - Standard capacitor choice
+        - Inductor suggestions (toroid winding or chip inductor)
+        - Band-pass response check, coupling advice or tank trimmers
+        - Build simulation or tolerance cases
+        - SPICE deck
+        - Frequency response (text plot, response graph or response data)
+        - The command line, wizard and web UI give different results
+        - Packaged part data differs from the manufacturer's data
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Filter
+      options:
+        - Low-pass
+        - High-pass
+        - Band-pass
+        - More than one, or not about one filter
+    validations:
+      required: true
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Command or inputs
+      description: |
+        Paste the exact command. For the wizard or web UI, name the interface, list the settings you changed from the starting defaults, and name the result or download you opened. If two interfaces disagree, give the steps for both.
+
+        For a part-data error, give the exact part number here and paste the incorrect entry under "Output that looks wrong".
+      placeholder: uv run filter-calc hp ch t 14MHz -r 0.5 -n 5
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output that looks wrong
+      description: |
+        Paste the lines that look wrong as text, with their units and any warnings. In the web UI, **Copy** copies the output text; include a separate **Design warnings** notice if the page shows one. In the wizard, choose **Export**, a format, then **Save**.
+
+        If the problem is in a graph, a CSV file, a SPICE deck or the JSON, say which one here and attach the file or a screenshot under "Anything else". JSON (`--format json`) holds the unrounded values, but is usually too long to paste.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what you compared
+      description: |
+        The values you expected, with units, and where they come from if you have a reference: a textbook table or formula, another calculator, a datasheet page, a SPICE run or a measurement.
+
+        For SPICE, name the simulator, the deck (calculated values or chosen parts), and the trace or expression you plotted. For a measurement, give the fitted parts and the test setup. For two outputs that disagree, say which two and at what frequency.
+      placeholder: |
+        I expected C1 to be about 133.3 pF from C = 1 / (g₁ × 2πf × Z₀),
+        using g₁ = 1.7058 (0.5 dB Chebyshev, n = 5), f = 14 MHz and Z₀ = 50 Ω.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: |
+        From the project folder, the output of `git rev-parse --short HEAD`. The commit identifies the code exactly; the version number can stay the same across many changes. Without a git checkout, give the version from `uv run filter-calc --version` or from the top of the web UI page.
+      placeholder: 0fdf889 (filter-calc 3.0.0)
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: |
+        Attach the JSON file, a SPICE deck (rename `.cir` to `.txt`), plots or screenshots by dragging them into this field.

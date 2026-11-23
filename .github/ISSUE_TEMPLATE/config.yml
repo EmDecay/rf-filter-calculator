@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/README.md
+    about: Quick start, user guide, sample output, filter theory, and the caveats and known issues.
+  - name: Report a security vulnerability
+    url: https://github.com/EmDecay/rf-filter-calculator/security/advisories/new
+    about: Report a security problem privately. Please do not open a public issue for it.
