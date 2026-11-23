@@ -28,7 +28,9 @@ uv run --locked pytest tests/ -m "not runtime_budget" \
 
 Tests marked `runtime_budget` assert wall-clock limits on the application itself. Coverage
 tracing slows them down, so they run in their own pass without `--cov`; every other test runs
-under the coverage gate. `--strict-markers` is on, so a misspelled marker fails collection.
+under the coverage gate. The nine-resonator band-pass build check scales the web's 60 s limit
+by how long the machine takes for a fixed pure-Python workload (relative to the machine its
+budget was measured on), so a slow CI runner does not fail it, but a slower build does. `--strict-markers` is on, so a misspelled marker fails collection.
 
 For a quick count without executing tests:
 

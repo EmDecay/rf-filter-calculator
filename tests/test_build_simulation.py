@@ -59,6 +59,49 @@ def test_build_simulation_facade_preserves_public_contract():
     assert BuildConfig().grid_points == 601
 
 
+# The web stops a calculation after this many seconds (web/settings.py).
+WEB_TIMEOUT_S = 60.0
+# ``_reference_workload`` takes about this long on the Apple M-series machine whose
+# measurements set the build's budget (Python 3.11 to 3.14 within 25%).
+REFERENCE_WORKLOAD_S = 0.26
+
+
+def _reference_workload() -> complex:
+    """A fixed pure-Python workload like the nodal solver's (complex elimination with exp),
+    written here so it does not run the code under test: a slower solver cannot hide by
+    slowing the yardstick too."""
+    total = 0j
+    n = 11
+    for k in range(40000):
+        matrix = [[0j] * n for _ in range(n)]
+        for i in range(n):
+            matrix[i][i] = complex(2.0 + math.exp(-((i + k) % 7) * 0.1), 0.5)
+            if i:
+                matrix[i][i - 1] = matrix[i - 1][i] = complex(-1.0, 0.1)
+        rhs = [1 + 0j] * n
+        for col in range(n):
+            pivot = matrix[col][col]
+            for row in range(col + 1, n):
+                factor = matrix[row][col] / pivot
+                if factor:
+                    for j in range(col, n):
+                        matrix[row][j] -= factor * matrix[col][j]
+                    rhs[row] -= factor * rhs[col]
+        total += rhs[-1] / matrix[-1][-1]
+    return total
+
+
+def _machine_speed_factor() -> float:
+    """How much slower this machine runs ``_reference_workload`` than the reference machine
+    (the best of three runs, so a busy moment does not count)."""
+    best = math.inf
+    for _ in range(3):
+        started = time.perf_counter()
+        _reference_workload()
+        best = min(best, time.perf_counter() - started)
+    return best / REFERENCE_WORKLOAD_S
+
+
 def _lp_result(order: int = 3, frequency_hz: float = 10e6) -> dict:
     capacitors, inductors, actual_order = lp_butterworth(frequency_hz, 50.0, order, "pi")
     return {
@@ -903,10 +946,11 @@ class TestBuildAnalysis:
 
     @pytest.mark.runtime_budget
     def test_a_9_resonator_build_with_trimmers_and_100_cases_fits_the_web_timeout(self):
-        # The web stops a calculation after 60 s (web/settings.py). Measured on an Apple
-        # M-series machine at full power: about 24 s (low-power mode took about 1.5 times as
-        # long); each case is measured twice, with its trimmers at their nominal settings and
-        # after retuning them.
+        # On the reference machine the build takes about 24 s (about 91 reference workloads,
+        # Python 3.11 to 3.14), against the web's 60 s; each case is measured twice, with its
+        # trimmers at their nominal settings and after retuning them. The limit scales with
+        # this machine's speed, so a slow CI runner does not fail it but a build about 2.5
+        # times slower does.
         from filter_lib.design import DesignRequest, design
 
         request = DesignRequest(
@@ -922,6 +966,7 @@ class TestBuildAnalysis:
             run_build_analysis=True,
         )
 
+        speed = _machine_speed_factor()
         started = time.perf_counter()
         analysis = design(request).build_analysis
         elapsed = time.perf_counter() - started
@@ -938,7 +983,11 @@ class TestBuildAnalysis:
         assert [case.case_id for case in analysis.cases] == expected
         assert {f"LT{index}" for index in range(1, 10)} <= set(parts)
         assert all(case.tuning is not None for case in analysis.cases)
-        assert elapsed < 60.0
+        limit = WEB_TIMEOUT_S * speed
+        assert elapsed < limit, (
+            f"{elapsed:.1f} s, over the {limit:.1f} s this machine is allowed "
+            f"({speed:.2f} times the reference machine's time)"
+        )
 
     @pytest.mark.runtime_budget
     def test_default_analysis_runtime_is_bounded(self):
