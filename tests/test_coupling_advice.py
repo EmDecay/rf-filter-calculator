@@ -169,15 +169,18 @@ def test_with_no_candidate_value_the_advice_says_so(monkeypatch):
 def test_when_no_value_works_within_the_budget_the_advice_says_so(monkeypatch):
     request = _two_metre()
     result, parts = _parts(request)
-    # Only values whose couplers stay below 1 pF.
+    # Only values whose couplers stay below 1 pF: the estimate's value, then the one above
+    # it (near 1 pF the chosen parts need not follow the value), then nothing lower.
     monkeypatch.setattr(advice_module, "_candidates", lambda *_args: [22e-9, 30e-9])
 
     advice = advise_coupling(request, result, parts)
 
     assert not advice.advised
-    assert [trial.setting for trial in advice.trials] == ["22nH"]
+    assert [trial.setting for trial in advice.trials] == ["22nH", "30nH"]
     assert advice.reason_none == no_value_works_reason(advice.trials)
-    assert advice.reason_none.startswith("None of the 1 tank inductances tried (22.00 nH)")
+    assert advice.reason_none.startswith(
+        "None of the 2 tank inductances tried (22.00 nH, 30.00 nH)"
+    )
 
 
 def test_the_search_stops_at_its_trial_budget(monkeypatch):
@@ -284,22 +287,42 @@ def test_an_hf_tank_is_advised_a_toroid_winding_and_told_to_clear_its_impedance(
         assert min(part["value_farads"] for part in parts) >= 1e-12
 
 
-def test_a_rerun_rebuilt_from_the_json_advice_runs(monkeypatch, capsys):
-    # With a tank impedance set, the advice must also say to drop it, or the rerun fails.
-    argv = (*TWO_METRE, "--tank-impedance", "50")
+def _without_options(argv: tuple[str, ...], options: list[str]) -> list[str]:
+    """``argv`` with each listed option and its value removed, in either form."""
+    kept, skip = [], False
+    for argument in argv:
+        if skip:
+            skip = False
+        elif argument in options:
+            skip = True
+        elif argument.split("=", 1)[0] not in options:
+            kept.append(argument)
+    return kept
+
+
+@pytest.mark.parametrize(
+    "impedance",
+    [("--tank-impedance", "50"), ("--resonator-impedance", "50"), ("--resonator-impedance=50",)],
+    ids=["tank", "resonator", "equals"],
+)
+def test_a_rerun_rebuilt_from_the_json_advice_runs(monkeypatch, capsys, impedance):
+    # With a tank impedance set, the advice must also say to drop it, in whichever spelling
+    # the command used, or the rerun fails.
+    argv = (*TWO_METRE, *impedance)
     advised = json.loads(cli_stdout(monkeypatch, capsys, *argv, "--format", "json"))[
         "coupling_advice"
     ]["advised"]
 
-    assert advised["remove_options"] == ["--tank-impedance"]
-    kept = list(argv)
-    for option in advised["remove_options"]:
-        index = kept.index(option)
-        del kept[index : index + 2]
+    assert advised["remove_options"] == ["--resonator-impedance", "--tank-impedance"]
+    kept = _without_options(argv, advised["remove_options"])
+    assert kept == list(TWO_METRE)
     rerun = json.loads(
         cli_stdout(monkeypatch, capsys, *kept, *advised["cli"].split(), "--format", "json")
     )
     assert rerun["coupling_advice"] is None
+
+
+def test_the_advice_drops_nothing_without_a_tank_impedance(monkeypatch, capsys):
     no_impedance = json.loads(cli_stdout(monkeypatch, capsys, *TWO_METRE, "--format", "json"))
     assert no_impedance["coupling_advice"]["advised"]["remove_options"] == []
 
@@ -317,3 +340,29 @@ def test_a_value_too_low_to_couple_the_ports_turns_the_search_upward():
     assert len(advice.trials) <= MAX_COUPLING_ADVICE_TRIALS
     rerun = design(dataclasses.replace(request, resonator_inductance=parse_inductance("23nH")))
     assert rerun.coupling_advice is None
+
+
+@pytest.mark.parametrize(
+    ("argv", "advised"),
+    [
+        # With parts below 1 pF allowed, 30 nH gets each coupler a pair of 0.51 pF parts and
+        # 31 nH a 1 pF part: the value above the estimate is tried before going down.
+        (("-f", "146MHz", "-b", "5.84MHz", "-n", "3", "-r", "0.5", "--allow-sub-pf"), "31nH"),
+        # 17 nH is too low to couple 1350 ohm ports, and the failure names about 24.71 nH:
+        # the search jumps there instead of spending its trials one value at a time.
+        (("-f", "140MHz", "-b", "4.2MHz", "-n", "3", "-r", "0.5", "-z", "1350"), "25nH"),
+    ],
+    ids=["probe-above", "jump-past-limit"],
+)
+def test_the_search_reaches_a_working_value_its_neighbours_hide(monkeypatch, capsys, argv, advised):
+    command = ("bp", "ch", "top", *argv)
+    advice = json.loads(cli_stdout(monkeypatch, capsys, *command, "--format", "json"))[
+        "coupling_advice"
+    ]
+
+    assert advice["advised"]["cli"] == f"--tank-inductance {advised}"
+    assert len(advice["trials"]) <= MAX_COUPLING_ADVICE_TRIALS
+    rerun = json.loads(
+        cli_stdout(monkeypatch, capsys, *command, "--tank-inductance", advised, "--format", "json")
+    )
+    assert rerun["coupling_advice"] is None

@@ -100,7 +100,7 @@ def _probe_installed_package(python: Path, *, cwd: Path, env: dict[str, str]) ->
 
         trimmer_resource = files("filter_lib.shared").joinpath("trimmer_data.json")
         assert json.loads(trimmer_resource.read_text(encoding="utf-8"))["schema_version"] == 1
-        assert len(trimmer_parts()) == 58
+        assert len(trimmer_parts()) == 182
 
         css_resource = files("filter_lib.wizard").joinpath("styles.tcss")
         assert css_resource.read_text(encoding="utf-8").strip()

@@ -229,11 +229,11 @@ Cp2: 47.00 pF + trimmer Exxelia AT 9402G-4 (or AT 9402G-4 SL1), 3.00–12.00 pF 
     3.42–11.61 pF, and its range there is 3.08–12.00 pF, assuming at most 10.00 nH
     series inductance (an assumption; the maker states no bound).
 ...
-Chosen parts:  center 145.9991 MHz, -3 dB bandwidth 3.959 MHz, edges 144.0329 MHz / 147.9922 MHz
-               peak gain 0.00 dB, lowest gain in passband -3.26 dB
+Chosen parts:  center 145.9993 MHz, -3 dB bandwidth 3.967 MHz, edges 144.0291 MHz / 147.9965 MHz
+               peak gain 0.00 dB, lowest gain in passband -3.21 dB
 Parts used:
-  Cp1:    4.70 pF || 39.00 pF + trimmer AT 9402G-4 set to 6.91 pF (7.34 pF effective at
-          145.974 MHz), plus 400.00 fF stray (assumed)
+  Cp1:    22.00 pF || 24.00 pF + trimmer QM10 set to 4.83 pF (5.04 pF effective at 145.974 MHz),
+          plus 400.00 fF stray (assumed)
   L1:     21.00 nH, chip inductor LQW15AN21NG80D, plus 59.60 fF self-capacitance
   Cp2:    47.00 pF + trimmer AT 9402G-4 set to 6.94 pF (7.38 pF effective at 145.974 MHz), plus
           200.00 fF stray (assumed)
@@ -243,12 +243,12 @@ Each case is simulated with every trimmer at its nominal setting, then again wit
 Spread across these cases, trimmers at their nominal settings (min / 5th percentile / median /
   95th percentile / max):
   ...
-  Center:                  141.1997 / 145.7123 / 145.9991 / 146.2996 / 151.1769 MHz
-  -3 dB bandwidth:         1.613 / 1.77 / 3.941 / 4.474 / 4.594 MHz
+  Center:                  141.1326 / 145.7006 / 145.9993 / 146.3005 / 151.2494 MHz
+  -3 dB bandwidth:         1.619 / 1.778 / 3.948 / 4.483 / 4.593 MHz
 Spread after retuning the trimmers in each case:
   ...
-  Center:                  145.9858 / 145.9925 / 145.9991 / 146.0075 / 146.0175 MHz
-  -3 dB bandwidth:         2.843 / 3.469 / 3.959 / 4.502 / 5.102 MHz
+  Center:                  145.986 / 145.9927 / 145.9993 / 146.0077 / 146.0176 MHz
+  -3 dB bandwidth:         2.851 / 3.476 / 3.967 / 4.512 / 5.107 MHz
 ```
 
 Retuning brings every case's center back to 146 MHz, but not its bandwidth: the 1 pF coupling

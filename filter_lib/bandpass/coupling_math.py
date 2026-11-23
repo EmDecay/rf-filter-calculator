@@ -118,6 +118,19 @@ def calculate_tank_capacitors(
     return tank_caps
 
 
+class TankTooLowError(ValueError):
+    """A supplied tank too low for series end coupling (``require_end_coupling_resonator``).
+
+    ``minimum_inductance_h`` is the bound the message names as an inductance at the design
+    frequency (``inf`` beyond binary64); like the message it is "about", since the
+    calibrated bandwidth moves the exact limit slightly.
+    """
+
+    def __init__(self, message: str, minimum_inductance_h: float) -> None:
+        super().__init__(message)
+        self.minimum_inductance_h = minimum_inductance_h
+
+
 def require_end_coupling_resonator(
     g_values: list[float],
     fbw: float,
@@ -155,10 +168,15 @@ def require_end_coupling_resonator(
         minimum = f"{_format_from_log(log_minimum_reactance)} Ω"
     if log_reactance > log_minimum_reactance:
         return
-    raise ValueError(
+    try:
+        minimum_inductance_h = math.exp(log_minimum_reactance - log_omega0)
+    except OverflowError:
+        minimum_inductance_h = math.inf
+    raise TankTooLowError(
         f"{supplied} is too low to couple the resonators to the {z0:.3g} Ω source and load "
         f"at this bandwidth and number of resonators. Use more than about {minimum}; a very "
-        "wide bandwidth can fail even then."
+        "wide bandwidth can fail even then.",
+        minimum_inductance_h,
     )
 
 

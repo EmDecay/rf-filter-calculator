@@ -368,7 +368,7 @@ def coupling_advice_payload(advice) -> dict[str, Any] | None:
     """The JSON ``coupling_advice`` object; ``None`` when the advice does not apply."""
     if advice is None:
         return None
-    from ..design.coupling_advice import CLI_FLAG, IMPEDANCE_CLI_FLAG
+    from ..design.coupling_advice import CLI_FLAG, IMPEDANCE_CLI_FLAGS
 
     advised = None
     if advice.advised:
@@ -377,8 +377,9 @@ def coupling_advice_payload(advice) -> dict[str, Any] | None:
             "tank_inductance_h": advice.inductance_h,
             "setting": advice.setting,
             "cli": f"{CLI_FLAG} {advice.setting}",
-            # Options the rerun must drop (the tank impedance, which conflicts with it).
-            "remove_options": [IMPEDANCE_CLI_FLAG] if advice.clears_impedance else [],
+            # Options the rerun must drop, in every spelling (the tank impedance, which
+            # conflicts with it): drop whichever the command used, with its value.
+            "remove_options": list(IMPEDANCE_CLI_FLAGS) if advice.clears_impedance else [],
             # Left out when the run hides inductor suggestions.
             "inductor_kind": part.kind if advice.names_part else None,
             "inductor_part": part.part_name if advice.names_part else None,

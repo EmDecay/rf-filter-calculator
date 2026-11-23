@@ -57,16 +57,28 @@ CHIP_Q_LIMITATION = (
 )
 
 
-# Printed when a tank is built as a fixed part plus a trimmer.
-TRIMMER_LIMITATION = (
-    "Each tank with a trimmer is tuned at the tank frequency so that its node susceptance "
-    "matches the calculated design's. Each trimmer is simulated as its knob capacitance in "
-    "series with the inductance its fit assumes. Its knob stops are the maker's guaranteed "
-    "range, measured at the maker's frequency; the range it covers at the tank frequency "
-    "rests on that assumed inductance, so it is not guaranteed. The tuned response restores "
-    "each tank's resonance, not the coupling between tanks or the external Q, so it is not "
-    "the design's response."
-)
+def trimmer_limitation(every_tank_tuned: bool) -> str:
+    """The limitation printed when a tank is built as a fixed part plus a trimmer.
+
+    ``every_tank_tuned``: every trimmer reached its nominal setting; otherwise the text says
+    that a trimmer at the end of its range leaves its tank untuned.
+    """
+    tuned = (
+        "Each tank with a trimmer is tuned at the tank frequency so that its node susceptance "
+        "matches the calculated design's."
+        if every_tank_tuned
+        else "Each tank with a trimmer is set at the tank frequency toward the calculated "
+        "design's node susceptance; a trimmer that cannot reach it stays at the end of its "
+        "range, and that tank is not tuned."
+    )
+    return (
+        f"{tuned} Each trimmer is simulated as its knob capacitance in series with the "
+        "inductance its fit assumes. Its knob stops are the maker's guaranteed range, measured "
+        "at the maker's frequency; the range it covers at the tank frequency rests on that "
+        "assumed inductance, so it is not guaranteed. Tuning restores a tank's resonance, not "
+        "the coupling between tanks or the external Q, so the tuned response is not the "
+        "design's response."
+    )
 
 
 # Readable text (table and SPICE comments) prints this one only when a toroid winding
@@ -211,7 +223,6 @@ def realize_nominal_build(
     tuning = None
     settings: tuple = ()
     if plans:
-        limitations.append(TRIMMER_LIMITATION)
         source, load = evaluation_ports(result, category, active_config)
         tuning = TuningPlan(
             trimmers=tuple(plans),
@@ -219,6 +230,7 @@ def realize_nominal_build(
             ports=tank_ports(circuit, source, load),
         )
         circuit, settings = tune(circuit, tuning)
+        limitations.append(trimmer_limitation(all(setting.in_range for setting in settings)))
         by_tank = {setting.tank: setting for setting in settings}
         substitutions = [
             item

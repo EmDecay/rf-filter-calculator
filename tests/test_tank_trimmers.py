@@ -334,8 +334,9 @@ def test_splits_rank_by_range_then_centring_then_fewer_parts():
 
 
 def test_a_tank_no_trimmer_can_cover_names_what_it_needs(monkeypatch, capsys):
-    # A 7.1 MHz toroid tank at ±10% needs a wider span than any packaged trimmer has.
-    argv = ("bp", "bw", "top", "-f", "7.1MHz", "-b", "200kHz", "-n", "3")
+    # A 3.6 MHz toroid tank at ±10% needs about 190 pF, more than any packaged trimmer spans
+    # once the fixed part's own tolerance is added.
+    argv = ("bp", "bw", "top", "-f", "3.6MHz", "-b", "100kHz", "-n", "3")
     table = cli_stdout(monkeypatch, capsys, *argv)
     data = json.loads(cli_stdout(monkeypatch, capsys, *argv, "--format", "json"))
 
@@ -487,7 +488,7 @@ def test_the_standard_values_say_to_use_the_split_and_keep_the_plain_choice(monk
 
     assert (
         "Cp1 calculated 51.43 pF\n"
-        "  Use:            4.70 pF || 39.00 pF + trimmer AT 9402G-4 (see Tank Trimmers)\n"
+        "  Use:            22.00 pF || 24.00 pF + trimmer QM10 (see Tank Trimmers)\n"
         "  No trimmer:     51.00 pF (-0.8%)\n"
     ) in table
     # A coupling capacitor keeps its own standard value.

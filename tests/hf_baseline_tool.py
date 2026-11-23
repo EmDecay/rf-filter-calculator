@@ -734,35 +734,65 @@ def _parts_tanks(parts: Any) -> set[str]:
     return {row[0] for row in parts or [] if row[5] == _SPLIT_METHOD}
 
 
-def _deck_differs_only_in_tanks(before: Any, after: Any, tanks: set[str]) -> bool:
+def _deck_differs_only_in_tanks(
+    before: Any, after: Any, tanks: set[str], split_rows: dict[str, list]
+) -> bool:
     """Whether a deck matches the one recorded without trimmers but for those tanks' rows.
 
-    Every other row must be the same, and each trimmed tank's rows must sit on its own
-    node and ground (the trimmer through its own internal node).
+    Every other row must be the same, the trimmed tanks must be exactly the tanks the build
+    splits, and each one's rows must be the split's own rows (``split_rows``): names,
+    terminals and values.
     """
 
     def other(rows):
         return [row for row in rows or [] if _tank_of_row(str(row[0])) not in tanks]
 
+    if tanks != set(split_rows):
+        return False
     if not _close(other(before), other(after), MEASUREMENT_REL_TOL):
         return False
-    return all(_tank_rows_are_a_split(after, tank) for tank in tanks)
+    return all(
+        _close(
+            sorted(row for row in after or [] if _tank_of_row(str(row[0])) == tank),
+            sorted(split_rows[tank]),
+            MEASUREMENT_REL_TOL,
+        )
+        for tank in tanks
+    )
 
 
-def _tank_rows_are_a_split(rows: Any, tank: str) -> bool:
-    """Whether a tank's deck rows are a split: fixed parts and stray across the tank, and
-    the trimmer from the tank's node through its own series node and inductance to ground."""
-    node, series = tank.removeprefix("CT"), f"NSERIESCTRIM_{tank}"
-    terminals = {
-        str(row[0]): (str(row[1]), str(row[2]))
-        for row in rows or []
-        if _tank_of_row(str(row[0])) == tank
-    }
-    if terminals.pop(f"CTRIM_{tank}", None) != (node, series):
-        return False
-    if terminals.pop(f"LTRIM_{tank}", None) != (series, "0"):
-        return False
-    return all(ends == (node, "0") for ends in terminals.values())
+_SPLIT_ROWS: dict[str, dict[str, list]] = {}
+
+
+def split_rows(design: Design) -> dict[str, list]:
+    """Each trimmed tank's rows as the chosen-parts deck must give them, from the build's
+    own record of its split (the deck's series, default build settings): the fixed parts
+    and their stray across the tank (node ``i`` to ground), the trimmer at its nominal
+    setting from the tank's node to its series node, and the trimmer's series inductance
+    from there to ground."""
+    if design.case_id not in _SPLIT_ROWS:
+        build = json.loads(
+            _run_cli(*design.argv, "--format", "json", "--sim-build", "--eseries", SPICE_SERIES)
+        )
+        rows: dict[str, list] = {}
+        for part in build["nominal_build"]["substitutions"]:
+            if part["method"] != _SPLIT_METHOD:
+                continue
+            tank, trimmer = part["logical_name"], part["trimmer"]
+            node, series = tank.removeprefix("CT"), f"NSERIESCTRIM_{tank}"
+            values = part["physical_parts_si"]
+            suffixes = [""] if len(values) == 1 else [chr(ord("A") + i) for i in range(len(values))]
+            tank_rows = [
+                [f"{tank}{suffix}", node, "0", value] for suffix, value in zip(suffixes, values)
+            ]
+            if part["stray_capacitance_f"]:
+                tank_rows.append([f"CSTRAY_{tank}", node, "0", part["stray_capacitance_f"]])
+            setting = trimmer["nominal_setting"]["setting_f"]
+            tank_rows.append([f"CTRIM_{tank}", node, series, setting])
+            tank_rows.append([f"LTRIM_{tank}", series, "0", trimmer["series_inductance_h"]])
+            rows[tank] = tank_rows
+        _SPLIT_ROWS[design.case_id] = rows
+    return _SPLIT_ROWS[design.case_id]
 
 
 def _parts_differ_only_in_tanks(before: Any, after: Any, tanks: set[str]) -> bool:
@@ -776,12 +806,14 @@ def _parts_differ_only_in_tanks(before: Any, after: Any, tanks: set[str]) -> boo
     )
 
 
-def _trimmer_explains(item: str, actual: dict, untrimmed: dict) -> list[str]:
+def _trimmer_explains(item: str, actual: dict, untrimmed: dict, design: Design) -> list[str]:
     """The tanks whose trimmer split alone explains the item's change from the untrimmed
     record; empty when anything else differs."""
     if item_type(item) == "spice_nominal":
         tanks = _deck_tanks(actual.get(item))
-        ok = _deck_differs_only_in_tanks(untrimmed.get(item), actual.get(item), tanks)
+        ok = _deck_differs_only_in_tanks(
+            untrimmed.get(item), actual.get(item), tanks, split_rows(design)
+        )
     else:
         # Build items: the build's parts must differ only in the trimmed tanks; every
         # measurement then follows from them.
@@ -807,7 +839,7 @@ def _classify_with_trimmers(
     tanks (``_trimmer_explains``), and what separates the corpus from that record must
     itself be a permitted change.
     """
-    tanks = _trimmer_explains(item, actual, untrimmed)
+    tanks = _trimmer_explains(item, actual, untrimmed, design)
     if not tanks:
         return [], "not a permitted change"
     kinds, reasons = ["d"], [f"tanks built as a fixed part plus a trimmer ({', '.join(tanks)})"]

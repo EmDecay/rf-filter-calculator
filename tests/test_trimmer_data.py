@@ -12,11 +12,19 @@ import pytest
 from filter_lib.shared import packaged_data, trimmer_data
 from filter_lib.shared.trimmer_data import trimmer_parts
 
-EVIDENCE = Path(__file__).resolve().parents[1] / "docs" / "component-data-sources.md"
+DOCS = Path(__file__).resolve().parents[1] / "docs"
+EVIDENCE = DOCS / "component-data-sources.md"
+# The Knowles Voltronics lines, part by part (an appendix to the evidence page).
+KNOWLES = DOCS / "component-data-sources-knowles-trimmers.md"
 # One row of the evidence page's per-part trimmer table.
 _ROW = re.compile(
     r"^\| (?P<parts>[^|]+) \| (?P<cmin>[\d.]+) pF \| (?P<cmax>[\d.]+) pF \| (?P<q>[^|]+) \| "
     r"(?P<srf>[^|]+) \| (?P<dielectric>[^|]+) \| (?P<voltage>\d+) V \| "
+    r"\[(?P<source>[^\]]+)\] (?P<page>p\. \d+) \|$"
+)
+_KNOWLES_ROW = re.compile(
+    r"^\| (?P<parts>[^|]+) \| (?P<cmin>[\d.]+) pF \| (?P<cmax>[\d.]+) pF \| (?P<q>[^|]+) \| "
+    r"(?P<dielectric>[^|]+) \| (?P<voltage>\d+) V \| (?P<mounting>[^|]+) \| "
     r"\[(?P<source>[^\]]+)\] (?P<page>p\. \d+) \|$"
 )
 _SOURCE = re.compile(
@@ -41,6 +49,14 @@ def _evidence_rows() -> list[dict]:
     return rows
 
 
+def _knowles_rows() -> list[dict]:
+    return [
+        match.groupdict()
+        for line in KNOWLES.read_text(encoding="utf-8").splitlines()
+        if (match := _KNOWLES_ROW.match(line))
+    ]
+
+
 def _evidence_sources() -> dict[str, dict]:
     sources = {}
     for line in EVIDENCE.read_text(encoding="utf-8").splitlines():
@@ -49,17 +65,33 @@ def _evidence_sources() -> dict[str, dict]:
     return sources
 
 
-def test_the_data_is_every_row_of_the_per_part_table_in_order():
-    rows = _evidence_rows()
+def _parts_of(row: dict) -> list[str]:
+    return [number.strip() for number in row["parts"].split(",")]
+
+
+def test_the_data_is_every_row_of_both_per_part_tables_in_order():
+    rows, knowles = _evidence_rows(), _knowles_rows()
     parts = trimmer_parts()
 
-    assert len(rows) == len(parts) == 58
-    assert sum(len(part.part_numbers) for part in parts) == 96
-    assert {part.maker for part in parts} == {"Vishay", "Exxelia", "Suntan"}
-    for row, part in zip(rows, parts, strict=True):
-        assert [number.strip() for number in row["parts"].split(",")] == list(part.part_numbers)
-        assert part.cmin_max_f == pytest.approx(float(row["cmin"]) * 1e-12, rel=1e-15)
-        assert part.cmax_min_f == pytest.approx(float(row["cmax"]) * 1e-12, rel=1e-15)
+    assert (len(rows), len(knowles), len(parts)) == (58, 124, 182)
+    assert sum(len(part.part_numbers) for part in parts) == 96 + 258
+    assert {part.maker for part in parts} == {"Vishay", "Exxelia", "Suntan", "Knowles"}
+    for row, part in zip(knowles, parts[len(rows) :], strict=True):
+        assert _parts_of(row) == list(part.part_numbers)
+        assert part.maker == "Knowles"
+        assert part.cmin_max_f == pytest.approx(float(row["cmin"]) * 1e-12, rel=1e-15, abs=0)
+        assert part.cmax_min_f == pytest.approx(float(row["cmax"]) * 1e-12, rel=1e-15, abs=0)
+        assert part.q_as_stated == row["q"].strip()
+        assert part.dielectric == row["dielectric"].strip()
+        assert part.working_voltage_v == int(row["voltage"])
+        assert part.mounting == row["mounting"].strip()
+        assert (part.source.source_id, part.page) == (row["source"], row["page"])
+        # No Knowles line states an SRF.
+        assert part.srf_min_at_cmax_hz is None and part.srf_as_stated is None
+    for row, part in zip(rows, parts, strict=False):
+        assert _parts_of(row) == list(part.part_numbers)
+        assert part.cmin_max_f == pytest.approx(float(row["cmin"]) * 1e-12, rel=1e-15, abs=0)
+        assert part.cmax_min_f == pytest.approx(float(row["cmax"]) * 1e-12, rel=1e-15, abs=0)
         assert part.q_as_stated == row["q"].strip()
         assert part.dielectric == row["dielectric"].strip()
         assert part.working_voltage_v == int(row["voltage"])
@@ -72,9 +104,14 @@ def test_the_data_is_every_row_of_the_per_part_table_in_order():
         assert part.srf_min_at_cmax_hz == (None if minimum is None else int(minimum[1]) * 1e6)
 
 
-def test_only_vishay_ranges_state_their_measurement_frequency():
+def test_only_vishay_and_knowles_glass_and_quartz_ranges_state_their_frequency():
     for part in trimmer_parts():
-        expected = 200e3 if part.maker == "Vishay" else None
+        if part.maker == "Vishay":
+            expected = 200e3
+        elif part.maker == "Knowles" and "piston" in part.family:
+            expected = 1e6  # "Capacitance measured at 1 MHz" (catalog p. 41)
+        else:
+            expected = None
         assert part.range_measured_at_hz == expected, part.part_name
 
 
@@ -152,6 +189,10 @@ def test_a_source_without_its_hash_is_refused(monkeypatch):
 
 
 def test_every_stated_q_names_the_setting_it_was_measured_at():
-    # Vishay states tan δ at Cmax, Exxelia and Suntan Q at Cmax; a graph has no setting.
+    # Vishay states tan δ at Cmax, Exxelia and Suntan Q at Cmax; a graph has no setting;
+    # Knowles states the setting for K_HV only, and says so where it does not.
+    settings = (", Cmax", "maximum rated C", "setting not stated")
     for part in trimmer_parts():
-        assert part.q_as_stated == "graph only" or ", Cmax" in part.q_as_stated, part.part_name
+        assert part.q_as_stated == "graph only" or any(
+            setting in part.q_as_stated for setting in settings
+        ), part.part_name

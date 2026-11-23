@@ -146,40 +146,43 @@ def test_a_capacitor_change_must_be_its_recorded_parts_and_a_stray_a_pair_s():
 
 def test_a_trimmer_split_explains_only_its_own_tanks_rows():
     design = next(item for item in tool.designs() if item.case_id == "bp-bs-top-21.2MHz-500kHz-n3")
-    untrimmed = [
-        ["CT1", "1", "0", 1.2e-10],
-        ["LT1", "1", "0", 3.6e-7],
-        ["CK1", "1", "2", 6.2e-12],
-        ["COUT", "3", "5", 1.5e-11],
-    ]
-    trimmed = [
-        ["CT1A", "1", "0", 8.2e-12],
-        ["CT1B", "1", "0", 6.8e-11],
-        ["CSTRAY_CT1", "1", "0", 4e-13],
-        ["CTRIM_CT1", "1", "NSERIESCTRIM_CT1", 3.3e-11],
-        ["LTRIM_CT1", "NSERIESCTRIM_CT1", "0", 1.35e-8],
-        *untrimmed[1:],
-    ]
-    actual, before = {"spice_nominal": trimmed}, {"spice_nominal": untrimmed}
+    splits = tool.split_rows(design)
+    others = [["LT1", "1", "0", 3.6e-7], ["CK1", "1", "2", 6.2e-12], ["COUT", "3", "5", 1.5e-11]]
+    untrimmed = [[tank, tank.removeprefix("CT"), "0", 1.2e-10] for tank in sorted(splits)]
+    trimmed = [row for tank in sorted(splits) for row in splits[tank]]
+    before = {"spice_nominal": [*untrimmed, *others]}
 
-    kinds, _reason = tool._classify_with_trimmers(
-        design, "spice_nominal", {}, actual, before, {}, None
-    )
-    assert kinds == ["d"]
-    # Adding a trimmer does not explain a removed end capacitor ...
-    actual = {"spice_nominal": trimmed[:-1]}
-    assert (
-        tool._classify_with_trimmers(design, "spice_nominal", {}, actual, before, {}, None)[0] == []
-    )
+    def kinds(rows):
+        actual = {"spice_nominal": rows}
+        return tool._classify_with_trimmers(design, "spice_nominal", {}, actual, before, {}, None)[
+            0
+        ]
+
+    assert splits and kinds([*trimmed, *others]) == ["d"]
+    tank_rows = splits["CT1"]
+    fixed = next(row for row in tank_rows if row[0].startswith("CT1"))
+    trimmer = next(row for row in tank_rows if row[0] == "CTRIM_CT1")
+    inductance = next(row for row in tank_rows if row[0] == "LTRIM_CT1")
+    stray = next(row for row in tank_rows if row[0] == "CSTRAY_CT1")
+
+    def without(*rows):
+        return [row for row in trimmed if row not in rows]
+
+    def replacing(row, replacement):
+        return [replacement if item is row else item for item in trimmed]
+
+    # Adding trimmers does not explain a removed end capacitor ...
+    assert kinds([*trimmed, *others[:-1]]) == []
     # ... nor a trimmer moved to ground without its series inductance ...
-    grounded = [*trimmed[:3], ["CTRIM_CT1", "0", "0", 3.3e-11], *trimmed[5:]]
-    actual = {"spice_nominal": grounded}
     assert (
-        tool._classify_with_trimmers(design, "spice_nominal", {}, actual, before, {}, None)[0] == []
+        kinds([*without(trimmer, inductance), ["CTRIM_CT1", "0", "0", trimmer[3]], *others]) == []
     )
-    # ... nor a trimmer on another tank's node.
-    moved = [*trimmed[:3], ["CTRIM_CT1", "2", "NSERIESCTRIM_CT1", 3.3e-11], *trimmed[4:]]
-    actual = {"spice_nominal": moved}
-    assert (
-        tool._classify_with_trimmers(design, "spice_nominal", {}, actual, before, {}, None)[0] == []
-    )
+    # ... nor a trimmer on another tank's node ...
+    assert kinds([*replacing(trimmer, ["CTRIM_CT1", "2", *trimmer[2:]]), *others]) == []
+    # ... nor a missing fixed part or stray, a changed series inductance, or an extra part.
+    assert kinds([*without(fixed), *others]) == []
+    assert kinds([*without(stray), *others]) == []
+    assert kinds([*replacing(inductance, [*inductance[:3], 100.0]), *others]) == []
+    assert kinds([*trimmed, ["CT1Z", "1", "0", 1.0], *others]) == []
+    # A tank the build does not split is not explained either.
+    assert kinds([*without(*tank_rows), ["CT1", "1", "0", 1.2e-10], *others]) == []

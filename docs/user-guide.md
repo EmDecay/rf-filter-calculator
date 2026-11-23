@@ -278,8 +278,12 @@ Rerun with "Resonator inductance" set to 21 nH (--tank-inductance 21nH). Recalcu
 ```
 
 Apply it with `--tank-inductance 21nH` (wizard and web: **Resonator inductance**; clear
-**Resonator impedance** if it was set, which the advice then says, and JSON lists in
-`advised.remove_options`). The inverse-`L` estimate
+**Resonator impedance** if it was set, which the advice then says; JSON
+`advised.remove_options` lists both spellings of that option, `--resonator-impedance` and
+`--tank-impedance`, so drop whichever the command used, with its value). If the estimate's
+value is too low to couple the ports, the search jumps past the limit the failure names; if
+its couplers get parts below 1 pF, it tries the next value up before going down. The
+inverse-`L` estimate
 itself, 21.06 nH, gives Cs12 = 0.99955 pF and no part, which is why the advice uses a value a
 part supplies. When no value works within the 8 recalculations, or no suggestion supplies a
 lower value, the section says so and advises nothing.
@@ -312,8 +316,9 @@ susceptance matches the calculated design's.
   coupling capacitor with no chosen part makes it **conditional**, and the section names each
   assumption (`Conditional on assumed tolerances: Cs12 (no standard part chosen; its calculated
   value at ±5% assumed).`). The assumed stray and the port resistances are stated inputs.
-- **The trimmer's range there.** A trimmer's range is guaranteed at 200 kHz (Vishay) or at a
-  frequency the maker does not state; at VHF its series inductance raises its effective
+- **The trimmer's range there.** A trimmer's range is guaranteed at 200 kHz (Vishay), at 1 MHz
+  (the Knowles glass and quartz piston trimmers) or at a frequency the maker does not state
+  (Exxelia, Suntan and the Knowles K and K_HV lines); at VHF its series inductance raises its effective
   capacitance `C/(1 − ω²LsC)`. For a Vishay part with a minimum SRF at its maximum the
   inductance is bounded (`Ls ≤ 1/((2π·SRF)²·Cmax)`); for every other part it is an assumed
   10 nH. Either is taken as an upper bound, so the range relied on runs from the raised minimum
@@ -328,17 +333,20 @@ susceptance matches the calculated design's.
   Splits rank by the smallest trimmer range, then the best-centred fixed part, then fewer parts;
   the table shows the first and JSON up to three (one per trimmer). When none fits, the section
   prints what the fixed part and trimmer together must supply. With a fit, the standard-value
-  section's `Use:` line for that tank names the split (`Use: 4.70 pF || 39.00 pF + trimmer AT
-  9402G-4 (see Tank Trimmers)`) and a `No trimmer:` line gives the plain standard-value choice;
+  section's `Use:` line for that tank names the split (`Use: 22.00 pF || 24.00 pF + trimmer
+  QM10 (see Tank Trimmers)`) and a `No trimmer:` line gives the plain standard-value choice;
   JSON `standard_match` and the CSV `RecommendedStd*` columns keep that plain choice, and the
   trimmer columns and `tank_trimmers` give the split.
 
 The trimmers packaged are the sourced ones with both range ends stated as bounds: Vishay BFC2
-808, Exxelia AT 0300/1300 R2, AT 03HV, AT 9402G, AT 9410G and AT 23XXG, and Suntan TSC3S
-([component-data-sources.md](component-data-sources.md#trimmer-capacitors)). The Knowles
-Voltronics lines qualify too but are not packaged, because the evidence page does not list them
-part by part. On HF a tank with a toroid winding often needs a wider span than any packaged
-trimmer has (±10% of a few hundred pF), so it keeps its standard-value part.
+808, Exxelia AT 0300/1300 R2, AT 03HV, AT 9402G, AT 9410G and AT 23XXG, Suntan TSC3S, and the
+Knowles Voltronics glass and quartz piston, K air and K_HV PTFE lines
+([component-data-sources.md](component-data-sources.md#trimmer-capacitors) and its
+[Knowles appendix](component-data-sources-knowles-trimmers.md)). No Knowles line states an SRF,
+so each is fitted with the assumed 10 nH series inductance. On HF the wide-range Knowles piston
+trimmers (up to 250 pF) fit most tanks; on the lowest bands a tank with a toroid winding can
+need more than any packaged trimmer spans (the 3.6 MHz, 100 kHz three-resonator design needs
+about 190 pF beside the fixed part's own tolerance), so it keeps its standard-value part.
 
 **In the build.** A tank with a trimmer is built as its fixed part, a fixed `CSTRAY_CT<i>`
 across it, and the trimmer `CTRIM_CT<i>` with its series inductance (written to the chosen-parts

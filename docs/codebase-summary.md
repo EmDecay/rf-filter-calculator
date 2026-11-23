@@ -159,7 +159,8 @@ trimmer (`ResolvedParts.tanks`): `shared/tank_trimmers.py` (`size_tanks`: the ne
 branch at the node at its extreme corners, `trimmer_range_f` under the trimmer's series
 inductance, the ranked splits), `shared/tank_susceptance.py` (a tank node's driving-point
 admittance with the other tank nodes shorted and the ports at their resistance),
-`shared/trimmer_data.py` + `trimmer_data.json` (the evidence page's per-part trimmer table) and
+`shared/trimmer_data.py` + `trimmer_data.json` (the evidence page's per-part trimmer table and
+the Knowles appendix, `component-data-sources-knowles-trimmers.md`) and
 `bandpass/trimmer_display.py` (the Tank Trimmers and Coupling Advice sections, the JSON objects
 and CSV columns).
 

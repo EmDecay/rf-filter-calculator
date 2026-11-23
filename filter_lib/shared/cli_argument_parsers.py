@@ -29,6 +29,9 @@ FILTER_TYPE_CHOICES = ["butterworth", "chebyshev", "bessel", "bw", "ch", "bs", "
 TOPOLOGY_CHOICES = ["pi", "t"]
 # Every subcommand accepts both long spellings of -f; listed in this order everywhere.
 FREQUENCY_FLAGS = ("-f", "--frequency", "--freq")
+# The band-pass tank options; the last spelling is the one output names.
+RESONATOR_IMPEDANCE_FLAGS = ("--resonator-impedance", "--tank-impedance")
+RESONATOR_INDUCTANCE_FLAGS = ("--resonator-inductance", "--tank-inductance")
 FREQ_SUFFIX_HELP = (
     "in Hz, or with k, M, or G for kHz, MHz, GHz (case-insensitive, so m also means MHz)"
 )

@@ -555,25 +555,19 @@ def test_every_range_measured_from_an_outside_peak_is_outside():
 
 
 def test_a_narrow_band_s_edges_print_apart(monkeypatch, capsys):
-    text = cli_stdout(
-        monkeypatch,
-        capsys,
-        "bp",
-        "bw",
-        "top",
-        "-f",
-        "146.0187MHz",
-        "-b",
-        "100Hz",
-        "-n",
-        "3",
-        "--tank-inductance",
-        "91nH",
-        "--sim-build",
-        "--analysis-points",
-        "51",
-    )
+    argv = ("bp", "bw", "top", "-f", "146.0187MHz", "-b", "100Hz", "-n", "3")
+    argv += ("--tank-inductance", "91nH", "--sim-build", "--analysis-points", "51")
+    text = cli_stdout(monkeypatch, capsys, *argv)
+    measured = json.loads(cli_stdout(monkeypatch, capsys, *argv, "--format", "json"))[
+        "nominal_build"
+    ]["measurement"]
 
-    # The tanks are tuned with trimmers, so the chosen parts' band is centred on 146.0187 MHz.
+    # Each edge prints to the hertz fraction that tells it from the other, and is the
+    # measured edge rounded to that precision. The tanks are tuned with trimmers, so the
+    # chosen parts' band is centred on 146.0187 MHz.
     chosen = next(line for line in text.splitlines() if line.startswith("Chosen parts:"))
-    assert "edges 146.018650478 MHz / 146.018749522 MHz" in chosen
+    low, high = measured["f_low_hz"], measured["f_high_hz"]
+    assert f"edges {low / 1e6:.9f} MHz / {high / 1e6:.9f} MHz" in chosen
+    assert f"{low / 1e6:.9f}" != f"{high / 1e6:.9f}"
+    assert (low + high) / 2 == pytest.approx(146.0187e6, abs=1)
+    assert high - low == pytest.approx(100, rel=0.02)

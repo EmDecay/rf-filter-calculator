@@ -3,13 +3,15 @@
 Only parts whose datasheet states both ends of the range as bounds are packaged: a
 guaranteed maximum for the minimum capacitance and a guaranteed minimum for the maximum
 (Vishay BFC2 808, Exxelia AT 0300/1300 R2, AT 03HV00 R2, AT 9402G, AT 9410G and AT 23XXG,
-and Suntan TSC3S). The evidence for every row is the per-part table of
-``docs/component-data-sources.md`` (Trimmer capacitors); a data change updates that page in
-the same change.
+Suntan TSC3S, and the Knowles Voltronics glass and quartz piston, K air and K_HV PTFE
+lines). The evidence for every row is the per-part table of
+``docs/component-data-sources.md`` (Trimmer capacitors) or, for Knowles, its appendix
+``docs/component-data-sources-knowles-trimmers.md``; a data change updates that page in the
+same change.
 
 A row is one range with every part number that has it (for example Vishay's top- and
-bottom-adjusted versions). The range is measured at 200 kHz (Vishay) or at a frequency
-the maker does not state. A minimum self-resonant frequency (SRF) at the maximum
+bottom-adjusted versions). The range is measured at 200 kHz (Vishay), at 1 MHz (the Knowles
+glass and quartz piston trimmers) or at a frequency the maker does not state. A minimum self-resonant frequency (SRF) at the maximum
 capacitance is packaged only where the maker guarantees one (most Vishay parts); a
 typical SRF is kept as text only.
 """

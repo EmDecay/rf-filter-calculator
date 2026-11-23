@@ -440,8 +440,8 @@ maximum. Ranges printed only as "x to y", as bare values or as typical values do
 
 **Per-part data** for the Vishay, Exxelia and Suntan TSC3S parts. "Cmin ≤" and "Cmax ≥" are
 the guaranteed bounds. Vishay states a maximum tan δ at Cmax; the Q in brackets is 1/tan δ,
-rounded down. "—" means the sheet gives no value. The Knowles glass, quartz and K parts are tabulated
-per part in [KNO-CAT-R5].
+rounded down. "—" means the sheet gives no value. The Knowles Voltronics parts are listed part
+by part in the appendix [Knowles Voltronics Trimmer Data](component-data-sources-knowles-trimmers.md).
 
 | Part numbers | Cmin ≤ | Cmax ≥ | Q as stated | SRF as stated | Dielectric | Working V | Source |
 |---|---|---|---|---|---|---|---|
@@ -541,10 +541,9 @@ at Cmax, so up to 10.1 nH) with 10 nH has an effective minimum of 3.00299 pF at 
 3.07770 pF at 146 MHz and 3.89252 pF at 440 MHz, so it cannot reach a 3.00 pF low end at
 146 MHz.
 
-**How the calculator uses it.** Every row of the per-part table above is packaged
-(`filter_lib/shared/trimmer_data.json`, 58 ranges, 96 part numbers); the Knowles Voltronics
-lines qualify but are not listed part by part on this page, so they are not packaged. A fit
-is checked at the calibrated tank frequency: the series inductance is the bound from Vishay's
+**How the calculator uses it.** Every row of the per-part table above and of the Knowles
+appendix is packaged (`filter_lib/shared/trimmer_data.json`, 182 ranges, 354 part numbers). A
+fit is checked at the calibrated tank frequency: the series inductance is the bound from Vishay's
 minimum SRF at Cmax where the sheet gives one, and an assumed 10 nH
 (`ASSUMED_TRIMMER_SERIES_INDUCTANCE_H`, about the bound the 1.5–5 and 3–10 pF Vishay parts give)
 for every other part. Either is taken as an upper bound, so the range relied on is from the

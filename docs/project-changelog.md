@@ -283,9 +283,10 @@ only labels changed.
   fewer parts; when none fits, the output names what the tank needs. With a fit, the tank's
   standard-value `Use:` line names the split and a `No trimmer:` line gives the plain choice
   (JSON `standard_match` and CSV `RecommendedStd*` keep the plain choice). The trimmers are the
-  evidence page's per-part table, packaged as `filter_lib/shared/trimmer_data.json` (Vishay BFC2
-  808, Exxelia AT 0300/1300 R2, AT 03HV, AT 9402G, AT 9410G and AT 23XXG, Suntan TSC3S; 58 ranges,
-  96 part numbers).
+  evidence page's per-part tables, packaged as `filter_lib/shared/trimmer_data.json` (Vishay BFC2
+  808, Exxelia AT 0300/1300 R2, AT 03HV, AT 9402G, AT 9410G and AT 23XXG, Suntan TSC3S, and the
+  Knowles Voltronics S, H, TF, TM, TP, QM, QP, K and K_HV lines listed part by part in
+  `docs/component-data-sources-knowles-trimmers.md`; 182 ranges, 354 part numbers).
 - **Build simulation and chosen-parts SPICE.** A tank with a fitting trimmer is built as its
   fixed part(s), a fixed `CSTRAY_CT<i>` (the assumed stray for each extra part) and a fixed
   trimmer `CTRIM_CT<i>` with its series inductance, written to the deck as `LTRIM_CT<i>` in
@@ -300,15 +301,18 @@ only labels changed.
   Substitutions gain `trimmer`; circuit elements gain `series_inductance_h`. The deck's
   `* part used:` line gives each trimmer's `required` value and `in-range`, and a tank whose
   trimmer cannot reach is said not to be tuned. JSON `tank_trimmers.sized_for_inductor` names
-  the inductor the tanks are sized for, and `coupling_advice.advised.remove_options` the
-  options a rerun must drop (`--tank-impedance`). The 2 m band-pass's
-  chosen parts now come out at 146.0002 MHz with a −2.78 dB lowest passband gain (untrimmed:
+  the inductor the tanks are sized for, and `coupling_advice.advised.remove_options` every
+  spelling of the options a rerun must drop (`--resonator-impedance`, `--tank-impedance`).
+  The advice search jumps past the inductance a too-low value names and tries the value
+  above the estimate before going down. The 2 m band-pass's
+  chosen parts now come out at 146.0002 MHz with a −2.76 dB lowest passband gain (untrimmed:
   143.93 MHz, −23.68 dB).
-- **HF designs.** The trimmer split applies on all bands (permitted kind d). Four HF baseline
-  band-pass designs get trimmers (18.1, 21.2, 24.9 and 28.5 MHz; their chosen-parts decks, and
-  for 21.2 MHz its build, change); on the lower bands a tank with a toroid winding at ±10% needs
-  more span than any packaged trimmer, so it keeps its standard-value part. The baseline tool
-  proves kind (d) by recording each design again with tank sizing switched off.
+- **HF designs.** The trimmer split applies on all bands (permitted kind d). Eight of the nine
+  HF baseline band-pass designs get a trimmer on at least one tank (3.6 to 28.5 MHz; their
+  chosen-parts decks and builds change), mostly the wide-range Knowles Voltronics piston
+  trimmers; at 1.9 MHz a tank with a toroid winding at ±10% needs more span than any packaged
+  trimmer, so it keeps its standard-value part. The baseline tool proves kind (d) by recording
+  each design again with tank sizing switched off.
 - **Python API.** New modules `shared/trimmer_data.py`, `shared/tank_susceptance.py`,
   `shared/tank_trimmers.py`, `shared/tank_tuning.py`, `bandpass/trimmer_display.py` and
   `design/coupling_advice.py`. `DesignResult` gains `coupling_advice`; `ResolvedParts` gains

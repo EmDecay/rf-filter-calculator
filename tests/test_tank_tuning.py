@@ -150,15 +150,16 @@ def test_a_build_without_trimmers_has_no_tuning():
             "bandpass",
             "butterworth",
             "top",
-            7.1e6,
+            3.6e6,
             50.0,
             3,
-            bandwidth_hz=200e3,
+            bandwidth_hz=100e3,
             run_build_analysis=True,
             realization=FAST,
         )
     ).build_analysis
 
+    # No packaged trimmer spans what these toroid tanks need (tests/test_tank_trimmers.py).
     assert not analysis.has_trimmers
     assert all(case.tuning is None for case in analysis.cases)
     assert analysis.tuned_metric_summaries == ()
@@ -361,3 +362,55 @@ def test_a_lossless_knob_past_its_pole_is_set_exactly_on_its_capacitive_side(
         if setting.in_range:
             assert setting.effective_f == pytest.approx(setting.required_f, rel=1e-9)
     assert "CTRIM_CT1" in export_spice(outcome, "nominal_build")
+
+
+def test_a_deck_says_which_tanks_its_trimmers_cannot_tune(monkeypatch, capsys):
+    argv = ("bp", "ch", "top", "-f", "146MHz", "-b", "4MHz", "-n", "3", "-r", "0.5")
+    argv += ("--tank-inductance", "21nH", "--format", "spice")
+    tuned = cli_stdout(monkeypatch, capsys, *argv)
+    # With an inductor Q of 1 no tank's trimmer reaches what the tank needs.
+    clamped = cli_stdout(monkeypatch, capsys, *argv, "--inductor-q", "1")
+
+    def used(deck):
+        return [line for line in deck.splitlines() if line.startswith("* part used: CT")]
+
+    assert used(tuned) and all("in-range=yes" in line for line in used(tuned))
+    assert "is tuned at the tank frequency so that its node susceptance matches" in tuned
+    assert used(clamped) and all("in-range=no" in line for line in used(clamped))
+    assert "is tuned at the tank frequency so that" not in clamped
+    assert "a trimmer that cannot reach it stays at the end of its range, and that tank is not" in (
+        clamped
+    )
+    assert "it is at the end of its range and the tank is not tuned" in clamped
+
+
+def test_a_lossy_trimmer_is_never_set_outside_the_range_relied_on():
+    # Q 0.6 on every part makes the range relied on narrower than the knob's travel; each
+    # setting, nominal or retuned, stays inside it, and one in range gives what it needs.
+    request = DesignRequest(
+        "bandpass",
+        "chebyshev",
+        "top",
+        440e6,
+        50.0,
+        3,
+        ripple_db=0.5,
+        bandwidth_hz=13.2e6,
+        resonator_inductance=21e-9,
+        realization=BuildConfig(grid_points=51, sample_count=8, inductor_q=0.6, capacitor_q=0.6),
+        run_build_analysis=True,
+    )
+    analysis = design(request).build_analysis
+    plans = {plan.tank: plan for plan in analysis.nominal_realization.tuning.trimmers}
+    settings = [
+        *analysis.nominal_realization.trimmer_settings,
+        *(setting for case in analysis.cases if case.tuning for setting in case.tuning.settings),
+    ]
+
+    assert plans and settings
+    for setting in settings:
+        low, high = plans[setting.tank].range_f
+        assert low * (1 - 1e-9) <= setting.effective_f <= high * (1 + 1e-9)
+        if setting.in_range:
+            assert setting.effective_f == pytest.approx(setting.required_f, rel=1e-9)
+    assert any(not setting.in_range for setting in settings)

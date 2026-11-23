@@ -23,9 +23,11 @@ import math
 from bisect import bisect_right
 from dataclasses import dataclass, field, replace
 
+from ..bandpass.coupling_math import TankTooLowError
 from ..shared.cancellation import CancellationCheck, raise_if_cancelled
 from ..shared.chip_inductor_data import chip_parts
 from ..shared.circuit_display_names import display_component_name, format_name_list
+from ..shared.cli_argument_parsers import RESONATOR_IMPEDANCE_FLAGS, RESONATOR_INDUCTANCE_FLAGS
 from ..shared.eseries import ESeriesMatch
 from ..shared.formatting import format_capacitance, format_inductance
 from ..shared.inductor_suggestion import DEFAULT_INDUCTOR_DETAIL, KIND_LABELS, InductorSuggestion
@@ -42,9 +44,10 @@ _SUPPLY_TOLERANCE = 1e-9
 # The end coupling capacitors of a band-pass design (the inter-resonator ones are CK1, CK2 ...).
 _END_COUPLERS = ("CIN", "COUT")
 
-CLI_FLAG = "--tank-inductance"
-# The tank impedance option, which a rerun with a tank inductance must leave out.
-IMPEDANCE_CLI_FLAG = "--tank-impedance"
+CLI_FLAG = RESONATOR_INDUCTANCE_FLAGS[-1]
+# Every spelling of the tank impedance option, which a rerun with a tank inductance must
+# leave out (whichever spelling the command used).
+IMPEDANCE_CLI_FLAGS = RESONATOR_IMPEDANCE_FLAGS
 FIELD_LABEL = "Resonator inductance"
 IMPEDANCE_FIELD_LABEL = "Resonator impedance"
 
@@ -63,6 +66,8 @@ class AdviceTrial:
     couplers_ok: bool
     supplied: bool
     reason: str | None = None
+    # The inductance a failed recalculation says the tank must exceed, when it names one.
+    minimum_h: float | None = None
 
     @property
     def works(self) -> bool:
@@ -207,6 +212,8 @@ class _Search:
         try:
             result = synthesize(trial_request, self.should_cancel)
             parts = resolve_parts(trial_request, result, self.should_cancel)
+        except TankTooLowError as error:
+            trial = AdviceTrial(read, setting, False, False, str(error), error.minimum_inductance_h)
         except ValueError as error:
             trial = AdviceTrial(read, setting, False, False, str(error))
         else:
@@ -224,26 +231,23 @@ def _walk(search: _Search, values: list[float], start: int) -> int | None:
 
     Couplers grow as the value falls, and a recalculation that fails outright means the
     value is too low to couple the ports (every lower one fails too). So from ``start`` the
-    walk goes up past values too low to recalculate and through values whose couplers still
-    get parts, keeping the largest that works; only when ``start`` recalculated with
-    couplers too small does it go down instead.
+    walk goes up past values too low to recalculate, jumping past the limit a failure
+    names, and through values whose couplers still get parts, keeping the largest that
+    works. When ``start`` recalculated with couplers too small it first tries the value
+    above, since near 1 pF the chosen parts need not follow the value (a pair below 1 pF can
+    give way to a 1 pF part as the value rises), and only then goes down.
     """
     first = search.run(start, values[start])
-    too_low = first.reason is not None
-    if too_low or first.couplers_ok:
-        best = start if first.works else None
-        index = start + 1
-        while index < len(values) and len(search.trials) < MAX_COUPLING_ADVICE_TRIALS:
-            trial = search.run(index, values[index])
-            if trial.reason is None and not trial.couplers_ok:
-                break
-            if trial.works:
-                best = index
-            index += 1
-        if best is not None or too_low:
-            return best
+    if first.reason is not None:
+        return _walk_up(search, values, _above(values, start, first), None)
+    if first.couplers_ok:
+        return _walk_up(search, values, start + 1, start if first.works else None)
+    if start + 1 < len(values) and _has_budget(search):
+        above = search.run(start + 1, values[start + 1])
+        if above.couplers_ok:
+            return _walk_up(search, values, start + 2, start + 1 if above.works else None)
     index = start - 1
-    while index >= 0 and len(search.trials) < MAX_COUPLING_ADVICE_TRIALS:
+    while index >= 0 and _has_budget(search):
         trial = search.run(index, values[index])
         if trial.works:
             return index
@@ -251,6 +255,34 @@ def _walk(search: _Search, values: list[float], start: int) -> int | None:
             return None
         index -= 1
     return None
+
+
+def _walk_up(search: _Search, values: list[float], index: int, best: int | None) -> int | None:
+    """From ``index`` up: past values too low to recalculate, then through values whose
+    couplers get parts, until one's couplers are too small; the largest that works."""
+    while index < len(values) and _has_budget(search):
+        trial = search.run(index, values[index])
+        if trial.reason is not None:
+            index = _above(values, index, trial)
+            continue
+        if not trial.couplers_ok:
+            break
+        if trial.works:
+            best = index
+        index += 1
+    return best
+
+
+def _above(values: list[float], index: int, failed: AdviceTrial) -> int:
+    """The next index to try after a failed recalculation at ``index``: the first value
+    above the limit it names, or simply the next value."""
+    if failed.minimum_h is None:
+        return index + 1
+    return max(index + 1, bisect_right(values, failed.minimum_h))
+
+
+def _has_budget(search: _Search) -> bool:
+    return len(search.trials) < MAX_COUPLING_ADVICE_TRIALS
 
 
 def advise_coupling(

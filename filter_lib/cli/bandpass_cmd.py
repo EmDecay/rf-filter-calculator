@@ -29,6 +29,8 @@ from ..shared.cli_argument_parsers import (
     FILTER_TYPE_METAVAR,
     FREQUENCY_FLAGS,
     IMPEDANCE_HELP,
+    RESONATOR_IMPEDANCE_FLAGS,
+    RESONATOR_INDUCTANCE_FLAGS,
     TYPE_FLAG_HELP,
     count_help,
     count_type,
@@ -172,8 +174,7 @@ def setup_parser(parser: ArgumentParser) -> None:
         "applies to the resonator capacitors only",
     )
     parser.add_argument(
-        "--resonator-impedance",
-        "--tank-impedance",
+        *RESONATOR_IMPEDANCE_FLAGS,
         dest="resonator_impedance",
         default=None,
         metavar="OHMS",
@@ -181,8 +182,7 @@ def setup_parser(parser: ArgumentParser) -> None:
         "source and load impedance (default: same as -z)",
     )
     parser.add_argument(
-        "--resonator-inductance",
-        "--tank-inductance",
+        *RESONATOR_INDUCTANCE_FLAGS,
         dest="resonator_inductance",
         default=None,
         metavar="HENRIES",

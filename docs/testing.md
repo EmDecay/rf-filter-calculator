@@ -127,8 +127,8 @@ measured field of `synthesis_validation`.
   shared reason; both sourced exclusion texts reach every surface for a VHF design
 - truthful fallbacks ("calculated value used", with the reason) when a standard part or an
   inductor suggestion is unavailable
-- band-pass tank trimmers: the packaged trimmer table against the evidence page and its source
-  index ([test_trimmer_data.py](../tests/test_trimmer_data.py)); each tank's need recomputed
+- band-pass tank trimmers: the packaged trimmer table against the evidence page, its Knowles
+  appendix and its source index ([test_trimmer_data.py](../tests/test_trimmer_data.py)); each tank's need recomputed
   from the branch formulas, the end coupling's effective shunt and its interior maximum, the
   trimmer's range under its series inductance (BFC280820109 at 29, 146 and 440 MHz), sourced and
   conditional needs, ranking and the no-fit message

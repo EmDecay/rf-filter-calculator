@@ -766,3 +766,17 @@ def test_a_forced_inductor_does_not_change_the_tank_split(client):
     for row, tank in zip(rows[:3], tanks(chip)["tanks"], strict=True):
         assert row["Component"] == tank["name"]
         assert (row["TrimmerFit"] == "no_fit") == (not tank["fits"])
+        # The CSV and the page name the JSON's first split: its trimmer and fixed parts.
+        split = tank["splits"][0] if tank["splits"] else None
+        assert row["TrimmerPart"] == (split["trimmer"]["part_numbers"][0] if split else "")
+        fixed = [float(text.split()[0]) for text in row["TankFixedParts"].split(" || ") if text]
+        assert fixed == pytest.approx(
+            [value * 1e12 for value in (split["fixed_parts_f"] if split else [])], abs=0.005
+        )
+        if split:
+            assert (
+                f"+ trimmer {row['TrimmerPart']} (see Tank Trimmers)"
+                in output_text(client.post("/design/bandpass", data=chip, headers=HTMX).text)
+                .split(f"{tank['name']} calculated", 1)[1]
+                .split("\n", 2)[1]
+            )

@@ -345,7 +345,7 @@ field parsers for the grade, tolerance and stray), `shared/display_helpers.py`
 `shared/chip_selection.py` (`no_qualifying_chip_reason`, `CHIP_NOT_ASSESSED_WARNING`),
 `shared/chip_display.py` (`CHIP_HEADING`, `CHIP_MODEL_LINE`, `checked_line`),
 `shared/nominal_realization.py` (`SELF_CAPACITANCE_LIMITATION`, `CHIP_Q_LIMITATION`,
-`TRIMMER_LIMITATION`), `shared/tank_trimmers.py` (`not_sourced_assumption`,
+`trimmer_limitation`), `shared/tank_trimmers.py` (`not_sourced_assumption`,
 `no_part_assumption`, `toroid_assumption`, `calculated_inductor_assumption`),
 `bandpass/trimmer_display.py` (`TANK_TRIMMERS_HEADING`, `COUPLING_ADVICE_HEADING`,
 `tank_trimmer_intro`, `series_inductance_text`, `assumptions_text`),
