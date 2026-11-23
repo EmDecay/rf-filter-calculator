@@ -1,0 +1,72 @@
+name: Bug report
+description: The program crashes, refuses valid input, or the command line, wizard or web UI misbehaves.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. A report that can be reproduced gets fixed fastest.
+
+        - If the program runs but a **value, chosen part or suggestion looks wrong**, use the **Wrong or suspicious design result** form instead.
+        - Limits that are already documented are listed in [Caveats & Known Issues](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/caveats-and-known-issues.md).
+        - Report a security problem privately through [Report a vulnerability](https://github.com/EmDecay/rf-filter-calculator/security/advisories/new), not here.
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Where did it happen?
+      options:
+        - Command line
+        - Interactive wizard (terminal)
+        - Web UI (browser)
+        - Installation or setup
+        - More than one, or not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: |
+        The exact command, copied from your terminal. For the wizard or web UI, list each setting you changed from its starting default, in order, and the button you selected last. For an installation problem, give the command that failed.
+      placeholder: |
+        uv run filter-calc bp ch top -f 14.175MHz -b 350kHz -n 5 --sim-build
+
+        Wizard or web UI:
+        Band-pass; Response: Chebyshev; Number of resonators: 5;
+        Simulate the built filter: ticked; then Show results (wizard) or Design filter (web UI)
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened, and what did you expect?
+      description: Say what you saw and what you expected to see instead.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output or error message
+      description: |
+        Paste the error message or the whole traceback as text, with the lines leading up to it. For a web UI problem, include any error printed by the terminal running `filter-calc web`. Attach long logs under "Anything else" instead.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: |
+        From the project folder, the output of `git rev-parse --short HEAD`. The commit identifies the code exactly; the version number can stay the same across many changes. Without a git checkout, give the version from `uv run filter-calc --version` or from the top of the web UI page. If setup failed before you had either, say where you got the code.
+      placeholder: 0fdf889 (filter-calc 3.0.0)
+  - type: input
+    id: environment
+    attributes:
+      label: Python version and operating system
+      description: |
+        The output of `uv run python --version`, and your operating system. For a wizard problem add the terminal program; for a web UI problem add the browser.
+      placeholder: Python 3.13.1, Ubuntu 24.04, GNOME Terminal
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, attached files, or other details. Drag files into this field to attach them.

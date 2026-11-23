@@ -1,0 +1,32 @@
+name: Question or feedback
+description: Ask how to use the calculator or how to read its output, or share general feedback.
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The answer may already be in the documentation:
+
+        - [Quick Start](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/quick-start.md) and the [User Guide](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/user-guide.md): commands, options, the wizard and the web UI
+        - [Sample Output](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/sample-output.md): what each output format looks like
+        - [Filter Theory](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/filter-theory.md) and [Tips & Best Practices](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/tips-and-best-practices.md): choosing a response type, an order and parts
+        - [Caveats & Known Issues](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/caveats-and-known-issues.md): what the results do and do not tell you
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question or feedback
+      description: For a design question, say what the filter is for, such as the band, the impedance, and what it must pass and reject. You can attach a file or a screenshot here.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Command and output
+      description: If your question is about a result, paste the command (or the settings you changed in the wizard or web UI) and the few lines you are asking about.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: The output of `git rev-parse --short HEAD` from the project folder, or the version from `uv run filter-calc --version` or the top of the web UI page.
+      placeholder: 0fdf889 (filter-calc 3.0.0)

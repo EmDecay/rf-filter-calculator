@@ -1,0 +1,33 @@
+name: Documentation problem
+description: The README, the docs, the help text or a message in the program is wrong, missing or unclear.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for the README, the pages under `docs/`, the `--help` text, and the wording of messages and labels in the command line, wizard and web UI.
+
+        - If a documented command or example needs correcting, continue here.
+        - For a calculated value or chosen part that disagrees with the documentation, use **Wrong or suspicious design result**.
+        - For a crash, valid input the program refuses, or a broken control, use **Bug report**.
+  - type: input
+    id: location
+    attributes:
+      label: Where is it?
+      description: A file and heading, a link, the command whose help is wrong, or the screen and label.
+      placeholder: "docs/user-guide.md, \"Web UI\"; or: uv run filter-calc bandpass --help"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong, missing or unclear?
+      description: |
+        Quote the text if you can. If a documented command does not work, include the command, its output, and the commit from `git rev-parse --short HEAD` (or the version from `uv run filter-calc --version`).
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What should it say?
+      description: Your suggested wording or addition, if you have one.

@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest a new capability, option, output or part family.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the suggestion. Two things are worth knowing first:
+
+        - [Caveats & Known Issues](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/caveats-and-known-issues.md) lists what the calculator does not design today, such as elliptic, active, crystal and transmission-line filters, and unequal source and load impedances.
+        - For new part data (capacitors, toroid cores, chip inductors, trimmers), give the exact part number and link the manufacturer's datasheet, specification or catalog. [Component Data Sources](https://github.com/EmDecay/rf-filter-calculator/blob/main/docs/component-data-sources.md) records the sources in use and explains why some kinds of part are not offered.
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      description: The filter or task you are working on, and what you have to do by hand or in another tool today.
+      placeholder: I design low-pass filters for several amateur bands and have to run one command per band and copy each table by hand.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should the calculator do?
+      description: The behavior you would like, if you have one in mind. If you can, show how it would look, such as a flag, a wizard or web UI option, or a line of output.
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: |
+        Formulas, textbook sections or datasheets. For part data, give the page or table of each value; a distributor-hosted copy of the manufacturer's document is fine.
