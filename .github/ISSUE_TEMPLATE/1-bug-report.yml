@@ -58,8 +58,6 @@ body:
       description: |
         From the project folder, the output of `git rev-parse --short HEAD`. The commit identifies the code exactly; the version number can stay the same across many changes. Without a git checkout, give the version from `uv run filter-calc --version` or from the top of the web UI page. If setup failed before you had either, say where you got the code.
       placeholder: 0fdf889 (filter-calc 3.0.0)
-    validations:
-      required: true
   - type: input
     id: environment
     attributes:
