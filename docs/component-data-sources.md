@@ -5,9 +5,13 @@ part suggestions (designs up to about 450 MHz): fixed capacitor tolerances, chip
 VHF toroids, air-core coils and trimmer capacitors. It also records which kinds of inductor
 can cover the acceptance designs, and why the others are not offered.
 
-**Status (2026-11-19): evidence only.** No calculator output uses this data yet. When a feature
-packages part of it as a data file, the packaged rows must match this page and cite the same
-sources; a data change updates this page in the same change.
+**Status.** The fixed-capacitor grades and value coverage below are packaged as
+`filter_lib/shared/capacitor_grade_data.json` and choose every standard capacitor (the
+worst-case rule in [code-standards.md](code-standards.md#e-series-policy)); each packaged row
+cites the reference sheet that states its tolerance, with the URL and SHA-256 listed here. The
+chip-inductor, toroid, air-coil and trimmer data are evidence only: no calculator output uses
+them yet. When a feature packages part of this page as a data file, the packaged rows must
+match this page and cite the same sources; a data change updates this page in the same change.
 
 ## How to read this page
 
@@ -100,7 +104,8 @@ tolerance.
   1–5 pF C / W, B; 5.1–9.9 pF D / W, B, C; ≥10 pF J / G. The GRM availability boundaries match
   that table exactly, but the GRM page has no such table, so the designation is carried over by
   analogy. **Standard** is Murata's standard code. **Tight** is the loosest of Murata's narrow
-  codes, which is one step tighter than standard. Every code in the
+  codes, one step tighter than standard below 1000 pF; from 1000 pF no tighter code has a
+  current sheet, so both grades are J ±5 %. Every code in the
   table has a current sheet, so a tighter custom choice (W everywhere below 10 pF) remains
   possible.
 - **Ineligible parts.** None: the smallest part is 0.5 pF with at most ±0.1 pF. The worst

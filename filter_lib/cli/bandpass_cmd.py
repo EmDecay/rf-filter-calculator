@@ -12,7 +12,6 @@ from ..design import (
     export_response_data,
     export_spice,
     render_lines,
-    with_build_analysis,
 )
 from ..design.design_request import check_q_safety
 from ..design.render_options import shows_design_warnings
@@ -48,7 +47,6 @@ from ..shared.cli_helpers import (
     add_plot_args,
     add_sim_matched_arg,
     get_filter_type_arg,
-    make_build_config,
     resolve_alternative_arg,
     resolve_ripple_arg,
     usage_error,
@@ -56,6 +54,7 @@ from ..shared.cli_helpers import (
 )
 from ..shared.parsing import parse_frequency, parse_impedance, parse_inductance
 from .design_output_args import (
+    part_policy_args,
     render_options_from_args,
     run_deprecated_matched_simulation,
     spice_realization_from_args,
@@ -284,8 +283,11 @@ def run(args: Namespace) -> None:
         qc=qc,
         resonator_impedance=resonator_impedance,
         resonator_inductance=resonator_inductance,
-        allow_sub_pf=bool(getattr(args, "allow_sub_pf", False)),
+        **part_policy_args(args),
     )
+    if request.run_build_analysis:
+        # The build can run for seconds, so its usage problems come first.
+        validate_bandpass_output_args(args)
     outcome = design(request)
     result = outcome.result
     validate_bandpass_output_args(args)
@@ -297,13 +299,10 @@ def run(args: Namespace) -> None:
             print(f"Warning: {w}", file=sys.stderr)
 
     if args.format == "spice":
-        config = make_build_config(args)
-        print(export_spice(outcome, spice_realization_from_args(args), config), end="")
+        print(export_spice(outcome, spice_realization_from_args(args)), end="")
         return
 
-    if getattr(args, "sim_build", False):
-        outcome = with_build_analysis(outcome, make_build_config(args))
-    elif getattr(args, "sim_matched", False):
+    if getattr(args, "sim_matched", False):
         run_deprecated_matched_simulation(
             args,
             "bandpass",

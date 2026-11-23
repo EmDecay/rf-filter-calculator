@@ -5,7 +5,7 @@ from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
-from filter_lib.shared import toroid_core_data
+from filter_lib.shared import packaged_data, toroid_core_data
 from filter_lib.shared.toroid_core_data import (
     get_core,
     get_source,
@@ -301,7 +301,7 @@ def test_winding_lookup_accepts_the_full_awg_range(awg):
 @pytest.mark.parametrize("document", ['{"schema_version": 1, "cores": []}', "[2]"])
 def test_packaged_data_loader_requires_schema_version_2_object(monkeypatch, tmp_path, document):
     (tmp_path / "toroid_core_data.json").write_text(document, encoding="utf-8")
-    monkeypatch.setattr(toroid_core_data, "files", lambda _package: tmp_path)
+    monkeypatch.setattr(packaged_data, "files", lambda _package: tmp_path)
 
     with pytest.raises(RuntimeError, match="expected version 2"):
         toroid_core_data._load_raw_data()
@@ -312,7 +312,7 @@ def test_packaged_data_loader_rejects_non_finite_number_literals(monkeypatch, tm
     (tmp_path / "toroid_core_data.json").write_text(
         f'{{"schema_version": 2, "value": {literal}}}', encoding="utf-8"
     )
-    monkeypatch.setattr(toroid_core_data, "files", lambda _package: tmp_path)
+    monkeypatch.setattr(packaged_data, "files", lambda _package: tmp_path)
 
     with pytest.raises(ValueError, match="Non-finite JSON"):
         toroid_core_data._load_raw_data()

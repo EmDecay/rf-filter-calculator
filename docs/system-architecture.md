@@ -38,6 +38,18 @@ starts the Textual wizard; `filter-calc web` serves the browser UI.
 `export_spice`, or `export_response_data`. No surface calls a calculator, a category
 formatter, or the build analysis directly.
 
+The request is the one carrier of everything that decides the parts: the standard capacitor
+series (`eseries`, `None` for no standard values), the sub-pF switch, the capacitor grade, the
+tolerance override, the assumed stray, the build settings (`realization`) and whether to run
+the build simulation (`run_build_analysis`). `design()` resolves the part policy once
+(`resolve_match_policy`) and returns a `DesignResult` holding the request, that `MatchPolicy`,
+the calculator dict and the optional build analysis. Every output reads its parts from the
+result, so the table, JSON, CSV, the build and the chosen-parts deck cannot disagree. A
+chosen-parts SPICE deck uses `realization` without running the tolerance cases. The CLI builds
+the whole request before calling `design()`; the wizard keeps the result it shows and reuses it
+for a saved file only when that file's request is equal, designing any other file in its save
+worker.
+
 The service exists so that a third surface did not mean a third copy of the
 orchestration. Before it, the CLI handlers and the wizard each sequenced synthesis, build
 analysis, and formatting, and kept identical results only through parity tests. Each
@@ -58,9 +70,9 @@ The wizard and the web offer the same options with the same labels, defaults, an
 disable a control that cannot apply to the chosen output instead of ignoring it or refusing the
 submission. Which options apply is one rule,
 [`design/option_applicability.py`](../filter_lib/design/option_applicability.py):
-`inapplicable_options(OutputChoices)` returns `{option: reason}` for the eight options
-(`eseries`, `allow_sub_pf`, `toroid_detail`, `plot`, `raw`, `build`, `toroid_build`,
-`loss_q`). It restates, in the interfaces' words, exactly the combinations the CLI refuses
+`inapplicable_options(OutputChoices)` returns `{option: reason}` for the eleven options
+(`eseries`, `allow_sub_pf`, `capacitor_grade`, `capacitor_tolerance`, `stray_capacitance`,
+`toroid_detail`, `plot`, `raw`, `build`, `toroid_build`, `loss_q`). It restates, in the interfaces' words, exactly the combinations the CLI refuses
 (`shared/cli_output_validation.py`, `shared/cli_bandpass_output_validation.py`,
 `RenderOptions`); a test checks every combination against the CLI validators. A disabled control
 counts as unset, which is what leaving out the CLI flag means.
@@ -68,7 +80,10 @@ counts as unset, which is what leaving out the CLI flag means.
 `document_options(choices, document, applied=…, visible=…)` decides which options another
 document of the same design uses. Each document follows the rules of one output format
 (`DOCUMENT_FORMATS`: design JSON and the chosen-parts SPICE deck follow JSON; CSV, the
-calculated-values deck, and response data follow CSV). A disabled control's visible value is
+calculated-values deck, and response data follow CSV), plus any rules of its own: the
+calculated-values deck uses no standard capacitors, so it leaves out the E-series and the
+capacitor grade, tolerance, stray and sub-pF options (`document_reasons`,
+`document_own_options`). A disabled control's visible value is
 added to each document it applies to, so Values only with E-series None downloads JSON as
 `--format json --no-match`, never with a substituted E24. The web downloads
 (`web/download_inputs.py`) and the wizard's saved files (`wizard/state_design_inputs.py`) both
@@ -170,20 +185,24 @@ calculation.
 ## Physical realization
 
 `shared/eseries.py` treats E12/E24/E96 as values per decade, never as component
-tolerance. Its capacitor selection rule (`MatchPolicy`) is deterministic:
+tolerance. Capacitor selection (`shared/capacitor_choice.py`) is deterministic and exact:
 
-- select one part when its error is at most 1%;
-- otherwise select a two-part parallel value only when it improves absolute error by at
-  least 0.5 percentage points;
+- tolerances come from the sourced grade table (`shared/capacitor_grades.py`, Murata
+  GRM1885C1H…A01, standard or tight grade; an override can only loosen it);
+- each candidate's interval is nominal ± tolerance, plus the assumed stray for a pair; its
+  score is the larger endpoint error; the best single and best pair come from an exhaustive
+  search over the values the sourced table lists; a pair wins only by at least 0.5 percentage
+  points; ties go to the single, then the smaller ratio, then the lower value;
+- a choice whose parts the sourced table does not list keeps the nominal rule (single within 1%,
+  else a pair) and is reported as `tolerance_not_sourced` with an assumed tolerance;
 - below 1 pF, report `expert_override_required` and retain the calculated value rather
-  than silently substituting a part, unless `MatchPolicy.allow_sub_pf` is set. Surfaces set it
-  only through `DesignRequest.allow_sub_pf` (`--allow-sub-pf`, wizard/web **Allow capacitors
-  below 1 pF**); `design()` applies it to the table, JSON, CSV, build, and SPICE policies,
-  combined with (never overriding) an explicit `BuildConfig.match_policy.allow_sub_pf`.
+  than silently substituting a part, unless `DesignRequest.allow_sub_pf` is set
+  (`--allow-sub-pf`, wizard/web **Allow capacitors below 1 pF**).
 
-`component_realization.py` and `nominal_realization.py` turn that policy into named
-physical branches. If no eligible preferred value or winding exists, the realization
-records an exact calculated fallback explicitly.
+`component_realization.py` and `nominal_realization.py` turn that choice into named
+physical branches, each with its own tolerance, plus a fixed `CSTRAY_<part>` capacitor across
+each pair for the assumed stray. If no eligible preferred value or winding exists, the
+realization records an exact calculated fallback explicitly.
 
 ### Toroid winding suggestions
 

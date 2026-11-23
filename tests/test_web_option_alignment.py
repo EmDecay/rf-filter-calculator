@@ -255,7 +255,7 @@ def test_unticked_toroid_build_is_the_cli_no_toroid_build(monkeypatch, capsys, c
 def test_the_2_2_field_still_means_no_toroid_build():
     form = {**LP, "sim_build": "on", "no_toroid_build": "on"}
 
-    assert parse_design_form("lowpass", form).request.build.use_toroid_candidates is False
+    assert parse_design_form("lowpass", form).request.realization.use_toroid_candidates is False
 
 
 @pytest.mark.parametrize("toroid_build, checked", [("off", False), ("on", True)])
@@ -275,8 +275,11 @@ def test_build_fields_are_filled_with_the_cli_defaults(client):
     page = client.get("/").text
 
     for name, value in (
-        ("build_capacitor_tolerance_pct", f"{defaults.capacitor_tolerance_pct:g}"),
-        ("build_inductor_tolerance_pct", f"{defaults.inductor_tolerance_pct:g}"),
+        # Blank means each inductor's own tolerance (10 % for toroids and calculated values).
+        ("build_inductor_tolerance_pct", ""),
+        # The capacitor tolerance and stray are blank: the grade's tolerance, the 0.2 pF stray.
+        ("capacitor_tolerance_pct", ""),
+        ("stray_capacitance", ""),
         ("build_sample_count", str(defaults.sample_count)),
         ("build_seed", str(defaults.seed)),
         ("build_grid_points", str(defaults.grid_points)),

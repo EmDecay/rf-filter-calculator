@@ -15,6 +15,7 @@ from decimal import Decimal, InvalidOperation
 FREQUENCY_FORMAT_HINT = "use a number with an optional k, M, or G suffix, e.g. 14.2MHz"
 IMPEDANCE_FORMAT_HINT = "use a number of ohms with an optional k or M suffix, e.g. 50 or 1k"
 INDUCTANCE_FORMAT_HINT = "use a number with H, mH, uH, or nH, e.g. 1.2uH"
+CAPACITANCE_FORMAT_HINT = "use a number with F, uF, nF, pF, or fF, e.g. 0.2pF"
 
 
 def _parse_scaled_positive(
@@ -155,3 +156,42 @@ def parse_inductance(inductance_str: str, label: str = "Inductance") -> float:
         return _parse_scaled_positive(
             normalized, 1.0, label=label, original=original, hint=INDUCTANCE_FORMAT_HINT
         )
+
+
+def parse_capacitance(capacitance_str: str, label: str = "Capacitance") -> float:
+    """Parse a non-negative capacitance with F, uF/µF/μF, nF, pF, or fF units.
+
+    A value without a suffix is farads. Zero is accepted (``0`` or ``0pF``): the one
+    capacitance input, the assumed stray, may be left out of the model. ``label`` names
+    the quantity in error messages; the accepted range is checked by its owner.
+    """
+    if not isinstance(capacitance_str, str):
+        raise ValueError(f"{label} must be supplied as text")
+    original = capacitance_str.strip()
+    normalized = original.replace("µ", "u").replace("μ", "u").lower()
+    multiplier = 1.0
+    number = normalized
+    for suffix, scale in (("uf", 1e-6), ("nf", 1e-9), ("pf", 1e-12), ("ff", 1e-15), ("f", 1.0)):
+        if normalized.endswith(suffix):
+            number, multiplier = normalized[: -len(suffix)].strip(), scale
+            break
+    try:
+        amount = Decimal(number)
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError(
+            f"Invalid {label.lower()}: {original} ({CAPACITANCE_FORMAT_HINT})"
+        ) from error
+    if amount.is_zero():
+        return 0.0
+    if amount.is_signed():
+        raise ValueError(f"{label} must not be negative: {original}")
+    return _parse_scaled_positive(
+        number, multiplier, label=label, original=original, hint=CAPACITANCE_FORMAT_HINT
+    )
+
+
+def parse_stray_capacitance(text: str) -> float:
+    """Parse the assumed stray capacitance (CLI, wizard, and web) and check its range."""
+    from .physical_input_limits import require_stray_capacitance
+
+    return require_stray_capacitance(parse_capacitance(text, label="Stray capacitance"))

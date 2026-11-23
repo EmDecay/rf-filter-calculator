@@ -35,6 +35,7 @@ from filter_lib.shared.build_types import (
     SEED_NEEDS_SAMPLES_MESSAGE,
     BuildConfig,
 )
+from filter_lib.shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
 from filter_lib.wizard.build_options import (
     BUILD_INPUT_FLOW,
     BuildOptionError,
@@ -48,11 +49,10 @@ from filter_lib.wizard.screens.output_options import (
     reason_id,
 )
 from filter_lib.wizard.screens.results import ResultsScreen
-from filter_lib.wizard.state import FilterState
+from filter_lib.wizard.state import JSON_DOCUMENT, FilterState
 
 DEFAULT_BUILD_INPUTS = {
-    "#build-capacitor-tolerance": "5",
-    "#build-inductor-tolerance": "10",
+    "#build-inductor-tolerance": "",
     "#build-inductor-q": "",
     "#build-capacitor-q": "",
     "#build-reference-frequency": "",
@@ -91,6 +91,9 @@ def _screen(
     build_enabled: bool = False,
     use_toroids: bool = True,
     allow_sub_pf: bool = False,
+    capacitor_grade: str = "standard",
+    capacitor_tolerance: str = "",
+    stray_capacitance: str = "",
     build_inputs: dict[str, str] | None = None,
     state: FilterState | None = None,
 ) -> SimpleNamespace:
@@ -106,6 +109,7 @@ def _screen(
         "#toroid-detail": _radio_set(toroid_detail, focus == "toroid-detail"),
         "#export": _radio_set(export, focus == "export"),
         "#allow-sub-pf": _checkbox("allow-sub-pf", allow_sub_pf, focus),
+        "#capacitor-grade": _radio_set(f"grade-{capacitor_grade}", focus == "capacitor-grade"),
         "#plot": _checkbox("plot", plot, focus),
         "#raw": _checkbox("raw", raw, focus),
         "#build-analysis-enabled": _checkbox("build-analysis-enabled", build_enabled, focus),
@@ -117,7 +121,15 @@ def _screen(
         widgets[button_id] = Mock(spec=RadioButton, disabled=False)
     for option in (*OPTION_WIDGETS, LOSS_Q):
         widgets[reason_id(option)] = Mock(spec=Static, display=False)
-    for selector, value in {**DEFAULT_BUILD_INPUTS, **(build_inputs or {})}.items():
+    policy_inputs = {
+        "#capacitor-tolerance": capacitor_tolerance,
+        "#stray-capacitance": stray_capacitance,
+    }
+    for selector, value in {
+        **policy_inputs,
+        **DEFAULT_BUILD_INPUTS,
+        **(build_inputs or {}),
+    }.items():
         field = Mock(spec=Input, disabled=False, has_focus=focus == selector[1:])
         field.value = value
         widgets[selector] = field
@@ -153,7 +165,8 @@ class TestEnterNavigation:
         [
             ("format", "#eseries"),
             ("eseries", "#allow-sub-pf"),
-            ("allow-sub-pf", "#toroid-detail"),
+            ("allow-sub-pf", "#capacitor-grade"),
+            ("capacitor-grade", "#capacitor-tolerance"),
             ("toroid-detail", "#plot"),
             ("plot", "#raw"),
             ("raw", "#export"),
@@ -483,8 +496,9 @@ class TestShowResultsStateMapping:
             defaults.seed,
             defaults.grid_points,
         )
-        assert state.build_capacitor_tolerance_pct == defaults.capacitor_tolerance_pct
         assert state.build_inductor_tolerance_pct == defaults.inductor_tolerance_pct
+        assert (state.capacitor_grade, state.capacitor_tolerance_pct) == ("standard", None)
+        assert state.stray_capacitance_f == DEFAULT_STRAY_CAPACITANCE_F
         assert state.build_use_toroid_candidates is True
         assert state.calculation_revision == revision + 1
         assert (state.result, state.build_analysis) == ({}, None)
@@ -504,8 +518,10 @@ class TestShowResultsStateMapping:
             eseries="E96",
             build_enabled=True,
             use_toroids=False,
+            capacitor_grade="tight",
+            capacitor_tolerance="2.5",
+            stray_capacitance="0.1pF",
             build_inputs={
-                "#build-capacitor-tolerance": "2.5",
                 "#build-inductor-tolerance": "7.5",
                 "#build-inductor-q": "120",
                 "#build-capacitor-q": "500",
@@ -527,16 +543,17 @@ class TestShowResultsStateMapping:
             25.0,
             1000.0,
         )
-        assert (state.build_capacitor_tolerance_pct, state.build_inductor_tolerance_pct) == (
-            2.5,
-            7.5,
-        )
+        assert state.build_inductor_tolerance_pct == 7.5
+        assert (state.capacitor_grade, state.capacitor_tolerance_pct) == ("tight", 2.5)
+        assert state.stray_capacitance_f == pytest.approx(0.1e-12, rel=1e-12, abs=0)
         assert (state.build_inductor_q, state.build_capacitor_q) == (120.0, 500.0)
         assert state.build_reference_frequency_hz == 7e6
         assert (state.build_sample_count, state.build_seed, state.build_grid_points) == (7, 42, 301)
         assert state.build_use_toroid_candidates is False
-        config = state.make_build_config()
-        assert (config.eseries, config.reference_frequency_hz) == ("E96", 7e6)
+        assert state.make_build_config().reference_frequency_hz == 7e6
+        request = state.to_design_request()
+        assert (request.eseries, request.realization.reference_frequency_hz) == ("E96", 7e6)
+        assert (request.capacitor_grade, request.capacitor_tolerance_pct) == ("tight", 2.5)
 
     def test_raw_units_are_allowed_with_build_analysis_because_the_series_is_used(
         self, monkeypatch
@@ -573,7 +590,7 @@ class TestSubPicofaradOption:
 
         assert form.pushed
         assert (form.state.allow_sub_pf, form.state.eseries) == (allow, "E96")
-        assert form.state.to_design_request(include_build=False).allow_sub_pf is allow
+        assert form.state.to_design_request().allow_sub_pf is allow
 
     def test_without_a_series_it_is_disabled_with_the_shared_message(self, monkeypatch):
         form = _screen(monkeypatch, eseries="none", allow_sub_pf=True)
@@ -585,7 +602,7 @@ class TestSubPicofaradOption:
         assert form.w["#allow-sub-pf"].disabled is True
         assert _shown_reason(form, reason_id(ALLOW_SUB_PF)) == SUB_PF_NEEDS_ESERIES_MESSAGE
         assert form.state.allow_sub_pf is True
-        assert form.state.to_design_request(include_build=False).allow_sub_pf is False
+        assert form.state.to_design_request().allow_sub_pf is False
 
     def test_raw_units_with_the_build_simulation_keep_the_option(self, monkeypatch):
         form = _screen(monkeypatch, raw=True, build_enabled=True, allow_sub_pf=True)
@@ -593,7 +610,89 @@ class TestSubPicofaradOption:
         form.screen._show_results()
 
         assert form.pushed
-        assert form.state.to_design_request(include_build=False).allow_sub_pf is True
+        assert form.state.to_design_request().allow_sub_pf is True
+
+
+class TestCapacitorPolicyFields:
+    """The capacitor tolerance and stray fields: refused when used, kept when disabled."""
+
+    @pytest.mark.parametrize(
+        "fields, message, focus",
+        [
+            (
+                {"capacitor_tolerance": "x"},
+                "Capacitor tolerance must be a number",
+                "#capacitor-tolerance",
+            ),
+            (
+                {"capacitor_tolerance": "100"},
+                "Capacitor tolerance must be at least 0% and less than 100%",
+                "#capacitor-tolerance",
+            ),
+            (
+                {"capacitor_tolerance": "nan"},
+                "Capacitor tolerance must be at least 0% and less than 100%",
+                "#capacitor-tolerance",
+            ),
+            ({"stray_capacitance": "abc"}, "Invalid stray capacitance: abc", "#stray-capacitance"),
+            (
+                {"stray_capacitance": "20pF"},
+                "Stray capacitance must be from 0 to 10 pF",
+                "#stray-capacitance",
+            ),
+            (
+                {"stray_capacitance": "-1pF"},
+                "Stray capacitance must not be negative: -1pF",
+                "#stray-capacitance",
+            ),
+        ],
+    )
+    def test_an_invalid_field_the_result_uses_is_refused_and_focused(
+        self, monkeypatch, fields, message, focus
+    ):
+        form = _screen(monkeypatch, **fields)
+
+        form.screen._show_results()
+
+        _rejected_with(form, message, focus)
+
+    def test_a_disabled_field_is_kept_and_reported_by_the_file_that_uses_it(self, monkeypatch):
+        form = _screen(monkeypatch, output_format="quiet", stray_capacitance="abc")
+        form.screen._refresh_options()
+
+        form.screen._show_results()
+
+        assert form.pushed
+        assert form.state.stray_capacitance_text == "abc"
+        assert (
+            form.state.capacitor_input_error == "Invalid stray capacitance: abc (use a "
+            "number with F, uF, nF, pF, or fF, e.g. 0.2pF)"
+        )
+        with pytest.raises(ValueError, match="Invalid stray capacitance: abc"):
+            form.state.document_request(JSON_DOCUMENT)
+
+    def test_valid_fields_reach_the_request(self, monkeypatch):
+        form = _screen(
+            monkeypatch,
+            capacitor_grade="tight",
+            capacitor_tolerance="3",
+            stray_capacitance="0",
+        )
+
+        form.screen._show_results()
+
+        request = form.state.to_design_request()
+        assert (request.capacitor_grade, request.capacitor_tolerance_pct) == ("tight", 3.0)
+        assert request.stray_capacitance_f == 0.0
+
+    def test_blank_fields_are_the_cli_defaults(self, monkeypatch):
+        form = _screen(monkeypatch)
+
+        form.screen._show_results()
+
+        request = form.state.to_design_request()
+        assert (request.capacitor_grade, request.capacitor_tolerance_pct) == ("standard", None)
+        assert request.stray_capacitance_f == DEFAULT_STRAY_CAPACITANCE_F
 
 
 class TestShowResultsRejections:
@@ -613,14 +712,14 @@ class TestShowResultsRejections:
                 "#build-load-resistance",
             ),
             (
-                {"#build-capacitor-tolerance": "x"},
-                "Capacitor tolerance must be a number",
-                "#build-capacitor-tolerance",
+                {"#build-inductor-tolerance": "x"},
+                "Inductor tolerance must be a number",
+                "#build-inductor-tolerance",
             ),
             (
-                {"#build-capacitor-tolerance": "100"},
-                "Capacitor tolerance must be at least 0% and less than 100%",
-                "#build-capacitor-tolerance",
+                {"#build-inductor-tolerance": "100"},
+                "Inductor tolerance must be at least 0% and less than 100%",
+                "#build-inductor-tolerance",
             ),
             (
                 {"#build-inductor-tolerance": "-1"},
@@ -666,9 +765,9 @@ class TestShowResultsRejections:
             ),
             # Hostile text is rejected on its own field rather than raised.
             (
-                {"#build-capacitor-tolerance": "nan"},
-                "Capacitor tolerance must be at least 0% and less than 100%",
-                "#build-capacitor-tolerance",
+                {"#build-inductor-tolerance": "nan"},
+                "Inductor tolerance must be at least 0% and less than 100%",
+                "#build-inductor-tolerance",
             ),
             (
                 {"#build-inductor-tolerance": "1e400"},
@@ -734,13 +833,11 @@ class TestShowResultsRejections:
         defaults = BuildConfig()
         state = form.state
         assert (
-            state.build_capacitor_tolerance_pct,
             state.build_inductor_tolerance_pct,
             state.build_sample_count,
             state.build_seed,
             state.build_grid_points,
         ) == (
-            defaults.capacitor_tolerance_pct,
             defaults.inductor_tolerance_pct,
             defaults.sample_count,
             defaults.seed,
@@ -849,7 +946,7 @@ class TestShowResultsRejections:
             monkeypatch,
             output_format=output_format,
             build_enabled=True,
-            build_inputs={"#build-capacitor-tolerance": "abc"},
+            build_inputs={"#build-inductor-tolerance": "abc"},
         )
         # The rule hides the fields of a build the output cannot show.
         form.screen._refresh_options()
@@ -861,10 +958,10 @@ class TestShowResultsRejections:
         form.screen.notify.assert_not_called()
         for selector in DEFAULT_BUILD_INPUTS:
             form.w[selector].focus.assert_not_called()
-        message = "Build simulation: Capacitor tolerance must be a number"
+        message = "Build simulation: Inductor tolerance must be a number"
         assert form.state.build_input_error == message
         with pytest.raises(ValueError, match=message):
-            form.state.json_design_request()
+            form.state.document_request(JSON_DOCUMENT)
 
     def test_disabled_resonator_q_with_hidden_part_q_does_not_block_the_result(self, monkeypatch):
         """CSV uses neither Qu nor the build; the saved JSON (which uses both) refuses."""
@@ -890,7 +987,7 @@ class TestShowResultsRejections:
         form = _screen(
             monkeypatch,
             build_enabled=False,
-            build_inputs={"#build-capacitor-tolerance": "2.50", "#build-seed": "x"},
+            build_inputs={"#build-inductor-tolerance": "2.50", "#build-seed": "x"},
         )
 
         form.screen._show_results()
@@ -898,7 +995,7 @@ class TestShowResultsRejections:
         assert len(form.pushed) == 1
         form.screen.notify.assert_not_called()
         shown = build_field_values(form.state)
-        assert shown["build-capacitor-tolerance"] == "2.50"
+        assert shown["build-inductor-tolerance"] == "2.50"
         assert shown["build-seed"] == "x"
         assert form.state.build_analysis_enabled is False
 
@@ -906,12 +1003,12 @@ class TestShowResultsRejections:
         form = _screen(
             monkeypatch,
             build_enabled=False,
-            build_inputs={"#build-capacitor-tolerance": "2.5", "#build-grid-points": "201"},
+            build_inputs={"#build-inductor-tolerance": "2.5", "#build-grid-points": "201"},
         )
 
         form.screen._show_results()
 
-        assert form.state.build_capacitor_tolerance_pct == 2.5
+        assert form.state.build_inductor_tolerance_pct == 2.5
         assert form.state.build_grid_points == 201
         assert form.state.build_input_error is None
 
@@ -929,7 +1026,7 @@ class TestParseBuildConfig:
         [
             ({"source_resistance": "sourcex"}, "build-source-resistance"),
             ({"load_resistance": "sourcex"}, "build-load-resistance"),
-            ({"capacitor_tolerance": "100"}, "build-capacitor-tolerance"),
+            ({"inductor_tolerance": "100"}, "build-inductor-tolerance"),
             ({"inductor_tolerance": "x"}, "build-inductor-tolerance"),
             ({"inductor_q": "0"}, "build-inductor-q"),
             ({"capacitor_q": "q"}, "build-capacitor-q"),
@@ -941,7 +1038,7 @@ class TestParseBuildConfig:
     )
     def test_each_rejection_names_the_input_that_caused_it(self, overrides, field_id):
         with pytest.raises(BuildOptionError) as caught:
-            parse_build_config("E24", BuildOptionValues(**overrides))
+            parse_build_config(BuildOptionValues(**overrides))
 
         assert caught.value.field_id == field_id
 
@@ -952,10 +1049,10 @@ class TestParseBuildConfig:
     def test_a_nonzero_seed_needs_extra_random_cases(self, sample_count, seed, refused):
         values = BuildOptionValues(sample_count=sample_count, seed=seed)
         if not refused:
-            parse_build_config("E24", values)
+            parse_build_config(values)
             return
         with pytest.raises(BuildOptionError) as caught:
-            parse_build_config("E24", values)
+            parse_build_config(values)
 
         assert str(caught.value) == SEED_NEEDS_SAMPLES_MESSAGE
         assert caught.value.field_id == "build-seed"
@@ -971,7 +1068,7 @@ class TestParseBuildConfig:
     )
     def test_values_outside_the_physical_limits_name_their_input(self, overrides, field_id):
         with pytest.raises(BuildOptionError) as caught:
-            parse_build_config("E24", BuildOptionValues(**overrides), design_impedance=50.0)
+            parse_build_config(BuildOptionValues(**overrides), design_impedance=50.0)
 
         assert caught.value.field_id == field_id
 
@@ -979,33 +1076,31 @@ class TestParseBuildConfig:
         values = BuildOptionValues(inductor_q="100", capacitor_q="300")
 
         with pytest.raises(BuildOptionError, match=RESONATOR_AND_COMPONENT_Q_MESSAGE) as caught:
-            parse_build_config("E24", values, resonator_q_supplied=True)
+            parse_build_config(values, resonator_q_supplied=True)
 
         assert caught.value.field_id == "build-inductor-q"
-        assert parse_build_config("E24", values).inductor_q == 100.0
+        assert parse_build_config(values).inductor_q == 100.0
 
     def test_port_range_follows_the_design_impedance(self):
         """100 Mohm is 2e6 times a 50 ohm design but only 1e3 times a 100 kohm one."""
         values = BuildOptionValues(load_resistance="100M")
 
-        config = parse_build_config("E24", values, design_impedance=100e3)
+        config = parse_build_config(values, design_impedance=100e3)
 
         assert config.load_resistance_ohm == 100e6
         with pytest.raises(BuildOptionError, match="outside the supported range"):
-            parse_build_config("E24", values, design_impedance=50.0)
+            parse_build_config(values, design_impedance=50.0)
 
-    def test_a_config_level_failure_names_no_input(self):
-        with pytest.raises(BuildOptionError, match="^E-series must be E12, E24, or E96$") as caught:
-            parse_build_config("E6", BuildOptionValues())
-
-        assert caught.value.field_id is None
+    def test_build_options_carry_no_standard_value_series(self):
+        """The series is a design input on every surface, never a build option."""
+        with pytest.raises(TypeError):
+            parse_build_config("E24", BuildOptionValues())  # type: ignore[call-arg]
 
     def test_default_values_are_the_cli_defaults(self):
-        assert parse_build_config("E24", BuildOptionValues()) == BuildConfig()
+        assert parse_build_config(BuildOptionValues()) == BuildConfig()
 
     def test_valid_values_build_the_shared_config(self):
         config = parse_build_config(
-            "E96",
             BuildOptionValues(
                 source_resistance="25",
                 load_resistance="1k",
@@ -1018,7 +1113,6 @@ class TestParseBuildConfig:
         )
 
         assert config == BuildConfig(
-            eseries="E96",
             source_resistance_ohm=25.0,
             load_resistance_ohm=1000.0,
             reference_frequency_hz=10e6,

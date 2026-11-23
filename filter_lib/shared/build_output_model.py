@@ -69,7 +69,7 @@ def build_model_payload(result: dict, analysis: BuildAnalysisResult) -> dict[str
         if item.method == "verified_toroid_integer_turns"
     ]
     return {
-        "eseries": config.eseries,
+        "eseries": analysis.eseries,
         "inductor_q": config.inductor_q,
         "capacitor_q": config.capacitor_q,
         "resonator_q": config.resonator_q,
@@ -80,5 +80,5 @@ def build_model_payload(result: dict, analysis: BuildAnalysisResult) -> dict[str
         "verified_toroid_candidate_used": bool(toroid_elements),
         "verified_toroid_elements": toroid_elements,
         "uses_verified_toroid_candidates": bool(toroid_elements),
-        "match_policy": config.match_policy.as_dict(),
+        "match_policy": analysis.match_policy.as_dict(),
     }

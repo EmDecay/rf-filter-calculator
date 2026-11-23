@@ -15,6 +15,7 @@ from ..state import (
     CSV_DOCUMENT,
     INTERNAL_NO_BUILD_MESSAGE,
     INTERNAL_NO_RESULT_MESSAGE,
+    JSON_DOCUMENT,
     CalculationOutcome,
     FilterState,
 )
@@ -23,10 +24,16 @@ NOTHING_TO_EXPORT_MESSAGE = (
     "Nothing to export yet. Wait for the result, or fix the error and try again."
 )
 EXPORT_FOLDER_FALLBACK = "Files are saved in the current folder."
-# A saved JSON that uses a build or resonator Q the result shown did not is calculated
-# on Save, in the background; these are the notices around that.
-PREPARING_JSON_MESSAGE = "Preparing the JSON file…"
-JSON_NOT_SAVED_PREFIX = "JSON file not saved: "
+# A saved file whose design differs from the result shown (for example a JSON that uses a
+# build or resonator Q the result did not) is calculated on Save, in the background;
+# these are the notices around that.
+PREPARING_FILES_MESSAGE = "Preparing the files…"
+_FORMAT_DOCUMENTS = {"export-json": JSON_DOCUMENT, "export-csv": CSV_DOCUMENT}
+
+
+def not_saved_prefix(document: str) -> str:
+    """The start of the notice for a saved file whose own design failed."""
+    return f"{document.upper()} file not saved: "
 
 
 def export_folder_text() -> str:
@@ -61,9 +68,10 @@ class ResultsScreen(Screen):
         self._active_worker: Worker | None = None
         self._calculation_revision: int | None = None
         self._accept_worker_events = False
-        # The background calculation of a saved JSON's own design (see _save_export).
-        self._json_worker: Worker | None = None
-        self._json_revision: int | None = None
+        # The background calculation of saved files' own designs (see _save_export).
+        self._files_worker: Worker | None = None
+        self._files_revision: int | None = None
+        self._files_format: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Static("Results", classes="header")
@@ -125,7 +133,7 @@ class ResultsScreen(Screen):
         rather than finishing a long analysis after its screen is gone.
         """
         self._accept_worker_events = False
-        for worker in (self._active_worker, self._json_worker):
+        for worker in (self._active_worker, self._files_worker):
             if worker is not None:
                 worker.cancel()
         if self._calculation_revision is not None:
@@ -189,8 +197,8 @@ class ResultsScreen(Screen):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
-        if event.worker is self._json_worker and event.worker is not None:
-            self._on_json_worker_changed(event)
+        if event.worker is self._files_worker and event.worker is not None:
+            self._on_files_worker_changed(event)
             return
         if not self._is_current_worker_event(event):
             return
@@ -213,6 +221,7 @@ class ResultsScreen(Screen):
                 outcome.output_text,
                 outcome.result,
                 outcome.build_analysis,
+                outcome.design,
             ):
                 return
             self._result_text = state.output_text
@@ -272,9 +281,10 @@ class ResultsScreen(Screen):
 
         The component file format comes from this screen's radio selection;
         a second ``…-response.{ext}`` file is written when the user picked a
-        plot-data export format on the Output Options screen. A JSON file that uses a
-        build or resonator Q the result shown did not is calculated first, in the
-        background, as the web does when its JSON is downloaded.
+        plot-data export format on the Output Options screen. A file whose design
+        differs from the result shown (a JSON that uses a build or resonator Q the
+        result did not, or other standard values) is designed first, in the
+        background, as the web does for its downloads.
         """
         state: FilterState = self.app.filter_state
         if not self._guard_current_result(state):
@@ -283,20 +293,45 @@ class ResultsScreen(Screen):
 
         radio_set = self.query_one("#export-format", RadioSet)
         format_id = radio_set.pressed_button.id if radio_set.pressed_button else "export-txt"
-        own_design = state.json_needs_own_design() and state.json_design is None
-        if format_id == "export-json" and own_design:
-            self._prepare_json_then_save(state)
+        try:
+            pending = self._documents_to_design(state, format_id)
+        except ValueError as error:
+            self._file_not_saved(state, _FORMAT_DOCUMENTS.get(format_id), str(error))
+            return
+        if pending:
+            self._prepare_designs_then_save(state, format_id, pending)
             return
         self._write_export(state, format_id)
 
+    @staticmethod
+    def _documents_to_design(state: FilterState, format_id: str) -> list[str]:
+        """The saved documents that need their own design, component file first."""
+        documents = []
+        component = _FORMAT_DOCUMENTS.get(format_id)
+        if component is not None and state.document_refusal(component) is None:
+            documents.append(component)
+        if state.export_format in ("json", "csv"):
+            documents.append(f"response-{state.export_format}")
+        return [document for document in documents if state.needs_own_design(document)]
+
     def _write_export(
-        self, state: FilterState, format_id: str, *, include_component: bool = True
+        self,
+        state: FilterState,
+        format_id: str,
+        *,
+        include_component: bool = True,
+        include_response: bool = True,
     ) -> None:
         """Format the requested files, then write each one and say which were saved."""
         # Generate every requested payload before opening any file. A stale or
         # malformed result therefore cannot leave a partial/error-text export.
         try:
-            files = prepare_export_payloads(state, format_id, include_component=include_component)
+            files = prepare_export_payloads(
+                state,
+                format_id,
+                include_component=include_component,
+                include_response=include_response,
+            )
         except (KeyError, TypeError, ValueError) as e:
             self.notify(f"Cannot export: {e}", severity="error")
             self._hide_export_options()
@@ -316,60 +351,99 @@ class ResultsScreen(Screen):
 
         self._hide_export_options()
 
-    # -- A saved JSON with its own design ---------------------------------------------
+    # -- Saved files with their own design ---------------------------------------------
 
-    def _prepare_json_then_save(self, state: FilterState) -> None:
-        """Calculate the saved JSON's own design in a worker, then save the files."""
-        if self._json_worker is not None and self._json_worker.is_running:
-            self.notify(PREPARING_JSON_MESSAGE)
+    def _prepare_designs_then_save(
+        self, state: FilterState, format_id: str, documents: list[str]
+    ) -> None:
+        """Design each listed document in a worker, then save the files."""
+        if self._files_worker is not None and self._files_worker.is_running:
+            self.notify(PREPARING_FILES_MESSAGE)
             return
         self._hide_export_options()
-        try:
-            # Cheap: builds and checks the request; the design itself runs in the worker.
-            request = state.json_design_request()
-        except ValueError as error:
-            self._json_not_saved(state, str(error))
-            return
-        self.notify(PREPARING_JSON_MESSAGE)
-        self._json_revision = state.calculation_revision
+        # Cheap: builds and checks each request; the designs themselves run in the worker.
+        requests = {document: state.document_request(document) for document in documents}
+        self.notify(PREPARING_FILES_MESSAGE)
+        self._files_revision = state.calculation_revision
+        self._files_format = format_id
         # Its own group, so it never cancels (or is cancelled by) the result's worker.
-        self._json_worker = self.run_worker(
-            partial(self._calculate_json_design, request),
-            group="json-design",
+        self._files_worker = self.run_worker(
+            partial(self._calculate_document_designs, requests),
+            group="document-designs",
             thread=True,
             exit_on_error=False,
         )
 
-    def _calculate_json_design(self, request):
-        """Run in the worker thread; stops when the screen goes away (see on_unmount)."""
+    def _calculate_document_designs(self, requests):
+        """Run in the worker thread; stops when the screen goes away (see on_unmount).
+
+        Each document is designed on its own, so one failure does not lose the others;
+        a failure is returned as its exception.
+        """
         from filter_lib.design import design
+        from filter_lib.shared.build_types import BuildAnalysisCancelled
 
         worker = get_current_worker()
-        return design(request, should_cancel=lambda: worker.is_cancelled)
+        designs = {}
+        for document, request in requests.items():
+            try:
+                designs[document] = design(request, should_cancel=lambda: worker.is_cancelled)
+            except BuildAnalysisCancelled:
+                raise
+            except Exception as error:  # reported per file, like a calculation error
+                designs[document] = error
+        return designs
 
-    def _on_json_worker_changed(self, event: Worker.StateChanged) -> None:
-        """Save the JSON once its design is ready, or say why it was not saved."""
+    def _on_files_worker_changed(self, event: Worker.StateChanged) -> None:
+        """Save the files once their designs are ready, or say why one was not saved."""
         if not self._accept_worker_events:
             return
         if event.state.name not in ("SUCCESS", "ERROR"):
             return
         state: FilterState = self.app.filter_state
         # The files belong to the result the Save was for; nothing else is written.
-        if state.calculation_revision != self._json_revision:
+        if state.calculation_revision != self._files_revision:
             return
         if not self._guard_current_result(state):
             return
-        if event.state.name == "SUCCESS":
-            state.json_design = event.worker.result
-            self._write_export(state, "export-json")
-        else:
+        format_id = self._files_format or "export-txt"
+        component = _FORMAT_DOCUMENTS.get(format_id)
+        if event.state.name == "ERROR":
             error = event.worker.error
-            self._json_not_saved(state, str(error).strip() or type(error).__name__)
+            self._file_not_saved(state, component, str(error).strip() or type(error).__name__)
+            return
+        failed: dict[str, str] = {}
+        for document, designed in event.worker.result.items():
+            if isinstance(designed, Exception):
+                failed[document] = str(designed).strip() or type(designed).__name__
+            else:
+                state.document_designs[document] = designed
+        if component in failed:
+            self._file_not_saved(state, component, failed[component])
+            return
+        for document, message in failed.items():
+            self.notify(f"{not_saved_prefix(document)}{message}", severity="error")
+        self._write_export(
+            state,
+            format_id,
+            include_response=not any(document.startswith("response-") for document in failed),
+        )
 
-    def _json_not_saved(self, state: FilterState, message: str) -> None:
-        """Report why the JSON was not saved; the response data file is still saved."""
-        self.notify(f"{JSON_NOT_SAVED_PREFIX}{message}", severity="error")
-        if state.export_format in ("json", "csv"):
+    def _file_not_saved(self, state: FilterState, document: str | None, message: str) -> None:
+        """Report why the results file was not saved; the response data file is still saved.
+
+        The response file is saved only when it needs no design of its own; one it cannot
+        even describe is left out quietly, since the notice above already says why.
+        """
+        self._hide_export_options()
+        self.notify(f"{not_saved_prefix(document or 'results')}{message}", severity="error")
+        if state.export_format not in ("json", "csv"):
+            return
+        try:
+            response_ready = not state.needs_own_design(f"response-{state.export_format}")
+        except ValueError:
+            response_ready = False
+        if response_ready:
             self._write_export(state, "export-json", include_component=False)
 
     def _has_current_result(self, state: FilterState | None = None) -> bool:

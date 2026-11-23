@@ -15,7 +15,7 @@ from ..shared.build_types import (
     require_seed_with_samples,
 )
 from ..shared.parsing import parse_impedance
-from .form_values import FormData, flag, float_or, int_or, optional_float, text
+from .form_values import FormData, flag, int_or, optional_float, text
 
 # The Q frequency label is shared with the wizard; the template reads it from here.
 __all__ = [
@@ -28,8 +28,6 @@ __all__ = [
 # The CLI's build defaults (``BuildConfig``'s), shown in the fields of a fresh form.
 _DEFAULTS = BuildConfig()
 BUILD_FIELD_DEFAULTS = {
-    "build_capacitor_tolerance_pct": f"{_DEFAULTS.capacitor_tolerance_pct:g}",
-    "build_inductor_tolerance_pct": f"{_DEFAULTS.inductor_tolerance_pct:g}",
     "build_sample_count": str(_DEFAULTS.sample_count),
     "build_seed": str(_DEFAULTS.seed),
     "build_grid_points": str(_DEFAULTS.grid_points),
@@ -51,7 +49,7 @@ def simulate_toroid_windings(form: FormData) -> bool:
 
 
 def parse_build_config(
-    form: FormData, eseries: str, *, use_toroids: bool, resonator_q_supplied: bool
+    form: FormData, *, use_toroids: bool, resonator_q_supplied: bool
 ) -> BuildConfig:
     """Return the ``BuildConfig`` for the submitted build controls."""
     inductor_q = optional_float(form, "build_inductor_q", "Inductor Q")
@@ -62,18 +60,8 @@ def parse_build_config(
     load = text(form, "build_load_resistance")
     reference = text(form, "build_reference_frequency")
     config = BuildConfig(
-        eseries=eseries,
-        capacitor_tolerance_pct=float_or(
-            form,
-            "build_capacitor_tolerance_pct",
-            "Capacitor tolerance",
-            _DEFAULTS.capacitor_tolerance_pct,
-        ),
-        inductor_tolerance_pct=float_or(
-            form,
-            "build_inductor_tolerance_pct",
-            "Inductor tolerance",
-            _DEFAULTS.inductor_tolerance_pct,
+        inductor_tolerance_pct=optional_float(
+            form, "build_inductor_tolerance_pct", "Inductor tolerance"
         ),
         inductor_q=inductor_q,
         capacitor_q=capacitor_q,

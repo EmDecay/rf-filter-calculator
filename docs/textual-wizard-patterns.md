@@ -45,11 +45,16 @@ only with E24 just works. The band-pass screen checks the resonator Q (`loss_q`)
 
 Saved JSON and CSV use `document_options`, the same mapping the web downloads use: a disabled
 control's visible value is applied to each file that can show it (Values only + None gives a
-JSON file equal to `--format json --no-match`). When the saved JSON needs a design the result did
-not run (a disabled build, or Qu with CSV or Values only), Results calculates it only when that
-JSON is saved, in a separate thread worker (group `json-design`, notice "Preparing the JSON
-file…"), and caches it in `FilterState.json_design`. The result shown never runs a disabled
-build. Build fields the result does not use are not validated on Show results; a parse error is
+JSON file equal to `--format json --no-match`). Each saved file has its own `DesignRequest`
+(`FilterState.document_request`); the result shown (`FilterState.design_outcome`) is reused only
+when that request is equal. The response data file is the ideal response, which no capacitor
+option, Q or build changes, so it always reuses the result shown. A file whose request differs (a disabled build or Qu the JSON uses,
+or standard values the result left out) is designed only when it is saved, in a separate thread
+worker (group `document-designs`, notice "Preparing the files…"), one design per file so one
+failure keeps the others, and cached in `FilterState.document_designs`. The result shown never
+runs a disabled build. The capacitor tolerance and stray fields follow the build fields' rule:
+a field the result uses is refused and focused, one it does not use keeps its text and any
+parse error in `FilterState.capacitor_input_error`, reported by a saved file that uses it. Build fields the result does not use are not validated on Show results; a parse error is
 kept in `FilterState.build_input_error` and reported if the saved JSON uses the build. Disabled
 radio choices use `EnabledRadioSet`, so Space/Enter on a stale highlight cannot press them.
 Extend the shared rule for a new option; never add a wizard-only check.

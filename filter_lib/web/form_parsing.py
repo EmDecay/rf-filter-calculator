@@ -3,7 +3,8 @@
 Field names mirror the CLI flags (``frequency``, ``impedance``, ``components`` or
 ``resonators``, ``ripple``, ``bandwidth``, ``f_low``, ``f_high``, ``qu``, ``ql``,
 ``qc``, ``resonator_impedance``, ``resonator_inductance``, ``eseries``,
-``allow_sub_pf``, ``raw``, ``plot``, ``sim_build``, ``build_*``, ``toroid_build``). Units are parsed with the CLI's parsers and
+``allow_sub_pf``, ``capacitor_grade``, ``capacitor_tolerance_pct``, ``stray_capacitance``,
+``raw``, ``plot``, ``sim_build``, ``build_*``, ``toroid_build``). Units are parsed with the CLI's parsers and
 labels (so a value the CLI would reject gets the CLI's message), defaults come from the
 CLI's constants, and all cross-field rules are left to ``DesignRequest`` and
 ``RenderOptions`` so the web reports the CLI's messages. Messages only the form can
@@ -16,12 +17,20 @@ from dataclasses import dataclass, replace
 
 from ..bandpass.input_validation import RESONATOR_COUNT_MESSAGE
 from ..design import DesignRequest, RenderOptions, band_from_edges
+from ..design.capacitor_policy_inputs import (
+    CAPACITOR_GRADE_LABEL,
+    parse_stray_field,
+    parse_tolerance_field,
+)
 from ..design.design_request import CATEGORIES
 from ..design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    CAPACITOR_GRADE,
+    CAPACITOR_TOLERANCE,
     LOSS_Q,
     RAW_UNITS,
+    STRAY_CAPACITANCE,
     TEXT_PLOT,
     TOROID_DETAIL,
     OutputChoices,
@@ -30,6 +39,7 @@ from ..design.option_applicability import (
 )
 from ..design.render_options import BUILD_NEEDS_ESERIES_MESSAGE
 from ..shared.build_types import BuildConfig
+from ..shared.capacitor_grades import DEFAULT_GRADE, GRADE_NAMES
 from ..shared.cli_aliases import (
     DEFAULT_COMPONENTS,
     DEFAULT_ESERIES,
@@ -61,24 +71,25 @@ BAND_SPECS = ("center", "edges")
 class DesignForm:
     """Everything one submission asks for.
 
-    ``request.build`` is set only when the build simulation was requested;
-    ``spice_config`` is the configuration the chosen-parts SPICE deck uses: the
+    ``request.run_build_analysis`` is set only when the build simulation was requested;
+    ``request.realization`` is what the build and the chosen-parts SPICE deck use: the
     submitted build controls when that section is enabled, the defaults otherwise.
     """
 
     request: DesignRequest
     options: RenderOptions
-    spice_config: BuildConfig
     svg_plot: bool
+    # Whether a stray capacitance was typed (blank takes the default, like the CLI).
+    stray_entered: bool = False
 
     def option_choices(self) -> OutputChoices:
         """The submitted choices, as the shared applicability rule judges them."""
         options = self.options
         return OutputChoices(
             output_format=options.output_format,
-            eseries=options.eseries,
+            eseries=self.request.eseries,
             raw=options.raw,
-            build=self.request.build is not None,
+            build=self.request.run_build_analysis,
             include_toroids=options.include_toroids,
         )
 
@@ -96,7 +107,10 @@ class DesignForm:
             (TEXT_PLOT, options.show_plot),
             (TOROID_DETAIL, options.toroid_full or options.toroid_compact),
             (ALLOW_SUB_PF, self.request.allow_sub_pf),
-            (BUILD, self.request.build is not None),
+            (CAPACITOR_GRADE, self.request.capacitor_grade != DEFAULT_GRADE),
+            (CAPACITOR_TOLERANCE, self.request.capacitor_tolerance_pct is not None),
+            (STRAY_CAPACITANCE, self.stray_entered),
+            (BUILD, self.request.run_build_analysis),
         )
         choices = self.option_choices()
         require_applicable(choices, [option for option, ticked in selected if ticked])
@@ -139,6 +153,7 @@ def form_defaults(category: str) -> dict[str, str]:
         "impedance": DEFAULT_IMPEDANCE,
         "ripple": f"{DEFAULT_RIPPLE_DB:g}",
         "eseries": DEFAULT_ESERIES,
+        "capacitor_grade": DEFAULT_GRADE,
         "toroids": "best",
         "output_format": "table",
         "svg_plot": "on",
@@ -154,13 +169,16 @@ def require_category(category: str) -> str:
     return category
 
 
-def _render_options(form: FormData) -> RenderOptions:
+def _eseries(form: FormData) -> str | None:
     eseries = choice(form, "eseries", ESERIES_CHOICES, DEFAULT_ESERIES, "Standard capacitor values")
+    return None if eseries == "none" else eseries
+
+
+def _render_options(form: FormData) -> RenderOptions:
     toroids = choice(form, "toroids", TOROID_CHOICES, "best", "Toroid detail")
     return RenderOptions(
         output_format=choice(form, "output_format", OUTPUT_FORMATS, "table", "Output format"),
         raw=flag(form, "raw"),
-        eseries=None if eseries == "none" else eseries,
         show_plot=flag(form, "plot"),
         include_toroids=toroids != "none",
         toroid_compact=toroids == "compact",
@@ -256,30 +274,36 @@ def parse_design_form(category: str, form: FormData) -> DesignForm:
     else:
         request = _ladder_request(category, form, filter_type)
     options = _render_options(form)
-    if request.allow_sub_pf:
-        # Checked here, not only when rendering, so every download gives the same answer.
-        options.validate_for_sub_pf()
-
-    eseries = options.eseries or DEFAULT_ESERIES
-    if flag(form, "sim_build"):
-        # The build needs standard values; whether the chosen output can show it is
-        # checked by each route against the document it actually produces.
-        if options.eseries is None:
+    # The request checks the standard values that sub-pF parts, the capacitor policy and
+    # the build need, so every download gives the same answer.
+    stray_text = text(form, "stray_capacitance")
+    request = replace(
+        request,
+        eseries=_eseries(form),
+        capacitor_grade=choice(
+            form, "capacitor_grade", GRADE_NAMES, DEFAULT_GRADE, CAPACITOR_GRADE_LABEL
+        ),
+        capacitor_tolerance_pct=parse_tolerance_field(text(form, "capacitor_tolerance_pct")),
+        stray_capacitance_f=parse_stray_field(stray_text),
+    )
+    run_build = flag(form, "sim_build")
+    if run_build:
+        # Whether the chosen output can show the build is checked by each route against
+        # the document it actually produces.
+        if request.eseries is None:
             raise ValueError(BUILD_NEEDS_ESERIES_MESSAGE)
-        build_config = parse_build_config(
+        realization = parse_build_config(
             form,
-            eseries,
             use_toroids=options.include_toroids,
             resonator_q_supplied=any(q is not None for q in (request.qu, request.ql, request.qc)),
         )
-        request = replace(request, build=build_config)
     else:
         # Build fields are ignored unless the build section is enabled; the deck then
-        # uses the CLI's defaults for the chosen E-series and toroid setting.
-        build_config = BuildConfig(eseries=eseries, use_toroid_candidates=options.include_toroids)
+        # uses the CLI's defaults for the chosen toroid setting.
+        realization = BuildConfig(use_toroid_candidates=options.include_toroids)
     return DesignForm(
-        request=request,
+        request=replace(request, realization=realization, run_build_analysis=run_build),
         options=options,
-        spice_config=build_config,
         svg_plot=flag(form, "svg_plot"),
+        stray_entered=bool(stray_text.strip()),
     )

@@ -37,7 +37,7 @@ def _table_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
         return format_table_lines(
             outcome.result,
             raw=options.raw,
-            eseries=options.eseries,
+            eseries=outcome.eseries,
             show_plot=options.show_plot,
             include_toroids=options.include_toroids,
             toroid_compact=options.toroid_compact,
@@ -58,8 +58,8 @@ def _table_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
         LpHpRenderOptions(
             config=config,
             raw=options.raw,
-            eseries=options.eseries,
-            show_match=options.eseries is not None,
+            eseries=outcome.eseries,
+            show_match=outcome.eseries is not None,
             show_plot=options.show_plot,
             include_toroids=options.include_toroids,
             toroid_compact=options.toroid_compact,
@@ -80,8 +80,6 @@ def render_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
     build_analysis = outcome.build_analysis
     if build_analysis is not None:
         options.validate_for_build()
-    if outcome.allow_sub_pf:
-        options.validate_for_sub_pf()
     display = _formatters(outcome.category)
     result = outcome.result
 
@@ -89,7 +87,7 @@ def render_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
         return [
             display.format_json(
                 result,
-                eseries=options.eseries,
+                eseries=outcome.eseries,
                 include_toroids=options.include_toroids,
                 build_analysis=build_analysis,
                 match_policy=outcome.match_policy,
@@ -99,7 +97,7 @@ def render_lines(outcome: DesignResult, options: RenderOptions) -> list[str]:
         return [
             display.format_csv(
                 result,
-                eseries=options.eseries,
+                eseries=outcome.eseries,
                 include_toroids=options.include_toroids,
                 match_policy=outcome.match_policy,
             )

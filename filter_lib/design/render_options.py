@@ -1,16 +1,15 @@
 """Presentation choices for ``render_lines``, plus the build-simulation mode rules.
 
 Each surface owns its defaults and maps them here: the CLI from its flags, the wizard
-from ``FilterState.to_render_options()``, the web from its form. ``eseries=None``
-means no standard capacitor values are chosen, which is what ``--no-match`` and the
-wizard's and web's "None" choice all select.
+from ``FilterState.to_render_options()``, the web from its form. The standard capacitor
+series is a design input (``DesignRequest.eseries``), not a presentation choice, so
+every document of one design shows the same parts.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..shared.cli_aliases import DEFAULT_ESERIES
 from ..shared.eseries import SUB_PF_OPTION_LABEL
 
 OUTPUT_FORMATS = ("table", "json", "csv", "quiet")
@@ -48,7 +47,6 @@ class RenderOptions:
 
     output_format: str = "table"
     raw: bool = False
-    eseries: str | None = DEFAULT_ESERIES
     show_plot: bool = False
     include_toroids: bool = True
     toroid_compact: bool = False
@@ -68,15 +66,11 @@ class RenderOptions:
         return shows_design_warnings(self.output_format)
 
     def validate_for_build(self) -> None:
-        """Reject output choices that cannot carry a build simulation."""
+        """Reject output choices that cannot carry a build simulation.
+
+        The build's need for standard values is checked by ``DesignRequest``.
+        """
         if self.output_format == "quiet":
             raise ValueError(BUILD_NOT_WITH_VALUES_ONLY_MESSAGE)
         if self.output_format not in {"table", "json"}:
             raise ValueError(BUILD_NEEDS_TABLE_OR_JSON_MESSAGE)
-        if self.eseries is None:
-            raise ValueError(BUILD_NEEDS_ESERIES_MESSAGE)
-
-    def validate_for_sub_pf(self) -> None:
-        """Reject choosing sub-pF capacitors when no standard values are chosen at all."""
-        if self.eseries is None:
-            raise ValueError(SUB_PF_NEEDS_ESERIES_MESSAGE)

@@ -1,4 +1,4 @@
-{%- from "partials/fields.html" import checkbox, segmented with context -%}
+{%- from "partials/fields.html" import checkbox, reason, segmented, text_field with context -%}
 <fieldset class="group">
   <legend class="group__title">Output</legend>
   <div class="fields">
@@ -7,6 +7,11 @@
     <div class="field field--wide checks">
       {{ checkbox("allow_sub_pf", labels.allow_sub_pf, "Also choose standard values for capacitors below 1 pF. When off, no part is chosen below 1 pF and you choose one manually. Needs E12, E24, or E96.", option="allow_sub_pf") }}
     </div>
+    {{ segmented("capacitor_grade", labels.capacitor_grade, labels.capacitor_grade_choices, option="capacitor_grade") }}
+    <p class="field__help field--wide">{{ labels.capacitor_grade_help }}</p>
+    {{ text_field("capacitor_tolerance_pct", labels.capacitor_tolerance, help=labels.capacitor_tolerance_help, option="capacitor_tolerance") }}
+    {{ text_field("stray_capacitance", labels.stray_capacitance, help=labels.stray_capacitance_help, inputmode="text", option="stray_capacitance") }}
+    <div class="field field--wide">{{ reason("capacitor_tolerance") }}{{ reason("stray_capacitance") }}</div>
     {{ segmented("toroids", "Toroid windings (table detail)", [("best", "Best, detailed"), ("full", "Up to 3, detailed"), ("compact", "Best, one line"), ("none", "None")], option="toroid_detail", option_values=("full", "compact")) }}
     <p class="field__help field--wide">JSON lists up to three cores and CSV the best, whatever is chosen here. None also leaves the toroid windings out of JSON, CSV, the build simulation, and the SPICE – chosen parts download.</p>
     <div class="field field--wide checks">

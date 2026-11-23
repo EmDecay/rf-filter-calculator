@@ -22,9 +22,7 @@ from filter_lib.design import (
     design,
     export_spice,
     render_lines,
-    with_build_analysis,
 )
-from filter_lib.design.design_service import apply_sub_pf_policy
 from filter_lib.design.render_options import SUB_PF_NEEDS_ESERIES_MESSAGE
 from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.eseries import (
@@ -167,7 +165,7 @@ class TestFlagChoosesSubPfParts:
 
         assert "  Use:            75.00 fF || 560.00 fF (-0.3%)" in table
         assert "Warning" not in table
-        assert match["status"] == "recommended"
+        assert match["status"] == "tolerance_not_sourced"  # no sub-pF E24 value is sourced
         assert match["policy"]["allow_sub_pf"] is True
         assert [part["value_farads"] for part in match["selected"]["components"]] == [
             7.5e-14,
@@ -274,57 +272,34 @@ class TestDesignLayer:
         assert policy.allow_sub_pf is True
         assert policy.minimum_capacitance_f == DEFAULT_MATCH_POLICY.minimum_capacitance_f
 
-    def test_render_needs_an_eseries_when_the_switch_is_on(self):
-        outcome = design(_request(allow_sub_pf=True))
-
+    def test_request_needs_an_eseries_when_the_switch_is_on(self):
         with pytest.raises(ValueError, match=f"^{re.escape(SUB_PF_NEEDS_ESERIES_MESSAGE)}$"):
-            render_lines(outcome, RenderOptions(eseries=None))
-        assert render_lines(design(_request()), RenderOptions(eseries=None))
+            _request(allow_sub_pf=True, eseries=None)
+        assert render_lines(design(_request(eseries=None)), RenderOptions())
 
-    def test_request_build_config_follows_the_request_switch(self):
-        stale = BuildConfig(match_policy=MatchPolicy(allow_sub_pf=False))
-        outcome = design(_request(allow_sub_pf=True, build=stale))
-
-        assert outcome.build_analysis.config.match_policy.allow_sub_pf is True
-        substitution = outcome.build_analysis.nominal_realization.substitutions[0]
-        assert substitution.method == "e_series_parallel"
-
-    def test_explicit_build_config_opt_in_is_kept_when_the_request_switch_is_off(self):
-        """Either switch allows sub-pF parts; an explicit BuildConfig opt-in is never dropped."""
-        opted_in = BuildConfig(match_policy=MatchPolicy(allow_sub_pf=True))
-
-        outcome = design(_request(build=opted_in))
+    def test_build_table_and_spice_use_the_request_switch(self):
+        outcome = design(_request(allow_sub_pf=True, run_build_analysis=True))
 
         assert outcome.allow_sub_pf is True
-        assert outcome.build_analysis.config.match_policy.allow_sub_pf is True
+        assert outcome.build_analysis.match_policy.allow_sub_pf is True
         substitution = outcome.build_analysis.nominal_realization.substitutions[0]
         assert substitution.method == "e_series_parallel"
-        # The table picks the same capacitors as the build.
-        table = "\n".join(render_lines(outcome, RenderOptions(eseries="E24")))
+        # The table and the chosen-parts deck pick the same capacitors as the build.
+        table = "\n".join(render_lines(outcome, RenderOptions()))
         assert re.search(r"Use: +75.00 fF \|\| 560.00 fF", table)
+        assert SUB_PF_WARNING not in export_spice(outcome, "nominal_build")
+        assert SUB_PF_WARNING in export_spice(design(_request()), "nominal_build")
 
-    def test_with_build_analysis_and_spice_combine_the_two_switches(self):
-        opted_in = BuildConfig(match_policy=MatchPolicy(allow_sub_pf=True))
-        outcome = design(_request())
+    def test_build_settings_no_longer_carry_a_second_part_policy(self):
+        """The request is the one carrier: the old build-config policy and merge are gone."""
+        import filter_lib.design as design_package
+        from filter_lib.design import design_service
 
-        combined = with_build_analysis(outcome, opted_in)
-        deck = export_spice(outcome, "nominal_build", opted_in)
-
-        assert combined.allow_sub_pf is True
-        assert combined.build_analysis.config.match_policy.allow_sub_pf is True
-        assert SUB_PF_WARNING not in deck
-        assert SUB_PF_WARNING in export_spice(outcome, "nominal_build", None)
-        assert SUB_PF_WARNING not in export_spice(
-            design(_request(allow_sub_pf=True)), "nominal_build", None
-        )
-
-    def test_apply_sub_pf_policy_keeps_other_policy_fields(self):
-        custom = BuildConfig(match_policy=MatchPolicy(prefer_single_within_pct=2.5))
-
-        updated = apply_sub_pf_policy(custom, True)
-
-        assert updated.match_policy == MatchPolicy(prefer_single_within_pct=2.5, allow_sub_pf=True)
-        assert apply_sub_pf_policy(custom, False) is custom
-        assert apply_sub_pf_policy(updated, False) is updated
-        assert apply_sub_pf_policy(None, False) is None
-        assert apply_sub_pf_policy(None, True).match_policy.allow_sub_pf is True
+        for removed in ({"match_policy": MatchPolicy(allow_sub_pf=True)}, {"eseries": "E12"}):
+            with pytest.raises(TypeError):
+                BuildConfig(**removed)
+        assert not hasattr(design_package, "with_build_analysis")
+        assert not hasattr(design_service, "with_build_analysis")
+        assert not hasattr(design_service, "apply_sub_pf_policy")
+        with pytest.raises(TypeError):
+            export_spice(design(_request()), "nominal_build", BuildConfig())

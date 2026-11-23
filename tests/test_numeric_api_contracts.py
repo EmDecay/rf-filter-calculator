@@ -218,10 +218,11 @@ def test_bandpass_synthesis_rejects_arbitrary_size_numeric_inputs(changes):
     "factory",
     [
         lambda: BuildConfig(inductor_q=HUGE_INTEGER),
-        lambda: BuildConfig(capacitor_tolerance_pct=HUGE_INTEGER),
+        lambda: BuildConfig(inductor_tolerance_pct=HUGE_INTEGER),
         lambda: BuildConfig(source_resistance_ohm=HUGE_INTEGER),
         lambda: CircuitElement("C1", 1, 0, "C", HUGE_INTEGER),
-        lambda: MatchPolicy(prefer_single_within_pct=HUGE_INTEGER),
+        lambda: MatchPolicy(tolerance_override_pct=HUGE_INTEGER),
+        lambda: MatchPolicy(stray_capacitance_f=HUGE_INTEGER),
         lambda: MatchPolicy(minimum_capacitance_f=HUGE_INTEGER),
     ],
 )

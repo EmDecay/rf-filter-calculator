@@ -9,7 +9,12 @@ from .cli_aliases import (
     DEFAULT_RESONATORS,
 )
 from .cli_validation_error import usage_error
-from .eseries import SUB_PF_CLI_FLAG
+from .eseries import (
+    CAPACITOR_GRADE_FLAG,
+    CAPACITOR_TOLERANCE_FLAG,
+    STRAY_CAPACITANCE_FLAG,
+    SUB_PF_CLI_FLAG,
+)
 
 
 def join_flags(flags: list[str], singular: str, plural: str) -> str:
@@ -22,7 +27,6 @@ def tolerance_analysis_options(args: Namespace) -> list[str]:
     return [
         flag
         for value, flag in (
-            (getattr(args, "build_capacitor_tolerance_pct", None), "--capacitor-tolerance"),
             (getattr(args, "build_inductor_tolerance_pct", None), "--inductor-tolerance"),
             (getattr(args, "build_sample_count", None), "--sample-count"),
             (getattr(args, "build_seed", None), "--seed"),
@@ -55,6 +59,9 @@ def matching_options(args: Namespace) -> list[str]:
         for enabled, flag in (
             (bool(getattr(args, "_eseries_explicit", False)), "--eseries"),
             (bool(getattr(args, "allow_sub_pf", False)), SUB_PF_CLI_FLAG),
+            (getattr(args, "capacitor_grade", None) is not None, CAPACITOR_GRADE_FLAG),
+            (getattr(args, "capacitor_tolerance_pct", None) is not None, CAPACITOR_TOLERANCE_FLAG),
+            (getattr(args, "stray_capacitance", None) is not None, STRAY_CAPACITANCE_FLAG),
         )
         if enabled
     ]
@@ -183,10 +190,13 @@ def _validate_primary_output_mode(args: Namespace) -> None:
             "--sim-matched and --sim-build cannot be used together; --sim-matched is "
             "deprecated, so use --sim-build alone",
         )
-    if sim_matched and getattr(args, "allow_sub_pf", False):
+    # The deprecated path uses only the E-series, never the capacitor policy options.
+    policy = [flag for flag in matching if flag != "--eseries"]
+    if sim_matched and policy:
         usage_error(
             args,
-            f"{SUB_PF_CLI_FLAG} cannot be used with the deprecated --sim-matched; use --sim-build",
+            f"{', '.join(policy)} cannot be used with the deprecated --sim-matched; "
+            "use --sim-build",
         )
 
 

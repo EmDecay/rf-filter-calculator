@@ -1,6 +1,89 @@
 # Project Changelog
 
-## Unreleased — Industry-Standard Filter Terms
+## Unreleased — 3.0.0 (Worst-Case Capacitor Choice, Industry-Standard Filter Terms)
+
+The next release is 3.0.0: it removes and renames public names (listed below) without
+compatibility aliases.
+
+### Capacitors chosen by their worst case within tolerance
+
+- **Changed (breaking): how standard capacitors are chosen.** Each capacitor now gets the
+  single part or parallel pair whose worst case is closest to the calculated value: each
+  candidate covers nominal − tolerance to nominal + tolerance, plus, for a pair, an assumed
+  stray across its second part; its score is the larger distance to either end. The best single
+  and best pair come from an exhaustive search over the values listed for a sourced C0G series
+  (Murata GRM1885C1H…A01; [component-data-sources.md](component-data-sources.md)), in exact
+  arithmetic; a pair wins only by at least 0.5 percentage points, ties go to the single part,
+  then the smaller ratio, then the lower value. The **1% single-part shortcut is removed** for
+  these capacitors. For 13.4744 pF the choice is 4.3 ∥ 9.1 pF (worst case 0.8756 pF) with the
+  standard grade and 2.4 ∥ 11 pF (0.4456 pF) with the tight grade.
+- A value the sourced table does not list (most E96 values, and parts above 10 nF) keeps the old
+  nominal rule and is labelled **tolerance not sourced** (status `tolerance_not_sourced`,
+  `tolerance_basis: "assumed"`, a table note, and an assumed ±5% in the build simulation).
+- **Added `--capacitor-grade standard|tight`** (wizard and web **Capacitor grade**): standard is
+  the manufacturer's standard tolerance code (±0.1/±0.25/±0.5 pF below 10 pF, ±5% from 10 pF),
+  tight one step tighter (±0.05/±0.1/±0.25 pF, ±2% to 910 pF, ±5% from 1 nF).
+- **Changed (breaking): `--capacitor-tolerance`** is now an optional matching override with no
+  default, used by every output that chooses standard values (not only `--sim-build`): each part
+  uses the larger of that percentage and its grade's tolerance, so it can only loosen the
+  grade. It joins the E-series options: refused with `--no-match`, `--quiet`, `--raw` without
+  `--sim-build`, `--plot-data`, `--explain` and an exact SPICE deck. The wizard and web field
+  moved out of the build section, is labelled **Capacitor tolerance (±%)** and is blank by
+  default.
+- **Added `--stray-capacitance`** (wizard and web **Stray capacitance per extra part**, blank =
+  0.2 pF): the assumed stray across the second part of a pair, 0 to 10 pF, labelled an
+  assumption because no source gives a pad-to-pad value.
+- The table's E-series section, JSON `standard_match.policy` and CSV `RecommendationPolicy`
+  state the rule, the grade with its tolerances, any override and the stray. JSON
+  `standard_match` gains `tolerance_basis`; `policy` loses `prefer_single_within_pct` and gains
+  `rule`, `capacitor_series`, `capacitor_grade`, `grade_tolerances`, `tolerance_override_pct`,
+  `assumed_tolerance_pct_when_not_sourced`, `stray_capacitance_f` and
+  `stray_capacitance_basis`. New `reason` values: `single_worst_case_is_best`,
+  `parallel_worst_case_materially_better`,
+  `parallel_worst_case_improvement_below_policy_threshold`.
+- **Build simulation and chosen-parts SPICE:** each part varies by its own tolerance (a
+  capacitor by its grade's or the larger override; `--inductor-tolerance` for inductors, now
+  optional with 10% for toroid windings and calculated values), and each pair gets its stray as
+  a fixed capacitor `CSTRAY_<part>` across the same terminals, never varied in the tolerance
+  cases. JSON `tolerance_analysis` replaces `capacitor_tolerance_pct` with `tolerance_source`,
+  `capacitor_grade` and `capacitor_tolerance_override_pct`; each `circuit_elements` entry gains
+  `tolerance_fraction` and `fixed`, and each substitution `stray_capacitance_f`. Making a SPICE
+  deck never runs the tolerance cases.
+- The **SPICE – calculated values** and **Response data** web downloads leave out every
+  standard-capacitor option (E-series, grade, tolerance, stray, sub-pF), as the CLI refuses them
+  with an exact deck and with `--plot-data`. The wizard's response file always reuses the
+  result shown.
+- A choice labelled "tolerance not sourced" gives each part its own tolerance: a part not in
+  the table gets the assumed 5% (or the override), a listed part keeps its grade's. CSV
+  `RecommendationPolicy` gives the grade's tolerances (`grade-tolerance=…`), the
+  `part-tolerance=larger-of-grade-and-override` rule and `not-sourced-tolerance=5%(assumed)`;
+  the chosen-parts deck's
+  `* part used:` comment adds `tolerance-not-sourced=5%-assumed` for such a choice.
+- The deprecated `--sim-matched` refuses `--capacitor-grade`, `--capacitor-tolerance` and
+  `--stray-capacitance`, as it already refused `--allow-sub-pf`.
+- **HF output changes**, each checked against a committed baseline of 45 HF designs
+  (`tests/test_hf_baseline.py`): (a) capacitor choices the worst-case rule changes (41 of 213
+  E12 and 66 of 213 E24 choices in the corpus; 196 E96 choices keep their parts and become
+  "tolerance not sourced"); (c) build-simulation numbers shifted by the stray across each pair;
+  (e) tolerance cases that use each part's own tolerance (parts below 10 pF now vary by their
+  pF tolerance instead of 5%). Calculated values, toroid suggestions, response checks and the
+  exact SPICE deck are unchanged.
+
+### Python API (breaking)
+
+- `DesignRequest` is the one carrier of the part policy and build settings: it gains
+  `eseries`, `capacitor_grade`, `capacitor_tolerance_pct`, `stray_capacitance_f`,
+  `realization` (a `BuildConfig`) and `run_build_analysis`, and loses `build`. `design()`
+  resolves one `MatchPolicy` and returns a `DesignResult` holding the `request` and
+  `match_policy`; `DesignResult` loses its `allow_sub_pf` field (now a property).
+- Removed: `with_build_analysis`, `apply_sub_pf_policy`, `BuildConfig.eseries`,
+  `BuildConfig.match_policy`, `BuildConfig.capacitor_tolerance_pct`,
+  `MatchPolicy.prefer_single_within_pct`, `RenderOptions.eseries` and
+  `RenderOptions.validate_for_sub_pf`. `export_spice(outcome, realization)` takes no config;
+  `analyze_build`, `realize_nominal_build` and `export_spice_deck` take `eseries=` and
+  `policy=`. `BuildConfig.inductor_tolerance_pct` defaults to `None`.
+- `CircuitElement` gains `tolerance` and `fixed`, and refuses a name whose first letter is not
+  its kind.
 
 ### Changed
 

@@ -20,22 +20,34 @@ from .circuit_model import CircuitElement, NamedCircuit
 MetricExtractor = Callable[[CircuitMeasurement], float | None]
 
 
-def screened_elements(circuit: NamedCircuit) -> tuple[tuple[str, str], ...]:
-    """Return physical parts so screening cases retain stable identities."""
-    return tuple((element.name, element.kind) for element in circuit.elements)
+def screened_elements(circuit: NamedCircuit) -> tuple[tuple[str, float], ...]:
+    """Return ``(name, fractional tolerance)`` of each part the tolerance cases vary.
 
-
-def component_tolerance(kind: str, config: BuildConfig) -> float:
-    """Return the configured fractional tolerance for one component kind."""
-    percentage = config.capacitor_tolerance_pct if kind == "C" else config.inductor_tolerance_pct
-    return percentage / 100.0
+    Fixed elements (assumed parasitics) are left out, so adding one never changes the
+    case list or the seeded draws of the real parts.
+    """
+    screened = []
+    for element in circuit.elements:
+        if element.fixed:
+            continue
+        if element.tolerance is None:
+            raise ValueError(f"{element.name} has no tolerance for the tolerance cases")
+        screened.append((element.name, element.tolerance))
+    return tuple(screened)
 
 
 def perturb_circuit(circuit: NamedCircuit, factors: tuple[tuple[str, float], ...]) -> NamedCircuit:
-    """Apply one factor per physical part and keep its loss model coherent."""
+    """Apply one factor per varied part and keep its loss model coherent.
+
+    A fixed element (an assumed parasitic) keeps its value even if a factor names it, and
+    so does an element without a factor.
+    """
     factor_by_name = dict(factors)
     perturbed: list[CircuitElement] = []
     for element in circuit.elements:
+        if element.fixed or element.name not in factor_by_name:
+            perturbed.append(element)
+            continue
         value = element.value * factor_by_name[element.name]
         series_resistance = element.series_resistance_ohm
         if element.quality_factor is not None:
@@ -50,30 +62,29 @@ def perturb_circuit(circuit: NamedCircuit, factors: tuple[tuple[str, float], ...
 
 
 def case_factors(
-    physical_elements: tuple[tuple[str, str], ...], config: BuildConfig
+    physical_elements: tuple[tuple[str, float], ...], config: BuildConfig
 ) -> list[tuple[str, tuple[tuple[str, float], ...]]]:
-    """Return deterministic cases followed by stable seeded uniform samples."""
-    nominal = tuple((name, 1.0) for name, _kind in physical_elements)
+    """Return deterministic cases followed by stable seeded uniform samples.
+
+    ``physical_elements`` pairs each varied part with its own fractional tolerance.
+    """
+    nominal = tuple((name, 1.0) for name, _tolerance in physical_elements)
     cases: list[tuple[str, tuple[tuple[str, float], ...]]] = [("nominal", nominal)]
     for direction, sign in (("low", -1.0), ("high", 1.0)):
         cases.append(
             (
                 f"coherent:{direction}",
-                tuple(
-                    (name, 1.0 + sign * component_tolerance(kind, config))
-                    for name, kind in physical_elements
-                ),
+                tuple((name, 1.0 + sign * tolerance) for name, tolerance in physical_elements),
             )
         )
-    for selected_name, selected_kind in physical_elements:
-        tolerance = component_tolerance(selected_kind, config)
+    for selected_name, tolerance in physical_elements:
         for direction, sign in (("low", -1.0), ("high", 1.0)):
             cases.append(
                 (
                     f"one:{selected_name}:{direction}",
                     tuple(
                         (name, 1.0 + sign * tolerance if name == selected_name else 1.0)
-                        for name, _kind in physical_elements
+                        for name, _tolerance in physical_elements
                     ),
                 )
             )
@@ -83,14 +94,8 @@ def case_factors(
             (
                 f"sample:{sample_index:04d}",
                 tuple(
-                    (
-                        name,
-                        generator.uniform(
-                            1.0 - component_tolerance(kind, config),
-                            1.0 + component_tolerance(kind, config),
-                        ),
-                    )
-                    for name, kind in physical_elements
+                    (name, generator.uniform(1.0 - tolerance, 1.0 + tolerance))
+                    for name, tolerance in physical_elements
                 ),
             )
         )

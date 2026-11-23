@@ -1,6 +1,7 @@
 """Tests for wizard state management."""
 
 from copy import deepcopy
+from dataclasses import replace
 
 import pytest
 
@@ -31,8 +32,9 @@ class TestFilterState:
         assert state.toroid_detail == "best"
         assert state.build_analysis_enabled is False
         defaults = BuildConfig()
-        assert state.build_capacitor_tolerance_pct == defaults.capacitor_tolerance_pct
-        assert state.build_inductor_tolerance_pct == defaults.inductor_tolerance_pct
+        assert state.build_inductor_tolerance_pct == defaults.inductor_tolerance_pct is None
+        assert (state.capacitor_grade, state.capacitor_tolerance_pct) == ("standard", None)
+        assert (state.capacitor_tolerance_text, state.stray_capacitance_text) == ("", "")
         assert state.build_inductor_q is None
         assert state.build_capacitor_q is None
         assert state.build_reference_frequency_hz is None
@@ -174,7 +176,8 @@ class TestFilterState:
     def test_build_config_uses_wizard_advanced_values(self):
         state = FilterState(
             eseries="E96",
-            build_capacitor_tolerance_pct=2.0,
+            capacitor_tolerance_pct=2.0,
+            capacitor_tolerance_text="2",
             build_inductor_tolerance_pct=7.5,
             build_inductor_q=120.0,
             build_capacitor_q=500.0,
@@ -189,8 +192,8 @@ class TestFilterState:
         config = state.make_build_config()
 
         assert isinstance(config, BuildConfig)
-        assert config.eseries == "E96"
-        assert config.capacitor_tolerance_pct == 2.0
+        request = replace(state, category="lowpass", frequency_hz=10e6).to_design_request()
+        assert (request.eseries, request.capacitor_tolerance_pct) == ("E96", 2.0)
         assert config.inductor_tolerance_pct == 7.5
         assert config.inductor_q == 120.0
         assert config.capacitor_q == 500.0
@@ -202,9 +205,11 @@ class TestFilterState:
         assert config.use_toroid_candidates is False
 
     def test_build_config_carries_the_q_reference_frequency(self):
-        config = FilterState(eseries="E12", build_reference_frequency_hz=7e6).make_build_config()
+        state = FilterState(eseries="E12", build_reference_frequency_hz=7e6)
+        config = state.make_build_config()
 
-        assert (config.eseries, config.reference_frequency_hz) == ("E12", 7e6)
+        request = replace(state, category="lowpass", frequency_hz=10e6).to_design_request()
+        assert (request.eseries, config.reference_frequency_hz) == ("E12", 7e6)
         assert config.resonator_q is None
 
     @pytest.mark.parametrize(
@@ -222,11 +227,11 @@ class TestFilterState:
         state = FilterState(
             category="bandpass", frequency_hz=14.175e6, bandwidth_hz=350e3, qu=200.0
         )
-        assert state.to_design_request(include_build=False).qu == 200.0
+        assert state.to_design_request().qu == 200.0
 
         state.output_format = "csv"
-        assert state.to_design_request(include_build=False).qu is None
-        assert state.json_design_request().qu == 200.0
+        assert state.to_design_request().qu is None
+        assert state.document_request("json").qu == 200.0
 
     @pytest.mark.parametrize(
         "detail, compact, full, include",

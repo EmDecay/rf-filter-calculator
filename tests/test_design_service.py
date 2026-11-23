@@ -21,9 +21,9 @@ from filter_lib.design import (
     band_from_edges,
     design,
     synthesize,
-    with_build_analysis,
 )
 from filter_lib.shared.build_types import BuildAnalysisCancelled, BuildAnalysisResult, BuildConfig
+from filter_lib.shared.eseries import DEFAULT_MATCH_POLICY
 from tests.cli_parity_helpers import cli_error_message
 
 FAST_BUILD = BuildConfig(grid_points=51)
@@ -151,27 +151,32 @@ def test_ladder_design_has_no_warnings():
     ids=["lowpass", "bandpass"],
 )
 def test_design_with_build_config_returns_the_analysis(request_factory):
-    request = dataclasses.replace(request_factory(), build=FAST_BUILD)
+    request = dataclasses.replace(
+        request_factory(), realization=FAST_BUILD, run_build_analysis=True
+    )
 
     outcome = design(request)
 
     assert isinstance(outcome.build_analysis, BuildAnalysisResult)
     assert outcome.build_analysis.category == request.category
+    assert outcome.build_analysis.config == FAST_BUILD
     assert outcome.result == synthesize(request)
+    assert outcome.request is request
 
 
-def test_with_build_analysis_keeps_the_synthesized_result():
-    outcome = design(_ladder("highpass", "chebyshev"))
+def test_build_settings_alone_do_not_run_the_build_analysis():
+    """A chosen-parts deck needs the build settings, never the tolerance cases."""
+    request = dataclasses.replace(_ladder("highpass", "chebyshev"), realization=FAST_BUILD)
 
-    analyzed = with_build_analysis(outcome, FAST_BUILD)
+    outcome = design(request)
 
-    assert analyzed.result is outcome.result
-    assert analyzed.warnings == outcome.warnings
-    assert isinstance(analyzed.build_analysis, BuildAnalysisResult)
+    assert outcome.build_analysis is None
+    assert outcome.realization == FAST_BUILD
+    assert design(_ladder("highpass", "chebyshev")).realization == BuildConfig()
 
 
 def test_cancellation_check_stops_the_build_analysis():
-    request = dataclasses.replace(_ladder("lowpass", "bessel"), build=FAST_BUILD)
+    request = dataclasses.replace(_ladder("lowpass", "bessel"), run_build_analysis=True)
 
     with pytest.raises(BuildAnalysisCancelled):
         design(request, should_cancel=lambda: True)
@@ -184,10 +189,15 @@ def test_cancellation_check_is_not_consulted_without_build():
     assert design(_ladder("lowpass", "bessel"), should_cancel=never_called).result
 
 
-def test_design_result_defaults_to_no_warnings_or_analysis():
-    outcome = DesignResult(category="lowpass", result={"order": 3})
+def test_design_result_carries_the_request_and_its_part_policy():
+    request = _ladder("lowpass", "butterworth")
 
+    outcome = design(request)
+
+    assert isinstance(outcome, DesignResult)
     assert (outcome.warnings, outcome.build_analysis) == ((), None)
+    assert (outcome.request, outcome.eseries) == (request, "E24")
+    assert outcome.match_policy == DEFAULT_MATCH_POLICY
 
 
 @pytest.mark.parametrize(
@@ -231,6 +241,16 @@ def test_design_result_defaults_to_no_warnings_or_analysis():
             "Ripple must be greater than 0 and at most 3.0 dB",
         ),
         (lambda: _bandpass(bandwidth_hz=None), "Bandwidth is required"),
+        (lambda: _ladder("lowpass", "bessel", eseries="E7"), "E-series must be E12, E24, or E96"),
+        (lambda: _ladder("lowpass", "bessel", eseries=24), "E-series must be E12, E24, or E96"),
+        (
+            lambda: _ladder("lowpass", "bessel", realization={"grid_points": 51}),
+            "realization must be a BuildConfig or None",
+        ),
+        (
+            lambda: _ladder("lowpass", "bessel", run_build_analysis=1),
+            "run_build_analysis must be on or off",
+        ),
         (lambda: _bandpass(q_safety=0.0), "Q safety factor must be positive"),
         (
             lambda: _bandpass(requested_f_low_hz=14e6),

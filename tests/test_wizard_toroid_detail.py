@@ -167,7 +167,8 @@ def test_toroid_detail_choice_flows_from_output_options_to_results():
 
             # Keyboard path: Enter from the sub-pF box lands on the toroid choice,
             # arrow keys move within it, and space selects.
-            app.screen.query_one("#allow-sub-pf").focus()
+            # Enter from the last capacitor field (the stray) moves to the toroid detail.
+            app.screen.query_one("#stray-capacitance").focus()
             await pilot.press("enter")
             assert detail.has_focus
             await pilot.press("down", "space")

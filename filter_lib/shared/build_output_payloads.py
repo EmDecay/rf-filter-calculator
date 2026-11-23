@@ -9,6 +9,7 @@ from .build_types import (
     ComponentSubstitution,
 )
 from .circuit_model import CircuitElement
+from .component_realization import inductor_case_tolerance_pct
 from .response_refinement import (
     FREQUENCY_TOLERANCE_FRACTION,
     GAIN_TOLERANCE_DB,
@@ -60,6 +61,7 @@ def _substitution_payload(substitution: ComponentSubstitution) -> dict[str, Any]
         "turns": substitution.turns,
         "wire_awg": substitution.wire_awg,
         "wire_length_mm": substitution.wire_length_mm,
+        "stray_capacitance_f": substitution.stray_capacitance_f,
         "warnings": list(substitution.warnings),
     }
 
@@ -76,6 +78,8 @@ def _element_payload(element: CircuitElement) -> dict[str, Any]:
         "series_resistance_ohm": element.series_resistance_ohm,
         "quality_factor_at_reference": element.quality_factor,
         "loss_reference_frequency_hz": element.loss_reference_frequency_hz,
+        "tolerance_fraction": element.tolerance,
+        "fixed": element.fixed,
     }
 
 
@@ -146,8 +150,11 @@ def build_analysis_fields(result: dict, analysis: BuildAnalysisResult) -> dict[s
         },
         "tolerance_analysis": {
             "method": "deterministic_corners_plus_seeded_uniform_screening",
-            "capacitor_tolerance_pct": config.capacitor_tolerance_pct,
-            "inductor_tolerance_pct": config.inductor_tolerance_pct,
+            # Each part varies by its own tolerance (circuit_elements[].tolerance_fraction).
+            "tolerance_source": "each_part",
+            "capacitor_grade": analysis.match_policy.grade,
+            "capacitor_tolerance_override_pct": analysis.match_policy.tolerance_override_pct,
+            "inductor_tolerance_pct": inductor_case_tolerance_pct(config),
             "sample_count": config.sample_count,
             "seed": config.seed,
             "grid_points": config.grid_points,

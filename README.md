@@ -12,7 +12,7 @@ Calculates LC filter component values for RF engineers and amateur radio operato
 
 - **Filter Types**: Low-pass (Pi/T topology), High-pass (Pi/T topology), Band-pass (coupled resonators, top-coupled through series capacitors, checked by circuit simulation)
 - **Response Types**: Butterworth, Chebyshev (any ripple in (0, 3] dB), Bessel. Chebyshev LP/HP cutoff is the ripple-band edge (ARRL/Elsie/Zverev convention), not the −3 dB point; band-pass `bw` is the true −3 dB bandwidth
-- **Standard Capacitor Values**: E12/E24/E96 sets how many standard values there are per decade, not the part tolerance. Each capacitor gets one choice: a single part within 1%, otherwise two in parallel if that is at least 0.5 percentage points closer. Below 1 pF no part is chosen automatically unless you turn on `--allow-sub-pf` (**Allow capacitors below 1 pF** in the wizard and web UI)
+- **Standard Capacitor Values**: E12/E24/E96 sets how many standard values there are per decade, not the part tolerance. Each capacitor gets the single part or parallel pair whose worst case is closest to the calculated value: each part at either end of its tolerance, plus an assumed stray (default 0.2 pF) across a pair; a pair only if it is at least 0.5 percentage points closer. Tolerances come from a sourced C0G series (Murata GRM1885C1H…A01, standard or tight grade, see [docs/component-data-sources.md](docs/component-data-sources.md)); a value that series does not make keeps the nominal rule and is labelled "tolerance not sourced". Below 1 pF no part is chosen automatically unless you turn on `--allow-sub-pf` (**Allow capacitors below 1 pF** in the wizard and web UI)
 - **End Coupling**: Band-pass external Q is set by series end-coupling capacitors (Ce_in/Ce_out); transformation formula built-in
 - **Checked Band-Pass Design**: Each top-coupled design places both −3 dB edges where requested, and a response check simulates the circuit to confirm the passband, outer edges, passband shape, ripple, and points just outside the passband. Rejection farther out is not checked; the attenuation at 2×f₀ and 3×f₀ and the Cohn loss estimates are reported separately
 - **Build Simulation**: `--sim-build` simulates the filter with the chosen parts (standard capacitor values and suggested toroid windings), optional part losses (Q), and tolerance cases plus repeatable extra random cases. Measurements include the exact requested band edges and say when a value did not converge or the response is above −3 dB in separate ranges
@@ -173,6 +173,9 @@ bandwidth and agree with the requested values to floating-point precision.
 | `-e, --eseries` | Standard capacitor values to choose from: E12, E24, E96 (default: E24) |
 | `--no-match` | Show only calculated capacitor values; do not choose standard values |
 | `--allow-sub-pf` | Also choose standard values for capacitors below 1 pF (table, CSV, JSON, `--sim-build`, and the `nominal-build` SPICE deck); needs an E-series |
+| `--capacitor-grade` | Tolerance grade of the standard capacitors: `standard` (default; the manufacturer's standard codes) or `tight` (one step tighter below 1000 pF; from 1000 pF both are ±5%); needs an E-series |
+| `--capacitor-tolerance` (alias `--cap-tolerance`) | Capacitor tolerance override in ± percent, 0 to under 100: each part uses the larger of this and its grade's tolerance (default: the grade's); a value the sourced table does not list uses it instead of the assumed 5% |
+| `--stray-capacitance` | Assumed stray across the second part of a parallel pair, e.g. `0.2pF`; 0 to 10 pF (default: 0.2pF, an assumption) |
 | `--raw` | Unrounded values in farads and henries (scientific notation) |
 | `-q, --quiet` | Print only the component values, one per line |
 | `--format` | Output format: table, json, csv, spice (default: table) |
@@ -184,7 +187,7 @@ bandwidth and agree with the requested values to floating-point precision.
 | `--toroid-full` | Table output: up to three toroid suggestions per inductor (default: the best one; JSON lists up to three, CSV the best) |
 | `--sim-matched` | Deprecated; use `--sim-build` |
 | `--sim-build` | Build simulation: simulate the filter with the chosen parts at nominal values and across tolerance cases, with optional part losses (Q) |
-| `--capacitor-tolerance`, `--inductor-tolerance` (aliases `--cap-tolerance`, `--ind-tolerance`) | ± percent tolerances for `--sim-build` (defaults 5 and 10); not taken from the E-series |
+| `--inductor-tolerance` (alias `--ind-tolerance`) | ± percent tolerance of every inductor in `--sim-build` (default: 10 for toroid windings and calculated values); capacitors use their own tolerances (see `--capacitor-grade`) |
 | `--inductor-q`, `--capacitor-q` | Part losses (Q) for `--sim-build` or the `nominal-build` SPICE deck |
 | `--loss-reference-frequency` | Frequency at which the Q values apply (default: cutoff or center frequency); needs a Q option |
 | `--source-resistance`, `--load-resistance` | Simulation source and load resistance; component values are still designed for equal source and load impedance |
@@ -292,7 +295,7 @@ uv run filter-calc bp bw top -f 14.175MHz -b 350kHz \
   --format spice --spice-realization nominal-build --qu 200 > filter.cir
 ```
 
-The deck prints load-node voltage. Its comment gives the transducer-gain expression; the printed voltage is not itself gain in dB. `--spice-realization nominal-build` (the default) uses the chosen parts and lists each one in a `* part used:` comment; `exact` uses the calculated values without losses. `chosen-parts` and `calculated` are the same choices under the names the web UI uses.
+The deck prints load-node voltage. Its comment gives the transducer-gain expression; the printed voltage is not itself gain in dB. `--spice-realization nominal-build` (the default) uses the chosen parts and lists each one in a `* part used:` comment; a parallel pair also gets its assumed stray as a capacitor named `CSTRAY_<part>` across the same terminals. `exact` uses the calculated values without losses. `chosen-parts` and `calculated` are the same choices under the names the web UI uses.
 
 ## Release Notes
 

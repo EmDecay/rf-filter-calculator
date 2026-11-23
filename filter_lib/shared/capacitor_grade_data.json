@@ -1,0 +1,234 @@
+{
+ "schema_version": 1,
+ "dataset": {
+  "description": "Sourced C0G capacitor tolerance grades and value coverage; see docs/component-data-sources.md (Fixed capacitors).",
+  "accessed_on": "2026-11-19"
+ },
+ "series": {
+  "manufacturer": "Murata",
+  "name": "GRM1885C1H…A01",
+  "description": "1608M (0603) C0G, DC 50 V, individual specification A01",
+  "measurement": "Room temperature; 1.0 ± 0.1 MHz up to 1000 pF, 1.0 ± 0.1 kHz from 1100 pF",
+  "temperature_coefficient": "0 ± 30 ppm/°C, on top of the tolerance",
+  "guarantee_note": "Reference sheets give the tolerance as the rated value of the part (a specification limit) and say to consult the approval sheet before ordering."
+ },
+ "sheets": {
+  "GRM1885C1HR50BA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1HR50BA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-24",
+   "sha256": "b6e524b2d6efff891c4cfccbb9e638257cadb831119f3a367004fdb327a36cf5"
+  },
+  "GRM1885C1H1R0CA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H1R0CA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-17",
+   "sha256": "b6dc743db5c455c3c332ce55de73fde46b28c4aa5ad602e3b207afc0a8b25197"
+  },
+  "GRM1885C1H4R3CA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H4R3CA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-24",
+   "sha256": "01a57c47a2f547f672aa42d124ea39f50b964a044097589b85fe7f65dd30f4c7"
+  },
+  "GRM1885C1H4R4WA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H4R4WA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-24",
+   "sha256": "27f36ff8a8a5768fbbc17eff34a088f2e4bef76426747e101ece9a22be8a1824"
+  },
+  "GRM1885C1H5R1DA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H5R1DA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-24",
+   "sha256": "7c1d392b426a2b41508fd920682357b838ec746ea1b16361c15362d601a5d0e1"
+  },
+  "GRM1885C1H9R1DA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H9R1DA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-24",
+   "sha256": "03b03666bfa6701cb46965529dc8e704ca4e0ace3f11a90a5152dd94a77d1951"
+  },
+  "GRM1885C1H100GA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H100GA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-17",
+   "sha256": "e6950bf95a3560e7fb15f5589c80a50a421e4fb7c750276ed359b786934dbcd1"
+  },
+  "GRM1885C1H100JA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H100JA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-17",
+   "sha256": "cdf2518f4ebb1a89a4c6f74ebe19cd47c6174bf239896bf36d1823614dd928e9"
+  },
+  "GRM1885C1H130JA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H130JA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-17",
+   "sha256": "80e1c596b2053dd04cd3bc6841cb827b32797413280e9a39c09bdedd8dcde195"
+  },
+  "GRM1885C1H101JA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H101JA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-17",
+   "sha256": "e40c8952c496ec7a35306361e4c7a0ee0413d2cc351c621d2d4c8468301881ed"
+  },
+  "GRM1885C1H911GA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H911GA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-24",
+   "sha256": "111387298f6c1c5896930ea9374b3fd6a464e0a1d71b2803947e1a46f8c49aa2"
+  },
+  "GRM1885C1H102JA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H102JA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-17",
+   "sha256": "7d35f9fb419533bcff55f0d8a3c9944cb1ccd776ff6993b3505244aef18e9add"
+  },
+  "GRM1885C1H112JA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H112JA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-17",
+   "sha256": "f8b89d2e26e75149ae3bdda3c525728c4fad4f13e63f01bd3a3d4f9f4a12ee12"
+  },
+  "GRM1885C1H103JA01": {
+   "url": "https://pim.murata.com/asset/pim4/ceramicCapacitorSMD/GRM1885C1H103JA01-01A-EN_PDF_CERAMICCAPACITORSMD",
+   "as_of": "2026-06-17",
+   "sha256": "3f5a339eb51502df7716dfd2d4c4e6d33e837abc0df5cb8e4fc1e6e275d09790"
+  }
+ },
+ "coverage": {
+  "fine_step": {
+   "from_pf": 0.5,
+   "to_pf": 9.9,
+   "step_pf": 0.1
+  },
+  "e24": {
+   "from_pf": 10,
+   "to_pf": 10000
+  }
+ },
+ "grades": {
+  "standard": {
+   "label": "Standard",
+   "description": "Murata's standard tolerance code for each value range",
+   "rows": [
+    {
+     "from_pf": 0.5,
+     "to_pf": 0.9,
+     "code": "B",
+     "tolerance_pf": 0.1,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1HR50BA01",
+     "range_parts": [
+      "GRM1885C1HR50BA01"
+     ]
+    },
+    {
+     "from_pf": 1.0,
+     "to_pf": 5.0,
+     "code": "C",
+     "tolerance_pf": 0.25,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1H1R0CA01",
+     "range_parts": [
+      "GRM1885C1H1R0CA01",
+      "GRM1885C1H4R3CA01"
+     ]
+    },
+    {
+     "from_pf": 5.1,
+     "to_pf": 9.9,
+     "code": "D",
+     "tolerance_pf": 0.5,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1H5R1DA01",
+     "range_parts": [
+      "GRM1885C1H5R1DA01",
+      "GRM1885C1H9R1DA01"
+     ]
+    },
+    {
+     "from_pf": 10,
+     "to_pf": 910,
+     "code": "J",
+     "tolerance_pct": 5,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1H100JA01",
+     "range_parts": [
+      "GRM1885C1H100JA01",
+      "GRM1885C1H130JA01",
+      "GRM1885C1H101JA01"
+     ]
+    },
+    {
+     "from_pf": 1000,
+     "to_pf": 10000,
+     "code": "J",
+     "tolerance_pct": 5,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1H102JA01",
+     "range_parts": [
+      "GRM1885C1H102JA01",
+      "GRM1885C1H112JA01",
+      "GRM1885C1H103JA01"
+     ]
+    }
+   ]
+  },
+  "tight": {
+   "label": "Tight",
+   "description": "The loosest of Murata's narrow tolerance codes: one step tighter than standard below 1000 pF, the same J ±5% from 1000 pF",
+   "rows": [
+    {
+     "from_pf": 0.5,
+     "to_pf": 0.9,
+     "code": "W",
+     "tolerance_pf": 0.05,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1H4R4WA01",
+     "range_parts": [
+      "GRM1885C1HR50WA01",
+      "GRM1885C1HR90WA01"
+     ]
+    },
+    {
+     "from_pf": 1.0,
+     "to_pf": 5.0,
+     "code": "B",
+     "tolerance_pf": 0.1,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1HR50BA01",
+     "range_parts": [
+      "GRM1885C1H1R0BA01",
+      "GRM1885C1H5R0BA01"
+     ]
+    },
+    {
+     "from_pf": 5.1,
+     "to_pf": 9.9,
+     "code": "C",
+     "tolerance_pf": 0.25,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1H1R0CA01",
+     "range_parts": [
+      "GRM1885C1H5R1CA01",
+      "GRM1885C1H9R9CA01"
+     ]
+    },
+    {
+     "from_pf": 10,
+     "to_pf": 910,
+     "code": "G",
+     "tolerance_pct": 2,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1H100GA01",
+     "range_parts": [
+      "GRM1885C1H100GA01",
+      "GRM1885C1H911GA01"
+     ]
+    },
+    {
+     "from_pf": 1000,
+     "to_pf": 10000,
+     "code": "J",
+     "tolerance_pct": 5,
+     "guarantee": "maximum",
+     "tolerance_sheet": "GRM1885C1H102JA01",
+     "range_parts": [
+      "GRM1885C1H102JA01",
+      "GRM1885C1H112JA01",
+      "GRM1885C1H103JA01"
+     ]
+    }
+   ]
+  }
+ }
+}

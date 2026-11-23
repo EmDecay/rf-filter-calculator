@@ -17,6 +17,8 @@ import pytest
 from filter_lib.shared.eseries import (
     DEFAULT_MATCH_POLICY,
     E_SERIES,
+    LEGACY_SINGLE_WITHIN_PCT,
+    TOLERANCE_NOT_SOURCED,
     MatchPolicy,
     find_closest_single,
     find_parallel_combo,
@@ -24,6 +26,7 @@ from filter_lib.shared.eseries import (
 )
 
 PF = 1e-12
+NF = 1e-9
 
 
 class TestPreferredValueTables:
@@ -171,10 +174,6 @@ class TestInputValidation:
     @pytest.mark.parametrize(
         ("field", "value"),
         [
-            ("prefer_single_within_pct", True),
-            ("prefer_single_within_pct", "1"),
-            ("prefer_single_within_pct", -0.001),
-            ("prefer_single_within_pct", float("inf")),
             ("min_parallel_improvement_pct_points", True),
             ("min_parallel_improvement_pct_points", -0.5),
             ("min_parallel_improvement_pct_points", float("nan")),
@@ -189,13 +188,27 @@ class TestInputValidation:
         with pytest.raises(ValueError, match=field):
             MatchPolicy(**{field: value})
 
-    def test_zero_single_part_window_is_allowed_and_always_considers_a_pair(self):
-        # 100 pF is +0.990 %, inside the default window; 24 pF + 75 pF = 99 pF is -0.020 %.
-        policy = MatchPolicy(prefer_single_within_pct=0, min_parallel_improvement_pct_points=0)
-        match = match_component(99.0197 * PF, "E24", parallel_mode="additive", policy=policy)
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("grade", "loose", "Capacitor grade must be standard or tight"),
+            ("tolerance_override_pct", 100, "Capacitor tolerance must be at least 0%"),
+            ("tolerance_override_pct", True, "Capacitor tolerance must be at least 0%"),
+            ("tolerance_override_pct", float("nan"), "Capacitor tolerance must be at least 0%"),
+            ("stray_capacitance_f", -1e-15, "Stray capacitance must be from 0 to 10 pF"),
+            ("stray_capacitance_f", 11e-12, "Stray capacitance must be from 0 to 10 pF"),
+            ("stray_capacitance_f", float("inf"), "Stray capacitance must be from 0 to 10 pF"),
+        ],
+    )
+    def test_policy_rejects_invalid_capacitor_policy(self, field, value, message):
+        with pytest.raises(ValueError, match=message):
+            MatchPolicy(**{field: value})
 
-        assert match.recommended_kind == "parallel"
-        assert match.parallel_value == pytest.approx(99 * PF, rel=1e-12, abs=0)
+    def test_the_one_percent_single_part_window_is_no_longer_an_option(self):
+        """The worst-case rule has no single-part window; the nominal rule keeps a fixed 1%."""
+        with pytest.raises(TypeError):
+            MatchPolicy(prefer_single_within_pct=0)  # type: ignore[call-arg]
+        assert LEGACY_SINGLE_WITHIN_PCT == 1.0
 
 
 class TestParallelCombinations:
@@ -324,7 +337,9 @@ class TestParallelCombinations:
         )
         assert error == pytest.approx(0.0, abs=1e-9)
 
-    @pytest.mark.parametrize("scale", [1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-6, 1.0, 1e3])
+    # At 11 pF the 1 pF part's ±0.25 pF tolerance makes another choice better under the
+    # worst-case rule; every other decade gives the same exact 10:1 pair.
+    @pytest.mark.parametrize("scale", [1e-12, 1e-11, 1e-10, 1e-9, 1e-6, 1.0, 1e3])
     def test_recommended_ten_to_one_pair_does_not_depend_on_the_decade(self, scale):
         """110·s = 10·s + 100·s exactly; E12's nearest singles, 100·s and 120·s, miss by 9.1 %.
 
@@ -447,16 +462,21 @@ class TestParallelCombinations:
 class TestRecommendationPolicy:
     def test_default_policy_contract(self):
         assert DEFAULT_MATCH_POLICY == MatchPolicy(
-            prefer_single_within_pct=1.0,
             min_parallel_improvement_pct_points=0.5,
             minimum_capacitance_f=1e-12,
             allow_sub_pf=False,
+            grade="standard",
+            tolerance_override_pct=None,
+            stray_capacitance_f=0.2e-12,
         )
 
+    # The nominal rule (single part within 1 %, else a pair 0.5 points closer) still chooses
+    # capacitors the sourced series does not make, such as these values in nF (above 10 nF).
     def test_single_part_within_one_percent_wins_even_when_a_pair_is_better(self):
-        # 100 pF is +0.990 %; 24 pF + 75 pF = 99 pF would be -0.020 %.
-        match = match_component(99.0197 * PF, "E24", parallel_mode="additive")
+        # 100 nF is +0.990 %; 24 nF + 75 nF = 99 nF would be -0.020 %.
+        match = match_component(99.0197 * NF, "E24", parallel_mode="additive")
 
+        assert match.status == TOLERANCE_NOT_SOURCED
         assert match.single_error_pct == pytest.approx(0.990005, abs=1e-6)
         assert match.parallel_improvement_pct_points == pytest.approx(0.970110, abs=1e-6)
         assert match.recommended_kind == "single"
@@ -466,15 +486,16 @@ class TestRecommendationPolicy:
         assert match.parallel is None and match.parallel_value is None
 
     def test_single_part_just_outside_one_percent_yields_to_a_better_pair(self):
-        # 100 pF is +1.010 %; 24 pF + 75 pF = 99 pF is -0.0001 %.
-        match = match_component(99.0001 * PF, "E24", parallel_mode="additive")
+        # 100 nF is +1.010 %; 24 nF + 75 nF = 99 nF is -0.0001 %.
+        match = match_component(99.0001 * NF, "E24", parallel_mode="additive")
 
+        assert match.status == TOLERANCE_NOT_SOURCED
         assert match.single_error_pct == pytest.approx(1.009999, abs=1e-6)
         assert match.recommended_kind == "parallel"
         assert match.recommendation_reason == "parallel_materially_improves_error"
         assert match.prefers_parallel is True
         assert match.selected_value == match.parallel_value
-        assert match.parallel_value == pytest.approx(99 * PF, rel=1e-12, abs=0)
+        assert match.parallel_value == pytest.approx(99 * NF, rel=1e-12, abs=0)
         assert match.selected_components == match.parallel
 
     @pytest.mark.parametrize(
@@ -490,8 +511,9 @@ class TestRecommendationPolicy:
     def test_pair_must_improve_absolute_error_by_half_a_percentage_point(
         self, target_pf, improvement, kind, reason
     ):
-        match = match_component(target_pf * PF, "E24", parallel_mode="additive")
+        match = match_component(target_pf * NF, "E24", parallel_mode="additive")
 
+        assert match.status == TOLERANCE_NOT_SOURCED
         assert match.parallel_improvement_pct_points == pytest.approx(improvement, abs=1e-6)
         assert match.recommended_kind == kind
         assert match.recommendation_reason == reason
@@ -500,22 +522,19 @@ class TestRecommendationPolicy:
             assert match.parallel_value is None
             assert match.parallel_error_pct is None
         else:
-            assert match.parallel == pytest.approx((56 * PF, 180 * PF), rel=1e-12, abs=0)
+            assert match.parallel == pytest.approx((56 * NF, 180 * NF), rel=1e-12, abs=0)
 
     def test_policy_thresholds_are_inclusive(self):
-        """A reported error or improvement exactly at a threshold satisfies it."""
-        reference = match_component(138.8 * PF, "E24", parallel_mode="additive")
-        single_error = abs(reference.single_error_pct)
+        """A reported improvement exactly at the threshold satisfies it (nominal rule)."""
+        reference = match_component(138.8 * NF, "E24", parallel_mode="additive")
         improvement = reference.parallel_improvement_pct_points
 
         def kind(**policy_fields):
             policy = MatchPolicy(**policy_fields)
             return match_component(
-                138.8 * PF, "E24", parallel_mode="additive", policy=policy
+                138.8 * NF, "E24", parallel_mode="additive", policy=policy
             ).recommended_kind
 
-        assert kind(prefer_single_within_pct=single_error) == "single"
-        assert kind(prefer_single_within_pct=math.nextafter(single_error, 0)) == "parallel"
         assert kind(min_parallel_improvement_pct_points=improvement) == "parallel"
         assert (
             kind(min_parallel_improvement_pct_points=math.nextafter(improvement, math.inf))
@@ -585,20 +604,22 @@ class TestRecommendationPolicy:
         default = match_component(1.37 * PF, "E24", parallel_mode="additive")
         assert default.recommended_kind == "single"
         assert default.selected_value == pytest.approx(1.3 * PF, rel=1e-12, abs=0)
-        assert default.recommendation_reason == "parallel_improvement_below_policy_threshold"
+        assert default.recommendation_reason == "single_worst_case_is_best"
 
+        # The series makes no sub-pF E24 value, so the pair keeps the nominal rule.
         expert = match_component(
             1.37 * PF, "E24", parallel_mode="additive", policy=MatchPolicy(allow_sub_pf=True)
         )
         assert expert.recommended_kind == "parallel"
         assert expert.parallel == pytest.approx((0.62 * PF, 0.75 * PF), rel=1e-12, abs=0)
+        assert expert.status == TOLERANCE_NOT_SOURCED
 
     def test_expert_override_selects_a_sub_pf_single_part(self):
         match = match_component(
             0.62 * PF, "E24", parallel_mode="additive", policy=MatchPolicy(allow_sub_pf=True)
         )
 
-        assert match.status == "recommended"
+        assert match.status == TOLERANCE_NOT_SOURCED
         assert match.recommended_kind == "single"
         assert match.selected_value == pytest.approx(0.62 * PF, rel=1e-12, abs=0)
 
@@ -614,14 +635,36 @@ class TestRecommendationPolicy:
 
     def test_policy_summary_describes_thresholds_and_floor(self):
         assert DEFAULT_MATCH_POLICY.summary() == (
-            "single<=1%;parallel-improvement>=0.5pp;minimum-cap=1pF"
+            "worst-case;grade=standard;"
+            "grade-tolerance=0.5-0.9pF:0.1pF/1-5pF:0.25pF/5.1-9.9pF:0.5pF/10-10000pF:5%;"
+            "part-tolerance=larger-of-grade-and-override;tolerance-override=none;"
+            "not-sourced-tolerance=5%(assumed);stray=0.2pF(assumed);"
+            "parallel-improvement>=0.5pp;minimum-cap=1pF"
         )
         expert = MatchPolicy(
-            prefer_single_within_pct=2.5, min_parallel_improvement_pct_points=0, allow_sub_pf=True
+            min_parallel_improvement_pct_points=0,
+            allow_sub_pf=True,
+            grade="tight",
+            tolerance_override_pct=3,
+            stray_capacitance_f=0,
         )
-        assert expert.summary() == "single<=2.5%;parallel-improvement>=0pp;minimum-cap=disabled"
+        assert expert.summary() == (
+            "worst-case;grade=tight;"
+            "grade-tolerance=0.5-0.9pF:0.05pF/1-5pF:0.1pF/5.1-9.9pF:0.25pF/10-910pF:2%/1000-10000pF:5%;"
+            "part-tolerance=larger-of-grade-and-override;"
+            "tolerance-override=3%;not-sourced-tolerance=3%(assumed);"
+            "stray=0pF(assumed);parallel-improvement>=0pp;minimum-cap=disabled"
+        )
         assert expert.as_dict() == {
-            "prefer_single_within_pct": 2.5,
+            "rule": "worst_case_interval",
+            "capacitor_series": "Murata GRM1885C1H…A01",
+            "capacitor_grade": "tight",
+            "grade_tolerances": "±0.05 pF (0.5–0.9 pF), ±0.1 pF (1–5 pF), ±0.25 pF "
+            "(5.1–9.9 pF), ±2% (10–910 pF), ±5% (1000–10000 pF)",
+            "tolerance_override_pct": 3,
+            "assumed_tolerance_pct_when_not_sourced": 3,
+            "stray_capacitance_f": 0,
+            "stray_capacitance_basis": "assumption",
             "min_parallel_improvement_pct_points": 0,
             "minimum_capacitance_f": 1e-12,
             "allow_sub_pf": True,

@@ -8,15 +8,11 @@ and ``filter_lib.shared.build_simulation.analyze_build`` at one place.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
-from typing import TYPE_CHECKING
 
 from ..shared.cli_aliases import DEFAULT_RIPPLE_DB
+from ..shared.eseries import MatchPolicy
 from .design_request import DesignRequest
 from .design_result import DesignResult
-
-if TYPE_CHECKING:
-    from ..shared.build_types import BuildConfig
 
 
 def _ladder_calculator(category: str, filter_type: str) -> Callable:
@@ -109,60 +105,42 @@ def synthesize(request: DesignRequest) -> dict:
     return _synthesize_ladder(request)
 
 
-def apply_sub_pf_policy(config: BuildConfig | None, allow_sub_pf: bool) -> BuildConfig | None:
-    """Return ``config`` with sub-pF selection allowed if it or ``allow_sub_pf`` allows it.
-
-    The two switches are combined, never overwritten: an explicit opt-in in
-    ``config.match_policy`` is kept even when the request's switch is off, and the
-    request's switch turns it on otherwise. Other policy fields in ``config`` are kept.
-    ``None`` stays ``None`` unless the switch is on, which needs a config to carry it.
-    """
-    if config is None:
-        if not allow_sub_pf:
-            return None
-        from ..shared.build_types import BuildConfig
-
-        config = BuildConfig()
-    if config.match_policy.allow_sub_pf or not allow_sub_pf:
-        return config
-    return replace(config, match_policy=replace(config.match_policy, allow_sub_pf=True))
-
-
-def with_build_analysis(
-    outcome: DesignResult,
-    config: BuildConfig,
-    should_cancel: Callable[[], bool] | None = None,
-) -> DesignResult:
-    """Return ``outcome`` with the realized-build analysis for ``config`` attached.
-
-    The CLI uses this to keep its historical order (synthesis, design warnings, then
-    build-option parsing and analysis); other surfaces set ``DesignRequest.build``.
-    ``should_cancel`` is polled by the analysis, which raises
-    ``BuildAnalysisCancelled`` when the check reports true. Sub-pF selection is
-    allowed when either the outcome or ``config`` allows it, and the returned outcome
-    carries that combined switch so the table picks the same capacitors as the build.
-    """
-    from ..shared.build_simulation import analyze_build
-
-    config = apply_sub_pf_policy(config, outcome.allow_sub_pf)
-    analysis = analyze_build(outcome.result, outcome.category, config, should_cancel=should_cancel)
-    return replace(
-        outcome,
-        build_analysis=analysis,
-        allow_sub_pf=config.match_policy.allow_sub_pf,
+def resolve_match_policy(request: DesignRequest) -> MatchPolicy:
+    """The capacitor match policy for ``request``; ``design()`` is its only caller."""
+    return MatchPolicy(
+        allow_sub_pf=request.allow_sub_pf,
+        grade=request.capacitor_grade,
+        tolerance_override_pct=request.capacitor_tolerance_pct,
+        stray_capacitance_f=request.stray_capacitance_f,
     )
 
 
 def design(request: DesignRequest, should_cancel: Callable[[], bool] | None = None) -> DesignResult:
-    """Synthesize ``request`` and, when ``request.build`` is set, analyze the build."""
+    """Synthesize ``request``, resolve its part policy, and run the build when asked.
+
+    The build simulation runs only when ``request.run_build_analysis`` is set;
+    ``should_cancel`` is polled by it, which raises ``BuildAnalysisCancelled`` when the
+    check reports true.
+    """
     result = synthesize(request)
-    outcome = DesignResult(
+    policy = resolve_match_policy(request)
+    analysis = None
+    if request.run_build_analysis:
+        from ..shared.build_simulation import analyze_build
+
+        analysis = analyze_build(
+            result,
+            request.category,
+            request.realization,
+            eseries=request.eseries,
+            policy=policy,
+            should_cancel=should_cancel,
+        )
+    return DesignResult(
         category=request.category,
         result=result,
+        request=request,
+        match_policy=policy,
         warnings=tuple(result.get("warnings", ())),
-        allow_sub_pf=request.allow_sub_pf
-        or (request.build is not None and request.build.match_policy.allow_sub_pf),
+        build_analysis=analysis,
     )
-    if request.build is None:
-        return outcome
-    return with_build_analysis(outcome, request.build, should_cancel)

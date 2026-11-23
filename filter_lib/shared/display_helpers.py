@@ -6,7 +6,9 @@ Provides E-series matching display, component formatting, and output formatters.
 import textwrap
 from collections.abc import Callable
 
-from .eseries import DEFAULT_MATCH_POLICY, MatchPolicy, match_component
+from .capacitor_choice import assumed_tolerance_pct
+from .capacitor_grades import SERIES, require_grade, tolerance_rule_text
+from .eseries import DEFAULT_MATCH_POLICY, TOLERANCE_NOT_SOURCED, MatchPolicy, match_component
 from .formatting import format_fixed
 
 
@@ -25,6 +27,16 @@ _USE_LABEL = "  Use:            "
 _NEAREST_LABEL = "  Nearest single: "
 # Row warnings wrap to an 80-column terminal; CSV, JSON, and SPICE keep one line.
 _WARNING_WIDTH = 80
+# The section's rule lines, as wide as its longest fixed line.
+_RULE_WIDTH = 88
+
+
+def not_sourced_note(policy: MatchPolicy) -> str:
+    """The table note under a choice whose part values the sourced table does not list."""
+    return (
+        "  Tolerance not sourced (a part is not in the sourced table): chosen by nominal "
+        f"value, ±{assumed_tolerance_pct(policy):g}% assumed for it."
+    )
 
 
 def eseries_section_lines(
@@ -33,23 +45,54 @@ def eseries_section_lines(
     """Heading, rule, and selection-rule note for the E-series section.
 
     Shared by the LP/HP and bandpass renderers so both print the same explanation.
-    The series name encodes its density (E24 has 24 values per decade), and the
-    thresholds come from the match policy that selects the rows below (the default
-    policy when ``policy`` is None).
+    The series name encodes its density (E24 has 24 values per decade); the grade,
+    its tolerances, the override and the stray come from the match policy that selects
+    the rows below (the default policy when ``policy`` is None).
     """
     policy = policy or DEFAULT_MATCH_POLICY
     values_per_decade = int(series.upper().removeprefix("E"))
+    name = component_name.lower()
     return [
         f"\n{series} Standard {component_name} Values",
         SECTION_RULE,
         f"{series} = {values_per_decade} standard values per decade; "
         "it does not set the part tolerance.",
-        f"Each {component_name.lower()} gets one choice: a single part if within "
-        f"{policy.prefer_single_within_pct:g}%, otherwise two in",
-        f"parallel if that is at least {policy.min_parallel_improvement_pct_points:g} "
-        "percentage points closer.",
+        f"Each {name} gets the single part or parallel pair whose worst case (each part at",
+        "either end of its tolerance, plus the assumed stray across a pair) is closest to",
+        "the calculated value; a pair only if it is at least "
+        f"{policy.min_parallel_improvement_pct_points:g} percentage points closer.",
+        *_policy_lines(policy),
         "",
     ]
+
+
+def _policy_lines(policy: MatchPolicy) -> list[str]:
+    """The grade, its tolerances, any override and the stray, wrapped for the table."""
+    grade = require_grade(policy.grade).label.lower()
+    if policy.tolerance_override_pct is None:
+        tolerance = f"Tolerance ({grade} grade, {SERIES.title}): "
+    else:
+        tolerance = (
+            f"Tolerance: the larger of ±{policy.tolerance_override_pct:g}% and the "
+            f"{grade} grade ({SERIES.title}): "
+        )
+    stray_pf = policy.stray_capacitance_f * 1e12
+    return [
+        *_wrap_pieces(tolerance, tolerance_rule_text(policy.grade).split(", ")),
+        f"Stray: {stray_pf:g} pF across the second part of a pair (an assumption).",
+    ]
+
+
+def _wrap_pieces(lead: str, pieces: list[str]) -> list[str]:
+    """``lead`` then ``pieces`` joined by ", ", wrapped only between pieces, ending with "."."""
+    lines = [lead.rstrip()]
+    for index, piece in enumerate(pieces):
+        piece += "." if index == len(pieces) - 1 else ","
+        if len(lines[-1]) + 1 + len(piece) <= _RULE_WIDTH:
+            lines[-1] += " " + piece
+        else:
+            lines.append(piece)
+    return lines
 
 
 def format_eseries_match(
@@ -78,12 +121,24 @@ def format_eseries_match(
     """
     match = match_component(value, series, parallel_mode=parallel_mode, policy=policy)
     single = f"{unit_formatter(match.single_value)} ({_signed_error_pct(match.single_error_pct)}%)"
+    nearest = (
+        f"{unit_formatter(match.nearest_value)} ({_signed_error_pct(match.nearest_error_pct)}%)"
+    )
+    notes = (
+        textwrap.wrap(
+            not_sourced_note(match.policy),
+            width=_WARNING_WIDTH,
+            subsequent_indent="    ",
+        )
+        if match.status == TOLERANCE_NOT_SOURCED
+        else []
+    )
 
     if match.selected_value is None:
         floor_pf = match.policy.minimum_capacitance_f * 1e12
         lines = [
             f"{_USE_LABEL}none (below {floor_pf:g} pF; see warning)",
-            f"{_NEAREST_LABEL}{single}, for reference only",
+            f"{_NEAREST_LABEL}{nearest}, for reference only",
         ]
         for warning in match.warnings:
             lines.extend(
@@ -104,8 +159,8 @@ def format_eseries_match(
             f"{unit_formatter(p1)} || {unit_formatter(p2)} "
             f"({_signed_error_pct(match.parallel_error_pct)}%)"
         )
-        return [f"{_USE_LABEL}{pair}", f"{_NEAREST_LABEL}{single}"]
-    return [f"{_USE_LABEL}{single}"]
+        return [f"{_USE_LABEL}{pair}", f"{_NEAREST_LABEL}{nearest}", *notes]
+    return [f"{_USE_LABEL}{single}", *notes]
 
 
 def format_component_value(

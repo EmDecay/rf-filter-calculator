@@ -11,7 +11,15 @@ Branch = tuple[int, int, str, float] | tuple[int, int, str, float, float]
 
 @dataclass(frozen=True)
 class CircuitElement:
-    """One finite passive component in a named circuit."""
+    """One finite passive component in a named circuit.
+
+    ``tolerance`` is the part's own fractional tolerance (0.05 for ±5%), which the
+    build simulation's tolerance cases use; ``None`` for an element that is not a
+    chosen part. A ``fixed`` element (an assumed parasitic, such as the stray
+    capacitance across a parallel pair) keeps its value in every tolerance case.
+    The first letter of ``name`` is the element's kind, so a SPICE reader sees it as
+    the element it is.
+    """
 
     name: str
     node1: int
@@ -22,6 +30,8 @@ class CircuitElement:
     logical_name: str | None = None
     quality_factor: float | None = None
     loss_reference_frequency_hz: float | None = None
+    tolerance: float | None = None
+    fixed: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -32,6 +42,14 @@ class CircuitElement:
             raise ValueError("element name must be non-empty and contain no whitespace")
         if not isinstance(self.kind, str) or self.kind not in {"C", "L", "R"}:
             raise ValueError("element kind must be 'C', 'L', or 'R'")
+        if self.name[0].upper() != self.kind:
+            raise ValueError("element name must start with the letter of its kind")
+        if self.tolerance is not None and (
+            not is_finite_real(self.tolerance) or not 0 <= self.tolerance < 1
+        ):
+            raise ValueError("element tolerance must be a fraction from 0 to under 1")
+        if not isinstance(self.fixed, bool):
+            raise ValueError("element fixed flag must be a boolean")
         if any(
             not isinstance(node, int) or isinstance(node, bool) or node < 0
             for node in (self.node1, self.node2)

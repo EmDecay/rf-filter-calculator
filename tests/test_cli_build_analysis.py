@@ -90,9 +90,14 @@ def test_sim_build_uses_accuracy_safe_default_grid(monkeypatch, capsys):
     payload = json.loads(capsys.readouterr().out, parse_constant=_reject_constant)
     tolerance = payload["tolerance_analysis"]
     assert tolerance["grid_points"] == 601
-    # The defaults advertised by --help: 5% capacitors, 10% inductors, no screening samples,
-    # equal 50-ohm evaluation ports, and a lossless build.
-    assert (tolerance["capacitor_tolerance_pct"], tolerance["inductor_tolerance_pct"]) == (5, 10)
+    # The defaults advertised by --help: each capacitor at its standard-grade tolerance,
+    # 10% inductors, no screening samples, equal 50-ohm ports, and a lossless build.
+    assert tolerance["tolerance_source"] == "each_part"
+    assert (tolerance["capacitor_grade"], tolerance["capacitor_tolerance_override_pct"]) == (
+        "standard",
+        None,
+    )
+    assert tolerance["inductor_tolerance_pct"] == 10
     assert (tolerance["sample_count"], tolerance["seed"]) == (0, 0)
     assert [case["case_id"] for case in tolerance["cases"]][0] == "nominal"
     assert not any(case["case_id"].startswith("sample:") for case in tolerance["cases"])
@@ -175,7 +180,7 @@ def test_build_controls_are_forwarded_to_analysis_json(monkeypatch, capsys):
 
     payload = json.loads(capsys.readouterr().out, parse_constant=_reject_constant)
     tolerance = payload["tolerance_analysis"]
-    assert tolerance["capacitor_tolerance_pct"] == 2.5
+    assert tolerance["capacitor_tolerance_override_pct"] == 2.5
     assert tolerance["inductor_tolerance_pct"] == 7.5
     assert tolerance["sample_count"] == 2
     assert tolerance["seed"] == 73
@@ -305,12 +310,12 @@ def test_deprecated_alias_has_json_parity_and_warning(
             "--quiet and --sim-matched cannot be used together",
         ),
         (
-            (*_LOWPASS, "--cap-tolerance", "5"),
-            "error: --capacitor-tolerance requires --sim-build\n",
+            (*_LOWPASS, "--ind-tolerance", "5"),
+            "error: --inductor-tolerance requires --sim-build\n",
         ),
         (
-            (*_LOWPASS, "--cap-tolerance", "5", "--inductor-q", "50"),
-            "--capacitor-tolerance requires --sim-build; --inductor-q requires --sim-build or "
+            (*_LOWPASS, "--ind-tolerance", "5", "--inductor-q", "50"),
+            "--inductor-tolerance requires --sim-build; --inductor-q requires --sim-build or "
             "--format spice",
         ),
         (
@@ -318,8 +323,8 @@ def test_deprecated_alias_has_json_parity_and_warning(
             "--inductor-q, --capacitor-q require --sim-build or --format spice",
         ),
         (
-            (*_LOWPASS, "--cap-tolerance", "5", "--seed", "7"),
-            "error: --capacitor-tolerance, --seed require --sim-build\n",
+            (*_LOWPASS, "--ind-tolerance", "5", "--seed", "7"),
+            "error: --inductor-tolerance, --seed require --sim-build\n",
         ),
         (
             (*_LOWPASS, "--sim-build", "--seed", "7"),
@@ -330,14 +335,47 @@ def test_deprecated_alias_has_json_parity_and_warning(
             "--spice-realization requires --format spice",
         ),
         (
-            (*_LOWPASS, "--format", "spice", "--cap-tolerance", "5"),
-            "--capacitor-tolerance applies only to --sim-build, not to a SPICE deck; remove it or "
+            (*_LOWPASS, "--format", "spice", "--ind-tolerance", "5"),
+            "--inductor-tolerance applies only to --sim-build, not to a SPICE deck; remove it or "
             "use --sim-build instead of --format spice",
         ),
         (
-            (*_LOWPASS, "--format", "spice", "--cap-tolerance", "5", "--seed", "7"),
-            "--capacitor-tolerance, --seed apply only to --sim-build, not to a SPICE deck; remove "
+            (*_LOWPASS, "--format", "spice", "--ind-tolerance", "5", "--seed", "7"),
+            "--inductor-tolerance, --seed apply only to --sim-build, not to a SPICE deck; remove "
             "them or use --sim-build instead of --format spice",
+        ),
+        (
+            (
+                *_LOWPASS,
+                "--format",
+                "spice",
+                "--spice-realization",
+                "exact",
+                "--cap-tolerance",
+                "5",
+            ),
+            "--capacitor-tolerance has no effect on an exact SPICE deck",
+        ),
+        (
+            (*_LOWPASS, "--no-match", "--capacitor-grade", "tight"),
+            "--capacitor-grade cannot be combined with --no-match",
+        ),
+        (
+            (*_LOWPASS, "--sim-matched", "--capacitor-grade", "tight", "--stray-capacitance", "0"),
+            "--capacitor-grade, --stray-capacitance cannot be used with the deprecated "
+            "--sim-matched; use --sim-build",
+        ),
+        (
+            (*_LOWPASS, "--sim-matched", "--cap-tolerance", "8"),
+            "--capacitor-tolerance cannot be used with the deprecated --sim-matched",
+        ),
+        (
+            (*_LOWPASS, "-q", "--stray-capacitance", "0pF"),
+            "--stray-capacitance has no effect with --quiet",
+        ),
+        (
+            (*_LOWPASS, "--plot-data", "json", "--cap-tolerance", "3"),
+            "--plot-data prints only frequency-response data; remove --capacitor-tolerance",
         ),
         (
             (*_LOWPASS, "--format", "spice", "--no-match"),

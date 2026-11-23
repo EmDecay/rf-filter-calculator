@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .circuit_model import NamedCircuit
-from .eseries import DEFAULT_MATCH_POLICY, E_SERIES, MatchPolicy
+from .eseries import MatchPolicy
 from .numeric import is_finite_real, positive_geometric_mean
 from .physical_input_limits import require_component_q
 
@@ -31,13 +31,21 @@ def require_seed_with_samples(seed: int, sample_count: int) -> None:
         raise ValueError(SEED_NEEDS_SAMPLES_MESSAGE)
 
 
+# The inductor tolerance of a toroid winding or a calculated value when none is entered.
+DEFAULT_INDUCTOR_TOLERANCE_PCT = 10.0
+
+
 @dataclass(frozen=True)
 class BuildConfig:
-    """Inputs controlling nominal realization and bounded screening."""
+    """Inputs controlling nominal realization and bounded screening.
 
-    eseries: str = "E24"
-    capacitor_tolerance_pct: float = 5.0
-    inductor_tolerance_pct: float = 10.0
+    The standard capacitor series and match policy are design inputs, not build
+    settings: ``design()`` resolves them once and passes them with this config.
+    """
+
+    # None: each part's own tolerance; the toroid windings and calculated values use
+    # ``DEFAULT_INDUCTOR_TOLERANCE_PCT``. A value applies to every inductor.
+    inductor_tolerance_pct: float | None = None
     inductor_q: float | None = None
     capacitor_q: float | None = None
     resonator_q: float | None = None
@@ -48,19 +56,12 @@ class BuildConfig:
     seed: int = 0
     grid_points: int = 601
     use_toroid_candidates: bool = True
-    match_policy: MatchPolicy = field(default_factory=lambda: DEFAULT_MATCH_POLICY)
 
     def __post_init__(self) -> None:
         # Messages use plain labels, not field names: the wizard and web show them as-is.
-        if not isinstance(self.eseries, str) or self.eseries not in E_SERIES:
-            raise ValueError("E-series must be E12, E24, or E96")
-        for name, label in (
-            ("capacitor_tolerance_pct", "Capacitor tolerance"),
-            ("inductor_tolerance_pct", "Inductor tolerance"),
-        ):
-            value = getattr(self, name)
-            if not is_finite_real(value) or not 0 <= value < 100:
-                raise ValueError(f"{label} must be at least 0% and less than 100%")
+        value = self.inductor_tolerance_pct
+        if value is not None and (not is_finite_real(value) or not 0 <= value < 100):
+            raise ValueError("Inductor tolerance must be at least 0% and less than 100%")
         for name, label in (
             ("inductor_q", "Inductor Q"),
             ("capacitor_q", "Capacitor Q"),
@@ -104,8 +105,6 @@ class BuildConfig:
             )
         if not isinstance(self.use_toroid_candidates, bool):
             raise ValueError("use_toroid_candidates must be boolean")
-        if not isinstance(self.match_policy, MatchPolicy):
-            raise ValueError("match_policy must be a MatchPolicy")
 
 
 def resolve_build_config(config: object) -> BuildConfig:
@@ -156,6 +155,9 @@ class ComponentSubstitution:
     # exact-value fallbacks.
     wire_awg: int | None = None
     wire_length_mm: float | None = None
+    # The assumed stray across a parallel pair, simulated as a fixed capacitor across the
+    # same terminals; None when there is no pair or the stray is zero.
+    stray_capacitance_f: float | None = None
 
 
 @dataclass(frozen=True)
@@ -234,6 +236,8 @@ class BuildAnalysisResult:
 
     category: str
     config: BuildConfig
+    eseries: str
+    match_policy: MatchPolicy
     source_resistance_ohm: float
     load_resistance_ohm: float
     gain_metric: str

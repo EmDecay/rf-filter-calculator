@@ -65,7 +65,13 @@ def test_bandpass_deck_maps_every_element_name_once(realization):
         for pair in names_line.removeprefix("* names: ").split()
         for name in pair.split("=")[0].split("+")
     ]
-    assert sorted(mapped) == sorted(_deck_element_names(deck))
+    # The assumed stray across a pair is not a part: its own comment names it instead.
+    strays = [name for name in _deck_element_names(deck) if name.startswith("CSTRAY_")]
+    parts = [name for name in _deck_element_names(deck) if not name.startswith("CSTRAY_")]
+    assert sorted(mapped) == sorted(parts)
+    for stray in strays:
+        assert f"* stray: {stray} is the assumed stray across this pair" in deck
+    assert bool(strays) is (realization == "nominal_build")
     assert "CT1=Cp1" in names_line and "LT1=L1" in names_line and "COUT" in names_line
 
 
@@ -76,7 +82,8 @@ def test_parallel_sub_pf_parts_are_grouped_under_one_table_name():
         result,
         "bandpass",
         realization="nominal_build",
-        config=BuildConfig(match_policy=MatchPolicy(allow_sub_pf=True)),
+        config=BuildConfig(),
+        policy=MatchPolicy(allow_sub_pf=True),
     )
 
     assert "CK1A+CK1B=Cs12" in deck

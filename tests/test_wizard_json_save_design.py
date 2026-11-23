@@ -14,14 +14,15 @@ from textual.widgets import RadioButton, RadioSet
 
 from filter_lib.wizard.app import FilterWizardApp
 from filter_lib.wizard.screens.results import (
-    JSON_NOT_SAVED_PREFIX,
-    PREPARING_JSON_MESSAGE,
+    PREPARING_FILES_MESSAGE,
     ResultsScreen,
+    not_saved_prefix,
 )
-from filter_lib.wizard.state import FilterState
+from filter_lib.wizard.state import JSON_DOCUMENT, FilterState
 from tests.cli_parity_helpers import cli_stdout
 
 _LOWPASS_ARGV = ("lowpass", "butterworth", "pi", "10MHz", "-n", "3")
+JSON_NOT_SAVED_PREFIX = not_saved_prefix(JSON_DOCUMENT)
 
 
 def _csv_with_ticked_build(**overrides) -> FilterState:
@@ -95,7 +96,7 @@ def test_a_disabled_build_reaches_the_saved_json_calculated_on_save(monkeypatch,
     saved = list(tmp_path.glob("lowpass-*.json"))
     assert len(saved) == 1
     assert saved[0].read_text(encoding="utf-8") == expected
-    assert notices[0] == ("information", PREPARING_JSON_MESSAGE)
+    assert notices[0] == ("information", PREPARING_FILES_MESSAGE)
     assert notices[-1][1].startswith("Saved to ")
 
 
@@ -131,7 +132,7 @@ def test_unreadable_hidden_build_fields_are_reported_when_the_json_is_saved(monk
     assert [path.name.endswith("-response.json") for path in tmp_path.iterdir()] == [True]
     assert ("error", f"{JSON_NOT_SAVED_PREFIX}{message}") in notices
     # Refused before any calculation started, so no "Preparing" notice.
-    assert ("information", PREPARING_JSON_MESSAGE) not in notices
+    assert ("information", PREPARING_FILES_MESSAGE) not in notices
 
 
 def test_a_json_that_needs_no_design_of_its_own_saves_without_a_worker(
@@ -145,4 +146,28 @@ def test_a_json_that_needs_no_design_of_its_own_saves_without_a_worker(
 
     saved = list(tmp_path.glob("lowpass-*.json"))
     assert [path.read_text(encoding="utf-8") for path in saved] == [expected]
-    assert ("information", PREPARING_JSON_MESSAGE) not in notices
+    assert ("information", PREPARING_FILES_MESSAGE) not in notices
+
+
+def test_an_unused_invalid_capacitor_field_blocks_only_the_file_that_uses_it(
+    monkeypatch, capsys, tmp_path
+):
+    """Values only leaves the tolerance field out; the JSON uses it, the response data never."""
+    monkeypatch.chdir(tmp_path)
+    message = "Capacitor tolerance must be a number"
+    state = _csv_with_ticked_build(
+        output_format="table",
+        quiet=True,
+        build_analysis_enabled=False,
+        capacitor_tolerance_text="bad",
+        capacitor_input_error=message,
+        export_format="csv",
+    )
+    expected_response = cli_stdout(monkeypatch, capsys, *_LOWPASS_ARGV, "--plot-data", "csv")
+
+    notices = _save_json(state)
+
+    assert list(tmp_path.glob("*.json")) == []
+    responses = list(tmp_path.glob("lowpass-*-response.csv"))
+    assert [path.read_text(encoding="utf-8") for path in responses] == [expected_response]
+    assert ("error", f"{JSON_NOT_SAVED_PREFIX}{message}") in notices

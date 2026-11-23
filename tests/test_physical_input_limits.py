@@ -95,3 +95,18 @@ class TestPortResistance:
             raised.value
         )
         assert "inf" not in str(raised.value)
+
+
+@pytest.mark.parametrize("value", [0, 0.0, 0.2e-12, 10e-12])
+def test_stray_capacitance_range_accepts_zero_to_ten_picofarads(value):
+    from filter_lib.shared.physical_input_limits import require_stray_capacitance
+
+    assert require_stray_capacitance(value) == value
+
+
+@pytest.mark.parametrize("value", [-1e-15, 10.0001e-12, math.inf, math.nan, True, "0.2pF", None])
+def test_stray_capacitance_range_refuses_everything_else(value):
+    from filter_lib.shared.physical_input_limits import require_stray_capacitance
+
+    with pytest.raises(ValueError, match="^Stray capacitance must be from 0 to 10 pF$"):
+        require_stray_capacitance(value)

@@ -23,8 +23,8 @@ def test_blank_fields_take_the_cli_defaults():
     assert request.impedance == float(DEFAULT_IMPEDANCE)
     assert request.order == DEFAULT_COMPONENTS
     assert request.ripple_db == DEFAULT_RIPPLE_DB
-    assert request.build is None
-    assert parsed.options.eseries == DEFAULT_ESERIES
+    assert request.run_build_analysis is False
+    assert request.eseries == DEFAULT_ESERIES
     assert parsed.options.output_format == "table"
     assert (parsed.options.include_toroids, parsed.options.toroid_full) == (True, False)
     assert parsed.svg_plot is False
@@ -80,12 +80,13 @@ def test_checked_boxes_are_recognized(value):
 
 
 def test_build_fields_are_ignored_until_the_build_section_is_enabled():
-    form = {"frequency": "1MHz", "build_capacitor_tolerance_pct": "not a number", "eseries": "E96"}
+    form = {"frequency": "1MHz", "build_inductor_tolerance_pct": "not a number", "eseries": "E96"}
 
     parsed = parse_design_form("lowpass", form)
 
-    assert parsed.request.build is None
-    assert parsed.spice_config == BuildConfig(eseries="E96")
+    assert parsed.request.run_build_analysis is False
+    assert parsed.request.eseries == "E96"
+    assert parsed.request.realization == BuildConfig()
 
 
 def test_build_fields_follow_make_build_config():
@@ -93,7 +94,7 @@ def test_build_fields_follow_make_build_config():
         "frequency": "10MHz",
         "eseries": "E12",
         "sim_build": "on",
-        "build_capacitor_tolerance_pct": "2",
+        "capacitor_tolerance_pct": "2",
         "build_inductor_tolerance_pct": "",
         "build_inductor_q": "150",
         "build_source_resistance": "1k",
@@ -104,12 +105,12 @@ def test_build_fields_follow_make_build_config():
         "toroid_build": "off",
     }
 
-    config = parse_design_form("lowpass", form).request.build
+    request = parse_design_form("lowpass", form).request
 
-    assert config == BuildConfig(
-        eseries="E12",
-        capacitor_tolerance_pct=2.0,
-        inductor_tolerance_pct=10.0,
+    assert (request.eseries, request.run_build_analysis) == ("E12", True)
+    assert request.capacitor_tolerance_pct == 2.0
+    assert request.realization == BuildConfig(
+        inductor_tolerance_pct=None,
         inductor_q=150.0,
         source_resistance_ohm=1000.0,
         reference_frequency_hz=5e6,
@@ -123,7 +124,7 @@ def test_build_fields_follow_make_build_config():
 def test_no_toroids_also_disables_toroid_substitution():
     form = {"frequency": "10MHz", "sim_build": "on", "toroids": "none"}
 
-    assert parse_design_form("lowpass", form).request.build.use_toroid_candidates is False
+    assert parse_design_form("lowpass", form).request.realization.use_toroid_candidates is False
 
 
 @pytest.mark.parametrize("category", ["lowpass", "highpass", "bandpass"])
@@ -133,7 +134,7 @@ def test_fresh_form_defaults_parse_into_a_valid_design(category):
     parsed = parse_design_form(category, defaults)
 
     assert parsed.svg_plot is True
-    assert parsed.options.eseries == DEFAULT_ESERIES
+    assert parsed.request.eseries == DEFAULT_ESERIES
     assert defaults["impedance"] == DEFAULT_IMPEDANCE
 
 

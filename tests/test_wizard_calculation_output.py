@@ -15,6 +15,7 @@ import pytest
 from textual.widgets import RadioSet
 
 from filter_lib.bandpass.display import format_eseries_lines
+from filter_lib.shared.eseries import MatchPolicy
 from filter_lib.wizard.calculation_handler import calculate_and_format
 from filter_lib.wizard.export_formatting import format_component_csv, format_component_json
 from filter_lib.wizard.filter_type_calculators import (
@@ -23,9 +24,8 @@ from filter_lib.wizard.filter_type_calculators import (
     calculate_highpass,
     calculate_lowpass,
 )
-from filter_lib.wizard.formatting_helpers import format_bandpass_table
 from filter_lib.wizard.radio_button_helpers import get_selected_radio
-from filter_lib.wizard.state import FilterState
+from filter_lib.wizard.state import JSON_DOCUMENT, FilterState
 
 LP_HP = {"lowpass": calculate_lowpass, "highpass": calculate_highpass}
 CALCULATORS = {**LP_HP, "bandpass": calculate_bandpass}
@@ -249,13 +249,30 @@ def test_bandpass_recommendations_choose_no_part_below_one_picofarad():
 
     output = "\n".join(format_eseries_lines(result, "E24"))
 
-    assert "Each capacitor gets one choice" in output
+    assert "Each capacitor gets the single part or parallel pair" in output
     assert "  Use:            none (below 1 pF; see warning)" in output
     assert ", for reference only" in output
     assert (
         "  Warning: Below 1 pF no part is chosen automatically. Choose one manually, or" in output
     )
     assert '           turn on "Allow capacitors below 1 pF" (--allow-sub-pf).' in output
+
+
+def format_bandpass_table(result: dict, state: FilterState) -> list[str]:
+    """The band-pass table for ``result`` with the wizard's table options.
+
+    Synthetic results never pass through ``design()``, so this calls the one band-pass
+    table renderer the wizard's Results path uses, with the wizard's choices.
+    """
+    from filter_lib.bandpass.display import format_table_lines
+
+    return format_table_lines(
+        result,
+        raw=state.raw_units,
+        eseries=None if state.eseries == "none" else state.eseries,
+        show_plot=state.show_plot,
+        match_policy=MatchPolicy(allow_sub_pf=state.allow_sub_pf),
+    )
 
 
 class TestFormatBandpassTable:
@@ -311,16 +328,15 @@ class TestFormatBandpassTable:
         ]
 
     def test_sub_pf_switch_reaches_the_e_series_rows(self):
-        """The helper carries the wizard's sub-pF switch, like the Results path."""
-        from filter_lib.bandpass import calculate_bandpass_filter
-
+        """The wizard's sub-pF switch reaches the E-series rows through the Results path."""
         # 500 MHz, 10 MHz wide: the coupling and end capacitors are below 1 pF.
-        result = calculate_bandpass_filter(500e6, 10e6, 50, 3, "butterworth", "top")
-        state = FilterState(show_plot=False, eseries="E24")
+        state = _state(
+            "bandpass", frequency_hz=500e6, bandwidth_hz=10e6, eseries="E24", show_plot=False
+        )
 
-        default = "\n".join(format_bandpass_table(result, state))
+        default = calculate_and_format(state).output_text
         state.allow_sub_pf = True
-        allowed = "\n".join(format_bandpass_table(result, state))
+        allowed = calculate_and_format(state).output_text
 
         assert "Below 1 pF no part is chosen automatically" in default
         assert "Below 1 pF no part is chosen automatically" not in allowed
@@ -463,7 +479,7 @@ class TestCalculateAndFormat:
         assert outcome.output_text == plain.output_text
         # A ticked build still reaches the saved JSON when its series allows it; that
         # design is calculated when the JSON is saved, never for the result shown.
-        assert state.json_needs_own_design() is (overrides.get("eseries") != "none")
+        assert state.needs_own_design(JSON_DOCUMENT) is (overrides.get("eseries") != "none")
 
     @pytest.mark.parametrize("output_format", ["csv", "quiet"])
     def test_a_disabled_build_that_cannot_run_never_fails_the_result(self, output_format):
@@ -480,11 +496,11 @@ class TestCalculateAndFormat:
 
         assert outcome.succeeded, outcome.error
         assert outcome.build_analysis is None
-        assert state.json_needs_own_design()
+        assert state.needs_own_design(JSON_DOCUMENT)
         with pytest.raises(ValueError, match="frequency at which the Q values apply"):
             from filter_lib.design import design
 
-            design(state.json_design_request())
+            design(state.document_request(JSON_DOCUMENT))
 
 
 class TestGetSelectedRadio:

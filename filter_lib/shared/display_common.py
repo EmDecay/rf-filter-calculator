@@ -70,11 +70,12 @@ def build_standard_match(
     standard: dict = {
         "series": eseries,
         "nearest": {
-            unit_key: match.single_value,
-            "error_pct": match.single_error_pct,
+            unit_key: match.nearest_value,
+            "error_pct": match.nearest_error_pct,
         },
         "policy": match.policy.as_dict(),
         "status": match.status,
+        "tolerance_basis": _tolerance_basis(match),
         "selected": None,
         "reason": match.recommendation_reason,
         "warnings": list(match.warnings),
@@ -101,6 +102,13 @@ def build_standard_match(
         standard["selected"] = {"kind": "parallel", **standard["parallel"]}
 
     return standard
+
+
+def _tolerance_basis(match) -> str | None:
+    """``sourced`` (grade table), ``assumed`` (tolerance not sourced), or None (no part)."""
+    if match.tolerance_sourced is None:
+        return None
+    return "sourced" if match.tolerance_sourced else "assumed"
 
 
 def json_component(
@@ -147,7 +155,7 @@ def csv_match_fields(
         return []
 
     match = match_component(value, eseries, parallel_mode=parallel_mode, policy=policy)
-    nearest_fmt = formatter(match.single_value)
+    nearest_fmt = formatter(match.nearest_value)
     nearest_val, nearest_unit = split_value_unit(nearest_fmt)
 
     parallel_vals = ""
@@ -161,7 +169,7 @@ def csv_match_fields(
     selected_values = ""
     selected_error = ""
     if match.recommended_kind == "single":
-        selected_values = nearest_fmt
+        selected_values = formatter(match.single_value)
         selected_error = format_fixed(match.single_error_pct, 1)
     elif match.prefers_parallel:
         selected_values = parallel_vals
@@ -170,7 +178,7 @@ def csv_match_fields(
     return [
         nearest_val,
         nearest_unit,
-        format_fixed(match.single_error_pct, 1),
+        format_fixed(match.nearest_error_pct, 1),
         parallel_vals,
         parallel_err,
         eseries,

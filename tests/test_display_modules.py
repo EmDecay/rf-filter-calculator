@@ -25,6 +25,7 @@ from filter_lib.shared.display_common import (
     print_header,
 )
 from filter_lib.shared.display_helpers import format_eseries_match
+from filter_lib.shared.eseries import DEFAULT_MATCH_POLICY
 from filter_lib.shared.formatting import format_capacitance
 from filter_lib.shared.topology_diagrams import (
     format_pi_topology_diagram,
@@ -217,18 +218,25 @@ def test_json_rejects_non_finite_component_instead_of_emitting_nan(lowpass_resul
 
 class TestStandardMatchRecommendationMetadata:
     def test_single_within_one_percent_is_the_explicit_selection(self):
-        data = build_standard_match(100.9e-12, "E24", "value_farads", "additive")
+        """Above 10 nF the series makes no part, so the nominal rule's 1 % window applies."""
+        data = build_standard_match(100.9e-9, "E24", "value_farads", "additive")
 
-        assert data["status"] == "recommended"
+        assert data["status"] == "tolerance_not_sourced"
+        assert data["tolerance_basis"] == "assumed"
         assert data["selected"]["kind"] == "single"
-        assert data["selected"]["value_farads"] == pytest.approx(100e-12, rel=1e-9, abs=0)
+        assert data["selected"]["value_farads"] == pytest.approx(100e-9, rel=1e-9, abs=0)
         assert "parallel" not in data
-        assert data["policy"] == {
-            "prefer_single_within_pct": 1.0,
-            "min_parallel_improvement_pct_points": 0.5,
-            "minimum_capacitance_f": 1e-12,
-            "allow_sub_pf": False,
-        }
+        assert data["policy"] == DEFAULT_MATCH_POLICY.as_dict()
+
+    def test_sourced_choice_is_marked_sourced(self):
+        data = build_standard_match(13.4744e-12, "E24", "value_farads", "additive")
+
+        assert (data["status"], data["tolerance_basis"]) == ("recommended", "sourced")
+        assert [part["value_farads"] for part in data["selected"]["components"]] == pytest.approx(
+            [4.3e-12, 9.1e-12], rel=1e-12, abs=0
+        )
+        # The nearest single stays the reference value, as before.
+        assert data["nearest"]["value_farads"] == pytest.approx(13e-12, rel=1e-12, abs=0)
 
     def test_material_parallel_pair_is_the_explicit_selection(self):
         data = build_standard_match(138.8e-12, "E24", "value_farads", "additive")
@@ -269,16 +277,17 @@ class TestNegativeZeroErrorText:
         single = format_eseries_match(35.71e-12, "E96", format_capacitance, "additive")
         parallel = format_eseries_match(184.91e-12, "E96", format_capacitance, "additive")
 
-        assert single == ["  Use:            35.70 pF (0.0%)"]
+        # E96 35.7 pF is not a value the sourced series makes, hence the note lines.
+        assert single[0] == "  Use:            35.70 pF (0.0%)"
         # 54.9 + 130 and 30.9 + 154 are both exactly 184.9 pF; the tie goes to the more
         # balanced pair.
         assert parallel[0] == "  Use:            54.90 pF || 130.00 pF (0.0%)"
 
     def test_table_positive_error_that_rounds_to_zero_is_also_unsigned(self):
         # 35.69 pF -> E96 35.7 pF is +0.028 %; a sign is shown only on a nonzero rendering.
-        assert format_eseries_match(35.69e-12, "E96", format_capacitance, "additive") == [
+        assert format_eseries_match(35.69e-12, "E96", format_capacitance, "additive")[0] == (
             "  Use:            35.70 pF (0.0%)"
-        ]
+        )
         assert format_eseries_match(318.31e-12, "E24", format_capacitance, "additive")[1] == (
             "  Nearest single: 330.00 pF (+3.7%)"
         )

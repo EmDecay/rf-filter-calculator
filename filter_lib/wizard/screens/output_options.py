@@ -16,18 +16,32 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Checkbox, Footer, Input, RadioButton, RadioSet, Static
 
+from ...design.capacitor_policy_inputs import (
+    CAPACITOR_GRADE_LABEL,
+    GRADE_CHOICES,
+    GRADE_HELP,
+    STRAY_FIELD_HELP,
+    STRAY_FIELD_LABEL,
+    TOLERANCE_FIELD_HELP,
+    TOLERANCE_FIELD_LABEL,
+    parse_stray_field,
+    parse_tolerance_field,
+)
 from ...design.option_applicability import (
     ALLOW_SUB_PF,
     BUILD,
+    CAPACITOR_GRADE,
+    CAPACITOR_TOLERANCE,
     ESERIES,
     LOSS_Q,
     RAW_UNITS,
+    STRAY_CAPACITANCE,
     TEXT_PLOT,
     TOROID_BUILD,
     TOROID_DETAIL,
 )
 from ...shared.cli_aliases import DEFAULT_ESERIES
-from ...shared.eseries import SUB_PF_OPTION_LABEL
+from ...shared.eseries import DEFAULT_STRAY_CAPACITANCE_F, SUB_PF_OPTION_LABEL
 from ..build_options import (
     BUILD_FIELDS,
     BUILD_INPUT_FLOW,
@@ -92,6 +106,9 @@ RAW_UNITS_HELP = (
 OPTION_WIDGETS = {
     ESERIES: ("#eseries",),
     ALLOW_SUB_PF: ("#allow-sub-pf",),
+    CAPACITOR_GRADE: ("#capacitor-grade",),
+    CAPACITOR_TOLERANCE: ("#capacitor-tolerance",),
+    STRAY_CAPACITANCE: ("#stray-capacitance",),
     TOROID_DETAIL: ("#toroid-full", "#toroid-compact"),
     TEXT_PLOT: ("#plot",),
     RAW_UNITS: ("#raw",),
@@ -104,6 +121,9 @@ FOCUS_FLOW = (
     "#format",
     "#eseries",
     "#allow-sub-pf",
+    "#capacitor-grade",
+    "#capacitor-tolerance",
+    "#stray-capacitance",
     "#toroid-detail",
     "#plot",
     "#raw",
@@ -116,7 +136,11 @@ FOCUS_FLOW = (
 BUILD_SECTION = frozenset(
     {*(f"#{input_id}" for input_id in BUILD_INPUT_FLOW), "#build-use-toroids"}
 )
-ENTER_ADVANCES = frozenset(FOCUS_FLOW) - BUILD_SECTION - {"#results-btn"} | {"#build-use-toroids"}
+# The capacitor text fields advance on Enter like the build fields (Input.Submitted).
+POLICY_INPUTS = ("#capacitor-tolerance", "#stray-capacitance")
+ENTER_ADVANCES = frozenset(FOCUS_FLOW) - BUILD_SECTION - set(POLICY_INPUTS) - {"#results-btn"} | {
+    "#build-use-toroids"
+}
 
 
 def reason_id(option: str) -> str:
@@ -165,6 +189,19 @@ class OutputOptionsScreen(Screen):
                 yield Checkbox(SUB_PF_OPTION_LABEL, state.allow_sub_pf, id="allow-sub-pf")
                 yield Static(SUB_PF_HELP, classes="field-help")
                 yield _reason(ALLOW_SUB_PF)
+
+                yield Static(CAPACITOR_GRADE_LABEL, classes="field-label")
+                yield _radio_set("capacitor-grade", GRADE_CHOICES, state.capacitor_grade, "grade-")
+                yield Static(GRADE_HELP, classes="field-help")
+                yield _reason(CAPACITOR_GRADE)
+                yield Static(TOLERANCE_FIELD_LABEL, classes="field-label")
+                yield Input(state.capacitor_tolerance_text, id="capacitor-tolerance")
+                yield Static(TOLERANCE_FIELD_HELP, classes="field-help")
+                yield _reason(CAPACITOR_TOLERANCE)
+                yield Static(STRAY_FIELD_LABEL, classes="field-label")
+                yield Input(state.stray_capacitance_text, id="stray-capacitance")
+                yield Static(STRAY_FIELD_HELP, classes="field-help")
+                yield _reason(STRAY_CAPACITANCE)
 
                 yield Static("Toroid windings (table detail)", classes="field-label")
                 yield _radio_set("toroid-detail", TOROID_CHOICES, state.toroid_detail, "toroid-")
@@ -233,6 +270,10 @@ class OutputOptionsScreen(Screen):
         state.quiet = output_format == "quiet"
         state.eseries = get_selected_radio(self, "eseries") or DEFAULT_ESERIES
         state.allow_sub_pf = self.query_one("#allow-sub-pf", Checkbox).value
+        grade = (get_selected_radio(self, "capacitor-grade") or "").removeprefix("grade-")
+        state.capacitor_grade = grade if grade == "tight" else "standard"
+        state.capacitor_tolerance_text = self.query_one("#capacitor-tolerance", Input).value
+        state.stray_capacitance_text = self.query_one("#stray-capacitance", Input).value
         toroid = get_selected_radio(self, "toroid-detail").removeprefix("toroid-")
         state.toroid_detail = toroid if toroid in ("full", "compact", "none") else "best"
         state.show_plot = self.query_one("#plot", Checkbox).value
@@ -292,8 +333,8 @@ class OutputOptionsScreen(Screen):
 
     @on(Input.Submitted)
     def _on_build_input_submitted(self, event: Input.Submitted) -> None:
-        """Advance through the build fields without trapping keyboard users."""
-        if event.input.id in BUILD_INPUT_FLOW:
+        """Advance through the text fields without trapping keyboard users."""
+        if event.input.id in BUILD_INPUT_FLOW or f"#{event.input.id}" in POLICY_INPUTS:
             self._focus_after(f"#{event.input.id}")
 
     def on_key(self, event) -> None:
@@ -334,16 +375,15 @@ class OutputOptionsScreen(Screen):
         state: FilterState = self.app.filter_state
         state.invalidate_calculation()
         self._store_choices(state)
+        if not self._store_capacitor_fields(state):
+            return
 
         values = self._build_values()
         state.build_field_text = {
             input_id: self.query_one(f"#{input_id}", Input).value for input_id in BUILD_INPUT_FLOW
         }
-        # The series here only validates; each output picks its own.
-        eseries = DEFAULT_ESERIES if state.eseries == "none" else state.eseries
         try:
             build_config = parse_build_config(
-                eseries,
                 values,
                 design_impedance=state.impedance,
                 resonator_q_supplied=state.has_resonator_q,
@@ -365,6 +405,45 @@ class OutputOptionsScreen(Screen):
 
         self.app.push_screen(ResultsScreen())
 
+    def _store_capacitor_fields(self, state: FilterState) -> bool:
+        """Read the capacitor tolerance and stray fields; False when one is refused.
+
+        A field the result uses is refused, focused, with the CLI's message. A field it
+        does not use (its control is disabled) is kept as typed, and a saved file that
+        uses it reports the problem.
+        """
+        reasons = state.option_reasons()
+        state.capacitor_input_error = None
+        for selector, option, parse, text, name, default in (
+            (
+                "#capacitor-tolerance",
+                CAPACITOR_TOLERANCE,
+                parse_tolerance_field,
+                state.capacitor_tolerance_text,
+                "capacitor_tolerance_pct",
+                None,
+            ),
+            (
+                "#stray-capacitance",
+                STRAY_CAPACITANCE,
+                parse_stray_field,
+                state.stray_capacitance_text,
+                "stray_capacitance_f",
+                DEFAULT_STRAY_CAPACITANCE_F,
+            ),
+        ):
+            try:
+                value = parse(text)
+            except ValueError as error:
+                if option not in reasons:
+                    self.notify(str(error), severity="error")
+                    self.query_one(selector, Input).focus()
+                    return False
+                state.capacitor_input_error = str(error)
+                value = default
+            setattr(state, name, value)
+        return True
+
     def _build_values(self) -> BuildOptionValues:
         """The build fields as typed, in form order."""
 
@@ -372,7 +451,6 @@ class OutputOptionsScreen(Screen):
             return self.query_one(f"#{input_id}", Input).value.strip()
 
         return BuildOptionValues(
-            capacitor_tolerance=text("build-capacitor-tolerance"),
             inductor_tolerance=text("build-inductor-tolerance"),
             inductor_q=text("build-inductor-q"),
             capacitor_q=text("build-capacitor-q"),

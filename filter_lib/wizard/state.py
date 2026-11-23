@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Literal
 
 from filter_lib.shared.build_types import BuildConfig
 from filter_lib.shared.cli_aliases import DEFAULT_ESERIES, DEFAULT_RIPPLE_DB
+from filter_lib.shared.eseries import DEFAULT_STRAY_CAPACITANCE_F
 
 from .state_design_inputs import (
     CSV_DOCUMENT,
@@ -66,6 +67,8 @@ class CalculationOutcome:
     result: dict = field(default_factory=dict)
     error: str | None = None
     build_analysis: BuildAnalysisResult | None = None
+    # The shared design result shown (request, part policy, result, build).
+    design: DesignResult | None = None
 
     @property
     def succeeded(self) -> bool:
@@ -114,6 +117,16 @@ class FilterState(DesignInputsMixin):
     eseries: str = DEFAULT_ESERIES  # E12, E24, E96, or "none"
     # "Allow capacitors below 1 pF" (CLI --allow-sub-pf).
     allow_sub_pf: bool = False
+    # Capacitor grade (CLI --capacitor-grade), tolerance override (--capacitor-tolerance,
+    # None = the grade's) and the assumed stray (--stray-capacitance). The two typed
+    # fields are kept as typed; ``capacitor_input_error`` says why one cannot be read
+    # when the result did not use it (a saved file that uses it reports it).
+    capacitor_grade: str = "standard"
+    capacitor_tolerance_pct: float | None = None
+    stray_capacitance_f: float = DEFAULT_STRAY_CAPACITANCE_F
+    capacitor_tolerance_text: str = ""
+    stray_capacitance_text: str = ""
+    capacitor_input_error: str | None = None
     # "table", "quiet" (Values only), "json", or "csv".
     output_format: str = "table"
     # Text plot in the table (CLI --plot), off by default as in the CLI and web.
@@ -130,8 +143,7 @@ class FilterState(DesignInputsMixin):
     # Optional build simulation, off by default; the other values are the CLI's
     # defaults (``BuildConfig``) and map one-to-one onto it.
     build_analysis_enabled: bool = False
-    build_capacitor_tolerance_pct: float = _BUILD_DEFAULTS.capacitor_tolerance_pct
-    build_inductor_tolerance_pct: float = _BUILD_DEFAULTS.inductor_tolerance_pct
+    build_inductor_tolerance_pct: float | None = _BUILD_DEFAULTS.inductor_tolerance_pct
     build_inductor_q: float | None = None
     build_capacitor_q: float | None = None
     build_reference_frequency_hz: float | None = None
@@ -158,9 +170,13 @@ class FilterState(DesignInputsMixin):
     calculation_status: CalculationStatus = "idle"
     calculation_error: str | None = None
     build_analysis: BuildAnalysisResult | None = None
-    # The design of the saved JSON when it uses a build or resonator Q the result shown
-    # did not (``json_needs_own_design``). Calculated only when that JSON is saved.
-    json_design: DesignResult | None = None
+    # The shared design result shown; a saved document whose design request equals its
+    # request reuses it.
+    design_outcome: DesignResult | None = None
+    # Designs of saved documents whose request differs from the result's (for example a
+    # JSON that uses a build the result shown did not), keyed by document. Calculated
+    # only when that document is saved (``needs_own_design``).
+    document_designs: dict[str, DesignResult] = field(default_factory=dict)
     # Incremented before every calculation and whenever design inputs change.
     # Worker results publish only when their captured revision is still current.
     calculation_revision: int = 0
@@ -181,7 +197,8 @@ class FilterState(DesignInputsMixin):
         self.calculation_status = status
         self.calculation_error = None
         self.build_analysis = None
-        self.json_design = None
+        self.design_outcome = None
+        self.document_designs = {}
 
     def invalidate_calculation(self) -> None:
         """Synchronously invalidate output after any design input change."""
@@ -204,6 +221,7 @@ class FilterState(DesignInputsMixin):
         output_text: str,
         result: dict,
         build_analysis: BuildAnalysisResult | None = None,
+        design: DesignResult | None = None,
     ) -> bool:
         """Publish a successful outcome if its revision is still current."""
         if revision != self.calculation_revision or self.calculation_status != "pending":
@@ -212,9 +230,16 @@ class FilterState(DesignInputsMixin):
             self.publish_error(revision, INTERNAL_NO_RESULT_MESSAGE)
             return False
         self.output_text = output_text
-        self.result = deepcopy(result)
-        self.build_analysis = deepcopy(build_analysis)
-        self.json_design = None
+        if design is None:
+            self.result = deepcopy(result)
+            self.build_analysis = deepcopy(build_analysis)
+            self.design_outcome = None
+        else:
+            # One copy: the stored result and build analysis are the design result's own.
+            self.design_outcome = deepcopy(design)
+            self.result = self.design_outcome.result
+            self.build_analysis = self.design_outcome.build_analysis
+        self.document_designs = {}
         self.calculation_status = "success"
         self.calculation_error = None
         return True
@@ -226,7 +251,8 @@ class FilterState(DesignInputsMixin):
         self.result = {}
         self.output_text = ""
         self.build_analysis = None
-        self.json_design = None
+        self.design_outcome = None
+        self.document_designs = {}
         self.calculation_status = "error"
         self.calculation_error = error
         return True
